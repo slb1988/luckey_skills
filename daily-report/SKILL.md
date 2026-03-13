@@ -15,6 +15,22 @@ tags: [Daily-Report, ActivityWatch, Obsidian, Automation, Productivity]
 - "daily report"
 - "write daily note"
 
+## 输入参数（ARGUMENTS）
+
+调用时可附带飞书日报总结作为参数，格式不限（自由文本、分点、表格均可）。内容通常包含：
+- 当日工作时段、参与群聊数
+- 主要工作成果分类（性能优化、UI问题、项目管理等）
+- 具体技术事项、协作人员、沟通结论
+
+**有参数时**：将飞书内容作为第三路数据源，与 ActivityWatch（时长/行为证据）和 P4（代码变更证据）三路合并，互相补充：
+- 飞书提供**工作内容语义**（做了什么、结论是什么）
+- AW 提供**时间分配佐证**（花了多久、用了什么工具）
+- P4 提供**代码变更记录**（提交了什么、改了哪些文件）
+
+**无参数时**：仅用 AW + P4 数据生成条目。
+
+---
+
 ## 工作流
 
 ### Step 1 — 确定日期
@@ -130,32 +146,52 @@ for e in json.load(sys.stdin)[0]:
 
 ---
 
-### Step 4 — 分析活动，生成 DailySucc 条目
+### Step 4 — 三路合并，生成 DailySucc 条目
 
-合并 Step 2（ActivityWatch）和 Step 3（P4）的数据，按以下规则生成条目。
+将以下三路数据合并，生成不重复、有实质内容的条目：
 
-**ActivityWatch 数据分类**（每条 duration > 5min 才记录）：
+| 数据源 | 作用 |
+|--------|------|
+| 飞书参数（ARGUMENTS） | 工作内容语义：做了什么、讨论了什么、结论是什么 |
+| ActivityWatch（Step 2） | 时间佐证：花了多久、用了什么工具 |
+| P4 提交（Step 3） | 代码变更：提交了什么、改了哪些文件 |
+
+**合并规则**：
+
+1. **飞书提到、AW 有时长佐证** → 合并为一条，时长写入括号，如：
+   ```
+   - ✅ **联机调试**：排查 DS 连接问题，验证服务器配置（UnrealEditor + DSDemoServer 约 63 分钟）
+   ```
+
+2. **飞书提到、AW 无对应记录** → 仍写入，不加时长，如：
+   ```
+   - ✅ **项目管理**：与朱伟杰规划性能检测每日扫描需求，推进联机 bug 修复机制
+   ```
+
+3. **AW 有记录、飞书未提及** → 按 AW 数据写入（duration > 5min 才记录），如：
+   ```
+   - ✅ **技术研究**：研究 UE5 Steam 专用服务器联机方案（YouTube 视频约 72 分钟）
+   ```
+
+4. **P4 提交** → 每条单独列出，放在所有活动条目之后：
+   ```
+   - ✅ **P4 提交 [服务器名] CL XXXXX**：[描述摘要，30字以内]（涉及 N 个文件）
+   ```
+
+**ActivityWatch app 分类参考**（duration > 5min 才记录）：
 
 | 分类 | 识别关键词 |
 |------|-----------|
 | P4/版本控制 | `p4v.exe`, `P4Merge`, `BeyondCompare`, `p4` in title |
 | 编译/构建 | `devenv.exe` + build/compile, TeamCity, UGS |
 | 代码编辑 | `Code.exe`, `devenv.exe` + 代码文件名 |
-| 工具配置 | 安装程序、Settings、配置类窗口 |
-| 沟通协作 | 飞书、Outlook、浏览器+会议/meeting |
-| 文档/规划 | Obsidian, Notion, Word, 浏览器+文档 |
+| UE 编辑器 | `UnrealEditor.exe`, `DSDemoServer.exe`, `ProjectLungfishGame.exe` |
+| 终端/自动化 | `WindowsTerminal.exe`（结合 title 描述具体任务） |
+| 沟通协作 | `Feishu.exe`, `Weixin.exe`, 浏览器+会议 |
+| 技术研究 | 浏览器 + YouTube/文档/技术博客 title |
+| 文档/规划 | `Obsidian.exe`, `notepad++.exe`, 浏览器+文档 |
 
-ActivityWatch 条目格式：
-```
-- ✅ **[分类]**：[具体描述，30字以内]
-```
-
-**P4 数据条目**（来自 Step 3，格式见 `references/p4-changelist.md`）：
-```
-- ✅ **P4 提交 [服务器名] CL XXXXX**：[描述摘要，30字以内]（涉及 N 个文件）
-```
-
-**排列顺序**：ActivityWatch 条目在前，P4 条目在后，P4 按服务器分组相邻排列。
+**排列顺序**：工作活动条目（按重要性/时长降序）在前，P4 条目在后，P4 按服务器分组相邻排列。
 
 若 AW 数据不完整（如未运行全天），在 DailySucc 末尾注明：
 ```
@@ -164,7 +200,48 @@ ActivityWatch 条目格式：
 
 ---
 
-### Step 5 — 写入日记文件
+### Step 5 — 生成 App 使用时长表格
+
+在 DailySucc 之后，追加 `## App 使用时长` 区块。
+
+**数据来源**：Step 2c 的全量 app 聚合结果。
+
+**规则**：
+- 按时长降序排列
+- **排除** `LockApp.exe`（锁屏，非活动时间）
+- 时长 < 2min 的条目忽略
+- 游戏类 app（如 `Hearthstone.exe`）**保留**，分类标注 `🎮 游戏`
+
+**分类参考**：
+
+| 分类 | 常见 app |
+|------|---------|
+| 🎮 游戏 | Hearthstone.exe、任何游戏进程 |
+| 浏览器 | chrome.exe、msedge.exe |
+| UE 编辑器 | UnrealEditor.exe、DSDemoServer.exe、ProjectLungfishGame.exe、DSDemo.exe |
+| 沟通协作 | Feishu.exe、Weixin.exe、WeChatAppEx.exe、Outlook.exe |
+| 终端/自动化 | WindowsTerminal.exe、cmd.exe |
+| 代码编辑 | devenv.exe、Code.exe、notepad++.exe、rider64.exe |
+| P4/版本控制 | p4v.exe、p4merge.exe、BeyondCompare4.exe |
+| 工具 | RDCMan.exe、GitHubDesktop.exe、UnrealGameSync.exe |
+| 文档/规划 | Obsidian.exe、WINWORD.EXE |
+| 系统 | explorer.exe、Taskmgr.exe |
+
+**输出格式**：
+
+```markdown
+## App 使用时长
+
+| 时长 | 应用 | 分类 |
+|-----:|------|------|
+| 138m | Hearthstone.exe | 🎮 游戏 |
+| 125m | chrome.exe | 浏览器 |
+| ...  | ...  | ...  |
+```
+
+---
+
+### Step 6 — 写入日记文件
 
 **先读取模板文件**，以模板为基准写入日记，避免格式随 Skill 版本漂移：
 
@@ -176,15 +253,17 @@ Read: luckey/Templates/DailyNoteTemplate.md
 按模板内容写入，替换规则：
 - `{{date}}` → 实际日期（`YYYY-MM-DD`）
 - `## DailySucc` 下方的占位行 → Step 4 生成的条目逐行列出
+- `## DailySucc` 区块末尾追加 Step 5 生成的 `## App 使用时长` 表格
 - 其余区块（`## 长期目标` / `## 昨日 Review` / `## Delay` / `## TODO` 及子分区）**保持原样，不填内容**
 
 严格保留模板中的空行和 HTML 标签格式。
 
 ---
 
-### Step 6 — 确认完成
+### Step 7 — 确认完成
 
 告知用户：
 - 写入路径
 - DailySucc 共几条
+- App 使用时长表格共几条
 - 数据覆盖时段（如果有限）
