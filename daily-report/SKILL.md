@@ -66,9 +66,30 @@ curl -s "http://localhost:5600/api/0/query/" \
 
 ---
 
-### Step 3 — 分析活动，生成 DailySucc 条目
+### Step 3 — 采集 P4 提交记录
 
-从 ActivityWatch 数据中按以下规则分类（每条 duration > 5min 才记录）：
+对三个服务器分别执行查询（详细命令见 `references/p4-changelist.md`）：
+
+| 服务器 | 用户 | 说明 |
+|--------|------|------|
+| 192.168.2.236:1666 | sunlaibing | 公司项目仓库 |
+| 192.168.2.13:1666  | admin_sun  | 内网 CICD |
+| 116.232.109.35:32768 | admin    | 个人服务器 |
+
+每个服务器执行：
+1. `p4 -p <server> changes -u <user> -s submitted @YYYY/MM/DD,@YYYY/MM/DD+1` — 获取当日 CL 列表
+2. `p4 -p <server> describe -s <CL>` — 获取每条 CL 的描述和文件列表
+
+按服务器分组，整理为结构化摘要供 Step 4 使用。
+若某服务器连接失败，跳过并在日记中标注 `（连接失败）`。
+
+---
+
+### Step 4 — 分析活动，生成 DailySucc 条目
+
+合并 Step 2（ActivityWatch）和 Step 3（P4）的数据，按以下规则生成条目。
+
+**ActivityWatch 数据分类**（每条 duration > 5min 才记录）：
 
 | 分类 | 识别关键词 |
 |------|-----------|
@@ -79,57 +100,44 @@ curl -s "http://localhost:5600/api/0/query/" \
 | 沟通协作 | 飞书、Outlook、浏览器+会议/meeting |
 | 文档/规划 | Obsidian, Notion, Word, 浏览器+文档 |
 
-输出格式：
+ActivityWatch 条目格式：
 ```
 - ✅ **[分类]**：[具体描述，30字以内]
 ```
 
-若数据不完整（如 AW 未运行全天），在 DailySucc 末尾注明：
+**P4 数据条目**（来自 Step 3，格式见 `references/p4-changelist.md`）：
+```
+- ✅ **P4 提交 [服务器名] CL XXXXX**：[描述摘要，30字以内]（涉及 N 个文件）
+```
+
+**排列顺序**：ActivityWatch 条目在前，P4 条目在后，P4 按服务器分组相邻排列。
+
+若 AW 数据不完整（如未运行全天），在 DailySucc 末尾注明：
 ```
 > 数据覆盖时段：HH:MM — HH:MM
 ```
 
 ---
 
-### Step 4 — 写入日记文件
+### Step 5 — 写入日记文件
 
-按以下模板写入，**严格保留空行和 HTML 标签格式**：
+**先读取模板文件**，以模板为基准写入日记，避免格式随 Skill 版本漂移：
 
-```markdown
-create time: YYYY-MM-DD
-
-## 长期目标
-
-## 昨日 Review
-
-## Delay
-
-## TODO
-
-### <font color="#ff0000">重要且紧急</font>
-- [
-### <font color="#00b0f0">重要不紧急</font>
-- [
-### <font color="#f79646">不重要紧急</font>
-- [
-### 不重要不紧急
-- [
-
-
-***
-
-## DailySucc
-{Step 3 生成的条目逐行列出}
+```bash
+# 读取最新模板
+Read: luckey/Templates/DailyNoteTemplate.md
 ```
 
-注意：
-- `## 长期目标` / `## 昨日 Review` / `## Delay` / `## TODO` 及其子分区**留空**（不填内容）
-- TODO 子分区的 `- [` 保持原样（Obsidian checkbox 占位符）
-- `***` 上方保留两个空行
+按模板内容写入，替换规则：
+- `{{date}}` → 实际日期（`YYYY-MM-DD`）
+- `## DailySucc` 下方的占位行 → Step 4 生成的条目逐行列出
+- 其余区块（`## 长期目标` / `## 昨日 Review` / `## Delay` / `## TODO` 及子分区）**保持原样，不填内容**
+
+严格保留模板中的空行和 HTML 标签格式。
 
 ---
 
-### Step 5 — 确认完成
+### Step 6 — 确认完成
 
 告知用户：
 - 写入路径
