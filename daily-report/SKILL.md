@@ -35,30 +35,69 @@ luckey\301 Daily Notes\YYYY-MM-DD.md
 
 ### Step 2 — 查询 ActivityWatch
 
-**方式 A：curl（优先）**
+> **重要**：ActivityWatch API 会返回 308 重定向，curl 必须加 `-L` 跟随重定向，否则返回空响应导致 JSON 解析失败。
+
+**步骤 2a：确认 hostname（用于 bucket 名）**
 
 ```bash
-# 2a. 确认 hostname（用于 bucket 名）
 hostname
+```
 
-# 2b. 列出所有 bucket，找 aw-watcher-window_<hostname>
-curl -s http://localhost:5600/api/0/buckets
+**步骤 2b：列出所有 bucket，确认 aw-watcher-window_\<hostname\> 存在**
 
-# 2c. 查询今日窗口活动（将 YYYY-MM-DD 和 <hostname> 替换为实际值）
-curl -s "http://localhost:5600/api/0/query/" \
+```bash
+# 注意：必须用 -sL（-L 跟随 308 重定向）
+curl -sL http://localhost:5600/api/0/buckets/ \
+  | python -c "import json,sys; [print(k) for k in json.load(sys.stdin).keys()]"
+```
+
+**步骤 2c：查询各 app 总时长（先全量，排除非工作 app）**
+
+```bash
+curl -sL "http://localhost:5600/api/0/query/" \
   -X POST -H "Content-Type: application/json" \
   -d '{
     "timeperiods": ["YYYY-MM-DDT00:00:00+08:00/YYYY-MM-DDT23:59:59+08:00"],
     "query": [
       "events = query_bucket(\"aw-watcher-window_<hostname>\");",
-      "events = filter_keyvals(events, \"app\", [\"chrome.exe\",\"Code.exe\",\"devenv.exe\",\"p4v.exe\",\"rider64.exe\",\"notepad++.exe\"]);",
+      "events = merge_events_by_keys(events, [\"app\"]);",
+      "RETURN = sort_by_duration(events);"
+    ]
+  }' | python -c "
+import json, sys
+for e in json.load(sys.stdin)[0]:
+    mins = int(e['duration'] // 60)
+    if mins >= 2:
+        print(f'{mins:4d}m  [{e[\"data\"].get(\"app\",\"\")}]')
+"
+```
+
+**步骤 2d：查询工作相关 app 的详细 title（duration > 5min 才记录）**
+
+```bash
+# 常见工作相关 app 列表（可按实际输出调整）
+curl -sL "http://localhost:5600/api/0/query/" \
+  -X POST -H "Content-Type: application/json" \
+  -d '{
+    "timeperiods": ["YYYY-MM-DDT00:00:00+08:00/YYYY-MM-DDT23:59:59+08:00"],
+    "query": [
+      "events = query_bucket(\"aw-watcher-window_<hostname>\");",
+      "events = filter_keyvals(events, \"app\", [\"chrome.exe\",\"Code.exe\",\"devenv.exe\",\"p4v.exe\",\"rider64.exe\",\"notepad++.exe\",\"p4merge.exe\",\"BeyondCompare4.exe\",\"UnrealEditor.exe\",\"obsidian.exe\",\"Feishu.exe\",\"WindowsTerminal.exe\",\"GitHubDesktop.exe\",\"RDCMan.exe\",\"UnrealGameSync.exe\"]);",
       "events = merge_events_by_keys(events, [\"app\", \"title\"]);",
       "RETURN = sort_by_duration(events);"
     ]
-  }'
+  }' | python -c "
+import json, sys
+for e in json.load(sys.stdin)[0]:
+    dur = e['duration']
+    if dur >= 300:
+        app = e['data'].get('app','')
+        title = e['data'].get('title','')
+        print(f'{int(dur//60):4d}m  [{app}]  {title[:80]}')
+"
 ```
 
-**方式 B：Playwright fallback（curl 失败时）**
+**方式 B：Playwright fallback（curl 仍失败时）**
 
 用 `mcp__playwright__browser_navigate` 访问 `http://localhost:5600`，截图后手动读取 bucket 数据。
 
@@ -73,12 +112,18 @@ curl -s "http://localhost:5600/api/0/query/" \
 | 服务器 | 用户 | 说明 |
 |--------|------|------|
 | 192.168.2.236:1666 | sunlaibing | 公司项目仓库 |
-| 192.168.2.13:1666  | admin_sun  | 内网 CICD |
+| 192.168.2.13:1666  | admin_sun  | 内网 CICD（**Unicode 服务器，需加 `P4CHARSET=utf8`**） |
 | 116.232.109.35:32768 | admin    | 个人服务器 |
 
 每个服务器执行：
 1. `p4 -p <server> changes -u <user> -s submitted @YYYY/MM/DD,@YYYY/MM/DD+1` — 获取当日 CL 列表
 2. `p4 -p <server> describe -s <CL>` — 获取每条 CL 的描述和文件列表
+
+> **192.168.2.13 专用命令**（必须带 `P4CHARSET=utf8`，否则报 "Unicode server permits only unicode enabled clients" 并退出）：
+> ```bash
+> P4CHARSET=utf8 p4 -p 192.168.2.13:1666 -u admin_sun changes -s submitted @YYYY/MM/DD,@YYYY/MM/DD+1
+> P4CHARSET=utf8 p4 -p 192.168.2.13:1666 -u admin_sun describe -s <CL>
+> ```
 
 按服务器分组，整理为结构化摘要供 Step 4 使用。
 若某服务器连接失败，跳过并在日记中标注 `（连接失败）`。
