@@ -25,15 +25,18 @@ obsidian vault=luckey vault
 ## Usage Pattern
 
 ```bash
-obsidian <command> [options]
-obsidian vault=luckey <command> [options]   # target specific vault
+obsidian vault=luckey <command> [options]
 ```
+
+> **默认 vault：`luckey`**（`D:\Github\ObsidianVault\luckey`）
+> 所有命令均以 `vault=luckey` 为前缀，路径均相对于该 vault 根目录。
 
 Notes:
 - `file=<name>` resolves by name (like wikilinks); `path=<path>` is exact (`folder/note.md`)
 - Most commands default to the active file when `file`/`path` is omitted
 - Quote values with spaces: `name="My Note"`
 - Use `\n` for newline, `\t` for tab in content values
+- Default vault is `luckey`; omit `vault=luckey` only if the vault is already active in Obsidian
 
 ---
 
