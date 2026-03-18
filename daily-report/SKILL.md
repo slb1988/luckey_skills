@@ -200,7 +200,59 @@ for e in json.load(sys.stdin)[0]:
 
 ---
 
-### Step 5 — 生成 App 使用时长表格
+### Step 5 — 推断上下班时间
+
+查询 `aw-watcher-afk_<hostname>` 的 `not-afk` 事件，合并连续活跃段（间隔 < 60 分钟视为同一段），推断上下班时间：
+
+```bash
+curl -sL "http://localhost:5600/api/0/query/" \
+  -X POST -H "Content-Type: application/json" \
+  -d '{
+    "timeperiods": ["YYYY-MM-DDT00:00:00+08:00/YYYY-MM-DDT23:59:59+08:00"],
+    "query": [
+      "events = query_bucket(\"aw-watcher-afk_<hostname>\");",
+      "events = filter_keyvals(events, \"status\", [\"not-afk\"]);",
+      "RETURN = events;"
+    ]
+  }' | python -c "
+import json, sys
+from datetime import datetime, timezone, timedelta
+
+tz = timezone(timedelta(hours=8))
+events = json.load(sys.stdin)[0]
+events.sort(key=lambda e: e['timestamp'])
+
+segments = []
+for e in events:
+    start = datetime.fromisoformat(e['timestamp'].replace('Z','+00:00')).astimezone(tz)
+    end = start + timedelta(seconds=e['duration'])
+    if segments and (start - segments[-1][1]).total_seconds() < 3600:
+        segments[-1] = (segments[-1][0], max(end, segments[-1][1]))
+    else:
+        segments.append((start, end))
+
+for s, e in segments:
+    dur = int((e - s).total_seconds() // 60)
+    print(f'{s.strftime(\"%H:%M\")} - {e.strftime(\"%H:%M\")}  ({dur}m)')
+"
+```
+
+**判断规则**：
+- **上班时间**：第一个 not-afk 段的开始时间
+- **下班时间**：找最长的连续工作段（通常从上班时间延伸到傍晚 18:00–20:00），该段的结束时间即为下班时间
+- 晚上 20:00 之后的零散活跃段（< 60 分钟）视为下班后活动，不计入下班时间
+
+**输出格式**（追加在 `## App 使用时长` 表格之后）：
+
+```markdown
+## 工作时间
+
+上班：HH:MM　下班：HH:MM
+```
+
+---
+
+### Step 6 — 生成 App 使用时长表格
 
 在 DailySucc 之后，追加 `## App 使用时长` 区块。
 
@@ -241,7 +293,7 @@ for e in json.load(sys.stdin)[0]:
 
 ---
 
-### Step 6 — 写入日记文件
+### Step 7 — 写入日记文件
 
 **先读取模板文件**，以模板为基准写入日记，避免格式随 Skill 版本漂移：
 
@@ -253,17 +305,18 @@ Read: luckey/Templates/DailyNoteTemplate.md
 按模板内容写入，替换规则：
 - `{{date}}` → 实际日期（`YYYY-MM-DD`）
 - `## DailySucc` 下方的占位行 → Step 4 生成的条目逐行列出
-- `## DailySucc` 区块末尾追加 Step 5 生成的 `## App 使用时长` 表格
+- `## DailySucc` 区块末尾依次追加 Step 6 生成的 `## App 使用时长` 表格，再追加 Step 5 生成的 `## 工作时间` 区块
 - 其余区块（`## 长期目标` / `## 昨日 Review` / `## Delay` / `## TODO` 及子分区）**保持原样，不填内容**
 
 严格保留模板中的空行和 HTML 标签格式。
 
 ---
 
-### Step 7 — 确认完成
+### Step 8 — 确认完成
 
 告知用户：
 - 写入路径
 - DailySucc 共几条
 - App 使用时长表格共几条
+- 上班/下班时间
 - 数据覆盖时段（如果有限）
