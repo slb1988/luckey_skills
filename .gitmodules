@@ -7,3 +7,6 @@
 [submodule "huashu-design"]
 	path = huashu-design
 	url = https://github.com/alchaincyf/huashu-design.git
+[submodule "diagram-design"]
+	path = diagram-design
+	url = https://github.com/cathrynlavery/diagram-design.git

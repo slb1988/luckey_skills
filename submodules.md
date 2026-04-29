@@ -7,6 +7,7 @@
 | `axton-obsidian-visual-skills` | https://github.com/axtonliu/axton-obsidian-visual-skills.git |
 | `notebooklm-py` | https://github.com/teng-lin/notebooklm-py.git |
 | `huashu-design` | https://github.com/alchaincyf/huashu-design.git |
+| `diagram-design` | https://github.com/cathrynlavery/diagram-design.git |
 
 ## 添加子模块
 
