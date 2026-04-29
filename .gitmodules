@@ -4,3 +4,6 @@
 [submodule "notebooklm-py"]
 	path = notebooklm-py
 	url = https://github.com/teng-lin/notebooklm-py.git
+[submodule "huashu-design"]
+	path = huashu-design
+	url = https://github.com/alchaincyf/huashu-design.git
