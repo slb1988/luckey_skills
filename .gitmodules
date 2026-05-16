@@ -10,3 +10,6 @@
 [submodule "diagram-design"]
 	path = diagram-design
 	url = https://github.com/cathrynlavery/diagram-design.git
+[submodule "frontend-slides"]
+	path = frontend-slides
+	url = https://github.com/zarazhangrui/frontend-slides.git
