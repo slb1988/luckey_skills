@@ -9,6 +9,7 @@
 | `huashu-design` | https://github.com/alchaincyf/huashu-design.git |
 | `diagram-design` | https://github.com/cathrynlavery/diagram-design.git |
 | `frontend-slides` | https://github.com/zarazhangrui/frontend-slides.git |
+| `ai-morning-brief` | https://github.com/EA-Studio-SHARK/ai-morning-brief |
 
 ## 添加子模块
 
