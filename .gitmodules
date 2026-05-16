@@ -13,3 +13,6 @@
 [submodule "frontend-slides"]
 	path = frontend-slides
 	url = https://github.com/zarazhangrui/frontend-slides.git
+[submodule ".claude/skills/ai-morning-brief"]
+	path = .claude/skills/ai-morning-brief
+	url = https://github.com/EA-Studio-SHARK/ai-morning-brief
