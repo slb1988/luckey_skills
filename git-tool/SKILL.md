@@ -1,17 +1,99 @@
 ---
 name: git-tool
-description: Git 仓库全量更新工具，将主仓库和所有 git submodule 递归更新到远端最新状态。当用户说 "git-tool update"、"git-tool sync"、"更新仓库"、"同步 submodule"、"git 更新"、"pull 最新"、"更新所有 submodule" 时触发。出现冲突或错误时立即中断，给出具体的手动解决命令。
+description: Git 仓库工具，支持两个命令：(1) update/sync：将主仓库和所有 git submodule 递归更新到远端最新；(2) commit <submodule名>：将指定 submodule 的本地变更提交并推送，再同步更新主仓库的 submodule 指针。当用户说 "git-tool update"、"git-tool sync"、"git-tool commit skills"、"提交 submodule"、"同步 submodule" 时触发。出现冲突或错误时立即中断，给出具体的手动解决命令。
 ---
 
 # git-tool: 递归更新主库 + 所有 Submodule
 
-## 触发词
+## 命令一览
 
-用户输入 `git-tool update`、`git-tool sync` 或类似意图（更新仓库、同步 submodule）时执行以下流程。
+| 命令 | 说明 |
+|------|------|
+| `git-tool update` / `git-tool sync` | 主库 pull + 所有 submodule 更新到远端最新 |
+| `git-tool commit <submodule名>` | 提交指定 submodule 的变更并推送，再更新主库指针 |
 
-## 执行流程
+---
 
-执行顺序：**先主库 pull → 再递归更新所有 submodule**。每步出错立即停止并给出手动解决方案。
+## `git-tool commit <submodule名>`
+
+**专用于提交 submodule 内部的改动**，同时将主库的 submodule 指针一并更新提交。不处理主库的其他改动。
+
+### 用法示例
+
+```
+git-tool commit skills        # submodule 路径含 "skills" 的
+git-tool commit .claude/skills
+```
+
+### 执行流程
+
+**Step 1：定位 submodule 路径**
+
+从 `.gitmodules` 中匹配用户输入的名字，找到对应的 `path`。若匹配到多个或找不到，停止并列出所有 submodule 让用户确认。
+
+**Step 2：进入 submodule，检查有无改动**
+
+```bash
+git -C <submodule_path> status --porcelain
+```
+
+若工作区为空（无改动、无暂存），停止并提示：「<submodule名> 没有需要提交的改动」。
+
+**Step 3：确认 submodule 在正常分支上（非 detached HEAD）**
+
+```bash
+git -C <submodule_path> branch --show-current
+```
+
+若输出为空（detached HEAD），先切回 main：
+```bash
+git -C <submodule_path> checkout main
+git -C <submodule_path> pull origin main
+```
+
+**Step 4：在 submodule 内 stage 全部改动并提交**
+
+```bash
+git -C <submodule_path> add -A
+git -C <submodule_path> commit -m "update: <由改动内容自动生成的简短描述>"
+```
+
+**Step 5：推送 submodule 到远端**
+
+```bash
+git -C <submodule_path> push origin <当前分支>
+```
+
+失败时停止并提示：
+```
+⚠️ 推送失败，请手动处理：
+cd <submodule_path>
+git push origin main
+```
+
+**Step 6：回到主库，更新 submodule 指针并提交**
+
+```bash
+git -C <repo_root> add <submodule_path>
+git -C <repo_root> commit -m "chore: update <submodule名> submodule"
+```
+
+**Step 7：汇报结果**
+
+```
+✅ git-tool commit <submodule名> 完成
+
+<submodule_path>：已提交并推送（<commit hash 前7位>）
+主库：submodule 指针已更新并提交
+
+如需推送主库，请手动执行：git push
+```
+
+---
+
+## `git-tool update` / `git-tool sync`
+
+### 执行顺序：先主库 pull → 再递归更新所有 submodule。每步出错立即停止并给出手动解决方案。
 
 ### Step 1：确认当前工作区干净
 
