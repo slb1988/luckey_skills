@@ -299,17 +299,21 @@ for s, e in segments:
 
 ### Step 7 — 写入日记文件
 
-**先读取模板文件**，以模板为基准写入日记，避免格式随 Skill 版本漂移：
+目标路径（固定，不得更改）：
 
-```bash
-# 读取最新模板
-Read: luckey/Templates/DailyNoteTemplate.md
+```
+luckey\301 Daily Notes\YYYY-MM-DD.md
 ```
 
-按模板内容写入，替换规则：
-- `{{date}}` → 实际日期（`YYYY-MM-DD`）
-- `## DailySucc` 下方的占位行 → Step 4 生成的条目逐行列出
-- `## DailySucc` 区块末尾依次追加 Step 6 生成的 `## App 使用时长` 表格，再追加 Step 5 生成的 `## 工作时间` 区块
+**⚠️ 必须先用 Read 读取目标路径文件，判断文件状态：**
+
+- **文件已存在且有内容**：用 **Edit** 替换 `## DailySucc` 区块占位行，不要 Write 到任何其他路径。
+- **文件不存在**：先读取模板 `luckey/Templates/DailyNoteTemplate.md`，按模板结构用 Write 写入目标路径，再将 DailySucc 内容填入。
+
+替换规则：
+- `create time:` 后的占位 → 实际日期（`YYYY-MM-DD`）
+- `## DailySucc` 下方的占位行（`- `）→ Step 4 生成的条目逐行列出
+- `## DailySucc` 区块末尾追加 Step 5 生成的 `## App 使用时长` 表格
 - 其余区块（`## 长期目标` / `## 昨日 Review` / `## Delay` / `## TODO` 及子分区）**保持原样，不填内容**
 
 严格保留模板中的空行和 HTML 标签格式。
