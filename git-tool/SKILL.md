@@ -78,15 +78,25 @@ git -C <repo_root> add <submodule_path>
 git -C <repo_root> commit -m "chore: update <submodule名> submodule"
 ```
 
-**Step 7：汇报结果**
+**Step 7：推送主库到远端**
+
+```bash
+git -C <repo_root> push origin $(git -C <repo_root> branch --show-current)
+```
+
+失败时停止并提示：
+```
+⚠️ 主库推送失败，请手动处理：
+git push origin main
+```
+
+**Step 8：汇报结果**
 
 ```
 ✅ git-tool commit <submodule名> 完成
 
 <submodule_path>：已提交并推送（<commit hash 前7位>）
-主库：submodule 指针已更新并提交
-
-如需推送主库，请手动执行：git push
+主库：submodule 指针已更新并推送（<commit hash 前7位>）
 ```
 
 ---
