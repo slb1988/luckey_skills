@@ -45,11 +45,13 @@ git -C <submodule_path> status --porcelain
 git -C <submodule_path> branch --show-current
 ```
 
-若输出为空（detached HEAD），先切回 main：
+若输出为空（detached HEAD），切回 main：
 ```bash
 git -C <submodule_path> checkout main
-git -C <submodule_path> pull origin main
 ```
+
+> **注意**：`checkout main` 后不要立刻 `pull`——网络不通时 pull 会失败并阻断流程。
+> 继续执行 Step 4 commit，在 Step 5 push 时再处理远端同步（non-fast-forward 用 `pull --rebase` 解决）。
 
 **Step 4：在 submodule 内 stage 全部改动并提交**
 
@@ -64,12 +66,19 @@ git -C <submodule_path> commit -m "update: <由改动内容自动生成的简短
 git -C <submodule_path> push origin <当前分支>
 ```
 
-失败时停止并提示：
-```
-⚠️ 推送失败，请手动处理：
-cd <submodule_path>
-git push origin main
-```
+失败时：
+
+- **non-fast-forward（remote 有更新的 commit）**：先 rebase 再推送：
+  ```bash
+  git -C <submodule_path> pull --rebase origin <当前分支>
+  git -C <submodule_path> push origin <当前分支>
+  ```
+- **其他失败**：停止并提示：
+  ```
+  ⚠️ 推送失败，请手动处理：
+  cd <submodule_path>
+  git push origin main
+  ```
 
 **Step 6：回到主库，更新 submodule 指针并提交**
 
@@ -230,3 +239,5 @@ Submodule 更新情况：
 - **嵌套 submodule**：`--recursive` 确保 submodule 里的 submodule（如 .claude/skills 内部的各 skill 子模块）也一并更新。
 - **不要强制 push**：本 skill 只做 pull/update，不涉及强制操作。
 - **认证**：确保 SSH key 或 HTTPS token 对所有涉及的仓库有效。
+- **主库 `index.lock` 残留**：Obsidian 等工具在后台读写时可能持有 git index 锁；若主库 commit 报 `Unable to create '.git/index.lock': File exists`，先确认没有其他 git 进程，再删除锁文件：`rm <repo>/.git/index.lock`，然后重试 commit。
+- **SSH vs HTTPS**：Windows 上 HTTPS 推送依赖系统代理，SSH 更稳定。若 HTTPS 推送持续超时，用以下命令切换 remote：`git remote set-url origin git@github.com:<user>/<repo>.git`
