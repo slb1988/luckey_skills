@@ -8,21 +8,28 @@ description: Operate local Anki through AnkiConnect for deck discovery, note-typ
 Use local `Anki.app` plus `AnkiConnect` on `http://127.0.0.1:8765`.
 Prefer the bundled script `scripts/anki_connect.py` over handwritten `curl` so payloads stay consistent and retry behavior is available.
 
+## Project Integration
+
+This project copy is the canonical Anki skill for `/Users/sun/Documents/ObsidianVault`.
+When running from the repository root, call the bundled helper through `.claude/skills/anki/scripts/anki_connect.py`.
+
+When merging updates from the personal Anki skill at `/Users/sun/.codex/skills/anki`, keep project-only references such as `references/local_media_packaging.md`, and only copy over non-empty reusable assets, scripts, or reference files after comparing them.
+
 ## Quick Start
 
 1. Ensure Anki is running:
 
 ```bash
 open -a /Applications/Anki.app
-python3 .agents/skills/anki/scripts/anki_connect.py version --retries 15
+python3 .claude/skills/anki/scripts/anki_connect.py version --retries 15
 ```
 
 2. Inspect available decks and note types before writing:
 
 ```bash
-python3 .agents/skills/anki/scripts/anki_connect.py deckNames
-python3 .agents/skills/anki/scripts/anki_connect.py modelNames
-python3 .agents/skills/anki/scripts/anki_connect.py modelFieldNames --params '{"modelName":"Basic"}'
+python3 .claude/skills/anki/scripts/anki_connect.py deckNames
+python3 .claude/skills/anki/scripts/anki_connect.py modelNames
+python3 .claude/skills/anki/scripts/anki_connect.py modelFieldNames --params '{"modelName":"Basic"}'
 ```
 
 3. Create or import notes.
@@ -45,31 +52,31 @@ python3 .agents/skills/anki/scripts/anki_connect.py modelFieldNames --params '{"
 List decks:
 
 ```bash
-python3 .agents/skills/anki/scripts/anki_connect.py deckNames
+python3 .claude/skills/anki/scripts/anki_connect.py deckNames
 ```
 
 List note types:
 
 ```bash
-python3 .agents/skills/anki/scripts/anki_connect.py modelNames
+python3 .claude/skills/anki/scripts/anki_connect.py modelNames
 ```
 
 List model fields:
 
 ```bash
-python3 .agents/skills/anki/scripts/anki_connect.py modelFieldNames --params '{"modelName":"Basic"}'
+python3 .claude/skills/anki/scripts/anki_connect.py modelFieldNames --params '{"modelName":"Basic"}'
 ```
 
 ### Create a deck
 
 ```bash
-python3 .agents/skills/anki/scripts/anki_connect.py createDeck --params '{"deck":"小初高::数学::一二年级练习"}'
+python3 .claude/skills/anki/scripts/anki_connect.py createDeck --params '{"deck":"小初高::数学::一二年级练习"}'
 ```
 
 ### Add one `Basic` note
 
 ```bash
-python3 .agents/skills/anki/scripts/anki_connect.py addNote --params '{
+python3 .claude/skills/anki/scripts/anki_connect.py addNote --params '{
   "note": {
     "deckName": "小初高::数学::一二年级练习",
     "modelName": "Basic",
@@ -119,7 +126,7 @@ Example payload file:
 Import it:
 
 ```bash
-python3 .agents/skills/anki/scripts/anki_connect.py --payload-file /tmp/anki_add_notes.json
+python3 .claude/skills/anki/scripts/anki_connect.py --payload-file /tmp/anki_add_notes.json
 ```
 
 ### Find and verify notes
@@ -127,13 +134,13 @@ python3 .agents/skills/anki/scripts/anki_connect.py --payload-file /tmp/anki_add
 Find notes in a deck:
 
 ```bash
-python3 .agents/skills/anki/scripts/anki_connect.py findNotes --params '{"query":"deck:\"小初高::数学::一二年级练习\""}'
+python3 .claude/skills/anki/scripts/anki_connect.py findNotes --params '{"query":"deck:\"小初高::数学::一二年级练习\""}'
 ```
 
 Inspect note details:
 
 ```bash
-python3 .agents/skills/anki/scripts/anki_connect.py notesInfo --params '{"notes":[1776566792691]}'
+python3 .claude/skills/anki/scripts/anki_connect.py notesInfo --params '{"notes":[1776566792691]}'
 ```
 
 ### Update fields or tags
@@ -141,7 +148,7 @@ python3 .agents/skills/anki/scripts/anki_connect.py notesInfo --params '{"notes"
 Update an existing note:
 
 ```bash
-python3 .agents/skills/anki/scripts/anki_connect.py updateNoteFields --params '{
+python3 .claude/skills/anki/scripts/anki_connect.py updateNoteFields --params '{
   "note": {
     "id": 1776566792691,
     "fields": {
@@ -154,7 +161,7 @@ python3 .agents/skills/anki/scripts/anki_connect.py updateNoteFields --params '{
 Add tags:
 
 ```bash
-python3 .agents/skills/anki/scripts/anki_connect.py addTags --params '{
+python3 .claude/skills/anki/scripts/anki_connect.py addTags --params '{
   "notes": [1776566792691],
   "tags": "math grade1 reviewed"
 }'
