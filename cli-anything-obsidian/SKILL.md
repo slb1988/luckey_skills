@@ -1,6 +1,6 @@
 ---
 name: cli-anything-obsidian
-description: CLI harness for automating Obsidian vaults. Use when asked to: create/read/update/delete notes, search vault content, list tags, manage daily notes, find backlinks/outgoing links, manage tasks, inspect properties, manage plugins/themes/snippets, query bases, or any Obsidian vault automation task. Triggers on: "create a note", "search vault", "list tags", "open daily note", "find backlinks", "read note", "update note", "vault stats", "list tasks", "set property", or any Obsidian operation.
+description: "CLI harness for automating Obsidian vaults. Use when asked to: create/read/update/delete notes, search vault content, list tags, manage daily notes, find backlinks/outgoing links, manage tasks, inspect properties, manage plugins/themes/snippets, query bases, or any Obsidian vault automation task. Triggers on: 'create a note', 'search vault', 'list tags', 'open daily note', 'find backlinks', 'read note', 'update note', 'vault stats', 'list tasks', 'set property', or any Obsidian operation."
 ---
 
 # cli-anything-obsidian

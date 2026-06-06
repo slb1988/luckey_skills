@@ -1,1 +1,0 @@
-# luckey_skills

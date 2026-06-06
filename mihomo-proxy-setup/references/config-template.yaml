@@ -1,0 +1,72 @@
+# Mihomo 配置模板
+# 使用方法：将此文件复制为 /etc/mihomo/config.yaml
+# 唯一必改项：proxy-providers.my-sub.url 替换为你的 Clash 订阅地址
+
+mixed-port: 7890
+socks-port: 7891
+port: 7892
+allow-lan: false
+bind-address: '127.0.0.1'
+mode: rule
+log-level: info
+unified-delay: true
+geodata-mode: true
+
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  fallback:
+    - tls://8.8.8.8
+    - tls://1.1.1.1
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+
+proxy-providers:
+  my-sub:
+    type: http
+    url: "<替换为你的Clash订阅地址>"
+    interval: 3600
+    path: ./proxies/my-sub.yaml
+    health-check:
+      enable: true
+      interval: 300
+      url: https://www.gstatic.com/generate_204
+
+proxy-groups:
+  - name: "🚀 节点选择"
+    type: select
+    proxies:
+      - "♻️ 自动选择"
+      - DIRECT
+    use:
+      - my-sub
+
+  - name: "♻️ 自动选择"
+    type: url-test
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 50
+    use:
+      - my-sub
+
+rules:
+  # 国内直连
+  - GEOSITE,cn,DIRECT
+  - GEOIP,cn,DIRECT,no-resolve
+  # 常用被墙站点走代理
+  - GEOSITE,google,🚀 节点选择
+  - GEOSITE,github,🚀 节点选择
+  - GEOSITE,telegram,🚀 节点选择
+  - GEOSITE,twitter,🚀 节点选择
+  - GEOSITE,youtube,🚀 节点选择
+  - GEOSITE,openai,🚀 节点选择
+  # 其他非中国域名走代理
+  - GEOSITE,geolocation-!cn,🚀 节点选择
+  # 兜底：未命中任何规则的也走代理
+  - MATCH,🚀 节点选择
