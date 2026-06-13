@@ -45,7 +45,7 @@ Check these paths in order; first hit wins:
 
 | Path | Scope |
 |------|-------|
-| `.skills/post-to-wechat/EXTEND.md` | Project |
+| `.claude/skills/post-to-wechat/EXTEND.md` | Project |
 | `${XDG_CONFIG_HOME:-$HOME/.config}/skills/post-to-wechat/EXTEND.md` | XDG |
 | `$HOME/.skills/post-to-wechat/EXTEND.md` | User home |
 
