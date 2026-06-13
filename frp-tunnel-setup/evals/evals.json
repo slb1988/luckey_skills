@@ -1,0 +1,23 @@
+{
+  "skill_name": "frp-tunnel-setup",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我有一台新 VPS，帮我搭 frps server，要求用 token 鉴权、TLS、systemd 常驻、只允许 18080-18089 业务端口，并给出验证和回滚命令。",
+      "expected_output": "区分 VPS 端步骤，包含 frps.toml、systemd、ufw/安全组、状态检查、日志查看和回滚，不暴露真实 token。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "我本地 3000 端口要通过 81.68.211.31:18080 访问，生成 frpc 配置和验证步骤，先前台跑起来看效果。",
+      "expected_output": "生成指向 81.68.211.31:7000 的 frpc tcp 代理配置，localPort 3000 remotePort 18080，包含本地 curl、公网 curl、成功日志判断，不泄露真实 token。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "我要新增 Jira 和 TeamCity 的 frp 映射，Jira 本地 8080，TeamCity 本地 8111，给我配置变更、重启方式和排障清单。",
+      "expected_output": "给出 jira/teamcity 两个 proxies，remotePort 分别为 18081/18082，包含 frpc 重启、外部验证、安全组/ufw/端口占用排查。",
+      "files": []
+    }
+  ]
+}
