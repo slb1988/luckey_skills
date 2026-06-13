@@ -117,7 +117,7 @@ test("loadCredentials selects the first complete source without mixing values ac
 
   assert.equal(credentials.appId, "cwd-app-id");
   assert.equal(credentials.appSecret, "cwd-app-secret");
-  assert.equal(credentials.source, "<cwd>/.baoyu-skills/.env");
+  assert.equal(credentials.source, "<cwd>/.env");
   assert.deepEqual(credentials.skippedSources, [
     "process.env missing WECHAT_APP_ID",
   ]);

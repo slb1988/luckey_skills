@@ -515,8 +515,8 @@ Environment Variables:
 
 Config File Locations (in priority order):
   1. Environment variables
-  2. <cwd>/.baoyu-skills/.env
-  3. ~/.baoyu-skills/.env
+  2. <cwd>/.env
+  3. ~/.env
 
 Example:
   npx -y bun wechat-api.ts article.md

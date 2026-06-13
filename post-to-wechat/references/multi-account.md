@@ -64,8 +64,8 @@ For the selected account with alias `{alias}`, try in this order (first hit wins
 
 1. `app_id` / `app_secret` inline in the EXTEND.md account block
 2. Env vars `WECHAT_{ALIAS}_APP_ID` / `WECHAT_{ALIAS}_APP_SECRET` (alias uppercased, hyphens → underscores)
-3. `.baoyu-skills/.env` with the prefixed key `WECHAT_{ALIAS}_APP_ID`
-4. `~/.baoyu-skills/.env` with the prefixed key
+3. `.env` with the prefixed key `WECHAT_{ALIAS}_APP_ID`
+4. `~/.env` with the prefixed key
 5. Fallback to unprefixed `WECHAT_APP_ID` / `WECHAT_APP_SECRET`
 
 ### .env Multi-Account Example

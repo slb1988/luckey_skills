@@ -206,7 +206,6 @@ function parseWechatExtend(content: string): WechatExtendConfig {
 export function loadWechatExtendConfig(): WechatExtendConfig {
   const paths = [
     path.join(process.cwd(), ".claude", "skills", "post-to-wechat", "EXTEND.md"),
-    path.join(process.cwd(), ".baoyu-skills", "baoyu-post-to-wechat", "EXTEND.md"),
     path.join(
       process.env.XDG_CONFIG_HOME || path.join(homeDir(), ".config"),
       "baoyu-skills", "baoyu-post-to-wechat", "EXTEND.md"
@@ -351,7 +350,7 @@ function resolveCredentialSource(
 
   throw new Error(
     `Missing WECHAT_APP_ID or WECHAT_APP_SECRET${hint}.\n` +
-    "Set via EXTEND.md account config, environment variables, or .baoyu-skills/.env file." +
+    "Set via EXTEND.md account config, environment variables, or .env file." +
     partialHint
   );
 }
@@ -379,15 +378,15 @@ export function loadCredentials(account?: ResolvedAccount): LoadedCredentials {
     const prefixedKeyLabel = `${prefix}APP_ID/${prefix}APP_SECRET`;
     sources.push(
       buildCredentialSource(`process.env (${prefixedKeyLabel})`, process.env, `${prefix}APP_ID`, `${prefix}APP_SECRET`),
-      buildCredentialSource(`<cwd>/.baoyu-skills/.env (${prefixedKeyLabel})`, cwdEnv, `${prefix}APP_ID`, `${prefix}APP_SECRET`),
-      buildCredentialSource(`~/.baoyu-skills/.env (${prefixedKeyLabel})`, homeEnv, `${prefix}APP_ID`, `${prefix}APP_SECRET`),
+      buildCredentialSource(`<cwd>/.env (${prefixedKeyLabel})`, cwdEnv, `${prefix}APP_ID`, `${prefix}APP_SECRET`),
+      buildCredentialSource(`~/.env (${prefixedKeyLabel})`, homeEnv, `${prefix}APP_ID`, `${prefix}APP_SECRET`),
     );
   }
 
   sources.push(
     buildCredentialSource("process.env", process.env, "WECHAT_APP_ID", "WECHAT_APP_SECRET"),
-    buildCredentialSource("<cwd>/.baoyu-skills/.env", cwdEnv, "WECHAT_APP_ID", "WECHAT_APP_SECRET"),
-    buildCredentialSource("~/.baoyu-skills/.env", homeEnv, "WECHAT_APP_ID", "WECHAT_APP_SECRET"),
+    buildCredentialSource("<cwd>/.env", cwdEnv, "WECHAT_APP_ID", "WECHAT_APP_SECRET"),
+    buildCredentialSource("~/.env", homeEnv, "WECHAT_APP_ID", "WECHAT_APP_SECRET"),
   );
 
   return resolveCredentialSource(sources, account);

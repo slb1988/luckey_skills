@@ -7,8 +7,8 @@ Guided setup when `WECHAT_APP_ID` / `WECHAT_APP_SECRET` are missing. Invoked by 
 Look for the credentials in this order:
 
 1. Env vars `WECHAT_APP_ID` / `WECHAT_APP_SECRET`
-2. `<cwd>/.baoyu-skills/.env` with `WECHAT_APP_ID=...`
-3. `$HOME/.baoyu-skills/.env` with `WECHAT_APP_ID=...`
+2. `<cwd>/.env` with `WECHAT_APP_ID=...`
+3. `$HOME/.env` with `WECHAT_APP_ID=...`
 
 If none are present, run the guided setup below.
 
@@ -25,8 +25,8 @@ To obtain credentials:
 3. Copy AppID and AppSecret
 
 Where to save?
-A) Project-level: .baoyu-skills/.env (this project only)
-B) User-level: ~/.baoyu-skills/.env (all projects)
+A) Project-level: .env (this project only)
+B) User-level: ~/.env (all projects)
 ```
 
 After they choose a location, collect the values (prefer a user-input tool, fall back to a numbered prompt per the User Input Tools rule in SKILL.md) and append:
