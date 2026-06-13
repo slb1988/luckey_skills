@@ -205,6 +205,7 @@ function parseWechatExtend(content: string): WechatExtendConfig {
 
 export function loadWechatExtendConfig(): WechatExtendConfig {
   const paths = [
+    path.join(process.cwd(), ".claude", "skills", "post-to-wechat", "EXTEND.md"),
     path.join(process.cwd(), ".baoyu-skills", "baoyu-post-to-wechat", "EXTEND.md"),
     path.join(
       process.env.XDG_CONFIG_HOME || path.join(homeDir(), ".config"),
