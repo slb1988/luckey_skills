@@ -30,7 +30,7 @@ git-tool commit .claude/skills
 
 **Step 1：定位 submodule 路径**
 
-从 `.gitmodules` 中匹配用户输入的名字，找到对应的 `path`。若匹配到多个或找不到，停止并列出所有 submodule 让用户确认。
+从 `.gitmodules` 中找所有 `path =` 行，用用户输入的名字做**子串匹配**（不区分大小写）。例如用户输入 `skills`，可匹配 `.claude/skills`。若匹配到多个或找不到，停止并列出所有 submodule 让用户确认。
 
 **Step 2：进入 submodule，检查有无改动**
 

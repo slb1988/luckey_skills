@@ -164,67 +164,14 @@ Before starting workflows, verify the CLI is ready:
 
 ## Command Output Formats
 
-Commands with `--json` return structured data for parsing:
-
-**Create notebook:**
-```
-$ notebooklm create "Research" --json
-{"id": "abc123de-...", "title": "Research"}
-```
-
-**Add source:**
-```
-$ notebooklm source add "https://example.com" --json
-{"source_id": "def456...", "title": "Example", "status": "processing"}
-```
-
-**Generate artifact:**
-```
-$ notebooklm generate audio "Focus on key points" --json
-{"task_id": "xyz789...", "status": "pending"}
-```
-
-**Chat with references:**
-```
-$ notebooklm ask "What is X?" --json
-{"answer": "X is... [1] [2]", "conversation_id": "...", "turn_number": 1, "is_follow_up": false, "references": [{"source_id": "abc123...", "citation_number": 1, "cited_text": "Relevant passage from source..."}, {"source_id": "def456...", "citation_number": 2, "cited_text": "Another passage..."}]}
-```
-
-**Source fulltext (get indexed content):**
-```
-$ notebooklm source fulltext <source_id> --json
-{"source_id": "...", "title": "...", "char_count": 12345, "content": "Full indexed text..."}
-```
-
-**Understanding citations:** The `cited_text` in references is often a snippet or section header, not the full quoted passage. The `start_char`/`end_char` positions reference NotebookLM's internal chunked index, not the raw fulltext. Use `SourceFulltext.find_citation_context()` to locate citations:
-```python
-fulltext = await client.sources.get_fulltext(notebook_id, ref.source_id)
-matches = fulltext.find_citation_context(ref.cited_text)  # Returns list[(context, position)]
-if matches:
-    context, pos = matches[0]  # First match; check len(matches) > 1 for duplicates
-```
-
-**Extract IDs:** Parse the `id`, `source_id`, or `task_id` field from JSON output.
+Use `--json` for machine-readable output. Key schemas (create/add/generate/ask/list) and citation API usage:
+→ [`references/output-formats.md`](references/output-formats.md)
 
 ## Generation Types
 
-All generate commands support:
-- `-s, --source` to use specific source(s) instead of all sources
-- `--language` to set output language (defaults to configured language or 'en')
-- `--json` for machine-readable output (returns `task_id` and `status`)
-- `--retry N` to automatically retry on rate limits with exponential backoff
-
-| Type | Command | Options | Download |
-|------|---------|---------|----------|
-| Podcast | `generate audio` | `--format [deep-dive\|brief\|critique\|debate]`, `--length [short\|default\|long]` | .mp3 |
-| Video | `generate video` | `--format [explainer\|brief]`, `--style [auto\|classic\|whiteboard\|kawaii\|anime\|watercolor\|retro-print\|heritage\|paper-craft]` | .mp4 |
-| Slide Deck | `generate slide-deck` | `--format [detailed\|presenter]`, `--length [default\|short]` | .pdf |
-| Infographic | `generate infographic` | `--orientation [landscape\|portrait\|square]`, `--detail [concise\|standard\|detailed]` | .png |
-| Report | `generate report` | `--format [briefing-doc\|study-guide\|blog-post\|custom]` | .md |
-| Mind Map | `generate mind-map` | *(sync, instant)* | .json |
-| Data Table | `generate data-table` | description required | .csv |
-| Quiz | `generate quiz` | `--difficulty [easy\|medium\|hard]`, `--quantity [fewer\|standard\|more]` | .json/.md/.html |
-| Flashcards | `generate flashcards` | `--difficulty [easy\|medium\|hard]`, `--quantity [fewer\|standard\|more]` | .json/.md/.html |
+All types support `-s/--source`, `--language`, `--json`, `--retry N`.
+Full options table (podcast/video/slide-deck/infographic/report/mind-map/data-table/quiz/flashcards):
+→ [`references/generation-types.md`](references/generation-types.md)
 
 ## Features Beyond the Web UI
 
@@ -256,154 +203,28 @@ These capabilities are available via CLI but not in NotebookLM's web interface:
 - Do NOT poll or wait in main conversation - generation takes 5-45 minutes (see timing table)
 - User checks status manually, OR use subagent with `artifact wait`
 
-**JSON output:** Use `--json` flag for machine-readable output:
-```bash
-notebooklm list --json
-notebooklm auth check --json
-notebooklm source list --json
-notebooklm artifact list --json
-```
+**JSON output:** Use `--json` for machine-readable output. Full schemas (list/source/artifact/ask) and citation API:
+→ [`references/output-formats.md`](references/output-formats.md)
 
-**JSON schemas (key fields):**
+## Error Handling & Known Limitations
 
-`notebooklm list --json`:
-```json
-{"notebooks": [{"id": "...", "title": "...", "created_at": "..."}]}
-```
+→ [`references/troubleshooting.md`](references/troubleshooting.md) (error decision tree, exit codes, rate limiting)
 
-`notebooklm auth check --json`:
-```json
-{"checks": {"storage_exists": true, "json_valid": true, "cookies_present": true, "sid_cookie": true, "token_fetch": true}, "details": {"storage_path": "...", "auth_source": "file", "cookies_found": ["SID", "HSID", "..."], "cookie_domains": [".google.com"]}}
-```
+**Processing times vary significantly.** Use the subagent pattern for long operations.
+→ [`references/workflows.md`](references/workflows.md) (processing times table + subagent patterns)
 
-`notebooklm source list --json`:
-```json
-{"sources": [{"id": "...", "title": "...", "status": "ready|processing|error"}]}
-```
-
-`notebooklm artifact list --json`:
-```json
-{"artifacts": [{"id": "...", "title": "...", "type": "Audio Overview", "status": "in_progress|pending|completed|unknown"}]}
-```
-
-**Status values:**
-- Sources: `processing` → `ready` (or `error`)
-- Artifacts: `pending` or `in_progress` → `completed` (or `unknown`)
-
-## Error Handling
-
-**On failure, offer the user a choice:**
-1. Retry the operation
-2. Skip and continue with something else
-3. Investigate the error
-
-**Error decision tree:**
-
-| Error | Cause | Action |
-|-------|-------|--------|
-| Auth/cookie error | Session expired | Run `notebooklm auth check` then `notebooklm login` |
-| "No notebook context" | Context not set | Use `-n <id>` or `--notebook <id>` flag (parallel), or `notebooklm use <id>` (single-agent) |
-| "No result found for RPC ID" | Rate limiting | Wait 5-10 min, retry |
-| `GENERATION_FAILED` | Google rate limit | Wait and retry later |
-| Download fails | Generation incomplete | Check `artifact list` for status |
-| Invalid notebook/source ID | Wrong ID | Run `notebooklm list` to verify |
-| RPC protocol error | Google changed APIs | May need CLI update |
-
-## Exit Codes
-
-All commands use consistent exit codes:
-
-| Code | Meaning | Action |
-|------|---------|--------|
-| 0 | Success | Continue |
-| 1 | Error (not found, processing failed) | Check stderr, see Error Handling |
-| 2 | Timeout (wait commands only) | Extend timeout or check status manually |
-
-**Examples:**
-- `source wait` returns 1 if source not found or processing failed
-- `artifact wait` returns 2 if timeout reached before completion
-- `generate` returns 1 if rate limited (check stderr for details)
-
-## Known Limitations
-
-**Rate limiting:** Audio, video, quiz, flashcards, infographic, and slide deck generation may fail due to Google's rate limits. This is an API limitation, not a bug.
-
-**Reliable operations:** These always work:
-- Notebooks (list, create, delete, rename)
-- Sources (add, list, delete)
-- Chat/queries
-- Mind-map, study-guide, report, data-table generation
-
-**Unreliable operations:** These may fail with rate limiting:
-- Audio (podcast) generation
-- Video generation
-- Quiz and flashcard generation
-- Infographic and slide deck generation
-
-**Workaround:** If generation fails:
-1. Check status: `notebooklm artifact list`
-2. Retry after 5-10 minutes
-3. Use the NotebookLM web UI as fallback
-
-**Processing times vary significantly.** Use the subagent pattern for long operations:
-
-| Operation | Typical time | Suggested timeout |
-|-----------|--------------|-------------------|
-| Source processing | 30s - 10 min | 600s |
-| Research (fast) | 30s - 2 min | 180s |
-| Research (deep) | 15 - 30+ min | 1800s |
-| Notes | instant | n/a |
-| Mind-map | instant (sync) | n/a |
-| Quiz, flashcards | 5 - 15 min | 900s |
-| Report, data-table | 5 - 15 min | 900s |
-| Audio generation | 10 - 20 min | 1200s |
-| Video generation | 15 - 45 min | 2700s |
-
-**Polling intervals:** When checking status manually, poll every 15-30 seconds to avoid excessive API calls.
+**Polling intervals:** Poll every 15-30 seconds when checking status manually.
 
 ## Language Configuration
 
-Language setting controls the output language for generated artifacts (audio, video, etc.).
-
-**Important:** Language is a **GLOBAL** setting that affects all notebooks in your account.
-
+Language is a **GLOBAL** setting. Quick setup:
 ```bash
-# List all 80+ supported languages with native names
-notebooklm language list
-
-# Show current language setting
-notebooklm language get
-
-# Set language for artifact generation
-notebooklm language set zh_Hans  # Simplified Chinese
-notebooklm language set ja       # Japanese
-notebooklm language set en       # English (default)
+notebooklm language set zh_Hans   # Simplified Chinese
+notebooklm language get           # Show current
 ```
+Override per command: `notebooklm generate audio --language ja`
 
-**Common language codes:**
-| Code | Language |
-|------|----------|
-| `en` | English |
-| `zh_Hans` | 中文（简体） - Simplified Chinese |
-| `zh_Hant` | 中文（繁體） - Traditional Chinese |
-| `ja` | 日本語 - Japanese |
-| `ko` | 한국어 - Korean |
-| `es` | Español - Spanish |
-| `fr` | Français - French |
-| `de` | Deutsch - German |
-| `pt_BR` | Português (Brasil) |
-
-**Override per command:** Use `--language` flag on generate commands:
-```bash
-notebooklm generate audio --language ja   # Japanese podcast
-notebooklm generate video --language zh_Hans  # Chinese video
-```
-
-**Offline mode:** Use `--local` flag to skip server sync:
-```bash
-notebooklm language set zh_Hans --local  # Save locally only
-notebooklm language get --local  # Read local config only
-```
+→ [`references/language.md`](references/language.md) (full language codes list, offline mode)
 
 ## Troubleshooting
 
