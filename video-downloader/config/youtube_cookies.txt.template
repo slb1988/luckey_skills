@@ -1,0 +1,18 @@
+# Netscape HTTP Cookie File
+# YouTube cookies
+#
+# 获取方式（任选一种）：
+# 1. 自动从浏览器提取（推荐）：
+#    yt-dlp --cookies-from-browser chrome -o "%(title)s.%(ext)s" <URL>
+#    （支持 chrome / firefox / safari / edge / chromium）
+#    yt-dlp 会自动读取浏览器 cookies，无需此文件
+#
+# 2. 手动导出：安装浏览器插件 "Get cookies.txt LOCALLY"
+#    登录 YouTube 后在 youtube.com 页面导出，保存内容到此文件
+#
+# 格式（Netscape cookies.txt）：
+# .youtube.com	TRUE	/	TRUE	<expiry_timestamp>	<cookie_name>	<cookie_value>
+#
+# 注意：YouTube cookies 有效期较短，失效后需重新导出
+#
+# === 在下方粘贴你的 cookies ===

@@ -1,0 +1,18 @@
+# Netscape HTTP Cookie File
+# B站 Bilibili cookies
+#
+# 获取方式（任选一种）：
+# 1. 浏览器插件：安装 "Get cookies.txt LOCALLY" 插件，登录B站后导出
+# 2. you-get 登录：运行 `you-get --login bilibili` 按提示操作
+# 3. 手动复制：浏览器开发者工具 → Application → Cookies → .bilibili.com
+#    需要的关键字段：SESSDATA, bili_jct, DedeUserID
+#
+# 格式（Netscape cookies.txt）：
+# <domain> <flag> <path> <secure> <expiry> <name> <value>
+#
+# 示例行（替换为你自己的值）：
+# .bilibili.com	TRUE	/	TRUE	1999999999	SESSDATA	your_sessdata_here
+# .bilibili.com	TRUE	/	TRUE	1999999999	bili_jct	your_bili_jct_here
+# .bilibili.com	TRUE	/	FALSE	1999999999	DedeUserID	your_uid_here
+#
+# === 在下方粘贴你的 cookies ===
