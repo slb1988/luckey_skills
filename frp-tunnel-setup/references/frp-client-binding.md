@@ -221,6 +221,22 @@ remotePort = REMOTE_PORT
 
 ## 10. 常见排障
 
+### 新机器首次接入检查清单
+
+在新电脑上操作时，先执行这两步，避免走弯路：
+
+```bash
+# 1. 确认 frpc 是否存在
+~/frp-client/frp_0.69.1_darwin_arm64/frpc --version 2>/dev/null || echo "NOT_FOUND → 需要先执行第 3 步下载"
+
+# 2. 确认 frpc.toml 是否存在
+ls ~/frp-client/frpc.toml 2>/dev/null || echo "NOT_FOUND → 需要先执行第 4 步写配置"
+```
+
+两项都 OK 才能跳到第 5 步启动；否则按顺序补齐缺失步骤。
+
+### 连接问题
+
 - `login to server failed`：检查 VPS `7000/tcp`、token、TLS 配置。
 - `start proxy error`：检查 `remotePort` 是否已占用、是否在 `allowPorts` 范围内。
 - 公网端口连不上：检查云安全组、VPS ufw、frpc 是否运行。
