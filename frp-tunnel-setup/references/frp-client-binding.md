@@ -155,6 +155,8 @@ sudo systemctl status frpc --no-pager
 
 ## 8. macOS launchd 常驻
 
+> 完整步骤见：[frpc-persistence-macos.md](frpc-persistence-macos.md)
+
 ```bash
 sudo mkdir -p /opt/frp /etc/frp /usr/local/var/log/frp
 sudo cp ~/frp-client/frp_0.69.1_darwin_arm64/frpc /opt/frp/frpc
