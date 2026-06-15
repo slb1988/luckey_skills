@@ -12,8 +12,8 @@
 | 公网 IP | **81.68.211.31** |
 | frps 版本 | v0.69.1 |
 | 控制端口 | 7000/tcp |
-| 业务端口 | 18080-18082/tcp（等 frpc 接入），18083-18089 预留 |
-| 防火墙 | ufw 已启用，开放 22/7000/18080-18082 |
+| 业务端口 | 18080-18084/tcp（已接入），18085-18089 预留 |
+| 防火墙 | ufw 已启用，开放 22/7000/18080-18084 |
 | systemd | frps.service active (running) |
 
 ## 二、VPS 端配置
@@ -63,7 +63,9 @@ sudo ss -lntp | grep frps           # 监听端口
 | `81.68.211.31:18080` | agent/harness | 3000 |
 | `81.68.211.31:18081` | Jira | Jira 实际端口，默认 8080 |
 | `81.68.211.31:18082` | TeamCity | TeamCity 实际端口，默认 8111 |
-| `81.68.211.31:18083-18089` | 预留 | - |
+| `81.68.211.31:18083` | webdav5007 | 5007 |
+| `81.68.211.31:18084` | port32768 (TCP) | 32768 |
+| `81.68.211.31:18085-18089` | 预留 | - |
 
 ## 五、frpc 配置模板
 
@@ -112,7 +114,7 @@ name = "new-service"
 type = "tcp"
 localIP = "127.0.0.1"
 localPort = 9000
-remotePort = 18083
+remotePort = 18085
 ```
 
 ## 七、访问验证
@@ -123,6 +125,10 @@ curl -i http://81.68.211.31:18080/health
 
 # 没有 /health 时使用根路径：
 curl -i http://81.68.211.31:18080/
+
+# 非 HTTP TCP 服务验证连通性：
+curl -sv --max-time 5 http://81.68.211.31:REMOTE_PORT/
+# 看到 "Connected" 即表示 TCP 链路通，空响应是正常的
 ```
 
 ## 八、回滚
@@ -144,6 +150,6 @@ sudo userdel frp || true
 
 ## 九、注意事项
 
-- VPS 是腾讯云 CVM，还需在腾讯云安全组控制台放行 `7000/tcp` 和 `18080-18082/tcp`，否则外网不通。
+- VPS 是腾讯云 CVM，还需在腾讯云安全组控制台放行 `7000/tcp` 和 `18080-18084/tcp`，否则外网不通。
 - 获取 VPS 公网 IP 时避免走代理：`curl --noproxy '*' ifconfig.me`。
 - 真实 token 不应写入可提交 reference；如 token 泄露，应在 VPS `/etc/frp/frps.toml` 和所有 client `frpc.toml` 中同步轮换。
