@@ -1,0 +1,4 @@
+interface:
+  display_name: "Extract Shirt Pattern"
+  short_description: "Extract shirt graphics into PSD layers"
+  default_prompt: "Use $extract-shirt-pattern to extract the graphic from this clothing photo into transparent PNG and PSD layers."
