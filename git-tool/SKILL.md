@@ -115,15 +115,22 @@ git push origin main
 
 ### 执行顺序：先主库 pull → 再递归更新所有 submodule。每步出错立即停止并给出手动解决方案。
 
-### Step 1：确认当前工作区干净
+### Step 1：检查工作区是否有冲突风险
 
 ```bash
 git -C <repo_root> status --porcelain
 ```
 
-输出非空时**停止**并提示：
+**不要无脑停止**。只有以下情况才需要停下：
+- 存在 **tracked 文件的改动**（行首非 `??`、且非纯 submodule 指针变更）
+
+可以直接继续的情况：
+- `??` 开头的 untracked 文件 —— git pull 不会碰它们
+- `M <submodule路径>` —— submodule 指针变更，pull 时用 `--no-rebase` 绕过
+
+需要停止时提示：
 ```
-⚠️ 工作区有未提交的修改，更新前请先处理：
+⚠️ 工作区有 tracked 文件改动，可能与远端冲突，建议先处理：
 
 查看改动：  git status
 暂存改动：  git stash --include-untracked
@@ -138,7 +145,13 @@ git -C <repo_root> status --porcelain
 git -C <repo_root> pull --rebase origin $(git -C <repo_root> branch --show-current)
 ```
 
-失败时的常见原因和解决方案：
+若报错含「未暂存的变更」（submodule 指针导致），**自动回退**到：
+
+```bash
+git -C <repo_root> pull --no-rebase origin $(git -C <repo_root> branch --show-current)
+```
+
+其他失败原因：
 
 | 错误关键词 | 原因 | 手动解决 |
 |-----------|------|---------|

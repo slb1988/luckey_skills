@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1800px;
+    height: 766px;
+    overflow: hidden;
+    font-family: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  }
+
+  .cover {
+    position: relative;
+    width: 1800px;
+    height: 766px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  /* Dark overlay for text readability */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      135deg,
+      rgba(0, 0, 0, 0.55) 0%,
+      rgba(0, 0, 0, 0.30) 50%,
+      rgba(0, 0, 0, 0.45) 100%
+    );
+  }
+
+  .content {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    padding: 60px 120px;
+    max-width: 1400px;
+  }
+
+  .tag {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 26px;
+    letter-spacing: 4px;
+    padding: 8px 24px;
+    border-radius: 3px;
+    margin-bottom: 36px;
+    text-transform: uppercase;
+  }
+
+  .title {
+    color: #ffffff;
+    font-size: 72px;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: 2px;
+    text-shadow: 0 2px 20px rgba(0,0,0,0.4);
+    word-break: break-all;
+  }
+
+  .title.long {
+    font-size: 58px;
+  }
+
+  .title.very-long {
+    font-size: 48px;
+  }
+
+  .author {
+    margin-top: 40px;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 28px;
+    letter-spacing: 3px;
+  }
+</style>
+</head>
+<body>
+<div class="cover">
+  <img class="bg" src="__BG_PATH__" />
+  <div class="overlay"></div>
+  <div class="content">
+    <div class="tag">Luckey</div>
+    <div class="title" id="title">__TITLE__</div>
+    <div class="author">luckey.me</div>
+  </div>
+</div>
+<script>
+  // Adjust font size based on title length
+  const el = document.getElementById('title');
+  const len = el.textContent.length;
+  if (len > 20) el.classList.add('very-long');
+  else if (len > 14) el.classList.add('long');
+</script>
+</body>
+</html>
