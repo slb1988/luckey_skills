@@ -66,19 +66,33 @@ teamcity.users.property.email=mail
 
 ## Synchronization settings
 
-For automatic sync of users and groups:
+### Mandatory coupling
+
+When you enable sync, TeamCity validates all properties for that domain. Missing one property blocks the entire sync module:
+
+| If you set | You must also define |
+|---|---|
+| `teamcity.options.users.synchronize=true` | `teamcity.users.filter` |
+| `teamcity.options.groups.synchronize=true` | `teamcity.groups.filter` |
+| `teamcity.options.createUsers=true` | `teamcity.users.filter` + `teamcity.options.groups.synchronize=true` |
+
+Note: `teamcity.users.login.filter` handles **authentication** (login). `teamcity.users.filter` handles **synchronization** (background scanning). They are independent filters and both are needed when sync is active.
+
+### Full sync config
 
 ```properties
-# Enable property sync for existing users
+# Enable property sync for existing users — REQUIRES teamcity.users.filter
 teamcity.options.users.synchronize=true
+# Must match your LDAP user objectClass (e.g., inetOrgPerson for LLDAP, user for AD)
+teamcity.users.filter=(objectClass=inetOrgPerson)
 
-# Enable group membership sync
+# Enable group membership sync — REQUIRES teamcity.groups.filter
 teamcity.options.groups.synchronize=true
+teamcity.groups.filter=(objectClass=groupOfUniqueNames)
 
 # Group settings
-teamcity.groups.base=CN=users
-teamcity.groups.filter=(objectClass=group)
-teamcity.groups.property.member=member
+teamcity.groups.base=ou=groups
+teamcity.groups.property.member=uniqueMember
 
 # Auto-create/delete users based on LDAP group membership
 teamcity.options.createUsers=true
@@ -116,12 +130,59 @@ Instead of storing the bind password in clear text, TeamCity supports scrambled 
    grep -i ldap /mnt/disk2/TeamCity/logs/teamcity-server.log | tail -20
    ```
 
+## LLDAP-specific notes
+
+LLDAP is a lightweight LDAP server (Docker image: `lldap/lldap:stable`). It has several differences from Active Directory or OpenLDAP:
+
+| Aspect | LLDAP behavior |
+|---|---|
+| User objectClass | `inetOrgPerson` (NOT `user` or `person`) |
+| Group objectClass | `groupOfUniqueNames` (NOT `group`) |
+| Member attribute | `uniqueMember` (NOT `member`) |
+| displayName | **Not supported** — use `cn` instead |
+| LDAPS/TLS | **Not supported** — plain `ldap://` only. TeamCity's "insecure" warning is cosmetic; safe since both services run on same host. |
+| Port | Defaults to 3890 (LDAP) + 17170 (web UI) |
+| User DN format | `uid=<username>,ou=people,<base_dn>` |
+
+Example working config for LLDAP:
+```properties
+java.naming.provider.url=ldap://<host>:3890/DC=example,DC=com
+java.naming.security.principal=uid=admin,ou=people,dc=example,dc=com
+teamcity.users.base=ou=people
+teamcity.users.filter=(objectClass=inetOrgPerson)
+teamcity.users.login.filter=(uid=$capturedLogin$)
+teamcity.users.username=uid
+teamcity.groups.base=ou=groups
+teamcity.groups.filter=(objectClass=groupOfUniqueNames)
+teamcity.groups.property.member=uniqueMember
+# LLDAP has no displayName — use cn for full name
+teamcity.users.property.displayName=cn
+```
+
+## Troubleshooting: discover server attributes
+
+When the LDAP server schema is unknown, query it directly with Python:
+```bash
+python3 -c "
+import ldap3
+s = ldap3.Server('host', port=3890, get_info=ldap3.ALL)
+c = ldap3.Connection(s, 'uid=admin,ou=people,dc=example,dc=com', 'password', auto_bind=True)
+c.search('ou=people,dc=example,dc=com', '(objectClass=*)', attributes=['objectClass','uid','mail','cn'])
+for e in c.entries: print(e.entry_dn, 'objectClass:', e.objectClass.values)
+c.unbind()
+"
+```
+Install: `pip3 install ldap3`
+
 ## Common issues
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | No LDAP option on login page | `ldap-config.properties` missing | Create file from `.dist` template |
+| `mandatory property 'java.naming.provider.url' is not defined` | Only `.dist` template exists, not actual config | Copy `.dist` → `.properties` and fill in the LDAP URL |
+| `mandatory property 'teamcity.users.filter' is not defined` | Sync enabled but no sync filter | Add `teamcity.users.filter=(objectClass=...)` matching your LDAP schema |
 | "Invalid username or password" | Wrong login filter | Check `teamcity.users.login.filter` matches your LDAP schema |
-| Users not found | Wrong search base | Verify `teamcity.users.base` DN relative to provider URL |
+| Users not found | Wrong search base or objectClass | Verify `teamcity.users.base` DN and `teamcity.users.filter` objectClass |
 | Slow authentication | No search base restriction | Set `teamcity.users.base` to narrow scope |
 | Sync not working | Groups not in `ldap-mapping.xml` | Create groups in TeamCity UI, then map in xml |
+| "Insecure LDAP" warning | Using `ldap://` instead of `ldaps://` | Ignore if LDAP server has no TLS (LLDAP, internal LDAP on same host) |

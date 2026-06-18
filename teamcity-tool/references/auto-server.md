@@ -114,6 +114,29 @@ tail -f /mnt/disk2/TeamCity/logs/teamcity-server.log
 tail -f /data/TeamCity/logs/teamcity-server.log
 ```
 
+## LLDAP server (Docker)
+
+LLDAP runs as a Docker container providing LDAP auth for TeamCity:
+
+| Property | Value |
+|---|---|
+| Container | `lldap/lldap:stable` |
+| LDAP port | 3890 (plain, no TLS) |
+| Web UI | http://192.168.2.13:17170 |
+| Base DN | `dc=example,dc=com` |
+| Admin user | `uid=admin,ou=people,dc=example,dc=com` |
+| User objectClass | `inetOrgPerson` |
+| Group objectClass | `groupOfUniqueNames` |
+| Member attribute | `uniqueMember` |
+| No displayName | Use `cn` for full name |
+
+LLDAP has no TLS/LDAPS support — TeamCity's "insecure" warning is cosmetic and can be ignored.
+
+Query users directly with Python:
+```bash
+python3 -c "import ldap3; s=ldap3.Server('192.168.2.13',port=3890); c=ldap3.Connection(s,'uid=admin,ou=people,dc=example,dc=com','admin123!',auto_bind=True); c.search('ou=people,dc=example,dc=com','(objectClass=*)',attributes=['*']); [print(e.entry_dn) for e in c.entries]"
+```
+
 ## Plugins
 
 96 plugins loaded including: ldap, jetbrains.git, docker-support, kubernetes-executor, unreal-engine (1.3.4), slackNotifier, and more. The `ldap` plugin is bundled (ver:208045).
