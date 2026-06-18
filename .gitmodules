@@ -7,9 +7,6 @@
 [submodule "frontend-slides"]
 	path = frontend-slides
 	url = git@github.com:zarazhangrui/frontend-slides.git
-[submodule "ai-morning-brief"]
-	path = ai-morning-brief
-	url = git@github.com:EA-Studio-SHARK/ai-morning-brief.git
 [submodule "huashu-design"]
 	path = huashu-design
 	url = git@github.com:alchaincyf/huashu-design.git
