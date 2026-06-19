@@ -13,3 +13,6 @@
 [submodule "notebooklm-py"]
 	path = notebooklm-py
 	url = https://github.com/teng-lin/notebooklm-py.git
+[submodule "ai-morning-brief"]
+	path = ai-morning-brief
+	url = git@github.com:EA-Studio-SHARK/ai-morning-brief.git
