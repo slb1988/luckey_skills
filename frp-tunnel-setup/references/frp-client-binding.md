@@ -153,6 +153,32 @@ sudo systemctl enable --now frpc
 sudo systemctl status frpc --no-pager
 ```
 
+### auto-server 实际部署记录
+
+> 部署日期：2026-06-15
+> 主机：auto-server (Linux amd64)
+> frpc 版本：v0.69.1
+> 进程号（部署时前台进程）：331779
+
+安装路径：
+
+| 文件 | 路径 |
+|---|---|
+| frpc 二进制 | `/opt/frp/frpc` |
+| 配置文件 | `/etc/frp/frpc.toml` |
+| systemd 服务 | `/etc/systemd/system/frpc.service` |
+
+停止 / 回滚：
+
+```bash
+kill 331779                            # 停前台进程（仅首次部署时有效）
+sudo systemctl stop frpc               # 停 systemd 服务
+sudo systemctl disable frpc            # 取消开机自启
+sudo rm -f /etc/systemd/system/frpc.service
+sudo systemctl daemon-reload
+sudo rm -rf /opt/frp /etc/frp /var/log/frp
+```
+
 ## 8. macOS launchd 常驻
 
 > 完整步骤见：[frpc-persistence-macos.md](frpc-persistence-macos.md)

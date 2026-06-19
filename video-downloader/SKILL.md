@@ -44,6 +44,52 @@ session cookie（无 expirationDate）填 0。
 
 ---
 
+## ffmpeg — 视频音频合并必需
+
+yt-dlp 下载最高画质时会分别拉取视频流和音频流，合并需要 ffmpeg。**没有 ffmpeg 则输出两个独立文件**（`.f400.mp4` 纯视频 + `.f140.m4a` 纯音频），而不是完整 mp4。
+
+### 检测是否已安装
+
+```bash
+ffmpeg -version
+```
+
+### Windows 安装（winget）
+
+```bash
+winget install --id Gyan.FFmpeg --source winget
+```
+
+> 必须用精确 ID，否则 `winget install ffmpeg` 会返回多个候选包。
+
+### PATH 刷新问题
+
+winget 安装后当前 shell 不会自动更新 PATH。解决方案：
+
+**方案 A**：重启终端后再运行 yt-dlp（推荐）
+
+**方案 B**：当场找到完整路径直接调用：
+
+```bash
+FFMPEG=$(find /c/Users/admin/AppData/Local/Microsoft/WinGet/Packages -name "ffmpeg.exe" 2>/dev/null | head -1)
+"$FFMPEG" -version
+```
+
+典型路径模式：
+```
+/c/Users/<user>/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-<version>-full_build/bin/ffmpeg.exe
+```
+
+### 手动合并（备用）
+
+若 yt-dlp 已产出两个分离文件，用 `-c copy` 合并（无重编码，速度极快）：
+
+```bash
+ffmpeg -i video.f400.mp4 -i audio.f140.m4a -c copy output.mp4 -y
+```
+
+---
+
 ## 注意事项
 
 - 运行前检查对应 cookies 文件是否已填写真实内容（非空模板）
