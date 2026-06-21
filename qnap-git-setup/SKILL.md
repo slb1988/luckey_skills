@@ -1,9 +1,43 @@
 ---
 name: qnap-git-setup
-description: 在 QNAP NAS 上配置 git、生成 SSH key 并绑定 GitHub 远程仓库。当用户提到"QNAP 装 git"、"NAS git"、"NAS 连接 GitHub"、"NAS SSH key"、"QNAP GitHub"、"NAS 上拉代码"、"NAS git clone 报错"时触发。即使用户只抱怨"QNAP 上找不到 git"、"NAS 上没有 git 命令"或"Entware opkg 安装 git"也应该考虑使用此 Skill。
+description: QNAP NAS 运维工具，支持：(1) 配置 git、生成 SSH key 并绑定 GitHub，(2) 固件更新——型号/平台识别与正确固件包选择。当用户提到"QNAP 装 git"、"NAS git"、"NAS 连接 GitHub"、"NAS SSH key"、"QNAP GitHub"、"NAS 上拉代码"、"NAS git clone 报错"时触发 git 功能；提到"QNAP 升级"、"固件更新"、"QTS 升级失败"、"手动更新固件"、"错误码 6"、"错误码 32"、"固件包解压错误"时触发固件功能。即使用户只抱怨"QNAP 上找不到 git"或"固件更新报错"也应该考虑使用此 Skill。
 ---
 
-# QNAP Git 与 GitHub SSH 连接配置
+# QNAP NAS 运维
+
+## 平台识别
+
+QNAP 型号命名区分产品线，**有无后缀字母决定硬件平台**。
+
+| 系列 | 平台 | CPU | 示例型号 | 固件目录 |
+|---|---|---|---|---|
+| TS-X53 | 旧款 x86 | 老 Celeron | TS-453A, TS-653A | `TS-X53` |
+| TS-X53D | Gemini Lake | 新 Celeron | **TS-453Dmini**, TS-653D | `TS-X53D` |
+| TS-X53B | Braswell | Celeron | TS-453B, TS-653B | `TS-X53B` |
+
+**差一个 "D" 就是完全不同的产品线。** TS-X53 的固件不能用于 TS-X53D，反之亦然（错误码 32：硬件型号不符）。
+
+### 型号查询命令
+
+```bash
+/sbin/getsysinfo model          # 显示型号名，如 TS-453Dmini
+cat /etc/platform.conf          # 平台代号，如 X86_GEMINILAKE
+getcfg System "Model" -f /etc/default_config/uLinux.conf          # 系列名，如 TS-X53D
+```
+
+### 固件下载 URL 模式
+
+```
+https://download.qnap.com/Storage/{系列}/{系列}_{日期}-{版本}.zip
+
+示例（正确，TS-453Dmini 用）:
+https://download.qnap.com/Storage/TS-X53D/TS-X53D_20260514-5.2.9.3499.zip
+
+示例（错误，TS-453Dmini 不可用）:
+https://download.qnap.com/Storage/TS-X53/TS-X53_20260514-5.2.9.3499.zip
+```
+
+## Git 与 GitHub SSH 连接配置
 
 在 QNAP NAS 上通过 Entware 安装 git，生成 SSH key，绑定 GitHub 远程仓库。
 
