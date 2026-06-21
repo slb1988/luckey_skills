@@ -48,7 +48,7 @@ description: Git 仓库工具，支持两个命令：(1) update/sync：将主仓
 git -C <repo_root> submodule update --init .claude/skills/huashu-design  # 不起作用
 
 # 正确：进入父 submodule，在其内部 init
-git -C <repo_root>/.claude/skills submodule update --init huashu-design notebooklm-py
+git -C <repo_root>/.claude/skills submodule update --init huashu-design
 ```
 
 ---
