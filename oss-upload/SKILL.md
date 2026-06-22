@@ -136,3 +136,37 @@ grep -c "原始域名关键字" /path/to/file.md
 - **已是 OSS 链接的跳过**：URL 中含 `aliyuncs.com` 的不重新上传。
 - **下载失败的链接跳过**：告知用户哪些图片失效，需手动处理。
 - **并行下载提速**：图片数量多时分批并行（每批 10~13 个），wait 后再上传。
+
+---
+
+## 已知陷阱
+
+### Windows 上下载被防火墙拦截的域名（如 pbs.twimg.com）
+
+curl 直连返回 `SSL/TLS connection failed (exit 35)` 或 `Connection was reset`。
+读取系统代理设置，加 `-x` 参数绕过：
+
+```bash
+# 从注册表读取代理
+ProxyServer=$(powershell -Command "(Get-ItemProperty 'HKCU:\...\Internet Settings').ProxyServer")
+curl -x "http://$ProxyServer" -sL "$URL" -o output.jpg
+```
+
+Windows 系统代理存在于注册表 `HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings`，`ProxyServer` 字段格式为 `host:port`（如 `127.0.0.1:7897`）。
+
+### OSS 上传报 `AccessDenied: must be addressed using the specified endpoint`
+
+含义：配置的 `OSS_ENDPOINT` 与 bucket 实际所在 region 不符。
+
+用 ossutil 查出 bucket 真实 region：
+
+```bash
+ossutil ls \
+  --access-key-id "$AK" \
+  --access-key-secret "$SK" \
+  --endpoint "oss.aliyuncs.com" \
+  --region "cn-shanghai"
+# 输出中 Region 列即为正确 region
+```
+
+然后将 `oss_config.env` 的 `OSS_ENDPOINT` 更新为正确值。
