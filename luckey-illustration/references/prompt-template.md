@@ -9,7 +9,7 @@ Visual DNA:
 Pure white background. Minimalist black hand-drawn line art. Slightly wobbly pen lines. Lots of empty white space. Sparse red/orange/blue handwritten Chinese annotations. Clean absurd product-sketch feeling. No gradients, no shadows, no paper texture, no complex background, no commercial vector style, no PPT infographic look, no cute mascot poster, no children's illustration, no realistic UI.
 
 Recurring IP character required:
-小Key, a small solid-black absurd creature with white dot eyes, tiny thin legs, blank serious expression, slightly uneven hand-drawn body shape. 小Key must perform the core conceptual action, not decorate the scene. Make 小Key serious, deadpan, and slightly bizarre, not cute.
+Luckey 小Key, a small warm-white bean-shaped mascot with black rounded sunglasses, a tiny simple smile when needed, short arms, short legs, small black shoes, and a clearly visible small golden key on top of the head. Slightly uneven hand-drawn body shape, clean whiteboard-doodle charm, serious and deadpan rather than cute. 小Key must perform the core conceptual action, not decorate the scene. Keep the sunglasses and head-top golden key visible whenever the viewing angle allows.
 
 Theme:
 {正文配图主题}
@@ -30,7 +30,7 @@ Chinese handwritten labels:
 {标注词1} / {标注词2} / {标注词3} / {标注词4} / {可选标注词5}
 
 Color use:
-Black for main line art and 小Key. Orange for main flow/path/arrows. Red only for key warnings/problems/results. Blue only for secondary notes or feedback/system state.
+Black for main line art, sunglasses, shoes, and annotations. Warm gold only for 小Key's head-top key. Orange for main flow/path/arrows. Red only for key warnings/problems/results. Blue only for secondary notes or feedback/system state.
 
 Constraints:
 One image explains only one core structure. Keep the main subject around 40%-60% of the canvas. Preserve at least 35% blank white space. Use at most 5-8 short handwritten Chinese labels. Do not write a title in the top-left corner. Do not write the structure type on the image. Do not make it a formal diagram, course slide, or dense explainer. Do not copy prior examples or reuse known case compositions unless explicitly requested; invent a fresh visual metaphor for this specific article. It should be clear but not instructional, interesting but not childish, strange but clean.
@@ -47,5 +47,5 @@ Edit the provided image. Remove only the handwritten title "{要删除的文字}
 增强怪诞感：
 
 ```text
-Regenerate this illustration with the same core meaning and simple layout, but make 小Key more central to the conceptual action. 小Key should be doing the strange work that explains the idea, not standing beside the diagram. Keep it clean, sparse, hand-drawn, and not cute.
+Regenerate this illustration with the same core meaning and simple layout, but make Luckey 小Key more central to the conceptual action. 小Key should be doing the strange work that explains the idea, not standing beside the diagram. Keep the character as a white bean-shaped figure with black sunglasses and a golden key on top of the head. Keep it clean, sparse, hand-drawn, deadpan, and not cute.
 ```
