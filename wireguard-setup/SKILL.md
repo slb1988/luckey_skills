@@ -271,3 +271,5 @@ qrencode -t ANSIUTF8 < ~/wireguard-configs/clients/${CLIENT_NAME}.conf
 ## 延伸阅读
 
 > 详细参考：[架构与设计约束](references/architecture.md) — AllowedIPs 双重语义、NAT 三元组、密钥安全模型、PersistentKeepalive 选型依据
+>
+> 当前设备：[设备清单](references/devices.md) — 已分配的 VPN IP 及设备列表
