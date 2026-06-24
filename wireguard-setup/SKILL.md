@@ -49,12 +49,12 @@ sudo wg show 2>/dev/null || echo "No existing WireGuard interface"
 | 服务器 VPN IP | `10.77.77.1` | 子网第一个地址 |
 | 监听端口 | `51820` | WireGuard 默认端口 |
 | 公网 IP | 自动检测 | 用户可手动指定 |
-| 客户端流量模式 | `0.0.0.0/0`（全隧道） | 如需分流可改为子网段 |
+| 客户端流量模式 | `10.77.77.0/24`（分流） | 如需全隧道改为 `0.0.0.0/0` |
 | 数据目录 | `~/wireguard-configs/` | 私钥和客户端配置存放处 |
 
 **流量模式说明：**
-- `AllowedIPs = 0.0.0.0/0`：客户端所有流量走 VPN（全隧道，适合在外面用）
-- `AllowedIPs = 10.77.77.0/24`：只有 VPN 内网流量走隧道（分流，适合只想互访设备）
+- `AllowedIPs = 10.77.77.0/24`（默认）：只有 VPN 内网流量走隧道，其他流量走本地网络
+- `AllowedIPs = 0.0.0.0/0`：所有流量走 VPN（全隧道），适合在外网需要翻回内网的场景
 
 ## 第三步：安装 WireGuard
 
@@ -165,7 +165,7 @@ DNS = 223.5.5.5
 [Peer]
 PublicKey = <server_public_key>
 Endpoint = <public_ip>:51820
-AllowedIPs = 0.0.0.0/0
+AllowedIPs = 10.77.77.0/24
 PersistentKeepalive = 25
 ```
 
