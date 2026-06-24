@@ -59,12 +59,13 @@ sudo wg show 2>/dev/null || echo "No existing WireGuard interface"
 ## 第三步：安装 WireGuard
 
 ```bash
-sudo apt update && sudo apt install wireguard wireguard-tools qrencode -y
+sudo apt update && sudo apt install wireguard wireguard-tools qrencode resolvconf -y
 ```
 
 - `wireguard`：内核模块和 wg-quick 脚本
 - `wireguard-tools`：wg 命令行工具
 - `qrencode`：生成二维码，供手机扫码导入
+- `resolvconf`：wg-quick 通过它设置 DNS，只要配置中有 `DNS =` 行就必须安装
 
 ## 第四步：生成密钥对
 
@@ -260,6 +261,7 @@ qrencode -t ANSIUTF8 < ~/wireguard-configs/clients/${CLIENT_NAME}.conf
 | wg show 无 handshake | 公网 IP 不对或端口被封 | 确认 Endpoint IP，换端口尝试 |
 | 客户端能连但无法上网 | MASQUERADE 规则出口网卡不对 | 检查 `ip route show default` 的出口网卡名 |
 | DNS 不工作 | 客户端 DNS 配置问题 | 确认客户端 config 中 `DNS = 223.5.5.5` |
+| `resolvconf: command not found` | 未安装 resolvconf | `sudo apt install resolvconf -y` 后重启 wg-quick |
 
 ## 安全提醒
 
