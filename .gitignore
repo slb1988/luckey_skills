@@ -2,6 +2,7 @@ excalidraw-diagram
 .DS_Store
 mermaid-visualizer
 obsidian-canvas-creator
+frp-tunnel-setup-eval-workspace
 
 # video-downloader - actual cookies (not templates)
 video-downloader/config/*_cookies.txt
