@@ -9,7 +9,7 @@ Visual DNA:
 Pure white background. Minimalist black hand-drawn line art. Slightly wobbly pen lines. Lots of empty white space. Sparse red/orange/blue handwritten Chinese annotations. Clean absurd product-sketch feeling. No gradients, no shadows, no paper texture, no complex background, no commercial vector style, no PPT infographic look, no cute mascot poster, no children's illustration, no realistic UI.
 
 Recurring IP character required:
-Luckey 小Key, a small warm-white bean-shaped mascot with black rounded sunglasses, a tiny simple smile when needed, short arms, short legs, small black shoes, and a clearly visible small golden key on top of the head. Slightly uneven hand-drawn body shape, clean whiteboard-doodle charm, serious and deadpan rather than cute. 小Key must perform the core conceptual action, not decorate the scene. Keep the sunglasses and head-top golden key visible whenever the viewing angle allows.
+Luckey 小Key, a small warm-white bean-shaped mascot with black rounded sunglasses, a tiny simple smile when needed, short arms, short legs, small black shoes, and a clearly visible but small golden key on top of the head. The key should be about 25%-35% of the head width, readable as a tiny signature mark, not oversized. Slightly uneven hand-drawn body shape, clean whiteboard-doodle charm, serious and deadpan rather than cute. 小Key must perform the core conceptual action, not decorate the scene. Keep the sunglasses and small head-top golden key visible whenever the viewing angle allows.
 
 Theme:
 {正文配图主题}
@@ -47,5 +47,5 @@ Edit the provided image. Remove only the handwritten title "{要删除的文字}
 增强怪诞感：
 
 ```text
-Regenerate this illustration with the same core meaning and simple layout, but make Luckey 小Key more central to the conceptual action. 小Key should be doing the strange work that explains the idea, not standing beside the diagram. Keep the character as a white bean-shaped figure with black sunglasses and a golden key on top of the head. Keep it clean, sparse, hand-drawn, deadpan, and not cute.
+Regenerate this illustration with the same core meaning and simple layout, but make Luckey 小Key more central to the conceptual action. 小Key should be doing the strange work that explains the idea, not standing beside the diagram. Keep the character as a white bean-shaped figure with black sunglasses and a small golden key on top of the head. Keep it clean, sparse, hand-drawn, deadpan, and not cute.
 ```
