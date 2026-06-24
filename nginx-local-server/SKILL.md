@@ -41,25 +41,31 @@ docker ps --format '{{.Names}} {{.Ports}}' | grep nginx
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
+
     server_name _;
 
     root /data/py_automation/frontend/dist;
     index index.html index.htm;
 
+    # index.html — never cache（确保部署后浏览器立即拿到新版）
     location / {
-        # SPA History 模式：找不到文件就回退到 index.html
+        etag off;
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
         try_files $uri $uri/ /index.html;
     }
 
-    # 静态资源缓存
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
-        expires 30d;
-        add_header Cache-Control "public, max-age=2592000";
+    # Hashed assets（/assets/ 下）— 永久缓存（immutable）
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
     }
+
+    server_tokens off;
 }
 ```
 
-> **注意**：此文件无 sudo 权限无法修改（owner: root）。修改需 `sudo`，但当前环境无 sudo 密码。
+> **备份文件**：`/etc/nginx/sites-available/py_automation.conf.bak`（修改前自动备份）
 
 ## 关键问题：SPA 路由拦截静态页面
 
@@ -148,7 +154,7 @@ sudo nginx -s reload
 
 ## 注意事项
 
-- **无 sudo 权限**：无法 reload nginx、修改 `/etc/nginx/` 下的配置。所有修改必须在 `/data/py_automation/frontend/dist/` 目录内完成。
+- **可 sudo**：拥有 sudo 权限，可以直接修改配置并 reload nginx。
 - **浏览器缓存**：修改文件后，浏览器可能缓存旧响应。测试时使用无痕模式或硬刷新（Ctrl+Shift+R）。
 - **Docker nginx**：修改 Dify 的 nginx 配置需操作 `/mnt/disk2/dify/docker/nginx/conf.d/` 下的文件并重启容器。
 - SPA 的 `index.html` 和 assets 由前端构建生成，修改前确认。
