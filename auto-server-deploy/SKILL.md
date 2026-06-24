@@ -1,0 +1,98 @@
+---
+name: auto-server-deploy
+description: Full-stack deploy of the auto-server frontend and backend on dev@auto-server. Syncs both from Perforce, builds the frontend, and restarts the backend with full log rotation. Use when publishing both frontend and backend together.
+---
+
+# Auto-Server Full-Stack Deploy
+
+## 概述
+
+在 `dev@auto-server` 上一键部署 auto-server **前端 + 后端**。先部署后端（同步→停服→归档→轮转→启动），再部署前端（同步→构建），最后自动验证。
+
+## 快速开始
+
+```bash
+/home/dev/.pi/skills/auto-server-deploy/scripts/deploy.sh
+```
+
+## 部署流程
+
+### 后端（5 步）
+
+| 步骤 | 操作 | 说明 |
+|------|------|------|
+| B1 | P4 同步 | `export P4CHARSET=utf8 && p4 sync` |
+| B2 | 停止服务 | `kill -9 $(cat python3_pid.log)` |
+| B3 | 归档日志 | `mv flask_*.log ./tmp/` |
+| B4 | 轮转 app.log | `mv logs/app.log logs/app.log.{N}`（自动递增） |
+| B5 | 启动服务 | `nohup python3 manage.py runserver --host 0.0.0.0 --port 5000 &` |
+
+### 前端（2 步）
+
+| 步骤 | 操作 | 说明 |
+|------|------|------|
+| F1 | P4 同步 | `export P4CHARSET=utf8 && p4 sync` |
+| F2 | 构建 | `npm run build` |
+
+## P4 配置
+
+| 参数 | 值 |
+|------|-----|
+| 用户 | `admin_sun` |
+| 服务器 | `192.168.2.13:1666` |
+| 客户端 | `auto-server` |
+| 字符集 | `utf8`（**必须**，Unicode 服务器） |
+
+## 日志管理（后端）
+
+| 操作 | 说明 |
+|------|------|
+| flask 日志归档 | `flask_{PID}.log` → `tmp/` |
+| app.log 轮转 | `logs/app.log` → `logs/app.log.{N}`（N 自动递增，永不覆盖） |
+
+## 目录结构
+
+```
+/data/py_automation/
+├── backend/               ← Flask 后端
+│   ├── manage.py
+│   ├── venv/
+│   ├── python3_pid.log
+│   ├── flask_{PID}.log
+│   ├── logs/
+│   │   ├── app.log
+│   │   └── app.log.{N}
+│   └── tmp/
+│       └── flask_*.log
+└── frontend/              ← Vite 前端
+    ├── package.json
+    └── dist/              ← 构建产物
+```
+
+## 部署后验证
+
+脚本会自动输出：
+
+```
+--- 验证后端 ---
+  后端 PID: 1234567  |  HTTP: 200
+  前端 dist: /data/py_automation/frontend/dist/
+  ✅ 前端构建产物已就绪
+```
+
+也可手动验证：
+
+```bash
+# 后端
+curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/
+
+# 前端
+ls /data/py_automation/frontend/dist/
+```
+
+## 注意事项
+
+- **P4 字符集**：必须设置 `P4CHARSET=utf8`，服务器为 Unicode 模式
+- 部署顺序：先停后端 → 部署后端 → 部署前端，减少停机时间
+- 如果 P4 无更新，sync 输出 `File(s) up-to-date.`，不影响后续步骤
+- `tmp/` 目录需定期手动清理历史 flask 日志
