@@ -267,3 +267,7 @@ qrencode -t ANSIUTF8 < ~/wireguard-configs/clients/${CLIENT_NAME}.conf
 - 不要在聊天记录中完整显示私钥内容
 - 客户端配置文件含私钥，传输时注意安全（二维码相对安全）
 - 定期轮换密钥是良好实践，但这需要重新分发客户端配置
+
+## 延伸阅读
+
+> 详细参考：[架构与设计约束](references/architecture.md) — AllowedIPs 双重语义、NAT 三元组、密钥安全模型、PersistentKeepalive 选型依据
