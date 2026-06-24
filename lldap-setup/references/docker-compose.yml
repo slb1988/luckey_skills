@@ -1,0 +1,28 @@
+services:
+  lldap:
+    image: lldap/lldap:stable
+    container_name: lldap
+    restart: unless-stopped
+    ports:
+      - "3890:3890"   # LDAP 端口
+      - "17170:17170" # Web UI 端口
+    volumes:
+      - /data/lldap:/data
+    environment:
+      - UID=1000
+      - GID=1000
+      - TZ=Asia/Shanghai
+    # 如果不想用配置文件，可以全部用环境变量：
+    # environment:
+    #   - LLDAP_LDAP_HOST=0.0.0.0
+    #   - LLDAP_LDAP_PORT=3890
+    #   - LLDAP_HTTP_HOST=0.0.0.0
+    #   - LLDAP_HTTP_PORT=17170
+    #   - LLDAP_HTTP_URL=http://localhost:17170
+    #   - LLDAP_JWT_SECRET=your-random-secret
+    #   - LLDAP_LDAP_BASE_DN=dc=example,dc=com
+    #   - LLDAP_LDAP_USER_DN=admin
+    #   - LLDAP_LDAP_USER_EMAIL=admin@example.com
+    #   - LLDAP_LDAP_USER_PASS=your-admin-password
+    #   - LLDAP_DATABASE_URL=sqlite:///data/users.db?mode=rwc
+    #   - LLDAP_KEY_SEED=your-random-seed

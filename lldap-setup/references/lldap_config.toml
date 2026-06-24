@@ -1,0 +1,66 @@
+# LLDAP 完整配置文件模板
+# 所有值都可以通过环境变量覆盖，格式为 LLDAP_<字段名大写>
+# 例：ldap_port 对应 LLDAP_LDAP_PORT
+
+## 日志级别
+# verbose = false
+
+## LDAP 服务器
+ldap_host = "0.0.0.0"
+ldap_port = 3890
+
+## HTTP/Web 管理界面
+http_host = "0.0.0.0"
+http_port = 17170
+http_url = "http://localhost:17170"
+
+## JWT 签名密钥（随机生成，生产环境必须修改）
+jwt_secret = "REPLACE_WITH_RANDOM_32_CHARS"
+
+## LDAP Base DN（建议改成自己的域名）
+ldap_base_dn = "dc=example,dc=com"
+
+## 管理员账号
+ldap_user_dn = "admin"
+ldap_user_email = "admin@example.com"
+ldap_user_pass = "REPLACE_WITH_PASSWORD"
+
+## 强制重置管理员密码（忘记密码时使用）
+# force_ldap_user_pass_reset = false
+# force_ldap_user_pass_reset = "always"  # 每次启动都重置
+
+## 数据库（SQLite 自动创建）
+database_url = "sqlite:///data/users.db?mode=rwc"
+
+## 密码加密种子
+key_seed = "REPLACE_WITH_RANDOM"
+
+## 私钥文件路径（不推荐，用 key_seed 即可）
+# key_file = "/data/private_key"
+
+## 忽略的属性（某些服务请求 LLDAP 不存在的属性时消除警告）
+# ignored_user_attributes = ["sAMAccountName"]
+# ignored_group_attributes = ["mail", "userPrincipalName"]
+
+## SMTP 配置（密码重置邮件，可选）
+# [smtp_options]
+# enable_password_reset = true
+# server = "smtp.gmail.com"
+# port = 587
+# smtp_encryption = "TLS"
+# user = "sender@gmail.com"
+# password = "your-app-password"
+# from = "LLDAP Admin <sender@gmail.com>"
+# reply_to = "Do not reply <noreply@localhost>"
+
+## LDAPS 配置（加密 LDAP，可选）
+# [ldaps_options]
+# enabled = true
+# port = 6360
+# cert_file = "/data/cert.pem"
+# key_file = "/data/key.pem"
+
+## 健康检查配置
+# [healthcheck_options]
+# http_host = "localhost"
+# ldap_host = "localhost"
