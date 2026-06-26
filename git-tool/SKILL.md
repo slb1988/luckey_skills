@@ -1,6 +1,6 @@
 ---
 name: git-tool
-description: Git 仓库工具，支持两个命令：(1) update/sync：将主仓库和所有 git submodule 递归更新到远端最新；(2) commit <submodule名>：将指定 submodule 的本地变更提交并推送，再同步更新主仓库的 submodule 指针。当用户说 "git-tool update"、"git-tool sync"、"git-tool commit skills"、"提交 submodule"、"同步 submodule" 时触发。出现冲突或错误时立即中断，给出具体的手动解决命令。
+description: "Git 仓库工具，支持两个命令：(1) update/sync 将主仓库和所有 git submodule 递归更新到远端最新；(2) commit [submodule名] 将指定 submodule 的本地变更提交并推送，再同步更新主仓库的 submodule 指针。当用户说 git-tool update、git-tool sync、git-tool commit skills、提交 submodule、同步 submodule 时触发。出现冲突或错误时立即中断，给出具体的手动解决命令。"
 ---
 
 # git-tool: 递归更新主库 + 所有 Submodule

@@ -1,17 +1,6 @@
 ---
 name: learn-10x
-description: |
-  Systematic learning system — transforms any topic into structured, vault-integrated
-  study via 6 prompts (Learning Ladder, 20-Hour Plan, Quiz Me Until I Break, Cheat
-  Sheet, Signal in the Noise, Feynman Loop).
-
-  Triggers: "learn/study/understand [topic]", "learning plan for [topic]", "quiz me
-  on [topic]", "cheat sheet for [topic]", "resources to learn [topic]", "continue
-  learning [topic]", "where did I leave off", "what next after studying [topic]",
-  or any question about learning history/progress on a topic.
-
-  Reads existing vault notes to resume where the user left off. Builds durable,
-  compounding knowledge that persists across sessions.
+description: "Systematic learning system - transforms any topic into structured, vault-integrated study via 6 prompts (Learning Ladder, 20-Hour Plan, Quiz Me Until I Break, Cheat Sheet, Signal in the Noise, Feynman Loop). Triggers: learn/study/understand [topic], learning plan, quiz me, cheat sheet, resources to learn, continue learning, where did I leave off. Reads existing vault notes to resume where the user left off."
 ---
 
 # learn-10x: Systematic Learning System
