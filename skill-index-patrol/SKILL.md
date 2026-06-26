@@ -68,10 +68,27 @@ BOT_USERS = {'cyancookci', 'administrator', 'cyancookban'}
 **处理流程**：
 ```
 提交人 CyanCookCI → is_bot() = True
-  → extract_real_author() 用正则 CL:(\d+)\s+by\s+([A-Za-z0-9_]+) 提取
-  → 得到真人 LinGuanyu + 原始CL 108372
-  → lookup_user_id('LinGuanyu') 查飞书 open_id
-  → DM 发给林冠宇，说明 "你的 CL 108372 经 auto-merge (CL 108380) 合入后导致数量减少"
+  → extract_real_author(user, desc, cl=CL号) 用正则 CL:(\d+)\s+by\s+([A-Za-z0-9_]+) 提取
+  → 短描述匹配失败（p4 changes 截断）→ 自动 p4 describe -s {cl} 拉完整描述重试
+  → 得到真人 JiangJiacheng + 原始CL 109169
+  → lookup_user_id('JiangJiacheng') 查飞书 open_id
+  → DM 发给当事人，说明 "你的 CL 109169 经 auto-merge (CL 109326) 合入后导致数量减少"
+```
+
+**⚠️ 关键坑：`p4 changes` 描述截断（已修复）**
+
+`p4 changes` 返回的描述字段默认只保留 ~31 个字符：
+```
+#auto-merge:manual Rel-0.2->M    ← 截断在这里
+```
+完整描述实际是：
+```
+#auto-merge:manual Rel-0.2->MainDev CL:109169 by JiangJiacheng entry-design skill update
+```
+
+**修复**：`extract_real_author` 在短描述正则匹配失败时，自动调用 `get_full_desc(cl)`（`p4 describe -s {cl}`）获取完整描述再重试。调用方**必须传 `cl=` 参数**，否则回退无法触发：
+```python
+real_user, orig_cl = extract_real_author(a['user'], a['desc'], cl=a['cl'])
 ```
 
 如果 bot 套 bot（CyanCookCI 的 CL by CyanCookCI），`real_user` 仍为 bot → fallback 群里提醒。
