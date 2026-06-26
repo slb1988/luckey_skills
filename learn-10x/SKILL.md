@@ -1,25 +1,17 @@
 ---
 name: learn-10x
 description: |
-  Systematic learning system — transforms any topic into a structured, vault-integrated
-  learning engagement using the 6-prompt framework (Learning Ladder, 20-Hour Plan,
-  Quiz Me Until I Break, One-Page Cheat Sheet, Signal in the Noise, Feynman Loop).
+  Systematic learning system — transforms any topic into structured, vault-integrated
+  study via 6 prompts (Learning Ladder, 20-Hour Plan, Quiz Me Until I Break, Cheat
+  Sheet, Signal in the Noise, Feynman Loop).
 
-  ALWAYS use this skill when the user says any of the following:
-  - "learn [topic]", "study [topic]", "I want to learn X"
-  - "understand [topic] deeply", "teach me [topic] step by step"
-  - "make a learning plan for [topic]", "how do I get good at [topic]"
-  - "quiz me on [topic]", "test my understanding of [topic]"
-  - "cheat sheet for [topic]", "summarize [topic] for review"
-  - "what resources should I use to learn [topic]"
-  - "continue learning [topic]", "where did I leave off on [topic]"
-  - "I've been studying [topic], what next"
+  Triggers: "learn/study/understand [topic]", "learning plan for [topic]", "quiz me
+  on [topic]", "cheat sheet for [topic]", "resources to learn [topic]", "continue
+  learning [topic]", "where did I leave off", "what next after studying [topic]",
+  or any question about learning history/progress on a topic.
 
-  Also use when the user asks about their learning history or progress on any topic —
-  this skill can read existing vault notes to assess current knowledge state.
-
-  This is NOT a one-off answer skill. Its purpose is to build durable, compounding
-  knowledge that persists in the Obsidian vault across sessions.
+  Reads existing vault notes to resume where the user left off. Builds durable,
+  compounding knowledge that persists across sessions.
 ---
 
 # learn-10x: Systematic Learning System
