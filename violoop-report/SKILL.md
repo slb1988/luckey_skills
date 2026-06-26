@@ -7,11 +7,21 @@ description: 图文记录工具。当用户传来一张图片（截图/文件路
 
 记录工具：可带图片也可纯文字 → 上传 OSS → 追加到统一单文件。
 
+<<<<<<< HEAD
 **记录文件（唯一固定）：**
 ```
 C:\Users\admin\.violoop\workspace\user-feedback.md
 ```
 
+=======
+**记录文件（优先使用相对路径）：**
+```
+violoop/user-feedback.md
+```
+
+优先规则：如果当前工作目录下存在 `violoop/user-feedback.md`，则写入该文件；否则回退到 C 盘固定路径 `C:\Users\admin\.violoop\workspace\user-feedback.md`。
+
+>>>>>>> 308c6ba (chore: update illustration examples and restore violoop-report SKILL.md)
 ## 触发场景
 
 - 用户在聊天中内嵌图片（`[Screenshot name=xxx.jpg ...]`）+ 配字
@@ -55,8 +65,24 @@ $ossUrl = ($output | Select-String "^OSS_URL:").Line -replace "OSS_URL: ", ""
 
 ### Step 3：追加写入记录文件
 
+<<<<<<< HEAD
 ```powershell
 $reportFile = "C:\Users\admin\.violoop\workspace\user-feedback.md"
+=======
+优先使用相对路径 `violoop/user-feedback.md`（相对于工作目录），若不存在则回退到固定 C 盘路径：
+
+```powershell
+$cwd = (Get-Location).Path
+$relativeFile = Join-Path $cwd "violoop\user-feedback.md"
+$fallbackFile = "C:\Users\admin\.violoop\workspace\user-feedback.md"
+
+if (Test-Path $relativeFile) {
+    $reportFile = $relativeFile
+} else {
+    $reportFile = $fallbackFile
+}
+
+>>>>>>> 308c6ba (chore: update illustration examples and restore violoop-report SKILL.md)
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
 if (-not (Test-Path $reportFile)) {
