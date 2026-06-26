@@ -1,27 +1,17 @@
 ---
 name: violoop-report
-description: 图文记录工具。当用户传来一张图片（截图/文件路径）并附上文字说明时，自动上传图片到 OSS 图床，然后以 Markdown 格式追加写入 workspace 下的记录文件。触发词：记录、record、log、笔记、note、写进去、存下来、记一下、配字记录、图文记录、用户反馈、反馈记录、feedback。即使用户只说"帮我记录一下"、"把这个存下来"、"加个截图到记录里"也应该触发此 Skill。也适用于纯文字反馈（无图片）。所有记录追加到同一个单文件中。
+description: 图文记录工具。当用户传来一张图片（截图/文件路径）并附上文字说明时，自动上传图片到 OSS 图床，然后以 Markdown 格式追加写入记录文件。触发词：记录、record、log、笔记、note、写进去、存下来、记一下、配字记录、图文记录、用户反馈、反馈记录、feedback。即使用户只说"帮我记录一下"、"把这个存下来"、"加个截图到记录里"也应该触发此 Skill。也适用于纯文字反馈（无图片）。所有记录追加到同一个单文件中。
 ---
 
 # violoop-report
 
 记录工具：可带图片也可纯文字 → 上传 OSS → 追加到统一单文件。
 
-<<<<<<< HEAD
 **记录文件（唯一固定）：**
 ```
-C:\Users\admin\.violoop\workspace\user-feedback.md
+luckey/110 Utilities/violoop/user-feedback.md
 ```
 
-=======
-**记录文件（优先使用相对路径）：**
-```
-violoop/user-feedback.md
-```
-
-优先规则：如果当前工作目录下存在 `violoop/user-feedback.md`，则写入该文件；否则回退到 C 盘固定路径 `C:\Users\admin\.violoop\workspace\user-feedback.md`。
-
->>>>>>> 308c6ba (chore: update illustration examples and restore violoop-report SKILL.md)
 ## 触发场景
 
 - 用户在聊天中内嵌图片（`[Screenshot name=xxx.jpg ...]`）+ 配字
@@ -53,7 +43,15 @@ $imgPath = Get-ChildItem $cacheBase -Recurse -ErrorAction SilentlyContinue |
 
 ### Step 2：上传图片到 OSS
 
+使用 oss-upload skill 脚本上传：
+
+```bash
+# macOS/Linux
+python3 .claude/skills/oss-upload/scripts/oss_upload.py /path/to/image.png
+```
+
 ```powershell
+# Windows PowerShell
 $ossScript = "C:\Users\admin\.violoop\skills\oss-upload\scripts\oss_upload.py"
 $output = python $ossScript "$imgPath"
 $ossUrl = ($output | Select-String "^OSS_URL:").Line -replace "OSS_URL: ", ""
@@ -65,59 +63,30 @@ $ossUrl = ($output | Select-String "^OSS_URL:").Line -replace "OSS_URL: ", ""
 
 ### Step 3：追加写入记录文件
 
-<<<<<<< HEAD
-```powershell
-$reportFile = "C:\Users\admin\.violoop\workspace\user-feedback.md"
-=======
-优先使用相对路径 `violoop/user-feedback.md`（相对于工作目录），若不存在则回退到固定 C 盘路径：
-
-```powershell
-$cwd = (Get-Location).Path
-$relativeFile = Join-Path $cwd "violoop\user-feedback.md"
-$fallbackFile = "C:\Users\admin\.violoop\workspace\user-feedback.md"
-
-if (Test-Path $relativeFile) {
-    $reportFile = $relativeFile
-} else {
-    $reportFile = $fallbackFile
-}
-
->>>>>>> 308c6ba (chore: update illustration examples and restore violoop-report SKILL.md)
-$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-
-if (-not (Test-Path $reportFile)) {
-    "# 用户反馈记录`n" | Set-Content $reportFile -Encoding UTF8
-}
-```
+记录文件固定为 `luckey/110 Utilities/violoop/user-feedback.md`。
 
 **有图片时** — embed + 配字 + 原始 URL：
-```powershell
-$entry = @"
 
+```markdown
 ---
 
-**$timestamp**
+**2026-06-26 16:29:33**
 
-![$caption]($ossUrl)
+![排队中的任务不会自动执行](https://obsidian-pics.oss-cn-shanghai.aliyuncs.com/images/1782462561332.png)
 
-$caption
+排队中的任务不会自动执行
 
-$ossUrl
-"@
-Add-Content $reportFile $entry -Encoding UTF8
+https://obsidian-pics.oss-cn-shanghai.aliyuncs.com/images/1782462561332.png
 ```
 
 **纯文字时**：
-```powershell
-$entry = @"
 
+```markdown
 ---
 
-**$timestamp**
+**2026-06-26 16:29:33**
 
-$caption
-"@
-Add-Content $reportFile $entry -Encoding UTF8
+排队中的任务不会自动执行
 ```
 
 ### Step 4：回复用户
@@ -129,7 +98,7 @@ Add-Content $reportFile $entry -Encoding UTF8
 ![配字](ossUrl)
 📝 配字
 🔗 ossUrl
-📁 user-feedback.md
+📁 luckey/110 Utilities/violoop/user-feedback.md
 ```
 
 **纯文字时：**
@@ -137,7 +106,7 @@ Add-Content $reportFile $entry -Encoding UTF8
 ✅ 已记录
 
 📝 用户说的话
-📁 user-feedback.md
+📁 luckey/110 Utilities/violoop/user-feedback.md
 ```
 
 ## 注意事项
