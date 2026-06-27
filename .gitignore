@@ -6,3 +6,4 @@ frp-tunnel-setup-eval-workspace
 
 # video-downloader - actual cookies (not templates)
 video-downloader/config/*_cookies.txt
+/%USERPROFILE%
