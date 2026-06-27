@@ -16,18 +16,18 @@ warn()  { echo "[WARN] $*"; }
 MAIN_COMMITTED=false
 
 # ============================================================
-#  Step 1: commit main repo tracked changes
+#  Step 1: commit main repo changes (tracked + untracked)
 # ============================================================
 SUB_PATHS=$(git config --file .gitmodules --get-regexp path 2>/dev/null | awk '{print $2}' || true)
 
 info "checking main repo changes..."
-ROOT_CHANGES=$(git status --porcelain | grep -v '^??' || true)
+ROOT_CHANGES=$(git status --porcelain || true)
 
 if [[ -n "$ROOT_CHANGES" ]]; then
-  # Exclude submodule pointer changes from main repo commit
+  # Exclude submodule pointer changes; keep everything else (including untracked ??)
   ROOT_OWN=$(echo "$ROOT_CHANGES" | { while IFS= read -r line; do
     p="${line:3}"
-    # Skip lines that are just submodule pointer changes (" M subpath")
+    [[ "$line" == '??'* ]] && { echo "$line"; continue; }
     is_sub=false
     for sp in $SUB_PATHS; do
       [[ "$p" == "$sp" ]] && { is_sub=true; break; }
