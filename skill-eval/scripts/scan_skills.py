@@ -26,7 +26,12 @@ def scan(root: str, exclude: list[str]) -> list[str]:
     for entry in sorted(entries):
         if entry in exclude:
             continue
-        skill_md = os.path.join(root, entry, "SKILL.md")
+        entry_path = os.path.join(root, entry)
+        # Only first-level subdirectories can be skills — skip files
+        # (.git, .gitmodules, .DS_Store, etc.) and other non-directory entries.
+        if not os.path.isdir(entry_path):
+            continue
+        skill_md = os.path.join(entry_path, "SKILL.md")
         if os.path.isfile(skill_md):
             results.append(skill_md)
 

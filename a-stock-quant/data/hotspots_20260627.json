@@ -1,0 +1,89 @@
+{
+  "date": "20260627",
+  "collected_at": "2026-06-27T21:50:23",
+  "sector_top5_inflow": [
+    {
+      "name": "面板",
+      "netflow": 4025548032.0,
+      "pct": 0.15
+    },
+    {
+      "name": "光学光电子",
+      "netflow": 3776760832.0,
+      "pct": 0.35
+    },
+    {
+      "name": "光伏设备",
+      "netflow": 2504937728.0,
+      "pct": -0.7
+    },
+    {
+      "name": "航天装备Ⅲ",
+      "netflow": 2174875296.0,
+      "pct": 4.25
+    },
+    {
+      "name": "航天装备Ⅱ",
+      "netflow": 2174875296.0,
+      "pct": 4.25
+    }
+  ],
+  "sector_count": 496,
+  "zt_count": 60,
+  "zt_max_boards": 6,
+  "hot_top10": [
+    "彤程新材",
+    "多氟多",
+    "京东方Ａ",
+    "有研新材",
+    "中国巨石",
+    "华工科技",
+    "凯盛科技",
+    "太极实业",
+    "TCL中环",
+    "长电科技"
+  ],
+  "sustained_inflow_sectors": [
+    {
+      "name": "面板",
+      "persist": 1.0,
+      "cum5_netflow": 4025548032.0
+    },
+    {
+      "name": "光学光电子",
+      "persist": 1.0,
+      "cum5_netflow": 3776760832.0
+    },
+    {
+      "name": "光伏设备",
+      "persist": 1.0,
+      "cum5_netflow": 2504937728.0
+    },
+    {
+      "name": "航天装备Ⅱ",
+      "persist": 1.0,
+      "cum5_netflow": 2174875296.0
+    },
+    {
+      "name": "航天装备Ⅲ",
+      "persist": 1.0,
+      "cum5_netflow": 2174875296.0
+    },
+    {
+      "name": "硅料硅片",
+      "persist": 1.0,
+      "cum5_netflow": 1352842576.0
+    },
+    {
+      "name": "风电设备",
+      "persist": 1.0,
+      "cum5_netflow": 1221115344.0
+    },
+    {
+      "name": "房地产",
+      "persist": 1.0,
+      "cum5_netflow": 1054987728.0
+    }
+  ],
+  "collect_days": 1
+}
