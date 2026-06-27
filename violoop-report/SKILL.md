@@ -65,18 +65,16 @@ $ossUrl = ($output | Select-String "^OSS_URL:").Line -replace "OSS_URL: ", ""
 
 记录文件固定为 `luckey/110 Utilities/violoop/user-feedback.md`。
 
-**有图片时** — embed + 配字 + 原始 URL：
+**有图片时** — 配字在上，图片 embed 在下（不额外贴裸 URL）：
 
 ```markdown
 ---
 
 **2026-06-26 16:29:33**
 
-![排队中的任务不会自动执行](https://obsidian-pics.oss-cn-shanghai.aliyuncs.com/images/1782462561332.png)
-
 排队中的任务不会自动执行
 
-https://obsidian-pics.oss-cn-shanghai.aliyuncs.com/images/1782462561332.png
+![排队中的任务不会自动执行](https://obsidian-pics.oss-cn-shanghai.aliyuncs.com/images/1782462561332.png)
 ```
 
 **纯文字时**：
@@ -95,9 +93,8 @@ https://obsidian-pics.oss-cn-shanghai.aliyuncs.com/images/1782462561332.png
 ```
 ✅ 已记录
 
-![配字](ossUrl)
 📝 配字
-🔗 ossUrl
+![配字](ossUrl)
 📁 luckey/110 Utilities/violoop/user-feedback.md
 ```
 
@@ -112,7 +109,7 @@ https://obsidian-pics.oss-cn-shanghai.aliyuncs.com/images/1782462561332.png
 ## 注意事项
 
 - 聊天内嵌图片的缓存路径：`%USERPROFILE%\Documents\xwechat_files\...\temp\RWTemp\<年月>\<hash>.jpg`
-- 图片记录同时写 embed + URL，embed 渲染图片，URL 方便复制引用
+- 格式：配字正文在上，图片 embed 在下；不额外贴裸 URL（图片 URL 已包含在 embed 中，无需重复）
 - 配字作为图片 alt text 和正文都写，保证可搜索
 - 每条记录前加 `---` 分隔线，时间戳加粗
 - 所有记录追加到同一文件，不覆盖
