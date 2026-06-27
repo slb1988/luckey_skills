@@ -1,5 +1,5 @@
 #!/bin/bash
-# git-tool-commit.sh — commit & push all changed submodules, then update main repo
+# git-tool-commit.sh — commit & push main repo + all changed submodules
 # Usage: bash .claude/skills/git-tool/git-tool-commit.sh
 set -euo pipefail
 
@@ -13,21 +13,55 @@ info()  { echo "[INFO] $*"; }
 ok()    { echo "[ OK ] $*"; }
 warn()  { echo "[WARN] $*"; }
 
-# ---- Find all submodules with changes ----
-SUB_PATHS=$(git config --file .gitmodules --get-regexp path 2>/dev/null | awk '{print $2}' || true)
-[[ -z "$SUB_PATHS" ]] && { warn "no submodules found"; exit 0; }
+MAIN_COMMITTED=false
 
-COMMITTED=()
+# ============================================================
+#  Step 1: commit main repo tracked changes
+# ============================================================
+SUB_PATHS=$(git config --file .gitmodules --get-regexp path 2>/dev/null | awk '{print $2}' || true)
+
+info "checking main repo changes..."
+ROOT_CHANGES=$(git status --porcelain | grep -v '^??' || true)
+
+if [[ -n "$ROOT_CHANGES" ]]; then
+  # Exclude submodule pointer changes from main repo commit
+  ROOT_OWN=$(echo "$ROOT_CHANGES" | { while IFS= read -r line; do
+    p="${line:3}"
+    # Skip lines that are just submodule pointer changes (" M subpath")
+    is_sub=false
+    for sp in $SUB_PATHS; do
+      [[ "$p" == "$sp" ]] && { is_sub=true; break; }
+    done
+    $is_sub && continue
+    echo "$line"
+  done; })
+
+  if [[ -n "$ROOT_OWN" ]]; then
+    echo "$ROOT_OWN" | awk '{print "  " $0}'
+    git add -A
+    msg="update: $(git diff --cached --name-only | tr '\n' ' ' | sed 's/ *$//')"
+    git commit -m "${msg:0:200}" || warn "nothing to commit in main repo"
+    MAIN_COMMITTED=true
+    ok "main repo committed"
+  else
+    info "  only submodule pointer changes, handled later"
+  fi
+else
+  info "  no changes"
+fi
+
+# ============================================================
+#  Step 2: commit all changed submodules
+# ============================================================
+COMMITTED_SUB=()
 for subpath in $SUB_PATHS; do
   [[ ! -d "$subpath" ]] && continue
 
-  # Check if submodule has any changes (including untracked)
   has_changes=$(git -C "$subpath" status --porcelain 2>/dev/null || true)
   [[ -z "$has_changes" ]] && continue
 
-  info "processing $subpath..."
+  info "processing submodule $subpath..."
 
-  # Step 1: ensure on a branch (not detached HEAD)
   sub_branch=$(git -C "$subpath" branch --show-current 2>/dev/null || true)
   if [[ -z "$sub_branch" ]]; then
     info "  detached HEAD -> checkout main"
@@ -37,16 +71,11 @@ for subpath in $SUB_PATHS; do
     sub_branch="main"
   fi
 
-  # Step 2: add & commit
   git -C "$subpath" add -A
-  commit_msg="update: $(git -C "$subpath" diff --cached --name-only | head -5 | tr '\n' ' ' | sed 's/ *$//')"
-  commit_msg="${commit_msg:-update}"
-  git -C "$subpath" commit -m "$commit_msg" || {
-    warn "  nothing to commit in $subpath"; continue
-  }
+  msg="update: $(git -C "$subpath" diff --cached --name-only | head -5 | tr '\n' ' ' | sed 's/ *$//')"
+  git -C "$subpath" commit -m "${msg:0:200}" || { warn "  nothing to commit"; continue; }
   sub_commit="$(git -C "$subpath" rev-parse --short HEAD)"
 
-  # Step 3: push (handle non-fast-forward)
   if ! git -C "$subpath" push origin "$sub_branch" 2>/dev/null; then
     info "  non-fast-forward, rebasing..."
     git -C "$subpath" pull --rebase origin "$sub_branch"
@@ -54,23 +83,25 @@ for subpath in $SUB_PATHS; do
   fi
 
   ok "  $subpath committed & pushed ($sub_commit)"
-  COMMITTED+=("$subpath")
+  COMMITTED_SUB+=("$subpath")
 done
 
-# ---- Update main repo submodule pointers ----
-if [[ ${#COMMITTED[@]} -eq 0 ]]; then
-  echo ""
-  ok "no submodules with changes to commit"
-  exit 0
+# ============================================================
+#  Step 3: update main repo submodule pointers & push
+# ============================================================
+if [[ ${#COMMITTED_SUB[@]} -gt 0 ]]; then
+  info "updating submodule pointers..."
+  for subpath in "${COMMITTED_SUB[@]}"; do git add "$subpath"; done
+  git commit -m "chore: update submodule pointers"
+  MAIN_COMMITTED=true
 fi
 
-info "updating main repo submodule pointers..."
-for subpath in "${COMMITTED[@]}"; do
-  git add "$subpath"
-done
-git commit -m "chore: update submodule pointers"
-git push origin "$BRANCH"
-
-echo ""
-ok "git-tool commit complete — updated: ${COMMITTED[*]}"
-git log --oneline -1 --no-decorate 2>/dev/null | xargs -I{} echo "   main repo: {}"
+if $MAIN_COMMITTED; then
+  git push origin "$BRANCH"
+  echo ""
+  ok "git-tool commit complete — pushed to $BRANCH"
+  git log --oneline -1 --no-decorate | xargs -I{} echo "   HEAD: {}"
+else
+  echo ""
+  ok "nothing to commit — main repo and all submodules up to date"
+fi

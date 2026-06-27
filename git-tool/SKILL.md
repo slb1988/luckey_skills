@@ -11,7 +11,8 @@ description: "Git 仓库工具，支持两个命令：(1) update/sync 将主仓�
 |------|------|
 | `git-tool update` / `git-tool sync` | 主库 pull + 所有 submodule 更新到远端最新 |
 | `git-tool update submodule` | 仅更新 submodule，跳过主库 pull（工作区有改动时使用） |
-| `git-tool commit <submodule名>` | 提交指定 submodule 的变更并推送，再更新主库指针 |
+| `git-tool commit` | 提交主库 + 所有有改动的 submodule，更新指针并推送 |
+| `git-tool commit <submodule名>` | 仅提交指定 submodule（已废弃，推荐用一键脚本） |
 
 > 详细执行流程：[commit-flow](references/commit-flow.md) · [update-flow](references/update-flow.md) · [conflict-resolution](references/conflict-resolution.md)
 
@@ -114,9 +115,9 @@ bash .claude/skills/git-tool/git-tool-commit.sh   # 提交所有有改动的 sub
 
 ### git-tool-commit.sh
 
-**自动处理：** 扫描所有 submodule，对有改动的逐一 checkout main → add -A → commit → push → 更新主库指针。
+**自动处理：** 提交主库 tracked 改动 → 扫描所有 submodule 提交 + 推送 → 更新主库指针 → 推送。
 
-处理 submodule 内 untracked 和 tracked 变更，主库指针自动提交推送。主库本身的 tracked 改动不动。
+三个层次的变更一次搞定：主库代码、submodule 内变更、主库指针。
 
 ---
 
