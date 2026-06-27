@@ -100,14 +100,23 @@ git -C <parent_submodule_path> push origin main
 推荐用脚本替代手动交互流程，避免浪费 token：
 
 ```bash
-bash .claude/skills/git-tool/git-tool-update.sh
+bash .claude/skills/git-tool/git-tool-update.sh   # 更新
+bash .claude/skills/git-tool/git-tool-commit.sh   # 提交所有有改动的 submodule
 ```
+
+### git-tool-update.sh
 
 **自动处理：** stash tracked 改动 → pull → submodule init+update → 提交指针变更 → 恢复 stash。
 
 触碰边界时只警告不停止：
 - submodule 内部有 tracked 改动 → 警告，不自动处理（需手动决定）
 - 嵌套 submodule init 失败 → 自动尝试从父 submodule 层重新 init
+
+### git-tool-commit.sh
+
+**自动处理：** 扫描所有 submodule，对有改动的逐一 checkout main → add -A → commit → push → 更新主库指针。
+
+处理 submodule 内 untracked 和 tracked 变更，主库指针自动提交推送。主库本身的 tracked 改动不动。
 
 ---
 
