@@ -95,6 +95,22 @@ git -C <parent_submodule_path> push origin main
 
 ---
 
+## 一键脚本
+
+推荐用脚本替代手动交互流程，避免浪费 token：
+
+```bash
+bash .claude/skills/git-tool/git-tool-update.sh
+```
+
+**自动处理：** stash tracked 改动 → pull → submodule init+update → 提交指针变更 → 恢复 stash。
+
+触碰边界时只警告不停止：
+- submodule 内部有 tracked 改动 → 警告，不自动处理（需手动决定）
+- 嵌套 submodule init 失败 → 自动尝试从父 submodule 层重新 init
+
+---
+
 ## 注意事项
 
 - **`--remote` 的含义**：将 submodule 更新到其远端最新，而不是主库记录的 commit hash
