@@ -262,6 +262,24 @@ qrencode -t ANSIUTF8 < ~/wireguard-configs/clients/${CLIENT_NAME}.conf
 | 客户端能连但无法上网 | MASQUERADE 规则出口网卡不对 | 检查 `ip route show default` 的出口网卡名 |
 | DNS 不工作 | 客户端 DNS 配置问题 | 确认客户端 config 中 `DNS = 223.5.5.5` |
 | `resolvconf: command not found` | 未安装 resolvconf | `sudo apt install resolvconf -y` 后重启 wg-quick |
+| 握手成功但 ping 不通（Docker 容器化客户端） | Docker bridge 与 LXC bridge 子网冲突，UDP 回程包路由到错误 bridge | 使用 `--network=host` 模式运行容器 |
+
+## QNAP 上运行容器化 WireGuard
+
+QNAP NAS 同时运行 LXC 和 Docker，默认 Docker bridge 子网可能和 LXC bridge（`lxcbr0`，`10.0.3.0/24`）冲突。此时容器 UDP 出站 SNAT 正常，但 WireGuard 服务端回程 UDP 包到达宿主机后，内核本地路由表优先匹配 `10.0.3.0/24 dev lxcbr0`，将回包路由到 LXC bridge 而非 docker0 网关，容器收不到响应。TCP 不受影响（conntrack 跟踪双向 NAT），但 WireGuard 的无连接 UDP 在子网冲突时回程路由失败。
+
+**解决方案：** 使用 `--network=host` 模式启动容器，绕过 bridge 隔离层：
+
+```bash
+docker run -d \
+  --name=wireguard-client \
+  --network=host \
+  --cap-add=NET_ADMIN \
+  -v ~/wireguard-configs/wg-client/wg0.conf:/config/wg_confs/wg0.conf \
+  linuxserver/wireguard:latest
+```
+
+注意 host 模式不支持 `--sysctl` 参数和 `-p` 端口映射。WG 配置中不要设置 `DNS =` 行（host 模式下的 resolvconf 会覆盖宿主机 DNS）。
 
 ## 安全提醒
 
