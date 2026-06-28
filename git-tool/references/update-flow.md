@@ -39,6 +39,7 @@ git -C <repo_root> pull --no-rebase origin $(git -C <repo_root> branch --show-cu
 | `rejected` | 本地有远端没有的 commit | `git push` 先推送，或 `git pull --no-rebase` |
 | `no such remote` | remote 未配置 | `git remote add origin <url>` |
 | `Authentication failed` | 认证失败 | 检查 SSH key 或 token |
+| 长时间无输出 / 超时 | QNAP 等低 I/O 设备 `index-pack` 慢，瓶颈不在网络 | 不杀进程，等待完成（575 对象约 8 分钟）。可预先设 `core.compression=0` 加速。详见 SKILL.md 注意事项 |
 
 ## Step 3：初始化未 init 的 submodule
 

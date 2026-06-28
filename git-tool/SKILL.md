@@ -128,3 +128,13 @@ bash .claude/skills/git-tool/git-tool-commit.sh   # 提交所有有改动的 sub
 - **不要强制 push**：本 skill 只做 pull/update，不涉及强制操作
 - **主库 `index.lock` 残留**：若 commit 报 `Unable to create '.git/index.lock': File exists`，确认无其他 git 进程后删除：`rm <repo_root>/.git/index.lock`
 - **SSH vs HTTPS**：HTTPS 推送持续超时时切换：`git remote set-url origin git@github.com:<user>/<repo>.git`
+- **QNAP / 低性能设备**：瓶颈通常是 `index-pack` 而非网络。fetch 收到数据后可能卡 5-10 分钟解包对象。降低压缩开销可加速：
+  ```bash
+  git config http.version HTTP/1.1      # HTTP/2 在弱设备上多路复用可能更慢
+  git config http.postBuffer 524288000   # 增大 buffer 减少分块
+  git config core.compression 0          # 关闭传输压缩，省 CPU
+  git config pack.windowMemory 16m       # 限制 delta 搜索窗口
+  git config pack.packSizeLimit 16m      # 限制单包大小
+  ```
+  操作完成后记得 `--unset` 这些临时配置。若 fetch 多次中断留下 `tmp_pack_*` 残留文件，下次 fetch 会更慢——清理 `rm .git/objects/pack/tmp_pack_*`。
+- **`index.lock` / `shallow.lock` 残留**：除 `index.lock` 外，`--depth` 浅克隆中断会在 `.git/` 留下 `shallow.lock`，清理命令：`rm -f .git/index.lock .git/shallow.lock`
