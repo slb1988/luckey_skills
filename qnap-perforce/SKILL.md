@@ -9,6 +9,8 @@ description: QNAP NAS 上的 Docker Perforce (Helix Core) 服务器运维。当�
 
 完整上下文记录在 `references/p4d-server.md`。本文件聚焦核心操作和故障排查。
 
+性能诊断（CPU 异常、卡死命令、僵尸 stream）和护栏运维见 `references/p4-diagnostics-ops.md`。
+
 ## 容器信息
 
 - **容器名**: `helix-p4d-1`
