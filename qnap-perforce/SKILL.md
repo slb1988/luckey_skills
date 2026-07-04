@@ -1,102 +1,100 @@
 ---
 name: qnap-perforce
-description: QNAP NAS 上的 Docker Perforce (Helix Core) 服务器运维。当用户提到 QNAP Perforce、p4d、helix-p4d、Docker Perforce、P4 服务器崩溃/启动失败、Perforce OOM、checkpoint、P4 备份、NAS 上的版本控制、P4 depot 维护、helix-p4d-1 容器故障时触发。即使用户只是抱怨 "P4 连不上了" 或 "perforce server down"，也应触发。
+description: QNAP NAS 上的 Perforce (Helix Core) 服务器运维。当用户提到 QNAP Perforce、p4d、helix-p4d、P4 服务器、Perforce 迁移、checkpoint、P4 备份、NAS version control、P4 depot 维护、p4d 原生部署、Docker Perforce 故障时触发。即使用户只是抱怨 "P4 连不上了" 或 "perforce server down"，也应触发。
 ---
 
-# QNAP Docker Perforce 运维
+# QNAP Perforce 运维
 
 ## 环境概览
 
-完整上下文记录在 `references/p4d-server.md`。本文件聚焦核心操作和故障排查。
+| 项目 | 值 |
+|---|---|
+| **NAS 型号** | QNAP NAS453Dmini |
+| **CPU** | Intel Celeron J4125 (4核, x86_64) |
+| **内存** | 8GB DDR4 |
+| **主机名** | NAS453Dmini |
 
-性能诊断（CPU 异常、卡死命令、僵尸 stream）和护栏运维见 `references/p4-diagnostics-ops.md`。
+### 当前环境（原生 p4d）
 
-## 容器信息
+迁移至原生方案，不再依赖 Docker。
 
-- **容器名**: `helix-p4d-1`
-- **镜像**: `hawkmothstudio/helix-p4d:latest-data-4`（2023 年停更）
-- **p4d 版本**: P4D/LINUX26X86_64/2022.2/2407422
-- **数据目录**: `/share/Container/perforce`（bind mount → 容器内 `/data/master/root`）
-- **Restart Policy**: `always`
-- **端口映射**: 1666 → 32768
+| 项目 | 值 |
+|---|---|
+| **p4d 版本** | P4D/LINUX26X86_64/2024.1/2596294 (2024/05/09) |
+| **P4ROOT** | `/share/Container/p4server` |
+| **P4PORT** | `192.168.50.2:1666` |
+| **ServerID** | `NAS453Dmini` |
+| **二进制路径** | `/usr/local/bin/p4` `/usr/local/bin/p4d` `/usr/local/bin/p4broker` `/usr/local/bin/p4p` |
+| **License** | slb1988, 100 users, 10年 (至 2036/07/04) |
+| **启动方式** | 手动守护进程: `p4d -r /share/Container/p4server -p 192.168.50.2:1666 -d` |
 
-## 关键凭证（环境变量）
-
-- 管理员: `p4admin` / `Sun1305329`
-- P4PORT: `1666`
-
-## 常见故障
-
-### 1. 容器 OOM Kill（Exit Code 137）
-
-**症状**: 容器状态 `Exited (137)`，启动后几秒到几分钟即崩溃，日志最后显示 "Starting p4d server..."
-
-**根因**: QNAP NAS（NAS453Dmini）仅 8GB RAM，p4d 容器内存限制 4.5GB。数据库文件巨大（db.rev 162MB, db.revhx 133MB, db.have 73MB），加上 1.7GB journal 回放，启动时峰值内存超限触发 OOM killer。
-
-**解决步骤**:
-
-```bash
-# 1. 停止不必要容器释放内存
-docker stop jellyfin qbittorrent-1 container_ddns_1 qd-1 2>/dev/null
-
-# 2. 给 p4d 降低内存限制（让 swap 参与，避免 OOM）
-docker update --memory 3g --memory-swap 12g helix-p4d-1
-
-# 3. 启动容器
-docker start helix-p4d-1
-
-# 4. 观察日志
-docker logs -f helix-p4d-1
+**当前配置 (`p4 configure show allservers`)**:
+```
+P4PORT = 192.168.50.2:1666
+dm.user.noautocreate = 2
+monitor = 1
 ```
 
-如果仍然 OOM，终极方案是给 QNAP 加内存条（当前 8GB → 建议升级到 16GB+）。
+### 旧环境（Docker，待下线）
 
-### 2. Checkpoint 过期
+Docker 版 Perforce 容器 `helix-p4d-1`，数据在 `/share/Container/perforce`。详见：
+- 容器配置 & OOM 排障 → `references/docker-p4d.md`
+- 完整数据库清单、历史事件 → `references/p4d-server.md`
+- 通用诊断/护栏运维 → `references/p4-diagnostics-ops.md`
 
-**症状**: db 文件大、journal 膨胀、启动慢。
-
-**根因**: checkpoint 由备份脚本执行，服务频繁崩溃时无法完成。
-
-**解决**: 容器稳定运行后，手动执行 checkpoint：
+## 本地连接
 
 ```bash
-docker exec -u perforce helix-p4d-1 sh -c "p4d -r /data/master/root -jc"
+export P4PORT=192.168.50.2:1666
+p4 info
 ```
 
-### 3. 健康检查失败
+## 副本工具
 
-**症状**: Health status 显示 `unhealthy`，但 p4d 可能实际运行正常。
+| 工具 | 路径 | 用途 |
+|---|---|---|
+| `p4` | `/usr/local/bin/p4` | CLI 客户端 |
+| `p4d` | `/usr/local/bin/p4d` | 服务端守护进程 |
+| `p4broker` | `/usr/local/bin/p4broker` | Broker 代理（未部署） |
+| `p4p` | `/usr/local/bin/p4p` | Proxy 代理（未部署） |
+| Keygen | `/share/Container/r24.1.bin.linuxx64.helix-core-server/Keygen` | License 生成 |
 
-**根因**: 健康检查用 `p4 info` 连接 1666，但容器 IP 变化或网络问题可能导致连接失败。
+## 启停
 
-**验证**: `docker exec helix-p4d-1 p4 -p 1666 info`
+```bash
+# 启动
+p4d -r /share/Container/p4server -p 192.168.50.2:1666 -d
 
-### 4. ServerID 未设置
+# 停止
+p4 -p 192.168.50.2:1666 admin stop
+# 或直接 kill
+kill $(ps aux | grep 'p4d.*p4server' | grep -v grep | awk '{print $2}')
+```
 
-**症状**: 日志反复警告 "ServerID for the server should be set"
+## Checkpoint / 备份
 
-**解决**: `docker exec helix-p4d-1 p4 -p 1666 serverid Master`
+```bash
+# 手动 checkpoint
+p4d -r /share/Container/p4server -jc
 
-## 备份
+# 恢复 checkpoint
+p4d -r /share/Container/p4server -jr <checkpoint_file>
+p4d -r /share/Container/p4server -xu  # 升级数据库（如跨版本恢复）
+```
 
-备份脚本位于 `/share/Container/backup_perforce.sh`，流程：
-1. 执行 checkpoint + 截断 journal
-2. 停止容器
-3. `docker cp` 全量拷贝数据
-4. 重启容器
+## 迁移状态
 
-备份目录: `/share/Container/perforce_backup/<timestamp>/`
+**待完成**（需手动操作，depot 文件 ~28GB 耗时较长）：
+```bash
+# 1. 拷贝旧 depot archive 文件
+cp -a /share/Container/perforce/{depot,unity,ProjectB,ProjectC,DevOps,Plugins} /share/Container/p4server/
 
-**手动跑备份**: `bash /share/Container/backup_perforce.sh`
+# 2. 清理并恢复 checkpoint
+rm -rf /share/Container/p4server/db.* /share/Container/p4server/journal /share/Container/p4server/server.locks
+p4d -r /share/Container/p4server -jr /share/Container/perforce_backup/p4_backup.ckp.9
 
-## 磁盘
+# 3. 启动
+p4d -r /share/Container/p4server -p 192.168.50.2:1666 -d
+```
 
-- 挂载点: `/share/CACHEDEV1_DATA`（814GB 总容量）
-- Perforce 数据: ~31GB（depot 19GB + db 文件 + journal）
-- 200-Work depot 最大（16GB），存放 UE 项目资产
-- 当前使用率 89%（89GB 剩余），需关注
-
-## P4V 客户端连接
-
-- 地址: `QNAP_IP:32768`（或容器网络内 `10.0.3.1:1666`）
-- 最后成功客户端: `pc_qnap_depot_9516` (admin, P4V 2025.2)
+Checkpoint 已就绪: `/share/Container/perforce_backup/p4_backup.ckp.9` (467MB, 已验证)

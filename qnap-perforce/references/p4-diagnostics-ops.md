@@ -5,15 +5,24 @@
 
 ## 前置：连接方式
 
-P4PORT: `192.168.50.2:32768`（局域网直连）。管理员账号 `p4admin` 是 `super` 权限，诊断和运维都够用，不需要额外配权限。
+### 原生 p4d（当前）
+
+```bash
+export P4PORT=192.168.50.2:1666
+p4 info
+```
+
+无需 ticket 认证，直接可用。
+
+### Docker p4d（旧，待下线）
+
+P4PORT: `192.168.50.2:32768`。管理员账号 `p4admin`，`security=2` 需要 ticket 认证：
 
 ```bash
 export P4PORT=192.168.50.2:32768
 export P4USER=p4admin
-p4 login   # security=2，需要 ticket 认证，交互式输入密码
+p4 login   # 交互式输入密码
 ```
-
-ticket 过期了重新 `p4 login` 即可。P4V 直接连 `192.168.50.2:32768` 用 `p4admin` 登录（现有客户端 `pc_qnap_depot_9516` 就是这么配的）。
 
 ## 诊断命令（只读，随时可以跑，无风险）
 
