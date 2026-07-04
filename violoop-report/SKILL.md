@@ -61,9 +61,13 @@ $ossUrl = ($output | Select-String "^OSS_URL:").Line -replace "OSS_URL: ", ""
 - 输出 URL 形如 `https://<bucket>.<endpoint>/images/<timestamp>.jpg`
 - 若 `$ossUrl` 为空，报错停止，**不写入记录**
 
-### Step 3：追加写入记录文件
+### Step 3：写入记录文件（插入到最前面）
 
 记录文件固定为 `luckey/110 Utilities/violoop/user-feedback.md`。
+
+**新记录始终插入在文件顶部**（一级标题 `# 用户反馈记录` 之后，所有已有记录之前），保证最新的反馈排在最前面，不是追加到文件末尾。
+
+插入前先 Read 整个文件，把新记录块插在标题行和第一条已有记录之间，再连同原有全部内容一起写回。
 
 **有图片时** — 配字在上，图片 embed 在下（不额外贴裸 URL）：
 
@@ -112,5 +116,5 @@ $ossUrl = ($output | Select-String "^OSS_URL:").Line -replace "OSS_URL: ", ""
 - 格式：配字正文在上，图片 embed 在下；不额外贴裸 URL（图片 URL 已包含在 embed 中，无需重复）
 - 配字作为图片 alt text 和正文都写，保证可搜索
 - 每条记录前加 `---` 分隔线，时间戳加粗
-- 所有记录追加到同一文件，不覆盖
+- 所有记录写入同一文件，不覆盖已有记录；**新记录插入文件顶部（标题之后），旧记录依次下移**
 - OSS 上传失败时不写入记录，避免 broken image
