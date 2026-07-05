@@ -35,7 +35,6 @@ dm.user.noautocreate = 2
 monitor = 1
 unicode = 1
 journalPrefix = /share/Container/p4server/checkpoints/NAS453Dmini
-server.depot.root = /share/Container/p4server/hxdepots
 ```
 
 **Server 类型**: `commit-server`
@@ -86,7 +85,6 @@ kill $(ps aux | grep 'p4d.*p4server' | grep -v grep | awk '{print $2}')
 | `/share/Container/p4server/logs/log` | p4d 运行日志 (`-L`) |
 | `/share/Container/p4server/logs/journal` | p4d journal (`-J`) |
 | `/share/Container/p4server/checkpoints/NAS453Dmini` | checkpoint 前缀 (`journalPrefix`) |
-| `/share/Container/p4server/hxdepots` | depot 物理存储根 (`server.depot.root`) |
 
 ## Checkpoint / 备份
 
