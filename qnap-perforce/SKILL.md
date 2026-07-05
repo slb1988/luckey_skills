@@ -26,7 +26,7 @@ description: QNAP NAS 上的 Perforce (Helix Core) 服务器运维。当用户�
 | **ServerID** | `NAS453Dmini` |
 | **二进制路径** | `/usr/local/bin/p4` `/usr/local/bin/p4d` `/usr/local/bin/p4broker` `/usr/local/bin/p4p` |
 | **License** | slb1988, 100 users, 10年 (至 2036/07/04) |
-| **启动方式** | 手动守护进程: `p4d -r /share/Container/p4server -p 1666 -L /share/Container/p4server/logs/log -J /share/Container/p4server/logs/journal -d` |
+| **启动方式** | 开机自启: `@reboot` 在系统 crontab (`/etc/config/crontab`) |
 
 **当前配置 (`p4 configure show allservers`)**:
 ```
@@ -67,8 +67,10 @@ p4 info
 
 ## 启停
 
+p4d 配置为系统开机自启，通过 `/etc/config/crontab` 的 `@reboot` 条目（延迟 30s 等待依赖就绪）。
+
 ```bash
-# 启动
+# 手动启动
 p4d -r /share/Container/p4server -p 1666 -L /share/Container/p4server/logs/log -J /share/Container/p4server/logs/journal -d
 
 # 停止
