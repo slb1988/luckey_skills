@@ -41,6 +41,7 @@ Docker 版 Perforce 容器 `helix-p4d-1`，数据在 `/share/Container/perforce`
 - 容器配置 & OOM 排障 → `references/docker-p4d.md`
 - 完整数据库清单、历史事件 → `references/p4d-server.md`
 - 通用诊断/护栏运维 → `references/p4-diagnostics-ops.md`
+- Docker → 原生迁移实录 → `references/native-migration.md`
 
 ## 本地连接
 
@@ -84,17 +85,6 @@ p4d -r /share/Container/p4server -xu  # 升级数据库（如跨版本恢复）
 
 ## 迁移状态
 
-**待完成**（需手动操作，depot 文件 ~28GB 耗时较长）：
-```bash
-# 1. 拷贝旧 depot archive 文件
-cp -a /share/Container/perforce/{depot,unity,ProjectB,ProjectC,DevOps,Plugins} /share/Container/p4server/
+✅ **已完成**（2026-07-05）。详细过程见 `references/native-migration.md`。
 
-# 2. 清理并恢复 checkpoint
-rm -rf /share/Container/p4server/db.* /share/Container/p4server/journal /share/Container/p4server/server.locks
-p4d -r /share/Container/p4server -jr /share/Container/perforce_backup/p4_backup.ckp.9
-
-# 3. 启动
-p4d -r /share/Container/p4server -p 192.168.50.2:1666 -d
-```
-
-Checkpoint 已就绪: `/share/Container/perforce_backup/p4_backup.ckp.9` (467MB, 已验证)
+361,465 files / 7 depots，数据与 Docker 版一致。
