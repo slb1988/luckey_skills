@@ -22,18 +22,23 @@ description: QNAP NAS 上的 Perforce (Helix Core) 服务器运维。当用户�
 |---|---|
 | **p4d 版本** | P4D/LINUX26X86_64/2024.1/2596294 (2024/05/09) |
 | **P4ROOT** | `/share/Container/p4server` |
-| **P4PORT** | `192.168.50.2:1666` |
+| **P4PORT** | `1666` |
 | **ServerID** | `NAS453Dmini` |
 | **二进制路径** | `/usr/local/bin/p4` `/usr/local/bin/p4d` `/usr/local/bin/p4broker` `/usr/local/bin/p4p` |
 | **License** | slb1988, 100 users, 10年 (至 2036/07/04) |
-| **启动方式** | 手动守护进程: `p4d -r /share/Container/p4server -p 192.168.50.2:1666 -d` |
+| **启动方式** | 手动守护进程: `p4d -r /share/Container/p4server -p 1666 -L /share/Container/p4server/logs/log -J /share/Container/p4server/logs/journal -d` |
 
 **当前配置 (`p4 configure show allservers`)**:
 ```
-P4PORT = 192.168.50.2:1666
+P4PORT = 1666
 dm.user.noautocreate = 2
 monitor = 1
+unicode = 1
+journalPrefix = /share/Container/p4server/checkpoints/NAS453Dmini
+server.depot.root = /share/Container/p4server/hxdepots
 ```
+
+**Server 类型**: `commit-server`
 
 ### 旧环境（Docker，待下线）
 
@@ -46,7 +51,7 @@ Docker 版 Perforce 容器 `helix-p4d-1`，数据在 `/share/Container/perforce`
 ## 本地连接
 
 ```bash
-export P4PORT=192.168.50.2:1666
+export P4PORT=1666
 p4 info
 ```
 
@@ -64,13 +69,22 @@ p4 info
 
 ```bash
 # 启动
-p4d -r /share/Container/p4server -p 192.168.50.2:1666 -d
+p4d -r /share/Container/p4server -p 1666 -L /share/Container/p4server/logs/log -J /share/Container/p4server/logs/journal -d
 
 # 停止
-p4 -p 192.168.50.2:1666 admin stop
+p4 -p 1666 admin stop
 # 或直接 kill
 kill $(ps aux | grep 'p4d.*p4server' | grep -v grep | awk '{print $2}')
 ```
+
+## 日志与 Journal
+
+| 路径 | 用途 |
+|---|---|
+| `/share/Container/p4server/logs/log` | p4d 运行日志 (`-L`) |
+| `/share/Container/p4server/logs/journal` | p4d journal (`-J`) |
+| `/share/Container/p4server/checkpoints/NAS453Dmini` | checkpoint 前缀 (`journalPrefix`) |
+| `/share/Container/p4server/hxdepots` | depot 物理存储根 (`server.depot.root`) |
 
 ## Checkpoint / 备份
 
