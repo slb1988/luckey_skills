@@ -16,10 +16,10 @@ p4 info
 
 ### Docker p4d（旧，待下线）
 
-P4PORT: `192.168.50.2:32768`。管理员账号 `p4admin`，`security=2` 需要 ticket 认证：
+P4PORT: `192.168.50.2:1666`。管理员账号 `p4admin`，`security=2` 需要 ticket 认证：
 
 ```bash
-export P4PORT=192.168.50.2:32768
+export P4PORT=192.168.50.2:1666
 export P4USER=p4admin
 p4 login   # 交互式输入密码
 ```

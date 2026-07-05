@@ -62,7 +62,7 @@
 --cpus 4               # cpu-quota 400000
 --ulimit nofile=65535:65535
 -v /share/Container/perforce:/data/master/root:rw
--p 32768:1666           # P4PORT 端口映射
+-p 1666:1666           # P4PORT 端口映射
 -p 32769:22             # SSH (未使用)
 ```
 
@@ -148,11 +148,11 @@ QNAP NAS (NAS453Dmini)
     ├── 容器 IP: 动态分配 (docker bridge)
     ├── P4PORT: 1666/tcp
     ├── SSH: 22/tcp (未使用)
-    └── 端口映射: host:32768 → container:1666
+    └── 端口映射: host:1666 → container:1666
 ```
 
 **客户端连接方式**:
-- 外部: `192.168.50.2:32768`（局域网）
+- 外部: `192.168.50.2:1666`（局域网）
 - 容器网络: `10.0.3.1:1666`（Docker 内部）
 - P4V 客户端: `pc_qnap_depot_9516`（admin 用户，Windows P4V 2025.2）
 

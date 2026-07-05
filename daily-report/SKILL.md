@@ -129,7 +129,7 @@ for e in json.load(sys.stdin)[0]:
 |--------|------|------|
 | 192.168.2.236:1666 | sunlaibing | 公司项目仓库 |
 | 192.168.2.13:1666  | admin_sun  | 内网 CICD（**Unicode 服务器，需加 `P4CHARSET=utf8`**） |
-| 10.77.77.6:32768 | admin    | 个人服务器 |
+| 10.77.77.6:1666 | admin    | 个人服务器 |
 
 每个服务器执行：
 1. `p4 -p <server> changes -u <user> -s submitted @YYYY/MM/DD,@YYYY/MM/DD+1` — 获取当日 CL 列表

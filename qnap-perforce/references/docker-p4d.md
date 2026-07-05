@@ -11,7 +11,7 @@
 - **p4d 版本**: P4D/LINUX26X86_64/2022.2/2407422
 - **数据目录**: `/share/Container/perforce`（bind mount → 容器内 `/data/master/root`）
 - **Restart Policy**: `always`
-- **端口映射**: 1666 → 32768
+- **端口映射**: 1666 → 1666
 
 ## 关键凭证（环境变量）
 
@@ -84,5 +84,5 @@ docker exec -u perforce helix-p4d-1 sh -c "p4d -r /data/master/root -jc"
 
 ## P4V 客户端连接（Docker 版）
 
-- 地址: `192.168.50.2:32768`（或容器网络内 `10.0.3.1:1666`）
+- 地址: `192.168.50.2:1666`（或容器网络内 `10.0.3.1:1666`）
 - 最后成功客户端: `pc_qnap_depot_9516` (admin, P4V 2025.2)
