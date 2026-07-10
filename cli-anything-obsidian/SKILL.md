@@ -77,6 +77,51 @@ cmd_note_create("002 Cards/New Note", content="# Title\n\nContent", vault_arg=VA
 cmd_search("daily standup", vault_arg=VAULT)
 ```
 
+## CLI-Hub Ecosystem (Package Manager)
+
+`cli-hub` is the package manager for browsing and installing CLI-Anything tools. It provides a registry of agent-native CLIs for various software.
+
+### Python 3.11 Compatibility Fix
+
+The `pip install cli-hub` package ships with a Python 3.11 incompatibility — `f-string` expressions cannot contain backslash escapes on 3.11+. The error surfaces as:
+
+```
+SyntaxError: f-string expression part cannot include a backslash
+```
+
+**Location:** `C:\Python311\Lib\site-packages\cli_hub\preview.py` (line ~723)
+
+**Fix:** Extract escaped strings into variables before the return statement:
+
+```python
+# BEFORE (broken — backslash in f-string expression):
+f'<div class="trajectory-list">{items_html or "<div class=\"artifact-file\">No step timeline entries yet.</div>"}</div>'
+
+# AFTER (fixed — variable extracted before f-string):
+_no_entries_html = '<div class="artifact-file">No step timeline entries yet.</div>'
+f'<div class="trajectory-list">{items_html or _no_entries_html}</div>'
+```
+
+> Apply this fix immediately after `pip install cli-hub` on Python 3.11+.
+
+### Key Commands
+
+```bash
+cli-hub list              # browse available CLIs
+cli-hub search <name>     # search by name/description/category
+cli-hub info <name>       # show details
+cli-hub install <name>    # install a CLI
+cli-hub launch <name>     # launch an installed CLI
+```
+
+### Installed Unreal Engine Tools
+
+| Tool | Package | Run Command | Purpose |
+|------|---------|-------------|---------|
+| `unrealinsights` | `cli-anything-unrealinsights` | `cli-anything-unrealinsights` | Windows-first Unreal trace capture, background session control |
+| `smithue-cli` | `smithue-cli` | `smithue-cli` / `npx smithue-cli` | Control Unreal Engine editor via Smith |
+| `ueatelier` | `cli-anything-ueatelier` | `cli-anything-ueatelier` | Unreal Editor 5.6/5.7 MCP self-extension workbench |
+
 ## Reference
 
 For vault structure, URI protocol, frontmatter format, plugin data locations:
