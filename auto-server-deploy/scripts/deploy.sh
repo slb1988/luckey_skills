@@ -34,17 +34,68 @@ echo "  -> 后端代码同步完成"
 # --- Step B2: 停止服务 ---
 echo ""
 echo "[后端 2/5] 停止服务..."
-if [ -f python3_pid.log ]; then
-    PID=$(cat python3_pid.log)
-    if kill -0 "${PID}" 2>/dev/null; then
-        kill -9 "${PID}"
-        echo "  -> 已停止进程 PID=${PID}"
-    else
-        echo "  -> 进程 PID=${PID} 已不存在"
-    fi
-else
-    echo "  -> 未找到 PID 文件，跳过"
+PORT=5000
+
+PIDS_TO_KILL=()
+
+# 来源1（精准）: 端口 5000 上所有 python 进程
+# ss -tlnp 输出格式: ... users:(("python3",pid=12345,fd=13))
+PORT_PIDS=$(ss -tlnp 2>/dev/null | grep ":${PORT}\b" | grep -oP 'pid=\K\d+' | sort -nu)
+if [ -n "${PORT_PIDS}" ]; then
+    for p in ${PORT_PIDS}; do
+        # 确认是 python 进程才加入
+        if ps -p "$p" -o comm= 2>/dev/null | grep -qi python; then
+            PIDS_TO_KILL+=("$p")
+        else
+            echo "  -> 跳过非 python 进程 PID=${p}（$(ps -p "$p" -o comm= 2>/dev/null)）"
+        fi
+    done
 fi
+
+# 来源2（兜底）: manage.py / flask runserver 进程（含 reloader 子进程）
+MANAGE_PIDS=$(pgrep -af "manage.py runserver|flask run" 2>/dev/null | grep -v pgrep | awk '{print $1}' || true)
+if [ -n "${MANAGE_PIDS}" ]; then
+    for p in ${MANAGE_PIDS}; do
+        PIDS_TO_KILL+=("$p")
+    done
+fi
+
+# 去重 + 逐个杀
+if [ ${#PIDS_TO_KILL[@]} -gt 0 ]; then
+    PIDS_TO_KILL=($(printf '%s\n' "${PIDS_TO_KILL[@]}" | sort -nu))
+    echo "  -> 发现 ${#PIDS_TO_KILL[@]} 个待杀进程: ${PIDS_TO_KILL[*]}"
+    for pid in "${PIDS_TO_KILL[@]}"; do
+        if kill -0 "${pid}" 2>/dev/null; then
+            CMD=$(ps -p "${pid}" -o args= 2>/dev/null | head -c 100)
+            kill -9 "${pid}" 2>/dev/null && echo "  -> 已杀死 PID=${pid}  (${CMD})" || echo "  -> 无法杀死 PID=${pid}"
+        else
+            echo "  -> PID=${pid} 已不存在，跳过"
+        fi
+    done
+else
+    echo "  -> 未发现任何运行中的进程"
+fi
+
+# 最终验证：端口必须释放 + 无残留 python 进程
+sleep 2
+STILL_ON_PORT=$(ss -tlnp 2>/dev/null | grep ":${PORT}\b" | grep -oP 'pid=\K\d+' || true)
+if [ -n "${STILL_ON_PORT}" ]; then
+    echo "  -> ⚠️ 端口 ${PORT} 仍被占用(PID=${STILL_ON_PORT})，强制 fuser -k..."
+    fuser -k ${PORT}/tcp 2>/dev/null || true
+    sleep 1
+    if ss -tlnp 2>/dev/null | grep -q ":${PORT}\b"; then
+        echo "  -> ❌ 无法释放端口 ${PORT}，请手动检查"
+        exit 1
+    fi
+fi
+
+# 二次确认：无残留 manage.py/flask python 进程
+REMAIN=$(pgrep -af "manage.py runserver|flask run" 2>/dev/null | grep -v pgrep || true)
+if [ -n "${REMAIN}" ]; then
+    echo "  -> ❌ 仍有残留进程:\n${REMAIN}"
+    exit 1
+fi
+echo "  -> ✅ 端口 ${PORT} 已关闭，无残留 python 进程"
 
 # --- Step B3: 归档 flask 日志 ---
 echo ""

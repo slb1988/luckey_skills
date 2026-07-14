@@ -22,7 +22,7 @@ description: Full-stack deploy of the auto-server frontend and backend on dev@au
 | 步骤 | 操作 | 说明 |
 |------|------|------|
 | B1 | P4 同步 | `export P4CHARSET=utf8 && p4 sync` |
-| B2 | 停止服务 | `kill -9 $(cat python3_pid.log)` |
+| B2 | 停止服务 | ss -tlnp 精准抓取 5000 端口 python PID → pgrep manage.py/flask 兜底 → 去重 → 逐个 kill -9 并记录命令行 → 端口 + 进程双重验证 |
 | B3 | 归档日志 | `mv flask_*.log ./tmp/` |
 | B4 | 轮转 app.log | `mv logs/app.log logs/app.log.{N}`（自动递增） |
 | B5 | 启动服务 | `nohup python3 manage.py runserver --host 0.0.0.0 --port 5000 &` |
@@ -89,6 +89,40 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/
 # 前端
 ls /data/py_automation/frontend/dist/
 ```
+
+## 停服原理
+
+### Flask debug 进程模型
+
+```
+nohup python3 manage.py runserver &
+    │
+    ├── PID_A  (nohup wrapper) ── exec python3 ── 立即退出
+    ├── PID_B  (Flask reloader, 监控文件变更)
+    └── PID_C  (Flask worker, 实际监听 :5000)
+```
+
+Flask 以 debug/reloader 模式运行时 fork 出两个 python 进程：reloader 父进程监控文件、worker 子进程绑定端口。`$!` 捕获的是 nohup 包装壳 PID（已退出），写入 `python3_pid.log` 的 PID 与实际 worker PID 无对应关系。
+
+### 为什么不能用 PID 文件停服
+
+| 陷阱 | 现象 | 根源 |
+|------|------|------|
+| nohup 包装壳 | `python3_pid.log` 存的是已退出 PID | `$!` 返回 nohup fork 的 bash 子进程，非 python |
+| reloader 子进程 | 杀 reloader 父进程后 worker 变孤儿继续占端口 | Flask 给 worker 设了独立进程组 |
+| 手动重启 | PID 文件过期，实际进程 PID 完全不同 | 人工 `nohup python3 ... &` 不更新 PID 文件 |
+
+### 正确的停服锚点：端口
+
+**端口是唯一真相来源**。不管进程树多复杂、PID 文件多过期，`ss -tlnp` 直接从内核 socket 表读出谁在 listen :5000。
+
+| 来源 | 命令 | 作用 |
+|------|------|------|
+| 端口精准抓取 | `ss -tlnp \| grep :5000 \| grep -oP 'pid=\K\d+'` | 从内核确认谁在占用端口 |
+| 语言过滤 | `ps -p $pid -o comm= \| grep -qi python` | 排除非 python 进程误杀 |
+| 进程树兜底 | `pgrep -af "manage.py runserver\|flask run"` | 覆盖改了端口或未绑定成功的进程 |
+
+> `pgrep -f "manage.py"` 不可用——会匹配 `vim manage.py`、`cat manage.py` 等非 python 进程。必须用 `manage.py runserver` 锁定命令行。
 
 ## 注意事项
 

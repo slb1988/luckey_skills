@@ -47,11 +47,24 @@ server {
     root /data/py_automation/frontend/dist;
     index index.html index.htm;
 
+    # ===== 静态资源压缩 =====
+    # 优先发送构建产物预生成的 .gz（零 CPU，压缩率最高）
+    gzip_static on;
+    # 运行时 gzip 兜底：覆盖无 .gz 伴生文件的响应
+    gzip on;
+    gzip_comp_level 5;
+    gzip_min_length 1024;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_types text/css text/plain application/javascript application/json image/svg+xml;
+
     # index.html — never cache（确保部署后浏览器立即拿到新版）
     location / {
         etag off;
+        if_modified_since off;
         add_header Cache-Control "no-cache, no-store, must-revalidate";
         add_header Pragma "no-cache";
+        add_header Expires "Thu, 01 Jan 1970 00:00:01 GMT";
         try_files $uri $uri/ /index.html;
     }
 
@@ -59,6 +72,13 @@ server {
     location /assets/ {
         add_header Cache-Control "public, max-age=31536000, immutable";
         try_files $uri =404;
+        error_page 404 = @missing_asset;
+    }
+
+    location @missing_asset {
+        add_header Content-Type "application/javascript; charset=utf-8";
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        return 200 "window.location.reload(true);";
     }
 
     server_tokens off;
@@ -67,89 +87,57 @@ server {
 
 > **备份文件**：`/etc/nginx/sites-available/py_automation.conf.bak`（修改前自动备份）
 
-## 关键问题：SPA 路由拦截静态页面
+## 静态资源压缩
 
-### 问题
+### 策略：gzip_static 优先 + 运行时 gzip 兜底
 
-由于 `location /` 中 `try_files $uri $uri/ /index.html`，所有不匹配文件/目录的请求都会 fallback 到 `/index.html`（SPA 入口）。SPA 加载后，Vue/React Router 会接管 URL，导致访问静态 `.html` 页面时被重定向到 SPA 路由（如 `/dashboard/branch-status`）。
+| 层级 | 指令 | 触发条件 | CPU 开销 | 压缩率 |
+|------|------|---------|---------|--------|
+| 1 | `gzip_static on` | 同目录存在 `.gz` 伴生文件 | 零 | 最高（离线压缩） |
+| 2 | `gzip on` | 无 `.gz` 伴生文件 / 小文件 | 低 | 中等（level 5） |
 
-### 典型场景
+### 前提前端构建
 
-访问 `/jump.html/?url=...` 时：
-- `$uri` = `/jump.html/` → nginx 视为目录 → `try_files` 找不到 → fallback 到 `/index.html`
-- SPA 加载 → Router 解析 URL → 跳转到 `/dashboard/branch-status?url=...`
-
-### 解决方案：文件改为目录
-
-将独立的 `.html` 文件改为**同名目录 + index.html**，利用 nginx 的目录索引机制：
-
+前端 `vite-plugin-compression`（build 时对 >10KB 的文件生成同名 `.gz`）：
 ```bash
-# 1. 删除文件
-rm /data/py_automation/frontend/dist/jump.html
-
-# 2. 创建同名目录并放置 index.html
-mkdir -p /data/py_automation/frontend/dist/jump.html
-
-# 3. 写入内容
-cat > /data/py_automation/frontend/dist/jump.html/index.html << 'HTML'
-<!DOCTYPE html>
-<html>
-<head><script>/* ... */</script></head>
-<body></body>
-</html>
-HTML
+# build 后在 dist/assets/ 中应出现成对文件
+ls /data/py_automation/frontend/dist/assets/index-*.js*
+# index-XTP6Nire.js      ← 原始 1.7MB
+# index-XTP6Nire.js.gz   ← gzip 压缩 ~550KB
 ```
 
-### 工作原理
+如 `.gz` 文件缺失，`gzip_static` 静默跳过，运行时 gzip 会兜底压缩（有效但略耗 CPU）。
 
-| URL | nginx 行为 |
-|-----|-----------|
-| `/jump.html/?url=...` | `$uri` = `/jump.html/` → 命中目录 → 服务 `index.html` ✅ |
-| `/jump.html?url=...` | `$uri` = `/jump.html` → 文件不存在（是目录）→ 301 重定向到 `/jump.html/` ✅ |
+### 关键系统属性
 
-两种形式都能正确服务，不会 fallback 到 SPA。
+- Ubuntu 官方 nginx 包**默认编译进 `http_gzip_static_module`**，无需额外安装
+- `gzip_static` 不比对文件 mtime，`.gz` 比原文件旧不影响行为
+- 不对图片（png/jpg/webp）开 gzip — 已是压缩格式，徒耗 CPU
+- `text/html` 默认被 gzip 覆盖，无需列入 `gzip_types`
 
-### 替代方案（需要 sudo）
+### 效果
 
-如果能修改 nginx 配置，更优雅的方案是添加精确匹配：
+首屏 JS（1.73MB）+ CSS（357KB）≈ 2.1MB → gzip 后约 550KB，传输体积减少 ~74%。
 
-```nginx
-location = /jump.html {
-    try_files /jump.html =404;
-}
-```
+## SPA 路由拦截 & jump.html
 
-## jump.html 跳转页
-
-当前位于 `/data/py_automation/frontend/dist/jump.html/index.html`。
-
-功能：读取 URL query param `url`，执行 `location.href` 跳转。用于将 HTTP 链接重定向到自定义协议（如 `pltool://`）。
-
-### 示例
-
-```
-http://192.168.2.13/jump.html/?url=pltool%3A%2F%2Fsync%3Fstream%3DRel-0.2%26cl%3D95958%26build_config%3DDevelopment
-```
-
-参数 `url`（URL 编码后）会被 `URLSearchParams.get('url')` 解析，然后 `location.href` 跳转。
+> 详细参考：[jump.html](references/jump-html.md) — SPA fallback 导致静态 HTML 被路由劫持的问题、解决方案（目录化）和跳转页用法。
 
 ## 调试命令
 
 ```bash
-# 检查 nginx 是否返回正确内容
-curl -s "http://localhost/jump.html/?url=https://example.com"
-
-# 检查 HTTP 状态码
-curl -s -o /dev/null -w "%{http_code}" "http://192.168.2.13/jump.html/"
-
 # 查看目录结构
 ls -la /data/py_automation/frontend/dist/
 
-# 测试 nginx 配置语法（需要 sudo）
+# 测试 nginx 配置语法
 sudo nginx -t
 
-# 重载 nginx（需要 sudo）
-sudo nginx -s reload
+# 重载 nginx（平滑，不断连接）
+sudo systemctl reload nginx
+
+# 验证 gzip 生效（应出现 Content-Encoding: gzip）
+JS_FILE=$(curl -s http://192.168.2.13/ | grep -o 'assets/index-[^"]*\.js')
+curl -sI -H 'Accept-Encoding: gzip' "http://192.168.2.13/$JS_FILE" | grep -i 'content-encoding\|content-length'
 ```
 
 ## 注意事项
