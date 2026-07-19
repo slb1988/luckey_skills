@@ -25,8 +25,9 @@ description: QNAP NAS 上的 Perforce (Helix Core) 服务器运维。当用户�
 | **P4PORT** | `1666` |
 | **ServerID** | `NAS453Dmini` |
 | **二进制路径** | `/usr/local/bin/p4` `/usr/local/bin/p4d` `/usr/local/bin/p4broker` `/usr/local/bin/p4p` |
+| **二进制源** | `/share/Container/r24.1.bin.linuxx64.helix-core-server/`（安装包目录，系统更新可能清掉 `/usr/local/bin/` 下的副本，从此目录恢复） |
 | **License** | slb1988, 100 users, 10年 (至 2036/07/04) |
-| **启动方式** | 开机自启: `@reboot` 在系统 crontab (`/etc/config/crontab`) |
+| **启动方式** | 开机自启: watchdog cron (`/etc/config/crontab`) + `@reboot` 双保险 |
 
 **当前配置 (`p4 configure show allservers`)**:
 ```
@@ -66,16 +67,51 @@ p4 info
 
 ## 启停
 
-p4d 配置为系统开机自启，通过 `/etc/config/crontab` 的 `@reboot` 条目（延迟 30s 等待依赖就绪）。
+### QNAP 双 cron 架构（关键）
+
+QNAP 运行两个 cron 守护进程，行为不同：
+
+| cron 守护进程 | 读取的 crontab | 支持 `@reboot` |
+|---|---|---|
+| `busybox crond` | `/etc/config/crontab` | ❌ **不支持** — `@reboot` 行被静默忽略 |
+| `/usr/sbin/crond` (Vixie) | `/tmp/cron/crontabs/admin` | ✅ 支持 |
+
+`/etc/config/crontab` → `/tmp/cron/crontabs/admin` 的同步**仅在系统启动时**发生，`config_cache_util` 不会触发此同步。因此直接编辑 `/etc/config/crontab` 添加 `@reboot` **不可靠**。
+
+### 自启方案：Watchdog + @reboot 双保险
+
+**Watchdog 脚本** `/share/homes/slb1988/scripts/p4d-start.sh`（idempotent — 已运行时立即退出）：
+```bash
+#!/bin/sh
+P4D=/share/Container/r24.1.bin.linuxx64.helix-core-server/p4d
+P4ROOT=/share/Container/p4server
+pidof p4d > /dev/null 2>&1 && exit 0
+sleep 30
+$P4D -r $P4ROOT -p 1666 -L $P4ROOT/logs/log -J $P4ROOT/logs/journal -d
+```
+
+在 `/etc/config/crontab` 中同时有：
+```
+@reboot sleep 30 && /share/.../p4d -r /share/Container/p4server -p 1666 ... -d
+* * * * * /share/homes/slb1988/scripts/p4d-start.sh
+```
+
+- `@reboot` — 如果 Vixie crond 识别，开机即启动（最优路径）
+- `* * * * *` watchdog — 如果 `@reboot` 失效，最多 1 分钟后自动拉起
+
+### 手动启停
 
 ```bash
-# 手动启动
-p4d -r /share/Container/p4server -p 1666 -L /share/Container/p4server/logs/log -J /share/Container/p4server/logs/journal -d
+# 启动（使用源路径，系统更新后 /usr/local/bin/p4d 可能丢失）
+/share/Container/r24.1.bin.linuxx64.helix-core-server/p4d \
+  -r /share/Container/p4server -p 1666 \
+  -L /share/Container/p4server/logs/log \
+  -J /share/Container/p4server/logs/journal -d
 
 # 停止
 p4 -p 1666 admin stop
 # 或直接 kill
-kill $(ps aux | grep 'p4d.*p4server' | grep -v grep | awk '{print $2}')
+kill $(pidof p4d)
 ```
 
 ## 日志与 Journal
