@@ -8,7 +8,7 @@
 
 - Ubuntu 24.04，Docker 已安装，docker compose v2
 - 服务器已运行 nginx(:80)、minio(:9000)、redis(:6379)、多个 MySQL 实例
-- Docker daemon 配置了 HTTP_PROXY=http://192.168.2.123:7897（代理翻墙）
+- Docker daemon 配置了 HTTP_PROXY=http://192.168.2.70:7897（代理翻墙）
 - Docker daemon 配置了 registry mirror：`https://docker.xuanyuan.me`
 
 ---

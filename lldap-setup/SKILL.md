@@ -227,9 +227,12 @@ from = "LLDAP Admin <sender@gmail.com>"
 reply_to = "Do not reply <noreply@localhost>"
 ```
 
+> 各服务商具体配置及故障排查见：[references/smtp-config.md](references/smtp-config.md)
+
 ---
 
 ## 参考文件
 
 - `references/lldap_config.toml` — 完整配置文件模板
 - `references/docker-compose.yml` — 完整 Docker Compose 模板
+- `references/smtp-config.md` — SMTP 密码重置配置详解（多服务商对照）

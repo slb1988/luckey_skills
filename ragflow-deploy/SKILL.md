@@ -4,7 +4,8 @@ description: |
   RAGFlow 部署与运维助手——在 Ubuntu 服务器上安装、配置、排障 RAGFlow（开源 RAG 知识库平台）。
   触发场景：(1) 用户提到部署/安装 RAGFlow、RAG Flow、ragflow；(2) 用户需要搭建知识库、RAG 平台、
   文档问答系统；(3) 用户在已有多服务的服务器上安装新软件需要避端口冲突；(4) RAGFlow 容器启动失败、
-  镜像拉取失败、Docker Hub 限流等排障。即使用户只是说"帮我装个 RAGFlow"或"知识库怎么搭"也应该触发。
+  镜像拉取失败、Docker Hub 限流等排障；(5) 模型配置修改——IP 变更后更新 API 地址、修改模型密钥等
+  运维操作。即使用户只是说"帮我装个 RAGFlow"或"知识库怎么搭"也应该触发。
   国内网络环境下的 Docker 镜像拉取问题（mirror 选择、代理配置、docker.elastic.co 等替代源）是本 skill
   的核心覆盖范围。
 ---
@@ -23,6 +24,12 @@ description: |
 ## 工作流程
 
 当用户要求安装/部署 RAGFlow 时，按以下步骤执行。
+
+### 前置：判断任务类型
+
+- **部署/安装** → Step 1 部署文档
+- **配置修改**（IP 变更、改 API 地址、改密钥、新团队模型复制、共享模型等）→ 读 [数据库与配置说明](references/database-config.md)
+- **排障** → Step 1 + 查日志
 
 ### Step 1：读取详细部署文档
 
