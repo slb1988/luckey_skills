@@ -81,3 +81,27 @@ curl -sI http://localhost:9386
 | MinIO | 复用宿主机已有实例 | 避免维护两套 MinIO |
 | RAGFlow 镜像源 | Docker Hub 原生 tag | 阿里云/华为云 registry 未同步 |
 | ES 镜像源 | docker.elastic.co | Docker Hub 已下架 ES 官方镜像 |
+| Langfuse 连接方式 | 容器名直连 `http://langfuse:3000` | RAGFlow 和 Langfuse 在同一 `docker_default` 网络，走 Docker 内部 DNS 避免 iptables NAT 依赖 |
+
+## Langfuse 配置
+
+RAGFlow v0.26.4 内置了 Langfuse tracing，密钥存储在 MySQL `tenant_langfuse` 表中（通过 Web UI 的 API 设置），**不是**仅靠环境变量生效。`dialog_service.py` 通过 `TenantLangfuseService.filter_by_tenant()` 读取。
+
+### Host 选择
+
+| 场景 | Host | 端口 |
+|------|------|------|
+| 同 Docker 网络 | `http://langfuse:3000` | 容器内部端口 |
+| 外部 IP | `http://192.168.2.13:3030` | 宿主机映射端口（需 iptables） |
+
+**推荐用容器名直连**：省去 iptables NAT 规则依赖，`docker compose` 重启后容器 IP 变化也不会断。
+
+### 环境变量（.env 附加）
+
+> 注意：RAGFlow 优先从 DB 读密钥，env var 仅作备用。但添加后可在容器内直接 `env \| grep LANGFUSE` 检查。
+
+```bash
+LANGFUSE_PUBLIC_KEY=pk-lf-ade6a02d-1393-4af4-9100-c755789722cc
+LANGFUSE_SECRET_KEY=sk-lf-a4850c13-3608-470f-a19e-6ee5f16c625b
+LANGFUSE_HOST=http://langfuse:3000
+```

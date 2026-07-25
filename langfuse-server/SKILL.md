@@ -16,12 +16,12 @@ references/langfuse.md
 ```
 
 该文档包含：
-- 架构概览（5 个容器：langfuse、postgres、clickhouse、redis、minio）
+- 架构概览（6 个容器：langfuse、langfuse-worker、postgres、clickhouse、redis、minio）
 - 连接信息（Web UI 地址、管理员账号密码）
 - API 密钥（pk-lf-... / sk-lf-...）
 - 内部组件配置（数据库、缓存、对象存储）
 - 业务接入指南（Python / Node.js / RAGFlow / LiteLLM / 容器内访问）
-- 运维命令（启停、日志、状态检查）
+- 运维命令（启停、日志、队列诊断、状态检查）
 - 故障记录与修复
 
 ## 常见场景
@@ -41,9 +41,10 @@ LANGFUSE_SECRET_KEY=sk-lf-a4850c13-3608-470f-a19e-6ee5f16c625b
 LANGFUSE_HOST=http://192.168.2.13:3030
 ```
 
-### 用户问"langfuse 挂了"
-→ 执行 `cd /mnt/disk2/langfuse && docker compose ps` 检查状态，查看 `docker logs langfuse --tail 50`。
-常见问题：PostgreSQL 连接失败（检查 `langfuse-postgres` 容器是否 healthy）。
+### 用户问"langfuse 挂了"或"trace 收不到"
+→ 执行 `cd /mnt/disk2/langfuse && docker compose ps` 检查所有 6 个容器状态。
+先查 Worker 是否运行（`langfuse-worker`），再查队列是否积压（Redis `LLEN bull:otel-ingestion-queue:wait`）。
+详见 references/langfuse.md 第七节「诊断 trace 收不到」。
 
 ### 用户问"怎么创建新 API 密钥"
 → 通过 Web UI：登录 → Project Settings → API Keys → Create。
@@ -54,6 +55,8 @@ LANGFUSE_HOST=http://192.168.2.13:3030
 | 文件 | 路径 |
 |------|------|
 | docker-compose | `/mnt/disk2/langfuse/docker-compose.yml` |
+| Docker 代理配置 | `/etc/systemd/system/docker.service.d/http-proxy.conf` |
+| 代理地址 | `http://192.168.2.70:7897` |
 | 管理面板 HTML | `/mnt/disk2/langfuse/index.html` |
 | iptables 持久化 | `/etc/iptables/rules.v4` |
 | 参考文档 | `references/langfuse.md` |
