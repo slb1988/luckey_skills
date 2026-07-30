@@ -1,0 +1,228 @@
+# Build Chain & Parameter Passing — Lessons Learned
+
+## The `reverse.dep.*` parameter mechanism
+
+`reverse.dep.*.PARAM_NAME` on a **parent/pipeline** build config sets the value of `PARAM_NAME` on all downstream builds in the chain. TeamCity resolves these values **at queue time**, before any build runs.
+
+## Lesson 1: Never use `%teamcity.agent.name%` in `reverse.dep.*`
+
+**Problem:** If you set `reverse.dep.*.DefaultAgent = %teamcity.agent.name%` on the pipeline, the pipeline has no agent yet when it enters the queue. `%teamcity.agent.name%` resolves to empty string. Every downstream build gets `DefaultAgent = ""`, and their agent requirement `teamcity.agent.name == %DefaultAgent%` matches nothing.
+
+**Symptom:** All downstream builds show `waitReason: "There are no idle compatible agents which can run this build"` even though agents are connected and idle.
+
+**Fix:** Use a literal value or a parameter that is already defined on the pipeline config.
+
+## Lesson 2: Never use an unresolvable `%PARAM%` reference in `reverse.dep.*`
+
+**Problem:** If you set `reverse.dep.*.DefaultAgent = %DefaultAgent%` but the downstream build config does not define `DefaultAgent` as its own parameter, the reference is unresolvable in the downstream context. The downstream build receives the literal string `%DefaultAgent%` rather than the resolved value.
+
+**Symptom:** Downstream build's `properties` show `"DefaultAgent": "%DefaultAgent%"` (unresolved). Agent requirement still fails.
+
+**Fix:** Either:
+- Set `reverse.dep.*.DefaultAgent` to a **literal value** (e.g., `DefaultAgent`), OR
+- Define `DefaultAgent` as a parameter on the **pipeline** config itself, then set `reverse.dep.*.DefaultAgent = %DefaultAgent%` — this resolves at queue time from the pipeline's own parameter.
+
+## Lesson 3: Queued builds carry a parameter snapshot
+
+When a build enters the queue, TeamCity snapshots the parameter values at that moment. **Fixing the build config parameters does not retroactively update already-queued builds.** The stuck builds must be cancelled and re-triggered.
+
+**Workflow when fixing a stuck chain:**
+1. Fix the parameter on the build config via REST API or UI.
+2. Cancel all queued builds in the chain (cancel the leaf builds first, or cancel the pipeline — it cascades).
+3. Re-trigger the pipeline.
+
+## Correct pattern for agent pinning via pipeline
+
+```
+Pipeline build config:
+  Parameters:
+    DefaultAgent = DefaultAgent          ← literal, user-editable
+    reverse.dep.*.DefaultAgent = DefaultAgent   ← literal OR %DefaultAgent%
+
+Downstream build config:
+  Agent requirement:
+    teamcity.agent.name == %DefaultAgent%   ← resolves from the injected value
+```
+
+The pipeline's `DefaultAgent` parameter is the single place to change which agent the whole chain runs on.
+
+## Diagnosing a stuck build chain
+
+1. Check `waitReason` on each queued build.
+2. For `"no idle compatible agents"`: call the compatible-agents endpoint — if agents exist, the issue is parameter resolution, not agent availability.
+3. Inspect the queued build's `properties` — look for unresolved `%PARAM%` or empty values feeding the agent requirement.
+4. Check `agent-requirements` on the build config to see which property it matches on and what value it expects.
+5. Trace back to the pipeline's `reverse.dep.*` parameters to find the source of the bad value.
+
+## Lesson 4: Shared checkout directory for same-agent builds
+
+When two builds in a chain must read the same files (e.g., one syncs Perforce, the next reads a file from the workspace), they must share the same checkout directory AND run on the same agent.
+
+**How to configure:**
+- Set `checkoutDirectory` to the same path on both build configs (e.g., `/mnt/disk2/TeamCity/buildAgent/work/%teamcity.agent.name%_%P4Stream%`)
+- Set `run-build-on-the-same-agent = true` on the snapshot dependency
+- Remove the VCS root from the downstream build — it should not do its own checkout
+
+**Why `%teamcity.agent.name%_%P4Stream%` as the directory name:**
+- Makes the path unique per agent+stream combination
+- Matches the Perforce workspace name convention, keeping them in sync
+- Avoids collisions when multiple agents or streams run concurrently
+
+**The `vcsroot.<ID>.p4client` parameter name is bound to the VCS root ID.** When a VCS root is renamed or copied to a new project (changing its ID), this parameter name must be updated manually — TeamCity does not auto-update it.
+
+## Lesson 5: REST API does not support true "move" of build configs
+
+`POST /app/rest/projects/id:<TARGET>/buildTypes` with `sourceBuildType` always **copies**, never moves. After copying:
+1. The snapshot dependencies in the copy still point to the **original** build configs — rewire them manually.
+2. The `vcsroot.<OLD_ID>.p4client` parameter name still uses the old VCS root ID — update it.
+3. Delete the originals manually after verifying the copies are correct.
+
+## Lesson 6: Renaming a project ID requires updating all child IDs
+
+TeamCity enforces that build config IDs and VCS root IDs must have a prefix matching their parent project ID. When a project is renamed (ID changes), all child IDs must be updated manually via REST API:
+
+```bash
+# Rename a build config ID
+curl -X PUT ".../buildTypes/id:<OLD_ID>/id" -H "Content-Type: text/plain" -H "Accept: text/plain" --data-binary '<NEW_ID>'
+
+# Rename a VCS root ID
+curl -X PUT ".../vcs-roots/id:<OLD_ID>/id" -H "Content-Type: text/plain" -H "Accept: text/plain" --data-binary '<NEW_ID>'
+```
+
+After renaming the VCS root ID, also update the `vcsroot.<ID>.p4client` parameter name on any build config that references it.
+
+## Optimization: naming convention for sync buildTypes
+
+When a chain includes an agent-specific sync step, include the agent or environment in the buildType name. This makes it obvious which build is responsible for bringing source onto a particular machine.
+
+```
+Sync_AutoServer_StreamDepot   ← syncs stream depot on the auto-server agent
+Test_A_PrintP4Ignore          ← downstream validation step
+Pipeline_StreamDepot_Flow     ← composite orchestrator
+```
+
+Avoid generic names like `SyncStreamDepot` when multiple agents or environments might eventually run similar steps.
+
+## Optimization: auto-trigger the sync build with a VCS trigger
+
+Instead of relying solely on the composite pipeline as a manual entry point, add a `vcs` trigger to the sync buildType. This causes the chain to run automatically when Perforce submits new changes.
+
+```kotlin
+triggers {
+    vcs {
+        id = "TRIGGER_1"
+        branchFilter = ""
+    }
+}
+```
+
+The downstream snapshot dependency then pulls the rest of the chain along automatically.
+
+## Optimization: prefer agent pool/compatibility over hardcoded agent names
+
+Hardcoding an agent name (`DefaultAgent`) in parameters and agent requirements is brittle:
+- Renaming the agent breaks the chain
+- You cannot easily migrate to a new agent
+- The parameter plumbing (`DefaultAgent`, `reverse.dep.*.DefaultAgent`) adds noise
+
+**Better approach:**
+- Remove the `DefaultAgent` parameter and all `teamcity.agent.name == %DefaultAgent%` requirements
+- Let TeamCity pick any compatible agent
+- Use `runOnSameAgent = true` on the snapshot dependency when downstream builds must reuse the upstream checkout
+- If only certain agents should run the chain, configure an **Agent Pool** or add a capability-based requirement (e.g., `os.name == Linux`)
+
+## Optimization: allow successful build reuse in the chain
+
+`reuseBuilds = ReuseBuilds.NO` forces every pipeline run to re-execute the entire chain, even when the same source revision has already been synced and tested. For large depots this is wasteful.
+
+For a validation pipeline, a better balance is:
+- **Sync buildType:** keep `reuseBuilds` default or `SUCCESSFUL` so the same revision is not re-synced
+- **Test buildType:** keep `reuseBuilds` default or `SUCCESSFUL` so the same sync result is not re-tested
+- Only force re-run when the test itself is flaky or when you explicitly want a clean-room run
+
+```kotlin
+dependencies {
+    snapshot(RelativeId("TestAPrintP4Ignore")) {
+        onDependencyFailure = FailureAction.FAIL_TO_START
+        // reuseBuilds defaults to SUCCESSFUL in TeamCity
+    }
+}
+```
+
+Removing `reuseBuilds = ReuseBuilds.NO` lets TeamCity reuse prior successful builds of the same revision, reducing queue time and agent load.
+
+## Lesson 7: Inheriting parent project parameters pollutes child configs
+
+When build configs are placed under a large project (e.g., PL/ProjectLungfish), they inherit all project-level parameters (`env.change_list`, `env.p4_workspace_name`, `env.TEAMCITY_TOKEN`, etc.). For a self-contained pipeline that doesn't need those, create a dedicated top-level project — child configs will only have the parameters they explicitly define.
+
+## Lesson 8: Perforce VCS root `client-mapping` overrides stream workspace view
+
+In `use-client: stream` mode, TeamCity lets the Perforce server auto-generate the workspace view from the stream definition. If `client-mapping` is set on the VCS root, it **replaces** the stream-derived view entirely. The result is that `p4 sync` maps the wrong depot path (e.g., `//depot/...` instead of `//ProjectM/main/...`), and the checkout directory appears empty even though sync reports success.
+
+**Fix:** Delete the `client-mapping` property from the VCS root when using stream mode. The stream definition provides the correct view automatically.
+
+## Lesson 9: Perforce workspace option `rmdir` causes checkout directory deletion after build
+
+The `rmdir` workspace option tells Perforce to remove empty directories after sync. In TeamCity's agent checkout flow, this causes the entire checkout directory to be deleted at the end of the build — the sync succeeds and files are present during the build, but the directory is gone afterward.
+
+**Fix:** Use `normdir` instead of `rmdir` in `workspace-options`. `normdir` is the default Perforce behavior and does not remove directories after sync.
+
+## Kotlin DSL: split settings.kts into per-buildType files
+
+TeamCity supports multi-file Kotlin DSL. The standard layout:
+
+```
+.teamcity/
+├── settings.kts          ← project{} only: register vcsRoots, buildTypes
+├── pom.xml
+├── buildTypes/
+│   ├── SyncStreamDepot.kt
+│   ├── TestAPrintP4Ignore.kt
+│   └── PipelineStreamDepotFlow.kt
+└── vcsRoots/
+    └── CyanCookStreamDepot.kt
+```
+
+**Each `.kt` file** declares a `package` and an `object`:
+
+```kotlin
+// buildTypes/SyncStreamDepot.kt
+package buildTypes
+
+import jetbrains.buildServer.configs.kotlin.*
+import vcsRoots.CyanCookStreamDepot
+
+object SyncStreamDepot : BuildType({
+    ...
+    dependencies {
+        snapshot(TestAPrintP4Ignore) { runOnSameAgent = true }
+    }
+})
+```
+
+**settings.kts** becomes a thin registration file:
+
+```kotlin
+import buildTypes.*
+import vcsRoots.CyanCookStreamDepot
+
+version = "2025.11"
+
+project {
+    vcsRoot(CyanCookStreamDepot)
+    buildType(SyncStreamDepot)
+    buildType(TestAPrintP4Ignore)
+    buildType(PipelineStreamDepotFlow)
+}
+```
+
+**Key advantages over single-file:**
+- Snapshot dependencies reference typed objects (`snapshot(SyncStreamDepot)`) — compile-time checked, no `RelativeId("...")` strings
+- Each buildType is independently editable without touching others
+- IDE navigation and refactoring work correctly
+
+**Verify before submitting to VCS:**
+```bash
+cd .teamcity && mvn teamcity-configs:generate
+```
+BUILD SUCCESS confirms the DSL compiles. Then `p4 reconcile` + `p4 submit` the `.teamcity/` source files (exclude `target/`).

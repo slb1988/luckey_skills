@@ -94,6 +94,57 @@ dependency wiring is separate from module-level. Missing either causes a warning
 3. **Check out and update**: `p4 edit "<path>"`, append to the most relevant existing section (or add a new "Patterns" / "Architecture" section)
 4. **Include SKILL.md in the same P4 CL as the code changes** (CLAUDE.md Rule 5)
 
+## Worked example: RAGFlow retrieval tuning
+
+A session on debugging retrieval misses surfaced these system properties. Harvest them as knowledge, not as fixes.
+
+### Mixed retrieval scoring
+
+RAGFlow blends dense and keyword similarity per chunk:
+
+```text
+similarity = vector_similarity_weight × vector_similarity
+           + (1 - vector_similarity_weight) × term_similarity
+```
+
+Default `vector_similarity_weight = 0.3` means keyword matching dominates. Project column names (e.g. `食用效果`) are strong term signals; missing them can push data rows below the cutoff.
+
+### Keyword layer is split across dataset and chat
+
+| Layer | Config key | Scope | Effect |
+|---|---|---|---|
+| Index-time | `parser_config.auto_keywords` | Dataset | Tags each chunk with auto-extracted keywords at parse time |
+| Query-time | `prompt_config.keyword` | Chat assistant | Uses an LLM to expand the user question into weighted term matches at retrieval time |
+
+Both are needed. `auto_keywords` alone does not inject question keywords into the term match.
+
+### From retrieval to LLM context: two truncation points
+
+1. `top_k` — how many vector candidates enter the hybrid pool.
+2. `top_n` — how many of the re-ranked candidates are actually passed to the LLM as `{knowledge}`.
+
+Enumerative questions ("list all foods with Debuff") are sensitive to `top_n`; a small value drops correct rows even when retrieval returned them. `similarity_threshold` is a hard floor on the final `similarity` score.
+
+### Chunking strategy determines signal-to-noise per chunk
+
+| Method | What it produces | Risk / benefit |
+|---|---|---|
+| `naive` | 1024-token sliding blocks | Merges unrelated table rows into one chunk; dense relevance is diluted by neighbor content |
+| `table` | One chunk per table row, header repeated | Keeps each row self-contained; enumerative lookups become stable |
+
+Excel files with heterogeneous sheets should use `table` chunking for data rows.
+
+### Document config update endpoint shape
+
+Updating `chunk_method` must target the per-document endpoint:
+
+```text
+PUT /api/v1/datasets/{dataset_id}/documents/{document_id}
+{ "chunk_method": "table" }
+```
+
+Batch `PUT /api/v1/datasets/{dataset_id}/documents` with `"ids": [...]` returns `405 Method Not Allowed`.
+
 ## SKILL.md Length Budget
 
 Target SKILL.md files to **≤ 200 lines**. When a file approaches this limit:

@@ -2,13 +2,14 @@
 name: teamcity-tool
 description: >
   TeamCity server administration toolkit — manage service lifecycle, inspect/edit configuration,
-  set up LDAP/authentication, verify runtime health, and troubleshoot issues.
+  set up LDAP/authentication, verify runtime health, troubleshoot issues, and operate the REST API.
   Use when the user mentions TeamCity, teamcity, TC server, teamcity-server,
   "restart TeamCity", "check TeamCity logs", "TeamCity config", "LDAP TeamCity",
-  "TeamCity agent", "build agent", "teamcity data directory", or any TeamCity
-  admin/ops task. Also trigger when the user reports problems with the TeamCity
-  web UI, login, or builds on this host.
-compatibility: linux, bash, ps, grep, find
+  "TeamCity agent", "build agent", "teamcity data directory", "build chain", "build queue",
+  "no compatible agents", "reverse.dep", "snapshot dependency", or any TeamCity
+  admin/ops/API task. Also trigger when the user reports problems with the TeamCity
+  web UI, login, builds, or agent assignment on this host.
+compatibility: linux, bash, ps, grep, find, curl
 ---
 
 # TeamCity Administration Skill
@@ -43,7 +44,14 @@ After identifying the machine, read the corresponding reference file:
 
 Always read the reference file before acting — it contains the actual paths, ports, and credentials for that specific machine. Do not hardcode paths from the fingerprint table; the reference file is the source of truth.
 
-The LDAP integration guide lives at `references/ldap-config.md`. Read it when the task involves LDAP setup, troubleshooting, or authentication configuration.
+| Topic | Reference file |
+|---|---|
+| LDAP setup / auth | `references/ldap-config.md` |
+| REST API (queries, parameters, queue) | `references/rest-api.md` |
+| Build chain & parameter passing lessons | `references/build-chain-lessons.md` |
+| Non-obvious traps and gotchas | `references/gotchas.md` |
+
+Read the relevant reference before acting on that topic.
 
 ## Common workflows
 
