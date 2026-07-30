@@ -1,28 +1,8 @@
 # Build Chain & Parameter Passing — Lessons Learned
 
-## The `reverse.dep.*` parameter mechanism
+> For agent pinning patterns and `reverse.dep.*` behavior, see [agent-pinning.md](agent-pinning.md).
 
-`reverse.dep.*.PARAM_NAME` on a **parent/pipeline** build config sets the value of `PARAM_NAME` on all downstream builds in the chain. TeamCity resolves these values **at queue time**, before any build runs.
-
-## Lesson 1: Never use `%teamcity.agent.name%` in `reverse.dep.*`
-
-**Problem:** If you set `reverse.dep.*.DefaultAgent = %teamcity.agent.name%` on the pipeline, the pipeline has no agent yet when it enters the queue. `%teamcity.agent.name%` resolves to empty string. Every downstream build gets `DefaultAgent = ""`, and their agent requirement `teamcity.agent.name == %DefaultAgent%` matches nothing.
-
-**Symptom:** All downstream builds show `waitReason: "There are no idle compatible agents which can run this build"` even though agents are connected and idle.
-
-**Fix:** Use a literal value or a parameter that is already defined on the pipeline config.
-
-## Lesson 2: Never use an unresolvable `%PARAM%` reference in `reverse.dep.*`
-
-**Problem:** If you set `reverse.dep.*.DefaultAgent = %DefaultAgent%` but the downstream build config does not define `DefaultAgent` as its own parameter, the reference is unresolvable in the downstream context. The downstream build receives the literal string `%DefaultAgent%` rather than the resolved value.
-
-**Symptom:** Downstream build's `properties` show `"DefaultAgent": "%DefaultAgent%"` (unresolved). Agent requirement still fails.
-
-**Fix:** Either:
-- Set `reverse.dep.*.DefaultAgent` to a **literal value** (e.g., `DefaultAgent`), OR
-- Define `DefaultAgent` as a parameter on the **pipeline** config itself, then set `reverse.dep.*.DefaultAgent = %DefaultAgent%` — this resolves at queue time from the pipeline's own parameter.
-
-## Lesson 3: Queued builds carry a parameter snapshot
+## Lesson 1: Queued builds carry a parameter snapshot
 
 When a build enters the queue, TeamCity snapshots the parameter values at that moment. **Fixing the build config parameters does not retroactively update already-queued builds.** The stuck builds must be cancelled and re-triggered.
 
@@ -31,30 +11,7 @@ When a build enters the queue, TeamCity snapshots the parameter values at that m
 2. Cancel all queued builds in the chain (cancel the leaf builds first, or cancel the pipeline — it cascades).
 3. Re-trigger the pipeline.
 
-## Correct pattern for agent pinning via pipeline
-
-```
-Pipeline build config:
-  Parameters:
-    DefaultAgent = DefaultAgent          ← literal, user-editable
-    reverse.dep.*.DefaultAgent = DefaultAgent   ← literal OR %DefaultAgent%
-
-Downstream build config:
-  Agent requirement:
-    teamcity.agent.name == %DefaultAgent%   ← resolves from the injected value
-```
-
-The pipeline's `DefaultAgent` parameter is the single place to change which agent the whole chain runs on.
-
-## Diagnosing a stuck build chain
-
-1. Check `waitReason` on each queued build.
-2. For `"no idle compatible agents"`: call the compatible-agents endpoint — if agents exist, the issue is parameter resolution, not agent availability.
-3. Inspect the queued build's `properties` — look for unresolved `%PARAM%` or empty values feeding the agent requirement.
-4. Check `agent-requirements` on the build config to see which property it matches on and what value it expects.
-5. Trace back to the pipeline's `reverse.dep.*` parameters to find the source of the bad value.
-
-## Lesson 4: Shared checkout directory for same-agent builds
+## Lesson 2: Shared checkout directory for same-agent builds
 
 When two builds in a chain must read the same files (e.g., one syncs Perforce, the next reads a file from the workspace), they must share the same checkout directory AND run on the same agent.
 
@@ -70,14 +27,14 @@ When two builds in a chain must read the same files (e.g., one syncs Perforce, t
 
 **The `vcsroot.<ID>.p4client` parameter name is bound to the VCS root ID.** When a VCS root is renamed or copied to a new project (changing its ID), this parameter name must be updated manually — TeamCity does not auto-update it.
 
-## Lesson 5: REST API does not support true "move" of build configs
+## Lesson 3: REST API does not support true "move" of build configs
 
 `POST /app/rest/projects/id:<TARGET>/buildTypes` with `sourceBuildType` always **copies**, never moves. After copying:
 1. The snapshot dependencies in the copy still point to the **original** build configs — rewire them manually.
 2. The `vcsroot.<OLD_ID>.p4client` parameter name still uses the old VCS root ID — update it.
 3. Delete the originals manually after verifying the copies are correct.
 
-## Lesson 6: Renaming a project ID requires updating all child IDs
+## Lesson 4: Renaming a project ID requires updating all child IDs
 
 TeamCity enforces that build config IDs and VCS root IDs must have a prefix matching their parent project ID. When a project is renamed (ID changes), all child IDs must be updated manually via REST API:
 
@@ -90,6 +47,19 @@ curl -X PUT ".../vcs-roots/id:<OLD_ID>/id" -H "Content-Type: text/plain" -H "Acc
 ```
 
 After renaming the VCS root ID, also update the `vcsroot.<ID>.p4client` parameter name on any build config that references it.
+
+## Lesson 5: New VCS roots belong in `settings.kts`, not patch files
+
+Patch files under `.teamcity/patches/vcsRoots/` are generated by TeamCity for **modifying existing roots** (`changeVcsRoot`). Creating a new VCS root via a `create()` patch causes:
+
+```text
+UI changes error patches/vcsRoots/XXX.kts: Unexpected VCS root with id '...' found
+```
+
+**Correct approach:**
+1. Declare the new VCS root object directly in `settings.kts`.
+2. Register it in the `project { vcsRoot(...) }` block.
+3. Reference it from build type patch files with `RelativeId("...")`.
 
 ## Optimization: naming convention for sync buildTypes
 
@@ -118,19 +88,6 @@ triggers {
 
 The downstream snapshot dependency then pulls the rest of the chain along automatically.
 
-## Optimization: prefer agent pool/compatibility over hardcoded agent names
-
-Hardcoding an agent name (`DefaultAgent`) in parameters and agent requirements is brittle:
-- Renaming the agent breaks the chain
-- You cannot easily migrate to a new agent
-- The parameter plumbing (`DefaultAgent`, `reverse.dep.*.DefaultAgent`) adds noise
-
-**Better approach:**
-- Remove the `DefaultAgent` parameter and all `teamcity.agent.name == %DefaultAgent%` requirements
-- Let TeamCity pick any compatible agent
-- Use `runOnSameAgent = true` on the snapshot dependency when downstream builds must reuse the upstream checkout
-- If only certain agents should run the chain, configure an **Agent Pool** or add a capability-based requirement (e.g., `os.name == Linux`)
-
 ## Optimization: allow successful build reuse in the chain
 
 `reuseBuilds = ReuseBuilds.NO` forces every pipeline run to re-execute the entire chain, even when the same source revision has already been synced and tested. For large depots this is wasteful.
@@ -151,17 +108,17 @@ dependencies {
 
 Removing `reuseBuilds = ReuseBuilds.NO` lets TeamCity reuse prior successful builds of the same revision, reducing queue time and agent load.
 
-## Lesson 7: Inheriting parent project parameters pollutes child configs
+## Lesson 6: Inheriting parent project parameters pollutes child configs
 
 When build configs are placed under a large project (e.g., PL/ProjectLungfish), they inherit all project-level parameters (`env.change_list`, `env.p4_workspace_name`, `env.TEAMCITY_TOKEN`, etc.). For a self-contained pipeline that doesn't need those, create a dedicated top-level project — child configs will only have the parameters they explicitly define.
 
-## Lesson 8: Perforce VCS root `client-mapping` overrides stream workspace view
+## Lesson 7: Perforce VCS root `client-mapping` overrides stream workspace view
 
 In `use-client: stream` mode, TeamCity lets the Perforce server auto-generate the workspace view from the stream definition. If `client-mapping` is set on the VCS root, it **replaces** the stream-derived view entirely. The result is that `p4 sync` maps the wrong depot path (e.g., `//depot/...` instead of `//ProjectM/main/...`), and the checkout directory appears empty even though sync reports success.
 
 **Fix:** Delete the `client-mapping` property from the VCS root when using stream mode. The stream definition provides the correct view automatically.
 
-## Lesson 9: Perforce workspace option `rmdir` causes checkout directory deletion after build
+## Lesson 8: Perforce workspace option `rmdir` causes checkout directory deletion after build
 
 The `rmdir` workspace option tells Perforce to remove empty directories after sync. In TeamCity's agent checkout flow, this causes the entire checkout directory to be deleted at the end of the build — the sync succeeds and files are present during the build, but the directory is gone afterward.
 

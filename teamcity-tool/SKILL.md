@@ -49,6 +49,7 @@ Always read the reference file before acting — it contains the actual paths, p
 | LDAP setup / auth | `references/ldap-config.md` |
 | REST API (queries, parameters, queue) | `references/rest-api.md` |
 | Build chain & parameter passing lessons | `references/build-chain-lessons.md` |
+| Agent pinning and `reverse.dep.*` behavior | `references/agent-pinning.md` |
 | Non-obvious traps and gotchas | `references/gotchas.md` |
 
 Read the relevant reference before acting on that topic.
