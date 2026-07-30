@@ -1,0 +1,23 @@
+{
+  "skill_name": "ragflow",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我的 RAGFlow 知识库里有一个 Excel，里面有很多食物和它们的食用效果。我问'列出所有带 Debuff 的食物'，结果总是漏掉几个，怎么调？",
+      "expected_output": "回答应涉及 top_n 截断、chunk_method 是否用 table、以及 mixed retrieval 的 keyword 权重。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "RAGFlow 怎么接入我本地跑的 vLLM 大模型和 Ollama embedding？rerank 用哪个 provider？",
+      "expected_output": "回答应给出 OpenAI-API-Compatible / Ollama / GPUStack 或 Xinference 的 Provider 选择和 Base URL 示例。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "我用 Python 调用 RAGFlow API 批量更新文档的 chunk_method 为 table，结果返回 405 Method Not Allowed，为什么？",
+      "expected_output": "回答应指出批量端点不支持，应使用单文档 PUT /api/v1/datasets/{dataset_id}/documents/{document_id}。",
+      "files": []
+    }
+  ]
+}

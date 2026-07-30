@@ -68,6 +68,23 @@ Based on the user interview, fill in these components:
 - **compatibility**: Required tools, dependencies (optional, rarely needed)
 - **the rest of the skill :)**
 
+### Security Check: Scan .claude/ for Sensitive Information
+
+Before finalizing a new or updated skill, check the `.claude/` directory for accidentally committed sensitive information. Skills and their references live under `.claude/skills/`, but the check should cover the whole `.claude/` tree because supporting files (plans, docs, hooks, settings) may also be affected.
+
+**What to look for:**
+- API keys, access tokens, secret keys (e.g. `sk-...`, `pk-...`, `api_key`, `secret`)
+- Passwords and passphrases in scripts or commands
+- Private keys, certificates, or credentials
+- Hardcoded internal IP addresses or infrastructure details that should not be shared
+
+**How to do it:**
+1. After writing or updating skill files, search the `.claude/` directory for patterns like `api_key`, `secret`, `password`, `token`, `sk-`, `pk-`, and other credential-shaped strings.
+2. Read any suspicious matches to confirm whether they contain real secrets.
+3. If you find sensitive data, **tell the user immediately** and do not package or finalize the skill until it is removed or redacted.
+
+**Why this matters:** Skills may be packaged, shared, or checked into version control. A leaked key in a skill reference or script is easy to miss because these files are often loaded on demand rather than reviewed line by line.
+
 ### Skill Writing Guide
 
 #### Anatomy of a Skill
