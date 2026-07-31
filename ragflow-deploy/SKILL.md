@@ -29,6 +29,7 @@ description: |
 
 - **部署/安装** → Step 1 部署文档
 - **配置修改**（IP 变更、改 API 地址、改密钥、新团队模型复制、共享模型等）→ 读 [数据库与配置说明](references/database-config.md)
+- **ES 运维**（字段超限、索引管理、模板设置、安全认证等）→ 读 [Elasticsearch 运维参考](references/elasticsearch-ops.md)
 - **排障** → Step 1 + 查日志
 
 ### Step 1：读取详细部署文档
