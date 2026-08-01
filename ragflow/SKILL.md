@@ -1,10 +1,11 @@
 ---
 name: ragflow
 description: |
-  RAGFlow 使用与调优参考。在 Claude 需要回答 RAGFlow 使用、配置、检索调优、模型接入、API 问题时触发。
+  RAGFlow 使用、检索调优、模型接入、API 排障和 Memory 人工提炼维护参考。在 Claude 需要回答 RAGFlow 使用、配置、检索调优、模型接入、API 或长期记忆问题时触发。
   触发场景：(1) 用户问 RAGFlow 怎么用、如何配置；(2) 检索结果不准、漏答案、答案不全；(3) 配置 LLM/Embedding/Rerank 模型；
-  (4) 调整 chunk_method、parser_config、prompt_config、top_k、top_n、similarity_threshold 等；(5) RAGFlow API 调用报错。
-  即使用户只是说"ragflow 检索不到""知识库回答不完整""怎么接本地模型""更新 chunk_method 报 405"也应该触发。
+  (4) 调整 chunk_method、parser_config、prompt_config、top_k、top_n、similarity_threshold；(5) RAGFlow API 报错；
+  (6) 用户说“ragflow remember”“remember memory”“记住”“写进 memory”“更新 ragflow memory”，要求把当前上下文提炼到 RAGFlow Memory。
+  Memory 请求必须实际写入、建立写入前基线并重复检索验证，不得只口头确认。即使用户只说“把这点记住”也应触发。
   如果任务涉及服务器部署、安装、容器、端口、镜像拉取，优先使用 ragflow-deploy skill。
 ---
 
@@ -22,6 +23,7 @@ description: |
 | 检索不准/漏答/枚举型问题答不全 | 读 `references/retrieval-tuning.md` |
 | LLM/Embedding/Rerank 模型接入 | 读 `references/model-integration.md` |
 | API 报错（如 405）、端点形状 | 读 `references/api-notes.md` |
+| `ragflow remember` / `remember memory` / “记住”并有长期保存意图 | 完整读取并执行 `references/memory-curation.md` |
 
 ## 核心检索链路（速查）
 
@@ -66,9 +68,20 @@ RAGFlow 通过 Provider 接入外部模型。常见组合：
 
 详细配置与排障见 `references/model-integration.md`。
 
+## Memory 人工维护约定
+
+- 不依赖所有普通对话自动写入；只有用户明确表达长期保存意图时才人工提炼。
+- 触发后必须实际调用 Memory API，不要只回复“已记住”。
+- 从项目根目录 `.env` 读取 `RAGFLOW_TOKEN`，禁止输出或写入 Token。
+- 先将上下文提炼为稳定事实、事件经验或操作步骤，再写入 `ragflow-tips`。
+- 写入前保存测试查询的检索基线，写入后等待异步抽取并重复测试。
+- 只有新记录能被真实查询召回、内容符合预期时，才报告更新成功。
+- 完整步骤、固定 Memory ID 和脚本用法见 `references/memory-curation.md`。
+
 ## 输出原则
 
-- 先判断问题是使用/配置还是部署/运维。
+- 先判断问题是使用/配置、Memory 维护还是部署/运维。
 - 给出可调参数的组合建议，而不是只调一个。
-- 说明"为什么"：混合评分公式、keyword 分层、top_n 截断等。
+- 说明“为什么”：混合评分公式、keyword 分层、top_n 截断等。
+- Memory 更新报告必须包含提炼内容、写入前后检索差异及是否通过。
 - 需要服务器信息时，指向 `ragflow-deploy` skill。

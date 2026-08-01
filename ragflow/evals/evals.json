@@ -18,6 +18,12 @@
       "prompt": "我用 Python 调用 RAGFlow API 批量更新文档的 chunk_method 为 table，结果返回 405 Method Not Allowed，为什么？",
       "expected_output": "回答应指出批量端点不支持，应使用单文档 PUT /api/v1/datasets/{dataset_id}/documents/{document_id}。",
       "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "ragflow remember：以后我说记住时，不要把整段聊天原样塞进去，要先提炼稳定事实或操作步骤；写入前做检索基线，写入后至少换两种问法重复验证，只有新记忆能实际召回才算成功。",
+      "expected_output": "应读取 memory-curation 流程，人工提炼上下文，使用项目 .env 中的 RAGFLOW_TOKEN 实际写入 ragflow-tips，并用至少两个查询比较写入前后结果；不得输出 Token 或只口头确认。",
+      "files": []
     }
   ]
 }
