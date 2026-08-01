@@ -1,0 +1,4 @@
+interface:
+  display_name: "ASUS Merlin VPN"
+  short_description: "ASUS 梅林 fancyss 路由 VPN 排查"
+  default_prompt: "Use $asus-merlin-vpn to troubleshoot ASUSWRT-Merlin KoolShare fancyss VPN setup over SSH."
