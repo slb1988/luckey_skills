@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mac Awake"
+  short_description: "Keep Mac awake while AI tasks are running"
+  default_prompt: "Use $mac-awake to install or diagnose task-aware sleep prevention on this Mac."
