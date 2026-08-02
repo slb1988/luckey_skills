@@ -39,6 +39,7 @@ DEFAULT_POLL_SECONDS = 20
 DEFAULT_CLAUDE_STALE_SECONDS = 30 * 60
 DEFAULT_CODEX_STALE_SECONDS = 6 * 60 * 60
 DEFAULT_ORCA_STALE_SECONDS = 30 * 60
+LOG_RETENTION_SECONDS = 24 * 60 * 60
 ACTIVE_AGENT_STATES = {"working", "blocked", "waiting"}
 CODEX_START_EVENT = "task_started"
 CODEX_END_EVENTS = {"task_complete", "turn_aborted"}
@@ -95,6 +96,65 @@ def rotate_log_if_needed() -> None:
             LOG_FILE.replace(backup)
     except OSError:
         pass
+
+
+def cleanup_expired_logs(
+    current_time: float | None = None,
+    structured_paths: tuple[Path, ...] | None = None,
+    unstructured_paths: tuple[Path, ...] | None = None,
+) -> None:
+    """Remove log entries/files older than 24 hours before each daemon refresh."""
+    now = time.time() if current_time is None else current_time
+    cutoff = now - LOG_RETENTION_SECONDS
+    structured = structured_paths or (LOG_FILE, LOG_FILE.with_suffix(".log.1"))
+    unstructured = unstructured_paths or (ERROR_LOG_FILE,)
+
+    for path in structured:
+        try:
+            if not path.exists():
+                continue
+            retained: list[str] = []
+            changed = False
+            with path.open("r", encoding="utf-8", errors="replace") as handle:
+                for line in handle:
+                    try:
+                        timestamp = time.mktime(
+                            time.strptime(line[:19], "%Y-%m-%d %H:%M:%S")
+                        )
+                    except (OverflowError, ValueError):
+                        changed = True
+                        continue
+                    if timestamp >= cutoff:
+                        retained.append(line)
+                    else:
+                        changed = True
+
+            if not changed:
+                continue
+
+            if not retained:
+                path.unlink(missing_ok=True)
+                continue
+
+            mode = path.stat().st_mode & 0o777
+            with tempfile.NamedTemporaryFile(
+                "w", encoding="utf-8", dir=path.parent, delete=False
+            ) as handle:
+                handle.writelines(retained)
+                temp_path = Path(handle.name)
+            os.chmod(temp_path, mode)
+            os.replace(temp_path, path)
+        except OSError:
+            continue
+
+    # LaunchAgent stderr is not timestamped. Remove the whole file only when
+    # it has received no new output for more than the retention window.
+    for path in unstructured:
+        try:
+            if path.stat().st_mtime < cutoff:
+                path.unlink(missing_ok=True)
+        except OSError:
+            continue
 
 
 def log(message: str) -> None:
@@ -753,6 +813,7 @@ def daemon(poll_seconds: int, foreground: bool) -> int:
     log(f"watchdog up poll={poll_seconds}s")
     try:
         while not stop:
+            cleanup_expired_logs()
             snapshot = monitor.snapshot()
             active_sources = ",".join(
                 name
@@ -815,6 +876,26 @@ def self_test() -> int:
         }
         assert monitor._count_active_agent_objects(fixture) == 2
         assert sanitize_id("a/b:c") == "a_b_c"
+
+        fixed_now = time.mktime(time.strptime("2026-08-02 12:00:00", "%Y-%m-%d %H:%M:%S"))
+        test_log = root / "mac-awake.log"
+        rotated_log = root / "mac-awake.log.1"
+        error_log = root / "mac-awake.err.log"
+        old_line = "2026-08-01 11:59:59 old\n"
+        recent_line = "2026-08-01 12:00:01 recent\n"
+        test_log.write_text(old_line + recent_line, encoding="utf-8")
+        rotated_log.write_text(old_line, encoding="utf-8")
+        error_log.write_text("old stderr\n", encoding="utf-8")
+        old_mtime = fixed_now - LOG_RETENTION_SECONDS - 1
+        os.utime(error_log, (old_mtime, old_mtime))
+        cleanup_expired_logs(
+            current_time=fixed_now,
+            structured_paths=(test_log, rotated_log),
+            unstructured_paths=(error_log,),
+        )
+        assert test_log.read_text(encoding="utf-8") == recent_line
+        assert not rotated_log.exists()
+        assert not error_log.exists()
 
         settings = {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "echo keep"}]}]}}
         merged = merge_claude_hooks(settings)
