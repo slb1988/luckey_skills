@@ -23,6 +23,24 @@ RAGFlow 按知识库（kb）创建索引，模式为 `ragflow_*`：
 
 `kb_id` 对应 RAGFlow 中知识库的唯一标识。
 
+> **实际观察**：在某些部署中，索引后缀对应的是文档的 `created_by`（租户/用户 ID），而不是 URL 里的 `dataset_id`。这意味着同一租户下的多个知识库可能共享同一个 `ragflow_*` chunk 索引。
+
+## 为什么字段会爆
+
+RAGFlow 的 `table` chunk 模式会把表格列名映射成 ES 字段。不同文档、不同 sheet 的列名各不相同，全部累积到同一个 `ragflow_*` 索引的 mapping 里：
+
+```
+ ragflow_675273...
+   └── properties
+       ├── 菜谱名
+       ├── 主菜要求
+       ├── 2025-05-12 00:00:00_tks
+       ├── 食用效果
+       ├── ... (每个新列都加一个字段)
+```
+
+ES 默认 `index.mapping.total_fields.limit = 1000`，累积到上限后任何带新列的 chunk 都写不进去。
+
 ## 常用命令
 
 ```bash
@@ -75,18 +93,57 @@ curl -s -u elastic:infini_rag_flow -X PUT 'localhost:1200/_index_template/ragflo
 
 模板匹配所有 `ragflow_*` 模式的新索引，已存在的索引不受模板影响，需单独更新。
 
-### 验证
+## 治本：关闭动态映射
+
+提高 `total_fields.limit` 只是扩容。如果表格列名持续多样化，迟早再次打满。
+
+更彻底的方案是让 ES 不再把新列自动展开成 mapping 字段：
+
+```bash
+# 对已有索引关闭动态映射
+curl -s -u elastic:infini_rag_flow -X PUT 'localhost:1200/<index>/_mapping' \
+  -H 'Content-Type: application/json' \
+  -d '{"dynamic": false}'
+
+# 创建模板，新索引自动继承
+curl -s -u elastic:infini_rag_flow -X PUT 'localhost:1200/_index_template/ragflow_disable_dynamic' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "index_patterns": ["ragflow_*", "memory_*", "ragflow_doc_meta_*"],
+    "priority": 500,
+    "template": {
+      "mappings": {
+        "dynamic": false
+      }
+    }
+  }'
+```
+
+`dynamic: false` 的效果：
+- 新字段不再进入 mapping，不计入 `total_fields`
+- 字段仍然作为原始 JSON 保存在 `_source` 中
+- RAGFlow 的向量检索和文本检索依赖的核心字段（`content`, `content_ltks`, `q_1024_vec` 等）已经在 mapping 中定义，不受影响
+- 表格列名作为 metadata 仍能被 RAGFlow 在召回后读取，只是不再被 ES 单独索引/聚合
+
+## 验证
 
 ```bash
 # 检查已有索引
 curl -s -u elastic:infini_rag_flow 'localhost:1200/<index>/_settings?include_defaults=false'
 
+# 检查索引 dynamic 设置
+curl -s -u elastic:infini_rag_flow 'localhost:1200/<index>/_mapping' | python3 -c \
+  "import sys,json; m=json.load(sys.stdin); print(list(m.values())[0]['mappings'].get('dynamic'))"
+
 # 检查模板
 curl -s -u elastic:infini_rag_flow 'localhost:1200/_index_template/ragflow_total_fields'
+curl -s -u elastic:infini_rag_flow 'localhost:1200/_index_template/ragflow_disable_dynamic'
 ```
 
 ## 设计说明
 
 - **ES 必须带认证**：8.x 默认 `xpack.security.enabled: true`，无认证的 curl 返回 401。
-- **索引按 kb_id 创建**：每个知识库独立索引，因此修改限额时需覆盖已有索引（`_settings`）+ 未来索引（`_index_template`）两处。
-- **模板优先级**：设 `priority: 100` 确保不被其他模板覆盖（ES 默认模板 priority 为 0）。
+- **索引命名存在两种形态**：文档说按 `kb_id` 创建，但实际部署中可能按租户/用户 ID（`created_by`）创建。同一租户下的多个知识库共享同一个 `ragflow_*` 索引，字段会在租户维度累积。
+- **表格列名即字段**：`table` chunk 模式把每个列名写入 ES mapping。跨文档、跨 sheet 的列名多样性是 `total_fields` 超限的根本原因。
+- **动态映射是治本**：`dynamic: false` 阻止新列进入 mapping，同时保留 `_source`，不影响 RAGFlow 的核心向量/文本检索。
+- **模板优先级**：`priority` 设得足够高（如 500），确保不被其他模板覆盖（ES 默认模板 priority 为 0）。
