@@ -1,0 +1,4 @@
+interface:
+  display_name: "Luckey 知识库整理"
+  short_description: "快速理解、整理并沉淀 Luckey Obsidian 知识库"
+  default_prompt: "使用 $curate-luckey-vault 快速了解当前知识库，整理指定文档并沉淀本次会话经验。"
