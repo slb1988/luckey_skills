@@ -46,6 +46,12 @@ LANGFUSE_HOST=http://192.168.2.13:3030
 先查 Worker 是否运行（`langfuse-worker`），再查队列是否积压（Redis `LLEN bull:otel-ingestion-queue:wait`）。
 详见 references/langfuse.md 第七节「诊断 trace 收不到」。
 
+### 用户问"langfuse 内部错误"/Dashboard 报 500
+→ 先看 Web 日志 `docker logs langfuse --tail 50` 确认具体报错。
+常见原因：镜像版本过旧，与新版 ClickHouse 不兼容（日志显示 `scores.all` + ClickHouse `Not found column`）。
+→ 拉取最新镜像重建：`docker pull langfuse/langfuse:3 langfuse/langfuse-worker:3 && docker compose up -d langfuse langfuse-worker`
+→ 详见 references/langfuse.md 第七节「ClickHouse 版本漂移」。
+
 ### 用户问"怎么创建新 API 密钥"
 → 通过 Web UI：登录 → Project Settings → API Keys → Create。
 或通过数据库直插（需要 bcrypt hash，详见 references/langfuse.md）。

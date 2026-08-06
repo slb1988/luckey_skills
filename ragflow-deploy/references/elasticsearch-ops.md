@@ -59,23 +59,23 @@ curl -s -u elastic:infini_rag_flow 'localhost:1200/<index>/_mapping' | python3 -
 
 ### 问题
 
-ES 每个索引有字段数保护上限，默认 **1000**。当写入的 chunk 动态字段超过此值时，写入失败：
+ES 8.x 自带默认 **1000**，RAGFlow 部署时通过 `ragflow_total_fields` 索引模板预设为 **2000**。当导入大量不同结构的文档（如飞书 wiki、Excel 表格）时，动态字段数可能超过 2000，写入报错：
 
 ```
-Limit of total fields [1000] has been exceeded while adding new fields [3]
+Limit of total fields [2000] has been exceeded while adding new fields [2]
 ```
 
-RAGFlow 随着文档增多、字段类型多样化，容易触发此限制。
+表现为文档解析成功但 chunk 元数据无法写入 ES（`Failed to insert metadata` 日志）。
 
 ### 修改已有索引
 
 ```bash
 curl -s -u elastic:infini_rag_flow -X PUT 'localhost:1200/<index>/_settings' \
   -H 'Content-Type: application/json' \
-  -d '{"index.mapping.total_fields.limit": 2000}'
+  -d '{"index.mapping.total_fields.limit": 5000}'
 ```
 
-### 创建模板（未来索引自动生效）
+### 更新模板（未来索引自动生效）
 
 ```bash
 curl -s -u elastic:infini_rag_flow -X PUT 'localhost:1200/_index_template/ragflow_total_fields' \
@@ -84,14 +84,14 @@ curl -s -u elastic:infini_rag_flow -X PUT 'localhost:1200/_index_template/ragflo
     "index_patterns": ["ragflow_*"],
     "template": {
       "settings": {
-        "index.mapping.total_fields.limit": 2000
+        "index.mapping.total_fields.limit": 5000
       }
     },
     "priority": 100
   }'
 ```
 
-模板匹配所有 `ragflow_*` 模式的新索引，已存在的索引不受模板影响，需单独更新。
+模板匹配所有 `ragflow_*` 模式的新索引，**已存在的索引不受模板影响**，需单独 `_settings` 更新。
 
 ## 治本：关闭动态映射
 

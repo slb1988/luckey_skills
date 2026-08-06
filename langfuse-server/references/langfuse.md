@@ -378,6 +378,21 @@ docker exec langfuse-clickhouse clickhouse-client -q "SELECT count() FROM traces
 
 **结果**：Worker 启动后自动消费积压队列，ClickHouse 在 30 秒内写入全部历史 trace。
 
+### 2026-08-05：Dashboard 500 / scores.all 报 Internal Error（ClickHouse 版本漂移）
+
+**症状**：Dashboard 页面报 `Internal error. Please check error logs`，Web 日志显示 `tRPC route failed on scores.all`，ClickHouse 报 `Not found column and(equals(...))`。
+
+**原因**：`docker-compose.yml` 中 ClickHouse 使用 `clickhouse/clickhouse-server`（无版本 pin），镜像已升级到 26.7.x。Langfuse `:3` 浮动标签的旧镜像内置的 ClickHouse 查询构建器生成的 SQL 被新版 ClickHouse 解析器拒绝。两个浮动标签的漂移方向不一致时触发。
+
+**修复**：拉取最新 Langfuse 镜像并重建 Web + Worker：
+```bash
+HTTP_PROXY=http://192.168.2.70:7897 HTTPS_PROXY=http://192.168.2.70:7897 \
+  docker pull langfuse/langfuse:3 langfuse/langfuse-worker:3
+cd /mnt/disk2/langfuse && docker compose up -d langfuse langfuse-worker
+```
+
+**根本缓解**：在 `docker-compose.yml` 中固定 ClickHouse 版本（如 `clickhouse/clickhouse-server:24.8`）或使用 Langfuse 的 digest pin，避免两个组件独立漂移。
+
 ### 2026-07-24：Langfuse 启动失败（缺少 PostgreSQL）
 
 **症状**：`langfuse` 容器反复重启，日志报 `Can't reach database server at db_postgres:5432`
@@ -401,3 +416,4 @@ docker exec langfuse-clickhouse clickhouse-client -q "SELECT count() FROM traces
 3. **网络**：Langfuse 使用外部网络 `docker_default`（`external: true`），新服务需要加入此网络才能用容器名通信。
 4. **SALT 的重要性**：`SALT`（`1fddb49ee65746c08a46d4f54e338254`）用于生成 `fast_hashed_secret_key`，修改它会导致所有 API 密钥失效。
 5. **密码初始化**：`LANGFUSE_INIT_USER_PASSWORD` 仅在首次启动时生效，数据库已有用户后不再自动更新。
+6. **镜像版本漂移**：`langfuse/langfuse:3` 和 `clickhouse/clickhouse-server` 均为浮动标签，各自独立升级。ClickHouse 大版本升级后 Langfuse 查询构建器可能生成不兼容的 SQL（典型症状：`tRPC route failed on scores.all` + ClickHouse `Not found column`）。建议固定 ClickHouse 版本号或用 digest pin 绑定两个镜像的兼容版本对。
