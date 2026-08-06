@@ -55,6 +55,7 @@ description: |
 | 表格行答案混杂无关内容 | `chunk_method` 从 `naive` 改为 `table` |
 | 检索得分都低于阈值 | `similarity_threshold` 是否过高 |
 | 更新 chunk_method 报 405 | 是否用了批量端点，应改用单文档端点 |
+| 大量文档分块数为 0 | 按 `run` 状态分诊（RUNNING 跳过 / FAIL 重触发），见 `references/api-notes.md` |
 
 ## 模型接入速查
 

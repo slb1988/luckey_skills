@@ -6,6 +6,26 @@
 - **停止**：`DELETE /api/v1/datasets/{dataset_id}/chunks`，body `{"document_ids": [...]}`
 - **坑**：旧版写法 `POST .../chunks {"run": "0"}` 不再表示停止——`run` 字段被忽略，一律按"启动解析"处理。对 RUNNING 中的文档调用会报 `102 Can't parse document that is currently being processed`。停止必须用 `DELETE`。
 - 卡住的 RUNNING 文档（`progress_msg` 长期显示 `N tasks are ahead in the queue`、chunk=0）修复流程：`DELETE` 停止 → `POST` 重新触发。参考脚本 `.claude/scripts/ragflow_fix_stuck_parse.py`。
+- **根因（2026-08-05 cyancook 实例验证）**：一批任务入队后 valkey/redis 或 task executor 重启，Redis 队列条目丢失，但 MySQL 里文档状态仍停在 RUNNING + 队首，永远不会被消费。判别方法：同库新触发的任务能正常跑（executor 活着），而老任务 `process_begin_at` 停留在同一历史时刻、progress 接近 0——即"假 RUNNING"。批量修复时只处理 `RUNNING && chunk_count==0 && progress_msg 含 ahead in the queue` 的文档，别误伤 FAIL 的和真正在跑的。
+- **2026-08-06 复发变体**：84 篇卡住文档显示的是 `0 tasks are ahead in the queue`（队首位置 0 但无人消费），且有一篇大文档（文本总表.xlsx）所有 Page 子任务日志均显示 `Task done`，文档级状态却停在 RUNNING、progress 不更新——说明队列条目和最终状态回写一起丢了（executor 空闲数小时）。修复相同；对这种"子任务全 done、状态假 RUNNING、chunk>0"的文档**只 DELETE 停止、不要重触发**（块已索引，重触发会重复解析）。注意脚本按 `chunk>0 且无 ahead` 启发式会把它误判为"真实在跑"，需单独处理。
+
+## 零分块文档（chunk_count=0）排查与重触发
+
+列表端点 `GET /api/v1/datasets/{id}/documents?page=N&page_size=100`（结果在 `data.docs`）每篇文档带三个可用于分诊的字段：
+
+| 字段 | 取值 | 含义 |
+|---|---|---|
+| `chunk_count` | 0 | 无分块（解析失败 / 正在解析 / 内容为空） |
+| `run` | `UNSTART` / `RUNNING` / `DONE` / `FAIL` | 解析任务状态 |
+| `progress` | `-1.0` = FAIL，`1.0` = DONE，中间值 = 进行中 | 解析进度 |
+
+`chunk_count=0` 按 `run` 分三类处理：
+
+| `run` | 处置 |
+|---|---|
+| `RUNNING` | **跳过**——正在排队/解析，重复 POST 会报 102 |
+| `FAIL` | 重新触发：`POST .../chunks {"document_ids": [...]}`，建议每批 ≤32 篇、批间隔 ~1s，避免瞬时压满任务队列 |
+| `DONE` 且 chunk=0 | 多为内容为空或解析无产出（如空 Excel）；重触发无害但通常仍是 0，重试后仍失败的应单独列查文件本身 |
 
 ## 更新文档分块方法
 
