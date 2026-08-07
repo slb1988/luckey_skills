@@ -75,10 +75,32 @@ UPDATE knowledgebase SET parser_config=JSON_REMOVE(parser_config,'$.field_map','
 ```text
 similarity = vector_similarity_weight × vector_similarity
            + (1 - vector_similarity_weight) × term_similarity
+           + pagerank_fea            # ← 隐藏加分项，见下
+           + tag_fea 匹配分 × 10      # 标签命中时
 ```
 
 - 默认 `vector_similarity_weight = 0.3`。
 - `similarity_threshold` 是最终 `similarity` 的硬门槛。
+
+### pagerank_fea：新旧 chunk 分差 +1 的根因（2026-08-07 cyancook 实例验证）
+
+**症状**：同一查询下，7 月解析的旧 chunk `similarity` 恰为"混合分 + 1.0"，当天重解析的新 chunk 没有 +1，新文档在混合检索中被旧文档系统性压制 ~100 名。
+
+**根因**：最终分数含 `pagerank_fea`（源码 `rag/nlp/search.py`：`sim + rank_fea`，`rank_fea = tag_fea×10 + pagerank`）。`pagerank_fea` 在**解析时**从数据集 `Knowledgebase.pagerank` 快照进每个 chunk（`task_service.py` 建 task 时读取）。该数据集 7 月 pagerank=1、后被改为 0，导致存量 chunk 全部 +1、新 chunk 为 0。
+
+**操作**：把数据集 pagerank 改回与存量一致的值（本例 `PUT /api/v1/datasets/{id} {"pagerank": 1}`），并重解析需要拉平的新文档。**改了 pagerank 必须重解析才生效**（chunk 存的是快照）；反之若要把全库从 1 降到 0，需全量重解析 3000+ 文档，代价大，勿轻易改。
+
+**判别方法**：对同一 chunk 对比 `similarity` 与 `w×vec+(1-w)×term` 的手算值，差值恰为整数（如 1.0）即为 pagerank_fea 差异。
+
+### auto_questions：对抗"近义词行海"淹没（2026-08-07 验证）
+
+**症状**：目标 chunk 内容完全正确，但同库有几十行字面更像查询的表格行（如问"象蛇"命中 20+ 行"象蛇蛋"），目标被挤出 rerank 候选窗（约 100 席）和 top_n。
+
+**操作**：文档级 `PUT parser_config {"auto_questions": 3}` 后重解析。LLM 为每行生成"该行回答什么问题"，`question_tks` 在计分中权重 ×6（content×1、title×2、important_kwd×5、question×6），对自然语言问法的各变体都能强命中。224 行文档全量生成约 1-2 分钟。
+
+### multipart 上传文件名不要 URL-encode
+
+`POST /datasets/{id}/documents` 的 `Content-Disposition filename` 直接写 UTF-8 原文。若 `urllib.parse.quote` 后再传，RAGFlow 会把编码串当文件名索引进 `docnm_kwd`（`%E6%88%90...`），且后续 `PUT {"name"}` 改名**只改库不改索引**，docnm 词项加成永久丢失，只能删除重传。
 
 ## 关键词配置层级
 
