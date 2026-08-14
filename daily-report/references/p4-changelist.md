@@ -6,7 +6,7 @@
 |------|------|--------|------|
 | 公司项目仓库 | `192.168.2.236:1666` | `sunlaibing` | 主要项目代码 |
 | 内网 CICD | `192.168.2.13:1666` | `admin_sun` | CI/CD 配置和脚本（Unicode 服务器，需 `P4CHARSET=utf8`） |
-| 个人服务器 | `10.77.77.6:1666` | `admin` | 个人项目 |
+| 个人服务器 | `10.77.77.6:1666` | `admin` | 个人项目（Unicode 服务器，需 `P4CHARSET=utf8`） |
 
 ---
 
@@ -20,7 +20,7 @@
 
 p4 -p 192.168.2.236:1666 changes -u sunlaibing -s submitted @2026/03/13,@2026/03/14
 P4CHARSET=utf8 p4 -p 192.168.2.13:1666 changes -u admin_sun -s submitted @2026/03/13,@2026/03/14
-p4 -p 10.77.77.6:1666 changes -u admin    -s submitted @2026/03/13,@2026/03/14
+P4CHARSET=utf8 p4 -p 10.77.77.6:1666 changes -u admin -s submitted @2026/03/13,@2026/03/14
 ```
 
 **典型输出：**
@@ -37,6 +37,7 @@ Change 12346 on 2026/03/13 by sunlaibing@WORKSTATION 'Update animation blueprint
 
 p4 -p 192.168.2.236:1666 describe -s 12345
 P4CHARSET=utf8 p4 -p 192.168.2.13:1666 describe -s 12345
+P4CHARSET=utf8 p4 -p 10.77.77.6:1666 describe -s 12345
 ```
 
 **典型输出：**
@@ -75,7 +76,8 @@ Affected files ...
 | 错误类型 | 表现 | 处理策略 |
 |----------|------|----------|
 | 连接超时 | 命令挂起 > 10s 或 `TCP connect to ... failed` | 跳过该服务器，日记中标注 `（连接失败）` |
-| Unicode 拒绝 | `Unicode server permits only unicode enabled clients` | 缺少 `P4CHARSET=utf8`，需在所有 192.168.2.13 命令前添加 |
+| Unicode 拒绝 | `Unicode server permits only unicode enabled clients` | 缺少 `P4CHARSET=utf8`，需在所有 192.168.2.13 和 10.77.77.6 命令前添加 |
+| 用户过滤失效 | 返回全部用户的 CL 或参数报错 | `-u <user>` 必须放在 `changes` 子命令之后，不能作为全局 flag 放在子命令前 |
 | 权限拒绝 | `You don't have permission for this operation` | 跳过，标注 `（权限不足）` |
 | 无提交记录 | 命令返回空 | 正常，不输出该服务器条目 |
 | p4 未安装 | `'p4' is not recognized` | 跳过所有 P4 查询，日记中标注 `（p4 未安装）` |

@@ -42,10 +42,16 @@ date /t   # Windows
 或直接使用 `currentDate`（系统 context 中已注入）。目标文件路径：
 
 ```
-luckey\301 Daily Notes\YYYY-MM-DD.md
+luckey/02_notes/daily/YYYY-MM-DD.md
 ```
 
-如文件已存在，询问用户是否覆盖，否则直接 Write。
+<memory category="code-locations">
+日记路径已随 vault 重构迁移：旧路径 `luckey/301 Daily Notes/` 已删除，现行为 `luckey/02_notes/daily/YYYY-MM-DD.md`；模板为 `luckey/00_meta/templates/daily-note.md`（旧 `luckey/Templates/DailyNoteTemplate.md` 不存在）。写入前先 Read 目标文件，不要 Write 到旧路径。
+</memory>
+
+<memory category="common-patterns">
+当日日记已存在且有内容时，不覆盖、不询问，直接三路合并：保留现有 DailySucc 条目并用新数据源增强（补结论、追加 P4 CL 子项），新事项另起条目；若现有 App 使用时长表是估算值，用真实 AW 数据整体替换并注明来源。始终先 Read 再 Edit。
+</memory>
 
 ---
 
@@ -129,17 +135,24 @@ for e in json.load(sys.stdin)[0]:
 |--------|------|------|
 | 192.168.2.236:1666 | sunlaibing | 公司项目仓库 |
 | 192.168.2.13:1666  | admin_sun  | 内网 CICD（**Unicode 服务器，需加 `P4CHARSET=utf8`**） |
-| 10.77.77.6:1666 | admin    | 个人服务器 |
+| 10.77.77.6:1666 | admin    | 个人服务器（**Unicode 服务器，需加 `P4CHARSET=utf8`**） |
 
 每个服务器执行：
 1. `p4 -p <server> changes -u <user> -s submitted @YYYY/MM/DD,@YYYY/MM/DD+1` — 获取当日 CL 列表
 2. `p4 -p <server> describe -s <CL>` — 获取每条 CL 的描述和文件列表
 
-> **192.168.2.13 专用命令**（必须带 `P4CHARSET=utf8`，否则报 "Unicode server permits only unicode enabled clients" 并退出）：
+> **Unicode 服务器（192.168.2.13 和 10.77.77.6）专用命令**（必须带 `P4CHARSET=utf8`，否则报 "Unicode server permits only unicode enabled clients" 并退出）：
 > ```bash
-> P4CHARSET=utf8 p4 -p 192.168.2.13:1666 -u admin_sun changes -s submitted @YYYY/MM/DD,@YYYY/MM/DD+1
-> P4CHARSET=utf8 p4 -p 192.168.2.13:1666 -u admin_sun describe -s <CL>
+> P4CHARSET=utf8 p4 -p 192.168.2.13:1666 changes -u admin_sun -s submitted @YYYY/MM/DD,@YYYY/MM/DD+1
+> P4CHARSET=utf8 p4 -p 192.168.2.13:1666 describe -s <CL>
+> P4CHARSET=utf8 p4 -p 10.77.77.6:1666 changes -u admin -s submitted @YYYY/MM/DD,@YYYY/MM/DD+1
+> P4CHARSET=utf8 p4 -p 10.77.77.6:1666 describe -s <CL>
 > ```
+
+<memory category="troubleshooting">
+过滤当日提交必须用子命令参数 `p4 changes -u <user>`；全局 `p4 -u <user>` 只设置连接用户、不过滤 `changes` 结果，会列出该服务器所有人的 CL。已确认此坑，两个位置语义完全不同。
+10.77.77.6（个人服务器）与 192.168.2.13 一样也是 Unicode 服务器，所有命令必须前置 `P4CHARSET=utf8`，不要只给 .13 加。
+</memory>
 
 按服务器分组，整理为结构化摘要供 Step 4 使用。
 若某服务器连接失败，跳过并在日记中标注 `（连接失败）`。
@@ -302,13 +315,13 @@ for s, e in segments:
 目标路径（固定，不得更改）：
 
 ```
-luckey\301 Daily Notes\YYYY-MM-DD.md
+luckey/02_notes/daily/YYYY-MM-DD.md
 ```
 
 **⚠️ 必须先用 Read 读取目标路径文件，判断文件状态：**
 
 - **文件已存在且有内容**：用 **Edit** 替换 `## DailySucc` 区块占位行，不要 Write 到任何其他路径。
-- **文件不存在**：先读取模板 `luckey/Templates/DailyNoteTemplate.md`，按模板结构用 Write 写入目标路径，再将 DailySucc 内容填入。
+- **文件不存在**：先读取模板 `luckey/00_meta/templates/daily-note.md`，按模板结构用 Write 写入目标路径，再将 DailySucc 内容填入。
 
 替换规则：
 - `create time:` 后的占位 → 实际日期（`YYYY-MM-DD`）
