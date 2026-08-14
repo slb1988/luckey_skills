@@ -42,6 +42,14 @@ curl -s "http://192.168.2.13:8111/app/rest/builds?locator=running:true&fields=bu
   -H "Accept: application/json" -H "Authorization: Bearer $TOKEN"
 ```
 
+### List builds on a specific agent in a time window
+Use this to rule out (or find) concurrent builds when diagnosing machine-level conflicts (e.g. UBT mutex):
+```bash
+curl -s "http://192.168.2.13:8111/app/rest/builds?locator=agent:(id:<AGENT_ID>),sinceDate:(yyyyMMdd'T'HHmmss%2B0800),untilDate:(yyyyMMdd'T'HHmmss%2B0800)&fields=build(id,number,buildType(id,name),startDate,finishDate,status)" \
+  -H "Accept: application/json" -H "Authorization: Bearer $TOKEN"
+```
+Note: date format is `yyyyMMdd'T'HHmmssZ` with the timezone offset URL-encoded (`+0800` → `%2B0800`). Find the agent id via the "List all agents" query below.
+
 ### List all agents
 ```bash
 curl -s "http://192.168.2.13:8111/app/rest/agents?fields=agent(id,name,connected,enabled,authorized,build(id,buildType(id)))" \
