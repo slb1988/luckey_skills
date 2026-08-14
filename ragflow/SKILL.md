@@ -88,3 +88,11 @@ RAGFlow 通过 Provider 接入外部模型。常见组合：
 - 说明“为什么”：混合评分公式、keyword 分层、top_n 截断等。
 - Memory 更新报告必须包含提炼内容、写入前后检索差异及是否通过。
 - 需要服务器信息时，指向 `ragflow-deploy` skill。
+
+## 项目知识存放规则（硬性约定，2026-08-07 用户明确）
+
+- **项目知识禁止写进聊天助手的 system prompt**，只能写入 RAGFlow Memory（走 `references/memory-curation.md` 的强制流程）。
+- 项目知识 = 具体文档名（如《成员分工安排》）、工种/角色清单、字段术语映射（如 食用效果=扣血）、编号换算规则、版本取舍约定等一切项目专属事实。
+- system prompt 只放**通用行为规则**：输出格式、触发词识别、枚举扫描、精确匹配、禁止推测等，不得出现项目专有名词。
+- 通用 prompt 的安装脚本：`.claude/scripts/feishu_ragflow_sync/update_chat_person_finding_prompt.py`。
+- 发现历史 prompt 中残留项目知识时，应迁出到 Memory 并做检索验证。
