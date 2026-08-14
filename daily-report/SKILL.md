@@ -68,8 +68,8 @@ curl 失败时用 Playwright fallback 访问 `http://localhost:5600`（见 refer
 | 10.77.77.6:1666 | admin | 个人服务器（Unicode，需 `P4CHARSET=utf8`） |
 
 每个服务器：
-1. `p4 changes -u <user> -s submitted @YYYY/MM/DD,@YYYY/MM/DD+1`（`-u` 必须放在 `changes` 之后，作全局 flag 不过滤）
-2. `p4 describe -s <CL>` 取描述和文件列表
+1. `p4 -p <server> -u <user> changes -u <user> -s submitted @YYYY/MM/DD,@YYYY/MM/DD+1` — 两个 `-u` 缺一不可：全局 `-u` 设连接用户（本机 `p4 set P4USER=admin_sun`，不设则在 .236/10.77 上被 `p4 protect` 拒绝）；`changes -u` 才是过滤条件（省略则列出全服所有人的 CL）
+2. `p4 -p <server> -u <user> describe -s <CL>` 取描述和文件列表
 
 连接失败则跳过并在日记中标注 `（连接失败）`。
 
