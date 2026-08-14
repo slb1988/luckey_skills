@@ -8,6 +8,8 @@
 | 内网 CICD | `192.168.2.13:1666` | `admin_sun` | CI/CD 配置和脚本（Unicode 服务器，需 `P4CHARSET=utf8`） |
 | 个人服务器 | `10.77.77.6:1666` | `admin` | 个人项目（Unicode 服务器，需 `P4CHARSET=utf8`） |
 
+> **本机 `p4 set P4USER=admin_sun`**，连接用户默认取此值。访问 192.168.2.236 和 10.77.77.6 时必须用全局 `-u` 覆盖连接用户，否则在认证阶段就被 `p4 protect` 拒绝（`Access for user 'admin_sun' has not been enabled by 'p4 protect'`）。
+
 ---
 
 ## 2. 查询命令
@@ -15,12 +17,15 @@
 ### 2a. 获取当日 CL 列表
 
 ```bash
-# 格式：p4 -p <server> changes -u <user> -s submitted @YYYY/MM/DD,@YYYY/MM/DD+1
+# 格式：p4 -p <server> -u <user> changes -u <user> -s submitted @YYYY/MM/DD,@YYYY/MM/DD+1
+# 两个 -u 语义不同、缺一不可：
+#   全局 -u（子命令前）：连接用户，覆盖本机 P4USER 配置
+#   子命令 -u（changes 后）：按用户过滤结果，省略则列出该服务器所有人的 CL
 # 示例（查询 2026/03/13 的提交）：
 
-p4 -p 192.168.2.236:1666 changes -u sunlaibing -s submitted @2026/03/13,@2026/03/14
-P4CHARSET=utf8 p4 -p 192.168.2.13:1666 changes -u admin_sun -s submitted @2026/03/13,@2026/03/14
-P4CHARSET=utf8 p4 -p 10.77.77.6:1666 changes -u admin -s submitted @2026/03/13,@2026/03/14
+p4 -p 192.168.2.236:1666 -u sunlaibing changes -u sunlaibing -s submitted @2026/03/13,@2026/03/14
+P4CHARSET=utf8 p4 -p 192.168.2.13:1666 -u admin_sun changes -u admin_sun -s submitted @2026/03/13,@2026/03/14
+P4CHARSET=utf8 p4 -p 10.77.77.6:1666 -u admin changes -u admin -s submitted @2026/03/13,@2026/03/14
 ```
 
 **典型输出：**
@@ -32,12 +37,12 @@ Change 12346 on 2026/03/13 by sunlaibing@WORKSTATION 'Update animation blueprint
 ### 2b. 获取 CL 详情
 
 ```bash
-# 格式：p4 -p <server> describe -s <CL>
-# -s 参数：只显示 shelved files（精简输出，含描述和文件列表，不含 diff）
+# 格式：p4 -p <server> -u <user> describe -s <CL>
+# 全局 -u 同样必需（连接用户）；-s 参数：只显示 shelved files（精简输出，含描述和文件列表，不含 diff）
 
-p4 -p 192.168.2.236:1666 describe -s 12345
-P4CHARSET=utf8 p4 -p 192.168.2.13:1666 describe -s 12345
-P4CHARSET=utf8 p4 -p 10.77.77.6:1666 describe -s 12345
+p4 -p 192.168.2.236:1666 -u sunlaibing describe -s 12345
+P4CHARSET=utf8 p4 -p 192.168.2.13:1666 -u admin_sun describe -s 12345
+P4CHARSET=utf8 p4 -p 10.77.77.6:1666 -u admin describe -s 12345
 ```
 
 **典型输出：**
@@ -77,7 +82,8 @@ Affected files ...
 |----------|------|----------|
 | 连接超时 | 命令挂起 > 10s 或 `TCP connect to ... failed` | 跳过该服务器，日记中标注 `（连接失败）` |
 | Unicode 拒绝 | `Unicode server permits only unicode enabled clients` | 缺少 `P4CHARSET=utf8`，需在所有 192.168.2.13 和 10.77.77.6 命令前添加 |
-| 用户过滤失效 | 返回全部用户的 CL 或参数报错 | `-u <user>` 必须放在 `changes` 子命令之后，不能作为全局 flag 放在子命令前 |
+| 用户过滤失效 | 返回全部用户的 CL | `changes -u` 才是过滤条件；全局 `-u` 只设连接用户、不过滤结果 |
+| protect 拒绝 | `Access for user 'admin_sun' has not been enabled by 'p4 protect'` | 连接用户取自本机 `p4 set P4USER`，须加全局 `-u <该服务器用户>` 覆盖 |
 | 权限拒绝 | `You don't have permission for this operation` | 跳过，标注 `（权限不足）` |
 | 无提交记录 | 命令返回空 | 正常，不输出该服务器条目 |
 | p4 未安装 | `'p4' is not recognized` | 跳过所有 P4 查询，日记中标注 `（p4 未安装）` |
