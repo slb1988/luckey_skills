@@ -1,3 +1,8 @@
+---
+name: daily-report
+description: 每日日报生成器。合并飞书日报总结、ActivityWatch 时长数据与 P4 代码提交三路数据源，生成 Luckey Obsidian vault 中的每日日记。当用户提到"写日报"、"生成日报"、"daily report"、"写每日笔记"时触发。
+---
+
 # 每日日报生成器
 
 ## 触发条件
