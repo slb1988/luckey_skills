@@ -29,6 +29,25 @@ memory-center 把 LLM 和 embedding **解耦**成两组独立配置，可以分�
 
 > CodePlan 的 `/models` 列表**不含任何 embedding 模型**，`/embeddings` 一律 `Model not exist`；key 也不能跨端点用（CodePlan key 打到 dashscope 端点报 401）。
 
+## DeepSeek 直连行为特征（json_object 模式）
+
+DeepSeek API 不支持 json_schema 结构化输出——`response_format=json_schema` 直接返回 400
+`This response_format type is unavailable now`。接 DeepSeek 只能走 `OpenAIGenericClient`
+的 json_object 模式（schema 注入 prompt）。实测 `deepseek-chat` 在该模式下有三种固定输出形态：
+
+| 输出形态 | 说明 |
+|---|---|
+| 顶层包裹 `properties` | 输出 `{"properties": {...}}`，而非扁平字段对象（照抄 schema 结构） |
+| schema 定义当字段值 | 字段值输出 `{"description":..., "title":..., "type":...}`，而非字符串 |
+| JSON 后追加多余文字 | 输出 `{...} 解释文字`，`json.loads` 报 `Extra data` |
+
+> 三种形态都必须由 client 侧容错（解包 `properties` / 检测 schema 定义 / 提取第一个完整 JSON），
+> 否则字段取不到或 Neo4j 报 `CypherTypeError`。
+
+另：`OpenAIGenericClient` 忽略 `model_size`/`small_model`，所有调用都用主模型
+（`MODEL_NAME`）。因此接 DeepSeek 时没有独立 small 模型，small 任务也走 `deepseek-chat`，
+`small_model` 配置项在 generic client 路径下不生效。
+
 ## 切换 LLM
 
 1. 改 `.env`：`OPENAI_API_KEY` / `OPENAI_BASE_URL` / `MODEL_NAME`。
