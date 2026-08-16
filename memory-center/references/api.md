@@ -27,8 +27,8 @@ curl -X POST http://127.0.0.1:8005/messages -H "Content-Type: application/json" 
 }'
 ```
 
-- 返回 202 只代表「已入队」，实际抽取/写入是异步的（qwen3.8-max 推理抽取约需 1 分钟，embedding 走云端较快）。
-- `group_id` 用于隔离不同 agent/用户/会话的记忆，检索时按 group 过滤。
+- 返回 202 只代表「已入队」，实际抽取/写入是异步的（抽取约需 10 秒，补丁已关闭推理模式；embedding 走云端较快）。202 ≠ 入库成功——入库标志是 `/episodes` 返回非空。
+- `group_id` 用于隔离不同 agent/用户/会话的记忆，检索时按 group 过滤。原版只允许 `[a-zA-Z0-9_-]`（不能含冒号），补丁已放宽为额外允许 `:`（支持 `project:xxx` 命名空间）。
 - `messages` 是数组，可一次传多条；每条字段：`content`（正文）、`role_type`（`user`/`assistant`/`system`）、`role`（角色名，可选）、`timestamp`（可选，默认当前时间）。
 
 ## 检索（POST /search）
@@ -76,16 +76,22 @@ curl -X POST http://127.0.0.1:8005/clear
 
 ## 验证示例（端到端）
 
+⚠️ `/healthcheck` 只证明 HTTP 进程活着，不能证明索引管线正常（worker 可能已静默挂掉）。真正的健康标准是「写入 → episode 入库 → 检索出事实」闭环：
+
 ```bash
 # 1. 写入
-curl -X POST http://127.0.0.1:8005/messages -H "Content-Type: application/json" -d '{
-  "group_id": "test", "messages": [
-    {"content": "我叫小明，我住在北京，我的好朋友叫小红。", "role_type": "user", "role": "小明"}
-  ]}'
+curl -s -X POST http://127.0.0.1:8005/messages -H "Content-Type: application/json" \
+  -d '{"group_id":"selftest","messages":[{"content":"我叫测试员，我在成都。","role_type":"user","role":"测试员"}]}'
 
-# 2. 等约 1 分钟后检索
-curl -X POST http://127.0.0.1:8005/search -H "Content-Type: application/json" \
-  -d '{"query":"小明住在哪里？","group_ids":["test"],"num_results":5}'
+# 2. 等 ~15 秒，确认 episode 真的入库（非空即成功；一直空 = worker 挂了）
+curl -s "http://127.0.0.1:8005/episodes/selftest?last_n=10"
+
+# 3. 确认能检索到事实
+curl -s -X POST http://127.0.0.1:8005/search -H "Content-Type: application/json" \
+  -d '{"query":"测试员住在哪","group_ids":["selftest"],"num_results":5}'
+
+# 4. 清理
+curl -s -X DELETE http://127.0.0.1:8005/group/selftest
 ```
 
-预期：`facts` 里出现「小明住在北京」。
+预期：第 2 步返回非空数组，第 3 步 `facts` 里出现「测试员住在成都」。

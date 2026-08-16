@@ -113,9 +113,9 @@ docker compose start neo4j
    docker exec memory-center-ollama ollama pull bge-m3   # 已持久化则跳过
    ```
    然后把 `.env` 的 `EMBEDDING_*` 指回 Ollama，`docker compose restart graphiti`。
-6. 验证：
+6. 验证（端到端，别只看 healthcheck）：
    ```bash
    docker compose ps                        # neo4j + graphiti healthy
    curl -s http://127.0.0.1:8005/healthcheck   # {"status":"healthy"}
    ```
-   写入一条消息后用 `/search` 检索（见 [api.md](api.md)），确认能抽出实体并返回结果。
+   写入一条消息后等 ~15 秒，确认 `/episodes/<group>?last_n=10` 返回非空、`/search` 能返回事实（见 [api.md](api.md)）。⚠️ `/healthcheck` 只证明 HTTP 进程活着，worker 静默挂掉时它仍是 healthy。

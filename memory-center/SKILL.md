@@ -14,7 +14,7 @@ description: Memory Center（Graphiti 时序知识图谱记忆服务）运维与
 | 项目目录 | `/share/Container/memory_center/memory-center/` |
 | 编排文件 | `compose.yml` |
 | 环境配置 | `.env`（含两把阿里云 key、Neo4j 密码） |
-| 兼容补丁 | `patches/zep_graphiti.py` |
+| 兼容补丁 | `patches/zep_graphiti.py` + `patches/ingest.py` |
 | 项目 README | `README.md`（详细文档，优先参考） |
 
 ## 参考文档
@@ -60,23 +60,28 @@ memory-center/
 ├── data/neo4j/          # Neo4j 数据
 ├── data/ollama/         # Ollama 模型 (bge-m3 已拉取，未删除)
 ├── logs/neo4j/ · logs/graphiti/
-├── patches/zep_graphiti.py  # 兼容补丁（bind mount 到容器内）
+├── patches/zep_graphiti.py  # LLM/embedding 端点分离 + 关推理 + group_id 放宽（bind mount）
+├── patches/ingest.py        # worker 韧性 + uuid 预建（bind mount）
 └── backup/              # 挂载到 neo4j:/backup
 ```
 
 ## 兼容性补丁（patches/zep_graphiti.py）
 
-官方 `zepai/graphiti:latest` 镜像内置 **graphiti-core 0.22.0**，直接跑有三处问题，补丁解决：
+官方 `zepai/graphiti:latest` 镜像内置 **graphiti-core 0.22.0**，直接跑有多处问题，补丁解决：
 
 1. **LLM 端点分离**：`get_graphiti` 里显式传 `LLMConfig(api_key/base_url/model)` 给 `OpenAIClient`，让 LLM 走 CodePlan。
 2. **embedding 端点分离**：embedder 指向 `EMBEDDING_BASE_URL`（百炼 DashScope），与 LLM 端点独立。
 3. **small_model 必须显式指定**：graphiti 的 `small_model` 默认 `gpt-4.1-nano`，CodePlan 上不存在 → 报 `Model not exist`。补丁设为 `deepseek-v4-flash-0731`。
 4. **防 schema 描述复制的护栏**（`GuardedOpenAIClient`）：推理模型（qwen3.8-max）抽取时容易把字段的 `description`/`title` 原样复制成值（如把 summary 输出成 `{"description":..., "title":..., "type":...}`），导致 Neo4j 写入报 `CypherTypeError`。补丁在 system 消息加护栏提示。
+5. **强制关闭推理模式**（`enable_thinking: false`）：CodePlan/百炼端点上的**所有模型默认开推理**（返回 `reasoning_content`），推理 token 会占满 `max_tokens=8192` 导致 `content` 为空、结构化抽取失败或极慢。补丁在 `_create_structured_completion` / `_create_completion` 里加 `extra_body={'enable_thinking': False}`，抽取速度从 ~1 分钟降到 ~10 秒。
+6. **放宽 group_id 校验（允许冒号）**：原版只允许 `[a-zA-Z0-9_-]`，Memory Hub 用 `project:xxx` 命名空间（含 `:`）会抛 `GroupIdValidationError`。补丁 monkeypatch `graphiti_core.graphiti.validate_group_id` 额外放行冒号。
+7. **worker 韧性与 uuid 预建**（`patches/ingest.py`）：原版 ingest worker 只捕获 `CancelledError`，任何异常都会让 worker 静默死亡（`/healthcheck` 仍 healthy 但不再处理任何消息）。补丁改为捕获所有异常、打印 traceback 并继续处理后续消息。同时 graphiti 的 `add_episode(uuid=X)` 语义是「更新已有 episode」（X 不存在抛 `NodeNotFoundError`），而 Memory Hub 把自己的 Memory ID 作为 uuid 传入，补丁在调用前若该 uuid 不存在就先预建 episode（MERGE 幂等），使 `episode.uuid == Memory ID` 成立。
 
 补丁通过 compose 的 bind mount 生效，无需重建镜像：
 ```yaml
 volumes:
   - ./patches/zep_graphiti.py:/app/graph_service/zep_graphiti.py:ro
+  - ./patches/ingest.py:/app/graph_service/routers/ingest.py:ro
 ```
 
 > 修改补丁后必须 `docker compose restart graphiti`（bind mount 内容变化不会触发 recreate，需重启进程重新 import）。
@@ -88,6 +93,10 @@ volumes:
 - **CodePlan 只含 LLM，不含 embedding**：`/models` 列表里没有任何 embedding 模型，`/embeddings` 一律 `Model not exist`。
 - **`qwen3.7-text-embedding` 在 CodePlan 上不存在**，必须在百炼 DashScope 端点用 `sk-ws-...` key 调用。
 - **small_model 默认 gpt-4.1-nano 会报 Model not exist**，已用补丁改成 `deepseek-v4-flash-0731`。
+- **CodePlan/百炼上所有模型默认开推理**：不显式传 `enable_thinking: false` 时，`reasoning_content` 会占满 `max_tokens`，导致结构化抽取失败或极慢。补丁已统一关闭推理模式。
+- **group_id 原版不允许冒号（`:`）**：上游 `validate_group_id` 只允许 `[a-zA-Z0-9_-]`，`project:xxx` 会抛 `GroupIdValidationError`。补丁已放宽为额外允许冒号。
+- **ingest worker 只捕获 `CancelledError`，其它异常会让它静默挂掉**：某条消息处理失败（非法 group_id、LLM 抽取失败等）后，worker 停止处理后续所有消息，`/episodes` 永远为空，但 `/healthcheck` 仍是 healthy。排查：看日志最后一次 `Got a job` 之后是否还有新记录，长时间没有就说明 worker 已死，需 `docker compose restart graphiti`。补丁已改为捕获所有异常并继续。
+- **`add_episode(uuid=X)` 是「更新」语义，X 必须是已存在的 episode**：新消息传入新 uuid（如 Memory Hub 的 Memory ID）会抛 `NodeNotFoundError`，导致该条记忆永远无法入库。补丁在调用前预建同 uuid 的 episode（MERGE 幂等），保证 `episode.uuid == 传入 uuid`。
 - **`latest` 标签是旧版**：`zepai/graphiti` 只有 `latest` 和 `0.22.0` 两个可用标签，Docker Hub 未跟进 GitHub 0.29.x。
 - **Ollama 已停用但未卸载**：镜像和数据都在，`docker compose start ollama` 可随时切回本地 bge-m3（需同时改 `.env` 的 EMBEDDING_* 指回 `http://ollama:11434/v1`）。
 - **换 embedding 模型后必须 re-embed 存量数据**：原始文本（`Episodic.content` / `Entity.name` / `Edge.fact`）已在 Neo4j，但向量空间变了，新旧向量不能混用，需重算向量。见 [reembedding.md](references/reembedding.md)。
@@ -125,20 +134,14 @@ done
 
 ## 直接查 Neo4j
 
-```bash
-docker exec memory-center-neo4j cypher-shell -u neo4j -p '<密码>' \
-  "MATCH (n:Entity) RETURN n.name, n.group_id;"
-
-docker exec memory-center-neo4j cypher-shell -u neo4j -p '<密码>' \
-  "MATCH (a:Entity)-[r:RELATES_TO]->(b:Entity) RETURN a.name, r.name, b.name;"
-```
+常用查询命令见 [operations.md](references/operations.md)。
 
 ## REST API 用法
 
 Swagger：`http://<NAS-IP>:8005/docs`；健康检查：`/healthcheck`；Neo4j Browser：`http://<NAS-IP>:7474`（账号 `neo4j`）。
 
 ```bash
-# 写入记忆（异步，返回 202 后排队处理，qwen3.8-max 抽取约需 1 分钟）
+# 写入记忆（异步，返回 202 后排队处理，抽取约需 10 秒）
 curl -X POST http://127.0.0.1:8005/messages -H "Content-Type: application/json" -d '{
   "group_id": "my-agent",
   "messages": [
@@ -157,6 +160,10 @@ curl "http://127.0.0.1:8005/episodes/my-agent?last_n=10"
 curl -X DELETE http://127.0.0.1:8005/group/my-agent
 curl -X POST http://127.0.0.1:8005/clear
 ```
+
+## 自我验证（端到端）
+
+⚠️ `/healthcheck` 只证明 HTTP 进程活着，**不能**证明索引管线正常（worker 可能已静默挂掉）。完整四步验证见 [api.md 验证示例](references/api.md)。
 
 ## 备份与恢复
 
@@ -181,7 +188,7 @@ docker compose stop neo4j && tar -czf backup/neo4j-$(date +%F).tar.gz data/neo4j
 3. 检查端口（见上）。
 4. `docker compose pull` → `docker compose up -d`。
 5. 若要用本地 embedding，`docker compose start ollama` + `docker exec memory-center-ollama ollama pull bge-m3`，并把 `.env` 的 `EMBEDDING_*` 指回 Ollama。
-6. 验证：`docker compose ps` healthy；写入一条消息后 `/search` 检索。
+6. 验证（端到端，别只看 healthcheck）：`docker compose ps` healthy；写入一条消息后等 ~15 秒，确认 `/episodes/<group>?last_n=10` 返回非空、`/search` 能返回事实（见 [api.md 验证示例](references/api.md)）。
 
 ## 注意事项
 
