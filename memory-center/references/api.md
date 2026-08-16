@@ -27,7 +27,7 @@ curl -X POST http://127.0.0.1:8005/messages -H "Content-Type: application/json" 
 }'
 ```
 
-- 返回 202 只代表「已入队」，实际抽取/写入是异步的，几秒~几十秒后落库（CPU embedding 较慢）。
+- 返回 202 只代表「已入队」，实际抽取/写入是异步的（qwen3.8-max 推理抽取约需 1 分钟，embedding 走云端较快）。
 - `group_id` 用于隔离不同 agent/用户/会话的记忆，检索时按 group 过滤。
 - `messages` 是数组，可一次传多条；每条字段：`content`（正文）、`role_type`（`user`/`assistant`/`system`）、`role`（角色名，可选）、`timestamp`（可选，默认当前时间）。
 
@@ -83,7 +83,7 @@ curl -X POST http://127.0.0.1:8005/messages -H "Content-Type: application/json" 
     {"content": "我叫小明，我住在北京，我的好朋友叫小红。", "role_type": "user", "role": "小明"}
   ]}'
 
-# 2. 等 20~40 秒后检索
+# 2. 等约 1 分钟后检索
 curl -X POST http://127.0.0.1:8005/search -H "Content-Type: application/json" \
   -d '{"query":"小明住在哪里？","group_ids":["test"],"num_results":5}'
 ```
