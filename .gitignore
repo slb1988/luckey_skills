@@ -3,6 +3,7 @@ excalidraw-diagram
 mermaid-visualizer
 obsidian-canvas-creator
 frp-tunnel-setup-eval-workspace
+memory-hub-workspace
 
 # video-downloader - actual cookies (not templates)
 video-downloader/config/*_cookies.txt
