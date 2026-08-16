@@ -1,6 +1,6 @@
 ---
 name: memory-hub
-description: Memory Hub（agent 中心记忆网关）使用与运维指南。Memory Hub 是 Agent 访问 Graphiti 长期记忆的唯一 HTTP 入口，运行在 QNAP NAS 的 /share/Container/memory-hub（Python Flask + SQLite metadata + 本地 session 文件存储，默认端口 9287，上游 Graphiti 在 10.77.77.6:8005）。覆盖 HTTP API 写入/检索流程（独立文件上传→session 不可变版本→精炼 memory→outbox 投递）、scope/group_id 权限策略、幂等与错误码、以及 Claude Code/Codex/Pi 的自动记忆集成（memory-hub agent search/recall/capture/import-history）。当用户提到 memory-hub、memory hub、记忆网关、agent 记忆、session 归档/版本、记忆检索/写入、记忆服务连不上/重启/部署，或说"帮我把记忆网关开一下""memory hub 怎么了""查一下我的记忆"时触发。注意与 memory-center 区分：memory-center 覆盖后端 Graphiti/Neo4j Docker 服务，memory-hub 覆盖本机面向 agent 的 Flask 网关；两者名字相近但职责不同。
+description: Memory Hub（agent 中心记忆网关）使用与运维指南。覆盖 HTTP API 写入/检索、session 不可变版本、scope/group_id、幂等与错误码，以及使用 scripts/memory_hook.py 为 Claude Code、Codex、Pi 提供不依赖项目环境的自动召回、持久化 spool 和补传。当用户提到 memory-hub、memory hub、记忆网关、agent 记忆、session 归档/版本、记忆检索/写入、记忆服务连不上/重启/部署，或要求配置、检查、补传 Agent hooks 时触发。注意与 memory-center 区分：memory-center 覆盖后端 Graphiti/Neo4j，memory-hub 覆盖面向 Agent 的 HTTP 网关。
 ---
 
 # Memory Hub（Agent 中心记忆网关）
@@ -27,12 +27,12 @@ Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graphiti ──> 
 | 项目目录 | `/share/Container/memory-hub`（同 `/share/CACHEDEV1_DATA/Container/memory-hub`） |
 | 虚拟环境 | `项目/.venv`（Linux Python 3.12，用 uv 重建过） |
 | 环境配置 | `项目/.env`（无 secret；只有 Graphiti URL） |
-| 监听地址 | `http://127.0.0.1:9287`（默认） |
+| Agent 访问地址 | `http://10.77.77.6:9287` |
 | 上游 Graphiti | `http://10.77.77.6:8005` |
 | metadata DB | `data/memory-hub.sqlite3` |
 | session 文件 | `data/session-files/objects/{sha256 前缀}/{sha256}.json[.gz]` |
 | 运行日志 | `data/memory-hub.log` |
-| CLI | `.venv/bin/memory-hub {serve,worker,agent}` |
+| 独立 Hook App | `scripts/memory_hook.py`（仅 Python 标准库） |
 
 ## 参考文档
 
@@ -114,29 +114,39 @@ curl -sS -X POST "$HUB_URL/v1/memories/search" \
 
 ## Agent 自动记忆集成
 
-Claude Code / Codex / Pi 三端共用 `MEMORY_HUB_AGENT_ID`（默认 `claude-code-mac`），通过 hook/扩展在 session 结束归档 transcript、开始前召回，Hub 不可用时 fail-open。
+Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`。它不 import、调用或依赖
+Memory Hub 项目及其 venv，只使用 Python 标准库访问远端 HTTP API。
+
+每次 capture 先生成确定性 gzip 快照并写入本机 SQLite spool，然后才访问服务器。服务器不可用时
+job 永久保留为 `queued`；后续 Stop、SessionEnd、agent_end 或手工 flush 会自动补传。因此 hook
+仍可 fail-open，不会阻止 Agent，也不会因短期网络故障丢失 session。
 
 环境变量：
 
 ```bash
-export MEMORY_HUB_URL=http://127.0.0.1:9287
+export MEMORY_HUB_URL=http://10.77.77.6:9287
 export MEMORY_HUB_AGENT_ID=claude-code-mac
 export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HUB_API_KEY=...          # 生产必填
-# MEMORY_HUB_AGENT_TIMEOUT_SECONDS=8
-# MEMORY_HUB_AGENT_DEBUG=1        # 调试失败原因
+# MEMORY_HOOK_TIMEOUT_SECONDS=8
+# MEMORY_HOOK_STATE_DIR=~/.local/state/memory-hub-hook
+# MEMORY_HOOK_DEBUG=1             # 调试失败原因
 ```
 
-CLI 子命令：
+独立应用命令：
 
 ```bash
-.venv/bin/memory-hub agent search '项目的历史决策和未完成事项' --limit 10
-.venv/bin/memory-hub agent recall --source pi --limit 8        # hook 兼容召回
-.venv/bin/memory-hub agent capture --source pi --verbose       # 归档 hook 传入的 transcript
-.venv/bin/memory-hub agent import-history --source codex --root ~/.codex/sessions --workers 4
+APP=/Users/sun/Documents/ObsidianVault/.claude/skills/memory-hub/scripts/memory_hook.py
+/usr/bin/python3 "$APP" search '项目的历史决策和未完成事项' --limit 10
+/usr/bin/python3 "$APP" status
+/usr/bin/python3 "$APP" flush --limit 100
 ```
 
-重复 `SessionEnd` 是安全的：写入端以 `{source_agent}:{session_id}` 作为归档 session ID，对 gzip 快照算 SHA-256，latest 相同时返回 `unchanged`；不同则建不可变新版本。
+全局 hooks 在 SessionStart/UserPromptSubmit 召回。Stop/agent_end 只把当前最新完整快照写入
+本地 spool，并替代该 session 尚未上传的旧快照；SessionEnd/session_shutdown 再上传最终快照。
+重复事件安全：以
+`{source_agent}:{session_id}` 作为归档 ID，对确定性快照计算 SHA-256；相同内容命中本地与远端
+幂等，不重复创建，内容变化时创建同一 session 的下一不可变版本。
 
 ## Memory 索引状态
 
