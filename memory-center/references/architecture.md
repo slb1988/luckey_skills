@@ -17,7 +17,7 @@ memory-center/
 ## 数据流
 
 ```
-写入记忆：POST /messages → Graphiti 异步队列 → CodePlan qwen3.8-max（实体/关系抽取）
+写入记忆：POST /messages → Graphiti 异步队列 → CodePlan qwen3.7-max（实体/关系抽取）
          → 百炼 DashScope qwen3.7-text-embedding（生成 1024 维向量）→ Neo4j（存节点/边/向量）
 检索：   POST /search   → 查询词向量化 → Neo4j 向量相似度 + 图遍历 → 返回事实
 ```
@@ -70,7 +70,7 @@ graphiti 默认 LLM 和 embedding 用**同一个 OpenAI 配置**。本项目两�
 
 | 用途 | 端点 | 模型 |
 |------|------|------|
-| LLM | CodePlan `token-plan.cn-beijing.maas.aliyuncs.com` | `qwen3.8-max`（small: `deepseek-v4-flash-0731`） |
+| LLM | CodePlan `token-plan.cn-beijing.maas.aliyuncs.com` | `qwen3.7-max`（small: `deepseek-v4-flash-0731`） |
 | Embedding | 百炼 `dashscope.aliyuncs.com` | `qwen3.7-text-embedding`（1024 维） |
 
 补丁里 `_build_llm_client()` 构造 `OpenAIClient`，`_build_embedder()` 构造 `OpenAIEmbedder`，分别读 `.env` 的两组变量，在 `_create_client()` 注入 `ZepGraphiti`。
@@ -79,7 +79,7 @@ graphiti 默认 LLM 和 embedding 用**同一个 OpenAI 配置**。本项目两�
 
 1. **端点分离** —— LLM 走 CodePlan，embedding 走百炼（见上）。
 2. **small_model 默认值失效** —— graphiti 的 `small_model` 默认 `gpt-4.1-nano`，非 OpenAI 端点不存在 → `Model not exist`。补丁显式设为 `deepseek-v4-flash-0731`。
-3. **推理模型复制 schema 描述** —— `GuardedOpenAIClient`（继承 `OpenAIClient`）在 system 消息加护栏，防止 qwen3.8-max 把字段 `description` 当值输出（否则 Neo4j 报 `CypherTypeError`）。
+3. **推理模型复制 schema 描述** —— `GuardedOpenAIClient`（继承 `OpenAIClient`）在 system 消息加护栏，防止 qwen3.7-max 把字段 `description` 当值输出（否则 Neo4j 报 `CypherTypeError`）。
 4. **推理模式必须关闭** —— CodePlan/百炼端点所有模型默认开推理（返回 `reasoning_content`），推理 token 会占满 `max_tokens=8192` 导致 `content` 为空、抽取失败/极慢。补丁在 `_create_structured_completion` / `_create_completion` 里加 `extra_body={'enable_thinking': False}`。
 5. **group_id 不允许冒号** —— 上游 `validate_group_id` 只允许 `[a-zA-Z0-9_-]`，`project:xxx` 会抛 `GroupIdValidationError` 并让 ingest worker 静默挂掉（worker 只捕获 `CancelledError`）。补丁 monkeypatch `graphiti_core.graphiti.validate_group_id` 额外放行冒号。
 6. **worker 静默死 + uuid 必须是已存在 episode** —— 原版 ingest worker 只捕获 `CancelledError`，任何异常都会让 worker 静默死亡（task 引用未释放，asyncio 不打印）；且 `add_episode(uuid=X)` 是「更新」语义，X 不存在抛 `NodeNotFoundError`。Memory Hub 把自己的 Memory ID 作为 uuid 传入，新记忆必然报错。补丁（`patches/ingest.py`）改为捕获所有异常继续处理，并在调用前预建同 uuid 的 episode。

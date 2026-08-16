@@ -6,7 +6,7 @@ memory-center 把 LLM 和 embedding **解耦**成两组独立配置，可以分�
 
 | 用途 | 环境变量 | 当前值 |
 |------|---------|--------|
-| LLM（主模型） | `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `MODEL_NAME` | CodePlan / `qwen3.8-max` |
+| LLM（主模型） | `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `MODEL_NAME` | CodePlan / `qwen3.7-max` |
 | LLM（small 模型） | 补丁里写死的 `small_model` | `deepseek-v4-flash-0731` |
 | Embedding | `EMBEDDING_API_KEY` / `EMBEDDING_BASE_URL` / `EMBEDDING_MODEL_NAME` | 百炼 DashScope / `qwen3.7-text-embedding` |
 
@@ -22,7 +22,7 @@ memory-center 把 LLM 和 embedding **解耦**成两组独立配置，可以分�
 
 | Provider | 端点 | LLM | json_schema | Embedding |
 |---------|------|:---:|:-----------:|:---------:|
-| CodePlan (token-plan) | `token-plan.cn-beijing.maas.aliyuncs.com` | ✅ qwen3.8-max 等 | ✅ | ❌ |
+| CodePlan (token-plan) | `token-plan.cn-beijing.maas.aliyuncs.com` | ✅ qwen3.7-max 等 | ✅ | ❌ |
 | 百炼 DashScope | `dashscope.aliyuncs.com` | ✅ | ✅ | ✅ `qwen3.7-text-embedding`(1024) / `text-embedding-v4` |
 | DeepSeek 直连 | `api.deepseek.com` | ✅ | ❌ | ❌ |
 | Ollama（本地） | `localhost:11434/v1` | — | — | ✅ `bge-m3`(1024) |
@@ -45,7 +45,7 @@ memory-center 把 LLM 和 embedding **解耦**成两组独立配置，可以分�
 
 ## 护栏：推理模型会复制 schema 描述
 
-qwen3.8-max 等推理模型在结构化抽取时，容易把字段的 `description`/`title` 原样复制成值（如把 `summary` 输出成 `{"description":..., "title":..., "type":...}`），导致 Neo4j 写入报 `CypherTypeError`。补丁的 `GuardedOpenAIClient` 在 system 消息里加护栏提示：
+qwen3.7-max 等推理模型在结构化抽取时，容易把字段的 `description`/`title` 原样复制成值（如把 `summary` 输出成 `{"description":..., "title":..., "type":...}`），导致 Neo4j 写入报 `CypherTypeError`。补丁的 `GuardedOpenAIClient` 在 system 消息里加护栏提示：
 
 > Field descriptions in the response schema describe what a real value LOOKS LIKE — they are NEVER valid values and must NEVER be copied into any field. If you have no value, set null.
 
