@@ -128,6 +128,30 @@ job 永久保留为 `queued`；后续 Stop、SessionEnd、agent_end 或手工 fl
 Markdown fenced code 不上传；Markdown 标题、列表、链接和解释正文保留。Spool 每个 job 固化
 `user_id`，所以稍后 flush 时不会因进程环境变化而补传到错误用户。
 
+### 首次用户身份配置
+
+Hook 客户端没有内置固定用户，也不得用 `agent_id` 代替用户身份。首次 SessionStart 或
+UserPromptSubmit hook 若尚无完整配置，会停止检索并向 Agent 注入设置提醒；Agent 必须向用户确认以下
+三项信息，不得自行猜测：
+
+- 长期稳定的内部 `user_id`（仅字母、数字、`.`、`_`、`:`、`-`，最长 128 字符）；
+- 显示名称；
+- 简短概要，例如身份、偏好或长期目标，不得包含密码、API Key 等秘密。
+
+确认后执行：
+
+```bash
+/usr/bin/python3 "$SKILL_DIR/scripts/memory_hook.py" configure \
+  --user-id 'internal-user-id' \
+  --display-name 'Display Name' \
+  --summary '身份、偏好或长期目标的简短概要'
+```
+
+配置以 `0600` 权限保存到
+`${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/client-profile.json`。配置完成前，capture
+仍会把最近会话安全暂存到本机，但这些 job 使用隔离占位身份，不会进入上传队列；配置成功后会归属到
+确认的用户并尝试补传。Recall/search 在配置完成前不会调用 Hub。
+
 ### install 关键字
 
 用户在 Memory Hub 语境输入 `install` 或要求安装 hooks 时，直接执行：
@@ -161,9 +185,12 @@ Claude Code、Codex、Pi；用户明确要求全部安装时改用 `--agents all
 
 ```bash
 export MEMORY_HUB_URL=http://10.77.77.6:9287
-export MEMORY_HUB_CLIENT_USER_ID=internal-user-id  # hook 客户端默认用户，不是 Hub 配置
 export MEMORY_HUB_AGENT_ID=claude-code-mac
 export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
+# 可用环境变量代替 client-profile.json，但三项必须同时配置：
+# MEMORY_HUB_CLIENT_USER_ID=internal-user-id
+# MEMORY_HUB_CLIENT_DISPLAY_NAME='Display Name'
+# MEMORY_HUB_CLIENT_SUMMARY='身份、偏好或长期目标的简短概要'
 # MEMORY_HUB_API_KEY=...          # 生产必填
 # MEMORY_HOOK_TIMEOUT_SECONDS=8
 # MEMORY_HOOK_STATE_DIR=~/.local/state/memory-hub-hook
@@ -171,15 +198,18 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 ```
 
 User ID 解析优先级为命令行 `--user-id`、hook 输入的 `user_id`、
-`MEMORY_HUB_CLIENT_USER_ID`，最后为兼容旧客户端回退到 `MEMORY_HUB_AGENT_ID`。多用户调用方应在
-每次 hook 输入或命令参数中显式提供用户；Hub 进程本身不得配置固定用户。
+`MEMORY_HUB_CLIENT_USER_ID`，最后为本机 `client-profile.json`；不再回退到
+`MEMORY_HUB_AGENT_ID`。命令行或 hook 输入覆盖默认用户时，还必须同时提供该用户的显示名称和概要
+（命令行用 `--display-name` / `--summary`，hook 输入用 `user_display_name` / `user_summary`），否则视为
+未完成身份配置。多用户调用方应在每次 hook 输入中显式提供这三项；Hub 进程本身不得配置固定用户。
 
 独立应用命令：
 
 ```bash
 APP=/Users/sun/Documents/ObsidianVault/.claude/skills/memory-hub/scripts/memory_hook.py
+/usr/bin/python3 "$APP" configure --user-id user-123 --display-name 'Jane' --summary '偏好简洁、技术性的回答'
 /usr/bin/python3 "$APP" search '项目的历史决策和未完成事项' --limit 10
-/usr/bin/python3 "$APP" search '用户偏好' --user-id user-123 --limit 10
+/usr/bin/python3 "$APP" search '用户偏好' --user-id user-456 --display-name 'Alex' --summary '用户概要' --limit 10
 /usr/bin/python3 "$APP" status
 /usr/bin/python3 "$APP" flush --limit 100
 ```

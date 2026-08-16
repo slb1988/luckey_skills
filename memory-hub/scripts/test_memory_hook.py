@@ -1,13 +1,34 @@
 import gzip
+import io
 import json
+import os
+import stat
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
-from memory_hook import Config, HubClient, StateStore, build_snapshot, flush_pending
+from memory_hook import (
+    Config,
+    HubClient,
+    StateStore,
+    UNCONFIGURED_USER_ID,
+    UserProfile,
+    build_snapshot,
+    command_capture,
+    command_configure,
+    command_recall,
+    flush_pending,
+    request_user_profile,
+)
 
 
 class MemoryHookTest(unittest.TestCase):
+    @staticmethod
+    def profile(user_id="user-a", display_name="User A"):
+        return UserProfile(user_id, display_name, "Long-lived test user")
+
     def test_capture_is_durable_and_idempotent_while_server_is_down(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -30,8 +51,9 @@ class MemoryHookTest(unittest.TestCase):
                 state_dir=root / "state",
             )
             store = StateStore(config)
-            first = store.enqueue("user-a", "codex", "session-1", str(root), transcript)
-            second = store.enqueue("user-a", "codex", "session-1", str(root), transcript)
+            profile = self.profile()
+            first = store.enqueue(profile, "codex", "session-1", str(root), transcript)
+            second = store.enqueue(profile, "codex", "session-1", str(root), transcript)
 
             self.assertTrue(first["inserted"])
             self.assertFalse(second["inserted"])
@@ -45,7 +67,7 @@ class MemoryHookTest(unittest.TestCase):
                 + json.dumps({"type": "user", "message": {"content": "new turn"}}),
                 encoding="utf-8",
             )
-            third = store.enqueue("user-a", "codex", "session-1", str(root), transcript)
+            third = store.enqueue(profile, "codex", "session-1", str(root), transcript)
             self.assertTrue(third["inserted"])
             self.assertEqual(
                 store.status()["counts"], {"queued": 1, "superseded": 1}
@@ -76,12 +98,19 @@ class MemoryHookTest(unittest.TestCase):
                 "\n".join(json.dumps(record) for record in records), encoding="utf-8"
             )
             snapshot = build_snapshot(
-                transcript, "codex", "codex:session-1", str(root), root / "objects"
+                transcript,
+                "codex",
+                "codex:session-1",
+                str(root),
+                root / "objects",
+                self.profile(),
             )
             try:
                 with gzip.open(snapshot.path, "rt", encoding="utf-8") as stored:
                     payload = json.load(stored)
                 self.assertEqual(payload["schema_version"], "agent-session/2")
+                self.assertEqual(payload["user"]["user_id"], "user-a")
+                self.assertEqual(payload["user"]["display_name"], "User A")
                 self.assertEqual(len(payload["messages"]), 10)
                 self.assertEqual(payload["messages"][0]["content"], "message 3")
                 markdown = payload["messages"][-1]["content"]
@@ -123,8 +152,20 @@ class MemoryHookTest(unittest.TestCase):
                 state_dir=root / "state",
             )
             store = StateStore(config)
-            first = store.enqueue("user-a", "codex", "session-1", str(root), transcript)
-            second = store.enqueue("user-b", "codex", "session-1", str(root), transcript)
+            first = store.enqueue(
+                self.profile("user-a", "User A"),
+                "codex",
+                "session-1",
+                str(root),
+                transcript,
+            )
+            second = store.enqueue(
+                self.profile("user-b", "User B"),
+                "codex",
+                "session-1",
+                str(root),
+                transcript,
+            )
             self.assertTrue(first["inserted"])
             self.assertTrue(second["inserted"])
             self.assertEqual(store.status()["counts"], {"queued": 2})
@@ -150,7 +191,13 @@ class MemoryHookTest(unittest.TestCase):
                 state_dir=root / "state",
             )
             store = StateStore(config)
-            store.enqueue("user-b", "codex", "session-1", str(root), transcript)
+            store.enqueue(
+                self.profile("user-b", "User B"),
+                "codex",
+                "session-1",
+                str(root),
+                transcript,
+            )
             job = store.queued(1)[0]
             client = HubClient(config)
             calls = []
@@ -172,6 +219,159 @@ class MemoryHookTest(unittest.TestCase):
             self.assertEqual(memory_call[3], "user-b")
             self.assertEqual(memory_call[4]["json_body"]["scope_type"], "user")
             self.assertEqual(memory_call[4]["json_body"]["user_id"], "user-b")
+
+    def test_environment_without_profile_has_no_identity_fallback(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            os.environ, {"MEMORY_HOOK_STATE_DIR": directory}, clear=True
+        ):
+            config = Config.from_environment()
+            self.assertIsNone(config.default_user_id)
+            self.assertFalse(config.configured)
+            self.assertEqual(config.identity_source, "unconfigured")
+
+    def test_explicit_user_can_supply_a_complete_request_profile(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=Path(directory),
+                display_name="User A",
+                profile_summary="Default user",
+            )
+            profile = request_user_profile(
+                config,
+                explicit_user_id="user-b",
+                explicit_display_name="User B",
+                explicit_summary="Second request user",
+            )
+            self.assertEqual(
+                profile, UserProfile("user-b", "User B", "Second request user")
+            )
+
+    def test_first_recall_prompts_for_identity_without_contacting_hub(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id=None,
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=Path(directory),
+            )
+            args = SimpleNamespace(user_id=None, limit=8, max_chars=6000)
+            hook = {"hook_event_name": "SessionStart", "cwd": directory}
+            stdout = io.StringIO()
+            with patch("sys.stdin", io.StringIO(json.dumps(hook))), patch(
+                "sys.stdout", stdout
+            ), patch.object(
+                HubClient,
+                "search",
+                side_effect=AssertionError("unconfigured recall must not search"),
+            ):
+                self.assertEqual(command_recall(args, config), 0)
+            output = json.loads(stdout.getvalue())
+            context = output["hookSpecificOutput"]["additionalContext"]
+            self.assertEqual(
+                output["hookSpecificOutput"]["hookEventName"], "SessionStart"
+            )
+            self.assertIn("尚未完成用户身份配置", context)
+            self.assertIn("configure --user-id <user-id>", context)
+            self.assertIn("不要替用户臆造", context)
+
+    def test_unconfigured_capture_stays_local_until_configured(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "user", "message": {"content": "remember"}}),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id=None,
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            args = SimpleNamespace(
+                user_id=None, source="codex", flush_limit=10, verbose=False
+            )
+            hook = {
+                "session_id": "session-1",
+                "transcript_path": str(transcript),
+                "cwd": str(root),
+            }
+            with patch("sys.stdin", io.StringIO(json.dumps(hook))):
+                self.assertEqual(command_capture(args, config, store), 0)
+            self.assertEqual(store.status()["unconfigured_jobs"], 1)
+            self.assertEqual(store.queued(10), [])
+            self.assertEqual(
+                flush_pending(store, config, 10),
+                {"busy": False, "completed": 0, "failed": 0},
+            )
+            with store.connect() as connection:
+                row = connection.execute("SELECT * FROM jobs").fetchone()
+            self.assertEqual(row["user_id"], UNCONFIGURED_USER_ID)
+            with gzip.open(row["snapshot_path"], "rt", encoding="utf-8") as stored:
+                self.assertIsNone(json.load(stored)["user"])
+
+    def test_configure_persists_profile_and_claims_local_jobs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "user", "message": {"content": "remember"}}),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id=None,
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            store.enqueue(
+                UserProfile(UNCONFIGURED_USER_ID),
+                "codex",
+                "session-1",
+                str(root),
+                transcript,
+            )
+            args = SimpleNamespace(
+                user_id="jane-123",
+                display_name="Jane Smith",
+                summary="Prefers concise technical answers",
+                flush_limit=0,
+            )
+            stdout = io.StringIO()
+            with patch("sys.stdout", stdout):
+                self.assertEqual(command_configure(args, config), 0)
+            output = json.loads(stdout.getvalue())
+            self.assertTrue(output["configured"])
+            self.assertEqual(output["assigned_jobs"], 1)
+            profile_path = Path(output["profile_path"])
+            self.assertEqual(stat.S_IMODE(profile_path.stat().st_mode), 0o600)
+            with patch.dict(
+                os.environ, {"MEMORY_HOOK_STATE_DIR": str(config.state_dir)}, clear=True
+            ):
+                reloaded = Config.from_environment()
+            self.assertTrue(reloaded.configured)
+            self.assertEqual(reloaded.default_user_id, "jane-123")
+            self.assertEqual(reloaded.display_name, "Jane Smith")
+            claimed = StateStore(reloaded).queued(10)
+            self.assertEqual(len(claimed), 1)
+            self.assertEqual(claimed[0]["user_id"], "jane-123")
 
 
 if __name__ == "__main__":
