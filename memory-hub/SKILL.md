@@ -1,6 +1,6 @@
 ---
 name: memory-hub
-description: Memory Hub（agent 中心记忆网关）使用与运维指南。覆盖 HTTP API 写入/检索、session 不可变版本、scope/group_id、幂等与错误码，以及使用 scripts/memory_hook.py 为 Claude Code、Codex、Pi 提供不依赖项目环境的自动召回、持久化 spool 和补传。当用户提到 memory-hub、memory hub、记忆网关、agent 记忆、session 归档/版本、记忆检索/写入、记忆服务连不上/重启/部署，或要求配置、检查、补传 Agent hooks 时触发。注意与 memory-center 区分：memory-center 覆盖后端 Graphiti/Neo4j，memory-hub 覆盖面向 Agent 的 HTTP 网关。
+description: Memory Hub（agent 中心记忆网关）使用与运维指南。覆盖 HTTP API 写入/检索、session 不可变版本、scope/group_id、幂等与错误码，以及为 Claude Code、Codex、Pi 自动安装、检查、召回、持久化和补传 hooks。当用户提到 memory-hub、memory hub、记忆网关、agent 记忆、session 归档/版本、记忆检索/写入、服务排障，或在 Memory Hub 语境输入 install、安装、配置、检查、补传 Agent hooks 时触发。注意与 memory-center 区分：memory-center 覆盖后端 Graphiti/Neo4j，memory-hub 覆盖面向 Agent 的 HTTP 网关。
 ---
 
 # Memory Hub（Agent 中心记忆网关）
@@ -121,6 +121,35 @@ Memory Hub 项目及其 venv，只使用 Python 标准库访问远端 HTTP API�
 job 永久保留为 `queued`；后续 Stop、SessionEnd、agent_end 或手工 flush 会自动补传。因此 hook
 仍可 fail-open，不会阻止 Agent，也不会因短期网络故障丢失 session。
 
+### install 关键字
+
+用户在 Memory Hub 语境输入 `install` 或要求安装 hooks 时，直接执行：
+
+```bash
+SKILL_DIR="<本 SKILL.md 所在目录的绝对路径>"
+/usr/bin/python3 "$SKILL_DIR/scripts/install_hooks.py" install --agents auto
+```
+
+必须将占位符替换为加载本 Skill 时获得的实际目录，不得相对当前工作目录猜测。`auto` 配置本机检测到的
+Claude Code、Codex、Pi；用户明确要求全部安装时改用 `--agents all`。不得手工拼装 Hook JSON。
+
+安装成功必须同时满足：
+
+- Claude Code/Codex 各有且仅有 4 个 Memory Hub handlers：SessionStart、UserPromptSubmit、Stop、SessionEnd。
+- Stop 每轮直接执行 `capture`，不得带 `--flush-limit 0`；SessionEnd 再提交最终幂等快照。
+- Codex 必须通过 app-server `hooks/list` 确认 4 个 handlers 均为 `trusted`，且没有 Memory Hub 相关 warning/error。
+- Pi 全局扩展必须包含 `before_agent_start`、`agent_end`、`session_shutdown`；`agent_end` 必须直接上传。
+- 安装器返回的各 agent `ok=true`。服务健康检查失败可保留 durable spool，但必须明确报告“已安装、尚未端到端验证”，不得宣称上传链路正常。
+
+安装或升级后执行只读复检：
+
+```bash
+/usr/bin/python3 "$SKILL_DIR/scripts/install_hooks.py" check --agents auto
+```
+
+安装器仅替换命令路径包含 `memory-hub/scripts/memory_hook.py` 的 handlers，保留其他 Hook，并在修改配置前生成
+`*.memory-hub.bak` 备份。运行中的 Agent 可能缓存配置；完成后提示重启对应 Agent 或执行其 reload 命令。
+
 环境变量：
 
 ```bash
@@ -142,8 +171,9 @@ APP=/Users/sun/Documents/ObsidianVault/.claude/skills/memory-hub/scripts/memory_
 /usr/bin/python3 "$APP" flush --limit 100
 ```
 
-全局 hooks 在 SessionStart/UserPromptSubmit 召回。Stop/agent_end 只把当前最新完整快照写入
-本地 spool，并替代该 session 尚未上传的旧快照；SessionEnd/session_shutdown 再上传最终快照。
+全局 hooks 在 SessionStart/UserPromptSubmit/before_agent_start 召回。Stop/agent_end 将当前最新完整快照写入
+本地 spool 并立即尝试上传；SessionEnd/session_shutdown 再上传最终幂等快照。服务器不可用时保留 queued job，
+下一次 capture 或手工 flush 自动补传。
 重复事件安全：以
 `{source_agent}:{session_id}` 作为归档 ID，对确定性快照计算 SHA-256；相同内容命中本地与远端
 幂等，不重复创建，内容变化时创建同一 session 的下一不可变版本。
