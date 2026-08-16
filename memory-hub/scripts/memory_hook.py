@@ -8,6 +8,7 @@ network request, so hook execution can fail open without losing the archive.
 from __future__ import annotations
 
 import argparse
+from collections import deque
 import fcntl
 import gzip
 import hashlib
@@ -26,6 +27,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 IDENTIFIER_RE = re.compile(r"[^A-Za-z0-9._:-]+")
+FENCED_CODE_RE = re.compile(
+    r"(?:^|\n)[ \t]*(?:```|~~~).*?(?:\n[ \t]*(?:```|~~~)[ \t]*(?=\n|$)|$)",
+    re.DOTALL,
+)
+MAX_RECENT_MESSAGES = 10
+MAX_MESSAGE_CHARS = 32 * 1024
 
 
 def normalize_identifier(value: str, fallback: str) -> str:
@@ -41,6 +48,11 @@ def project_id_for_cwd(cwd: str, fallback: str) -> str:
 
 def compact_text(value: str, limit: int) -> str:
     return re.sub(r"\s+", " ", value).strip()[:limit]
+
+
+def sanitize_message_text(value: str) -> str:
+    """Keep Markdown prose while dropping fenced source-code payloads."""
+    return FENCED_CODE_RE.sub("\n", value).strip()[:MAX_MESSAGE_CHARS]
 
 
 def flatten_text(value: Any) -> str:
@@ -88,6 +100,7 @@ def extract_role_text(record: Dict[str, Any]) -> Optional[Tuple[str, str]]:
 @dataclass
 class Config:
     hub_url: str
+    default_user_id: str
     agent_id: str
     archive_project_id: str
     api_key: Optional[str]
@@ -96,9 +109,16 @@ class Config:
 
     @classmethod
     def from_environment(cls) -> "Config":
+        agent_id = os.environ.get("MEMORY_HUB_AGENT_ID", "claude-code-mac")
+        default_user_id = (
+            os.environ.get("MEMORY_HUB_CLIENT_USER_ID")
+            or os.environ.get("MEMORY_HUB_USER_ID")  # Legacy client-side alias.
+            or agent_id
+        )
         return cls(
             hub_url=os.environ.get("MEMORY_HUB_URL", "http://10.77.77.6:9287").rstrip("/"),
-            agent_id=os.environ.get("MEMORY_HUB_AGENT_ID", "claude-code-mac"),
+            default_user_id=normalize_identifier(default_user_id, agent_id),
+            agent_id=agent_id,
             archive_project_id=os.environ.get(
                 "MEMORY_HUB_ARCHIVE_PROJECT_ID", "agent-history"
             ),
@@ -120,6 +140,7 @@ class Snapshot:
     size_bytes: int
     last_user: str
     last_assistant: str
+    message_count: int
 
 
 def build_snapshot(
@@ -130,18 +151,42 @@ def build_snapshot(
     object_dir: Path,
 ) -> Snapshot:
     object_dir.mkdir(parents=True, exist_ok=True)
+    recent_messages = deque(maxlen=MAX_RECENT_MESSAGES)
+    with transcript_path.open("r", encoding="utf-8", errors="replace") as transcript:
+        for line in transcript:
+            if not line.strip():
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            extracted = extract_role_text(event)
+            if not extracted:
+                continue
+            role, raw_text = extracted
+            text = sanitize_message_text(raw_text)
+            if text:
+                recent_messages.append({"role": role, "content": text})
+
     temporary = tempfile.NamedTemporaryFile(
         prefix="snapshot-", suffix=".json.gz", dir=str(object_dir), delete=False
     )
     temporary_path = Path(temporary.name)
     last_user = ""
     last_assistant = ""
+    for message in recent_messages:
+        if message["role"] == "user":
+            last_user = message["content"]
+        else:
+            last_assistant = message["content"]
     try:
         with temporary, gzip.GzipFile(
             filename="", fileobj=temporary, mode="wb", mtime=0
         ) as compressed:
-            header = {
-                "schema_version": "agent-session/1",
+            payload = {
+                "schema_version": "agent-session/2",
                 "source": {
                     "agent": source,
                     "session_id": normalized_session_id,
@@ -149,39 +194,18 @@ def build_snapshot(
                     "transcript_path": str(transcript_path),
                     "format": "jsonl",
                 },
+                "window": {
+                    "max_messages": MAX_RECENT_MESSAGES,
+                    "message_count": len(recent_messages),
+                    "fenced_code_removed": True,
+                },
+                "messages": list(recent_messages),
             }
             compressed.write(
-                json.dumps(header, ensure_ascii=False, separators=(",", ":"))[:-1].encode(
+                json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(
                     "utf-8"
                 )
             )
-            compressed.write(b',"events":[')
-            first = True
-            with transcript_path.open("r", encoding="utf-8", errors="replace") as transcript:
-                for line in transcript:
-                    if not line.strip():
-                        continue
-                    try:
-                        event = json.loads(line)
-                    except json.JSONDecodeError:
-                        event = {"type": "unparsed", "raw": line.rstrip("\n")}
-                    if isinstance(event, dict):
-                        extracted = extract_role_text(event)
-                        if extracted:
-                            role, text = extracted
-                            if role == "user":
-                                last_user = text
-                            else:
-                                last_assistant = text
-                    if not first:
-                        compressed.write(b",")
-                    compressed.write(
-                        json.dumps(event, ensure_ascii=False, separators=(",", ":")).encode(
-                            "utf-8"
-                        )
-                    )
-                    first = False
-            compressed.write(b"]}")
         digest = hashlib.sha256()
         with temporary_path.open("rb") as content:
             for chunk in iter(lambda: content.read(1024 * 1024), b""):
@@ -192,6 +216,7 @@ def build_snapshot(
             size_bytes=temporary_path.stat().st_size,
             last_user=compact_text(last_user, 700),
             last_assistant=compact_text(last_assistant, 1400),
+            message_count=len(recent_messages),
         )
     except Exception:
         temporary_path.unlink(missing_ok=True)
@@ -211,6 +236,7 @@ class StateStore:
                 """
                 CREATE TABLE IF NOT EXISTS jobs (
                     job_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
                     source TEXT NOT NULL,
                     source_session_id TEXT NOT NULL,
                     session_id TEXT NOT NULL,
@@ -228,10 +254,23 @@ class StateStore:
                     memory_id TEXT,
                     created_at REAL NOT NULL,
                     updated_at REAL NOT NULL,
-                    UNIQUE(source, source_session_id, sha256)
+                    UNIQUE(user_id, source, source_session_id, sha256)
                 );
                 CREATE INDEX IF NOT EXISTS idx_jobs_state ON jobs(state, created_at);
                 """
+            )
+            columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(jobs)")
+            }
+            if "user_id" not in columns:
+                connection.execute("ALTER TABLE jobs ADD COLUMN user_id TEXT")
+                connection.execute(
+                    "UPDATE jobs SET user_id=? WHERE user_id IS NULL",
+                    (self.config.default_user_id,),
+                )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_jobs_user_state "
+                "ON jobs(user_id, state, created_at)"
             )
 
     def connect(self) -> sqlite3.Connection:
@@ -243,6 +282,7 @@ class StateStore:
 
     def enqueue(
         self,
+        user_id: str,
         source: str,
         source_session_id: str,
         cwd: str,
@@ -251,22 +291,26 @@ class StateStore:
         session_id = normalize_identifier(
             "%s:%s" % (source, source_session_id), "%s-session" % source
         )
+        user_object_dir = self.object_dir / hashlib.sha256(
+            user_id.encode("utf-8")
+        ).hexdigest()[:16]
         snapshot = build_snapshot(
-            transcript_path, source, session_id, cwd, self.object_dir
+            transcript_path, source, session_id, cwd, user_object_dir
         )
-        final_path = self.object_dir / (snapshot.sha256 + ".json.gz")
+        final_path = user_object_dir / (snapshot.sha256 + ".json.gz")
         os.replace(str(snapshot.path), str(final_path))
         now = time.time()
         with self.connect() as connection:
             cursor = connection.execute(
                 """
                 INSERT OR IGNORE INTO jobs (
-                    source, source_session_id, session_id, cwd, transcript_path,
+                    user_id, source, source_session_id, session_id, cwd, transcript_path,
                     snapshot_path, sha256, size_bytes, last_user, last_assistant,
                     state, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)
                 """,
                 (
+                    user_id,
                     source,
                     source_session_id,
                     session_id,
@@ -285,19 +329,19 @@ class StateStore:
             row = connection.execute(
                 """
                 SELECT * FROM jobs
-                WHERE source = ? AND source_session_id = ? AND sha256 = ?
+                WHERE user_id = ? AND source = ? AND source_session_id = ? AND sha256 = ?
                 """,
-                (source, source_session_id, snapshot.sha256),
+                (user_id, source, source_session_id, snapshot.sha256),
             ).fetchone()
             superseded_paths = []
             if inserted:
                 older = connection.execute(
                     """
                     SELECT job_id, snapshot_path FROM jobs
-                    WHERE source = ? AND source_session_id = ?
+                    WHERE user_id = ? AND source = ? AND source_session_id = ?
                       AND state = 'queued' AND job_id <> ?
                     """,
-                    (source, source_session_id, row["job_id"]),
+                    (user_id, source, source_session_id, row["job_id"]),
                 ).fetchall()
                 superseded_paths = [
                     item["snapshot_path"] for item in older if item["snapshot_path"]
@@ -305,10 +349,10 @@ class StateStore:
                 connection.execute(
                     """
                     UPDATE jobs SET state='superseded', snapshot_path=NULL, updated_at=?
-                    WHERE source=? AND source_session_id=?
+                    WHERE user_id=? AND source=? AND source_session_id=?
                       AND state='queued' AND job_id <> ?
                     """,
-                    (time.time(), source, source_session_id, row["job_id"]),
+                    (time.time(), user_id, source, source_session_id, row["job_id"]),
                 )
         if not inserted and row["state"] == "completed":
             final_path.unlink(missing_ok=True)
@@ -318,8 +362,10 @@ class StateStore:
             "job_id": row["job_id"],
             "state": row["state"],
             "inserted": inserted,
+            "user_id": user_id,
             "session_id": session_id,
             "sha256": snapshot.sha256,
+            "message_count": snapshot.message_count,
         }
 
     def queued(self, limit: int) -> List[sqlite3.Row]:
@@ -384,6 +430,16 @@ class HubError(RuntimeError):
     pass
 
 
+def job_idempotency_key(kind: str, job: sqlite3.Row) -> str:
+    material = "\0".join(
+        (job["user_id"], job["source"], job["session_id"], job["sha256"])
+    )
+    return "agent-%s:%s" % (
+        kind,
+        hashlib.sha256(material.encode("utf-8")).hexdigest(),
+    )
+
+
 class HubClient:
     def __init__(self, config: Config) -> None:
         self.config = config
@@ -392,10 +448,12 @@ class HubClient:
     def headers(
         self,
         project_id: str,
+        user_id: str,
         idempotency_key: Optional[str] = None,
         content_type: Optional[str] = None,
     ) -> Dict[str, str]:
         headers = {
+            "X-User-Id": user_id,
             "X-Agent-Id": self.config.agent_id,
             "X-Project-Id": project_id,
             "Accept": "application/json",
@@ -413,6 +471,7 @@ class HubClient:
         method: str,
         path: str,
         project_id: str,
+        user_id: str,
         body: Optional[bytes] = None,
         json_body: Optional[Dict[str, Any]] = None,
         idempotency_key: Optional[str] = None,
@@ -428,7 +487,7 @@ class HubClient:
             self.config.hub_url + path,
             data=body,
             method=method,
-            headers=self.headers(project_id, idempotency_key, content_type),
+            headers=self.headers(project_id, user_id, idempotency_key, content_type),
         )
         try:
             with self.opener.open(request, timeout=self.config.timeout_seconds) as response:
@@ -463,24 +522,21 @@ class HubClient:
             "POST",
             "/v1/memories",
             self.config.archive_project_id,
-            idempotency_key=(
-                "agent-memory:%s:%s:%s"
-                % (job["source"], job["session_id"], job["sha256"])
-            ),
+            job["user_id"],
+            idempotency_key=job_idempotency_key("memory", job),
             json_body={
                 "schema_version": "memory-write/1",
+                "user_id": job["user_id"],
                 "agent_id": self.config.agent_id,
                 "project_id": self.config.archive_project_id,
                 "session_id": job["session_id"],
                 "session_version": version,
                 "file_id": file_id,
-                "scope_type": "agent",
+                "scope_type": "user",
                 "memory_type": "session_summary",
                 "distilled_content": distilled[: 16 * 1024],
                 "summary": latest_user[:1024],
-                "source_event_id": (
-                    "%s:%s:%s" % (job["source"], job["session_id"], job["sha256"])
-                )[:256],
+                "source_event_id": job_idempotency_key("event", job),
             },
         )
         return {
@@ -490,10 +546,12 @@ class HubClient:
 
     def upload_job(self, job: sqlite3.Row) -> Dict[str, Any]:
         project_id = self.config.archive_project_id
+        user_id = job["user_id"]
         session = self.request(
             "GET",
             "/v1/sessions/%s" % job["session_id"],
             project_id,
+            user_id,
             allow_404=True,
         )
         if session:
@@ -502,6 +560,7 @@ class HubClient:
                 "GET",
                 "/v1/sessions/%s/versions/%s" % (job["session_id"], latest_version),
                 project_id,
+                user_id,
             )
             if latest.get("content_sha256") == job["sha256"]:
                 ensured = self.ensure_memory(job, latest_version, latest["file_id"])
@@ -514,10 +573,8 @@ class HubClient:
             "POST",
             "/v1/files/uploads",
             project_id,
-            idempotency_key=(
-                "agent-upload:%s:%s:%s"
-                % (job["source"], job["session_id"], job["sha256"])
-            ),
+            user_id,
+            idempotency_key=job_idempotency_key("upload", job),
             json_body={
                 "schema_version": "file-upload/1",
                 "purpose": "session_snapshot",
@@ -529,18 +586,24 @@ class HubClient:
         )
         upload_id = upload["upload_id"]
         file_id = upload["file_id"]
-        file_status = self.request("GET", "/v1/files/%s" % file_id, project_id)
+        file_status = self.request(
+            "GET", "/v1/files/%s" % file_id, project_id, user_id
+        )
         if file_status.get("status") != "available":
             content = snapshot_path.read_bytes()
             self.request(
                 "PUT",
                 "/v1/files/uploads/%s/content" % upload_id,
                 project_id,
+                user_id,
                 body=content,
                 content_type="application/gzip",
             )
             completed = self.request(
-                "POST", "/v1/files/uploads/%s/complete" % upload_id, project_id
+                "POST",
+                "/v1/files/uploads/%s/complete" % upload_id,
+                project_id,
+                user_id,
             )
             if completed.get("status") != "available":
                 raise HubError("uploaded file did not become available")
@@ -549,33 +612,36 @@ class HubClient:
             "PUT",
             "/v1/sessions/%s/versions" % job["session_id"],
             project_id,
-            idempotency_key=(
-                "agent-session:%s:%s:%s"
-                % (job["source"], job["session_id"], job["sha256"])
-            ),
+            user_id,
+            idempotency_key=job_idempotency_key("session", job),
             json_body={
                 "schema_version": "session-version/1",
+                "user_id": user_id,
                 "agent_id": self.config.agent_id,
                 "project_id": project_id,
                 "file_id": file_id,
                 "base_version": base_version,
                 "update_mode": "append" if session else "replace",
                 "session_schema": "%s-session" % job["source"],
-                "session_schema_version": "1",
+                "session_schema_version": "2",
             },
         )
         version = int(version_response["version"])
         ensured = self.ensure_memory(job, version, file_id)
         return {"status": "captured", "version": version, "file_id": file_id, **ensured}
 
-    def search(self, query: str, project_id: str, limit: int) -> List[Dict[str, Any]]:
+    def search(
+        self, query: str, project_id: str, limit: int, user_id: str
+    ) -> List[Dict[str, Any]]:
         result = self.request(
             "POST",
             "/v1/memories/search",
             project_id,
+            user_id,
             json_body={
                 "schema_version": "memory-search/1",
                 "query": query,
+                "user_id": user_id,
                 "agent_id": self.config.agent_id,
                 "project_id": project_id,
                 "limit": limit,
@@ -618,6 +684,18 @@ def read_hook_input() -> Dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def request_user_id(
+    config: Config,
+    hook: Optional[Dict[str, Any]] = None,
+    explicit_user_id: Optional[str] = None,
+) -> str:
+    hook_user_id = hook.get("user_id") if hook else None
+    candidate = explicit_user_id or (
+        hook_user_id if isinstance(hook_user_id, str) else None
+    )
+    return normalize_identifier(candidate or config.default_user_id, config.agent_id)
+
+
 def fact_text(fact: Any) -> str:
     if isinstance(fact, dict):
         for key in ("fact", "content", "name"):
@@ -651,6 +729,7 @@ def format_context(facts: List[Dict[str, Any]], max_chars: int) -> str:
 
 def command_capture(args: argparse.Namespace, config: Config, store: StateStore) -> int:
     hook = read_hook_input()
+    user_id = request_user_id(config, hook, args.user_id)
     transcript = hook.get("transcript_path")
     source_session_id = hook.get("session_id")
     if not isinstance(transcript, str) or not isinstance(source_session_id, str):
@@ -660,6 +739,7 @@ def command_capture(args: argparse.Namespace, config: Config, store: StateStore)
         return 0
     try:
         queued = store.enqueue(
+            user_id,
             args.source,
             source_session_id,
             str(hook.get("cwd") or os.getcwd()),
@@ -676,12 +756,16 @@ def command_capture(args: argparse.Namespace, config: Config, store: StateStore)
 
 def command_recall(args: argparse.Namespace, config: Config) -> int:
     hook = read_hook_input()
+    user_id = request_user_id(config, hook, args.user_id)
     cwd = str(hook.get("cwd") or os.getcwd())
     prompt = str(hook.get("prompt") or "").strip()
     query = prompt or "%s 项目的历史决策、约定、问题和解决结果" % Path(cwd).name
     try:
         facts = HubClient(config).search(
-            query, project_id_for_cwd(cwd, config.archive_project_id), args.limit
+            query,
+            project_id_for_cwd(cwd, config.archive_project_id),
+            args.limit,
+            user_id,
         )
         context = format_context(facts, args.max_chars)
         if context:
@@ -706,10 +790,11 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
 
 def command_search(args: argparse.Namespace, config: Config) -> int:
     try:
+        user_id = request_user_id(config, explicit_user_id=args.user_id)
         project_id = args.project or project_id_for_cwd(
             os.getcwd(), config.archive_project_id
         )
-        facts = HubClient(config).search(args.query, project_id, args.limit)
+        facts = HubClient(config).search(args.query, project_id, args.limit, user_id)
         if args.json:
             print(json.dumps({"facts": facts}, ensure_ascii=False))
         else:
@@ -727,14 +812,17 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     capture = commands.add_parser("capture")
     capture.add_argument("--source", required=True, choices=("claude", "codex", "pi"))
+    capture.add_argument("--user-id")
     capture.add_argument("--flush-limit", type=int, default=10)
     capture.add_argument("--verbose", action="store_true")
     recall = commands.add_parser("recall")
     recall.add_argument("--source", required=True, choices=("claude", "codex", "pi"))
+    recall.add_argument("--user-id")
     recall.add_argument("--limit", type=int, default=8)
     recall.add_argument("--max-chars", type=int, default=6000)
     search = commands.add_parser("search")
     search.add_argument("query")
+    search.add_argument("--user-id")
     search.add_argument("--project")
     search.add_argument("--limit", type=int, default=10)
     search.add_argument("--max-chars", type=int, default=8000)

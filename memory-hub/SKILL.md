@@ -8,7 +8,7 @@ description: Memory Hub（agent 中心记忆网关）使用与运维指南。覆
 Memory Hub 是 Agent 访问中心记忆服务的唯一入口。它通过 HTTP 对接部署在 `10.77.77.6` 的 Graphiti（Graphiti 用 Neo4j 持久化），自身只维护控制面元数据（SQLite）和 session 文件存储（本地文件系统），**不直接读写 Neo4j**。
 
 ```text
-Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graphiti ──> Neo4j
+User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graphiti ──> Neo4j
                            │
                            ├── SQLite metadata（files/sessions/versions/memories/outbox）
                            └── 本地 session 文件存储（不可变、按 SHA-256 去重）
@@ -19,6 +19,7 @@ Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graphiti ──> 
 - 每条记忆必须绑定唯一 `session_id` 和一个确定的 `session_version`。
 - 同一 `session_id` 可多次更新：逻辑上覆盖 `latest`，物理上保留全部不可变版本（审计/回溯用）。
 - Memory 写入先落 SQLite outbox（可靠），再异步投递 Graphiti；Graphiti 暂不可用时写入仍可保存。
+- Memory Hub 同时服务多个用户；`user_id` 是逐请求业务身份，不是 Hub 服务端固定配置。
 
 ## 快速信息
 
@@ -52,6 +53,7 @@ Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graphiti ──> 
 ```text
 X-Agent-Id: claude-code-mac
 X-Project-Id: ProjectLungfish
+X-User-Id: internal-user-id
 ```
 
 生产环境（`ENVIRONMENT` 非 development/test）还需要 `Authorization: Bearer <MEMORY_HUB_API_KEY>`。
@@ -64,10 +66,11 @@ group_id 由服务端计算，客户端不能注入：
 | scope | group_id | 写权限 |
 |---|---|---|
 | global | `global` | trusted_service / admin |
+| user | `user:{user_id}` | 对应用户身份 |
 | project | `project:{project_id}` | 对应项目身份 |
 | agent | `agent:{agent_id}` | 对应 Agent 身份 |
 
-搜索自动覆盖调用者可读的 `global` + `project:xxx` + `agent:xxx` 三个 group，客户端不传 `group_ids`。
+搜索自动覆盖调用者可读的 `global` + `user:xxx` + `project:xxx` + `agent:xxx` 四个 group，客户端不传 `group_ids`。
 
 ## HTTP API 概览
 
@@ -108,8 +111,8 @@ group_id 由服务端计算，客户端不能注入：
 ```bash
 curl -sS -X POST "$HUB_URL/v1/memories/search" \
   -H 'Content-Type: application/json' \
-  -H "X-Agent-Id: $AGENT_ID" -H "X-Project-Id: $PROJECT_ID" \
-  -d '{"schema_version":"memory-search/1","query":"...","agent_id":"...","project_id":"...","limit":10,"session_view":"captured"}'
+  -H "X-User-Id: $USER_ID" -H "X-Agent-Id: $AGENT_ID" -H "X-Project-Id: $PROJECT_ID" \
+  -d '{"schema_version":"memory-search/1","query":"...","user_id":"...","agent_id":"...","project_id":"...","limit":10,"session_view":"captured"}'
 ```
 
 ## Agent 自动记忆集成
@@ -120,6 +123,10 @@ Memory Hub 项目及其 venv，只使用 Python 标准库访问远端 HTTP API�
 每次 capture 先生成确定性 gzip 快照并写入本机 SQLite spool，然后才访问服务器。服务器不可用时
 job 永久保留为 `queued`；后续 Stop、SessionEnd、agent_end 或手工 flush 会自动补传。因此 hook
 仍可 fail-open，不会阻止 Agent，也不会因短期网络故障丢失 session。
+
+快照格式为 `agent-session/2`，只保存最近 10 条 user/assistant 消息。工具事件、无法解析事件和
+Markdown fenced code 不上传；Markdown 标题、列表、链接和解释正文保留。Spool 每个 job 固化
+`user_id`，所以稍后 flush 时不会因进程环境变化而补传到错误用户。
 
 ### install 关键字
 
@@ -154,6 +161,7 @@ Claude Code、Codex、Pi；用户明确要求全部安装时改用 `--agents all
 
 ```bash
 export MEMORY_HUB_URL=http://10.77.77.6:9287
+export MEMORY_HUB_CLIENT_USER_ID=internal-user-id  # hook 客户端默认用户，不是 Hub 配置
 export MEMORY_HUB_AGENT_ID=claude-code-mac
 export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HUB_API_KEY=...          # 生产必填
@@ -162,11 +170,16 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HOOK_DEBUG=1             # 调试失败原因
 ```
 
+User ID 解析优先级为命令行 `--user-id`、hook 输入的 `user_id`、
+`MEMORY_HUB_CLIENT_USER_ID`，最后为兼容旧客户端回退到 `MEMORY_HUB_AGENT_ID`。多用户调用方应在
+每次 hook 输入或命令参数中显式提供用户；Hub 进程本身不得配置固定用户。
+
 独立应用命令：
 
 ```bash
 APP=/Users/sun/Documents/ObsidianVault/.claude/skills/memory-hub/scripts/memory_hook.py
 /usr/bin/python3 "$APP" search '项目的历史决策和未完成事项' --limit 10
+/usr/bin/python3 "$APP" search '用户偏好' --user-id user-123 --limit 10
 /usr/bin/python3 "$APP" status
 /usr/bin/python3 "$APP" flush --limit 100
 ```
