@@ -21,6 +21,8 @@ from memory_hook import (
     command_recall,
     flush_pending,
     request_user_profile,
+    save_client_profile,
+    setup_reminder,
 )
 
 
@@ -224,10 +226,103 @@ class MemoryHookTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ, {"MEMORY_HOOK_STATE_DIR": directory}, clear=True
         ):
-            config = Config.from_environment()
+            config = Config.from_environment(cwd=directory)
             self.assertIsNone(config.default_user_id)
             self.assertFalse(config.configured)
             self.assertEqual(config.identity_source, "unconfigured")
+
+    def test_team_current_member_precedes_local_profile(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            project = root / "project"
+            nested = project / "src" / "feature"
+            team_dir = project / ".team"
+            team_dir.mkdir(parents=True)
+            nested.mkdir(parents=True)
+            (team_dir / "settings.local.json").write_text(
+                json.dumps({"currentMember": "team-user"}), encoding="utf-8"
+            )
+            state_dir = root / "state"
+            save_client_profile(
+                state_dir,
+                UserProfile("profile-user", "Profile User", "Stored profile"),
+            )
+            with patch.dict(
+                os.environ, {"MEMORY_HOOK_STATE_DIR": str(state_dir)}, clear=True
+            ):
+                config = Config.from_environment(cwd=str(nested))
+            self.assertEqual(config.default_user_id, "team-user")
+            self.assertEqual(config.identity_source, "team")
+            self.assertFalse(config.configured)
+
+    def test_environment_user_precedes_team_current_member(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            team_dir = root / ".team"
+            team_dir.mkdir()
+            (team_dir / "settings.local.json").write_text(
+                json.dumps({"currentMember": "team-user"}), encoding="utf-8"
+            )
+            environment = {
+                "MEMORY_HOOK_STATE_DIR": str(root / "state"),
+                "MEMORY_HUB_CLIENT_USER_ID": "environment-user",
+                "MEMORY_HUB_CLIENT_DISPLAY_NAME": "Environment User",
+                "MEMORY_HUB_CLIENT_SUMMARY": "Configured through environment",
+            }
+            with patch.dict(os.environ, environment, clear=True):
+                config = Config.from_environment(cwd=str(root))
+            self.assertEqual(config.default_user_id, "environment-user")
+            self.assertEqual(config.identity_source, "environment")
+            self.assertTrue(config.configured)
+
+    def test_team_current_member_reuses_matching_stored_profile(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            team_dir = root / ".team"
+            team_dir.mkdir()
+            (team_dir / "settings.local.json").write_text(
+                json.dumps({"currentMember": "team-user"}), encoding="utf-8"
+            )
+            state_dir = root / "state"
+            save_client_profile(
+                state_dir,
+                UserProfile("team-user", "Team User", "Matching stored profile"),
+            )
+            with patch.dict(
+                os.environ, {"MEMORY_HOOK_STATE_DIR": str(state_dir)}, clear=True
+            ):
+                config = Config.from_environment(cwd=str(root))
+            self.assertEqual(config.identity_source, "team")
+            self.assertEqual(config.display_name, "Team User")
+            self.assertTrue(config.configured)
+
+    def test_hook_cwd_team_member_precedes_profile_loaded_elsewhere(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            team_dir = root / ".team"
+            team_dir.mkdir()
+            (team_dir / "settings.local.json").write_text(
+                json.dumps({"currentMember": "team-user"}), encoding="utf-8"
+            )
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="profile-user",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=root / "state",
+                display_name="Profile User",
+                profile_summary="Stored profile",
+                identity_source="profile",
+            )
+            profile = request_user_profile(config, {"cwd": str(root)})
+            self.assertEqual(profile.user_id, "team-user")
+            self.assertEqual(profile.display_name, "")
+            self.assertEqual(profile.summary, "")
+            self.assertIn(
+                "configure --user-id team-user", setup_reminder(config, profile)
+            )
 
     def test_explicit_user_can_supply_a_complete_request_profile(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -365,7 +460,7 @@ class MemoryHookTest(unittest.TestCase):
             with patch.dict(
                 os.environ, {"MEMORY_HOOK_STATE_DIR": str(config.state_dir)}, clear=True
             ):
-                reloaded = Config.from_environment()
+                reloaded = Config.from_environment(cwd=str(root))
             self.assertTrue(reloaded.configured)
             self.assertEqual(reloaded.default_user_id, "jane-123")
             self.assertEqual(reloaded.display_name, "Jane Smith")

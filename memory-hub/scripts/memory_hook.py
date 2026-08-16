@@ -35,6 +35,7 @@ MAX_RECENT_MESSAGES = 10
 MAX_MESSAGE_CHARS = 32 * 1024
 UNCONFIGURED_USER_ID = "unconfigured"
 PROFILE_FILENAME = "client-profile.json"
+TEAM_SETTINGS_PATH = Path(".team") / "settings.local.json"
 
 
 def normalize_identifier(value: str, fallback: str) -> str:
@@ -158,6 +159,35 @@ def save_client_profile(state_dir: Path, profile: UserProfile) -> Path:
         raise
 
 
+def load_team_current_member(cwd: str) -> Optional[str]:
+    """Read the nearest .team/settings.local.json without crossing into siblings."""
+    try:
+        start = Path(cwd).expanduser().resolve()
+    except (OSError, RuntimeError):
+        return None
+    if not start.is_dir():
+        start = start.parent
+    for directory in (start, *start.parents):
+        path = directory / TEAM_SETTINGS_PATH
+        if not path.is_file():
+            continue
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return None
+        if not isinstance(value, dict):
+            return None
+        current_member = value.get("currentMember")
+        if not isinstance(current_member, str):
+            return None
+        raw_user_id = current_member.strip()
+        user_id = normalize_identifier(raw_user_id, UNCONFIGURED_USER_ID)
+        if user_id != raw_user_id or user_id == UNCONFIGURED_USER_ID:
+            return None
+        return user_id
+    return None
+
+
 @dataclass
 class Config:
     hub_url: str
@@ -194,7 +224,7 @@ class Config:
         )
 
     @classmethod
-    def from_environment(cls) -> "Config":
+    def from_environment(cls, cwd: Optional[str] = None) -> "Config":
         agent_id = os.environ.get("MEMORY_HUB_AGENT_ID", "claude-code-mac")
         state_dir = Path(
             os.environ.get(
@@ -206,8 +236,15 @@ class Config:
         environment_user_id = os.environ.get(
             "MEMORY_HUB_CLIENT_USER_ID"
         ) or os.environ.get("MEMORY_HUB_USER_ID")
-        default_user_id = environment_user_id or (
-            stored_profile.user_id if stored_profile else None
+        team_user_id = (
+            load_team_current_member(cwd or os.getcwd())
+            if not environment_user_id
+            else None
+        )
+        default_user_id = (
+            environment_user_id
+            or team_user_id
+            or (stored_profile.user_id if stored_profile else None)
         )
         normalized_user_id = (
             normalize_identifier(default_user_id, UNCONFIGURED_USER_ID)
@@ -237,8 +274,14 @@ class Config:
                 or (stored_profile.summary if use_stored_details else ""),
                 1024,
             ),
-            identity_source="environment" if environment_user_id else (
-                "profile" if stored_profile else "unconfigured"
+            identity_source=(
+                "environment"
+                if environment_user_id
+                else "team"
+                if team_user_id
+                else "profile"
+                if stored_profile
+                else "unconfigured"
             ),
         )
 
@@ -856,10 +899,20 @@ def request_user_profile(
     explicit_summary: Optional[str] = None,
 ) -> Optional[UserProfile]:
     hook_user_id = hook.get("user_id") if hook else None
-    candidate = explicit_user_id or (
+    request_user_id = explicit_user_id or (
         hook_user_id if isinstance(hook_user_id, str) else None
     )
-    candidate = candidate or config.default_user_id
+    team_user_id = None
+    if not request_user_id and config.identity_source in (
+        "profile",
+        "team",
+        "unconfigured",
+    ):
+        hook_cwd = hook.get("cwd") if hook else None
+        team_user_id = load_team_current_member(
+            hook_cwd if isinstance(hook_cwd, str) else os.getcwd()
+        )
+    candidate = request_user_id or team_user_id or config.default_user_id
     if not candidate:
         return None
     user_id = normalize_identifier(candidate, UNCONFIGURED_USER_ID)
@@ -898,16 +951,21 @@ def profile_is_ready(profile: Optional[UserProfile]) -> bool:
     )
 
 
-def setup_reminder(config: Config) -> str:
+def setup_reminder(config: Config, profile: Optional[UserProfile] = None) -> str:
     app = str(Path(__file__).resolve())
+    detected = ""
+    user_id = "<user-id>"
+    if profile and profile.user_id != UNCONFIGURED_USER_ID:
+        user_id = profile.user_id
+        detected = "已识别候选 user_id：%s；" % profile.user_id
     return (
         "Memory Hub 客户端尚未完成用户身份配置，当前不会检索或上传记忆。"
-        "请先向用户确认：①长期稳定的内部 user_id；②显示名称；③一段简短概要"
+        "%s请先向用户确认：①长期稳定的内部 user_id；②显示名称；③一段简短概要"
         "（身份、偏好或长期目标，不要包含密码/API Key）。确认后执行：\n"
-        "/usr/bin/python3 %s configure --user-id <user-id> "
+        "/usr/bin/python3 %s configure --user-id %s "
         "--display-name '<display-name>' --summary '<short-summary>'\n"
         "配置文件将保存到 %s。不要替用户臆造这些信息。"
-        % (app, config.state_dir / PROFILE_FILENAME)
+        % (detected, app, user_id, config.state_dir / PROFILE_FILENAME)
     )
 
 
@@ -1027,7 +1085,7 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
         getattr(args, "summary", None),
     )
     if not profile_is_ready(profile):
-        emit_hook_context(hook, setup_reminder(config))
+        emit_hook_context(hook, setup_reminder(config, profile))
         return 0
     assert profile is not None
     cwd = str(hook.get("cwd") or os.getcwd())
@@ -1058,7 +1116,7 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             explicit_summary=getattr(args, "summary", None),
         )
         if not profile_is_ready(profile):
-            print(setup_reminder(config), file=sys.stderr)
+            print(setup_reminder(config, profile), file=sys.stderr)
             return 2
         assert profile is not None
         project_id = args.project or project_id_for_cwd(

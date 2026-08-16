@@ -138,6 +138,11 @@ UserPromptSubmit hook 若尚无完整配置，会停止检索并向 Agent 注入
 - 显示名称；
 - 简短概要，例如身份、偏好或长期目标，不得包含密码、API Key 等秘密。
 
+若环境变量未指定用户，客户端会从 hook 工作目录向上查找最近的 `.team/settings.local.json`，读取字符串
+字段 `currentMember` 作为候选 `user_id`，优先于本机 profile。提醒和配置命令会自动带上该候选值；仍须
+让用户确认，并补充显示名称与概要。文件缺失、JSON 无效或 `currentMember` 不是合法字符串时，安全回退
+到本机 profile 或未配置状态。
+
 确认后执行：
 
 ```bash
@@ -198,7 +203,8 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 ```
 
 User ID 解析优先级为命令行 `--user-id`、hook 输入的 `user_id`、
-`MEMORY_HUB_CLIENT_USER_ID`，最后为本机 `client-profile.json`；不再回退到
+`MEMORY_HUB_CLIENT_USER_ID`、当前项目最近的 `.team/settings.local.json.currentMember`，最后为本机
+`client-profile.json`；不再回退到
 `MEMORY_HUB_AGENT_ID`。命令行或 hook 输入覆盖默认用户时，还必须同时提供该用户的显示名称和概要
 （命令行用 `--display-name` / `--summary`，hook 输入用 `user_display_name` / `user_summary`），否则视为
 未完成身份配置。多用户调用方应在每次 hook 输入中显式提供这三项；Hub 进程本身不得配置固定用户。
