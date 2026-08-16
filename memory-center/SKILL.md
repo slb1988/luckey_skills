@@ -1,6 +1,6 @@
 ---
 name: memory-center
-description: Memory Center（Graphiti 时序知识图谱记忆服务）运维与部署指南。记录 QNAP NAS 上 memory-center 的容器架构（Neo4j + Graphiti + 备选 Ollama）、端口、LLM/embedding 端点配置（CodePlan qwen3.7-max + 百炼 DashScope qwen3.7-text-embedding）、兼容性补丁、关键坑位、运维命令与 REST API 用法。当用户提到 memory-center、graphiti、记忆中心、记忆图谱、记忆服务、Neo4j 记忆，或需要查看状态/重启/备份/排障/重新部署/写入或检索记忆时触发。即使用户只说"memory-center 怎么了""帮我看下记忆服务""记忆图谱挂了"也应触发。
+description: Memory Center（Graphiti 时序知识图谱记忆服务）运维与部署指南。记录 QNAP NAS 上 memory-center 的容器架构（Neo4j + Graphiti + 备选 Ollama）、端口、LLM/embedding 端点配置（DeepSeek deepseek-v4-pro/flash + 百炼 DashScope qwen3.7-text-embedding）、兼容性补丁、关键坑位、运维命令与 REST API 用法。当用户提到 memory-center、graphiti、记忆中心、记忆图谱、记忆服务、Neo4j 记忆，或需要查看状态/重启/备份/排障/重新部署/写入或检索记忆时触发。即使用户只说"memory-center 怎么了""帮我看下记忆服务""记忆图谱挂了"也应触发。
 ---
 
 # Memory Center (Graphiti 记忆中心)
@@ -35,20 +35,20 @@ description: Memory Center（Graphiti 时序知识图谱记忆服务）运维与
 | Graphiti | `memory-center-graphiti` | `zepai/graphiti:latest` (core 0.22.0) | **8005** → 8000 | 运行中 | REST API + Swagger |
 | Ollama | `memory-center-ollama` | `ollama/ollama:latest` | 11434 | **已停用(未卸载)** | 旧本地 embedding (bge-m3)，备选 |
 
-数据流：Graphiti 调 **CodePlan (qwen3.7-max)** 做实体/关系抽取 → 调 **百炼 DashScope (qwen3.7-text-embedding)** 生成 1024 维向量 → 写入 Neo4j。
+数据流：Graphiti 调 **DeepSeek (deepseek-v4-pro 主 / deepseek-v4-flash small)** 做实体/关系抽取 → 调 **百炼 DashScope (qwen3.7-text-embedding)** 生成 1024 维向量 → 写入 Neo4j。
 
 ## LLM / Embedding 端点
 
 | 用途 | 端点 | 模型 | key 前缀 |
 |------|------|------|---------|
-| LLM (主) | `https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1` | `qwen3.7-max` | `sk-sp-H...` (CodePlan) |
-| LLM (small) | 同上 | `deepseek-v4-flash-0731` | 同上 |
+| LLM (主) | `https://api.deepseek.com` | `deepseek-v4-pro` | `sk-...` (DeepSeek) |
+| LLM (small) | 同上 | `deepseek-v4-flash` | 同上 |
 | Embedding | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen3.7-text-embedding` | `sk-ws-H...` (百炼) |
 
-- CodePlan (token-plan) 套餐**只含 LLM，不含 embedding**。
+- CodePlan (token-plan) 套餐**只含 LLM，不含 embedding**（历史：qwen3.7-max 额度已用完，LLM 已切 DeepSeek 直连）。
 - 百炼 DashScope key 同时有 LLM 和 embedding，但这里只用它的 embedding。
 - `qwen3.7-text-embedding` 默认 **1024 维**，正好匹配 graphiti 0.22.0 硬编码的 `EMBEDDING_DIM=1024`。
-- 价格：embedding ¥0.5/M tokens（中端云价，个人用≈免费）；LLM 走 CodePlan 套餐。
+- DeepSeek V4 默认开思考（reasoning），结构化抽取必须 `thinking: disabled`，否则 reasoning token 占满 max_tokens → content 空。详见 [provider-switch.md](references/provider-switch.md)。
 
 ## 目录结构
 
@@ -71,11 +71,13 @@ memory-center/
 
 1. **LLM 端点分离**：`get_graphiti` 里显式传 `LLMConfig(api_key/base_url/model)` 给 `OpenAIClient`，让 LLM 走 CodePlan。
 2. **embedding 端点分离**：embedder 指向 `EMBEDDING_BASE_URL`（百炼 DashScope），与 LLM 端点独立。
-3. **small_model 必须显式指定**：graphiti 的 `small_model` 默认 `gpt-4.1-nano`，CodePlan 上不存在 → 报 `Model not exist`。补丁设为 `deepseek-v4-flash-0731`。
-4. **防 schema 描述复制的护栏**（`GuardedOpenAIClient`）：推理模型（qwen3.7-max）抽取时容易把字段的 `description`/`title` 原样复制成值（如把 summary 输出成 `{"description":..., "title":..., "type":...}`），导致 Neo4j 写入报 `CypherTypeError`。补丁在 system 消息加护栏提示。
-5. **强制关闭推理模式**（`enable_thinking: false`）：CodePlan/百炼端点上的**所有模型默认开推理**（返回 `reasoning_content`），推理 token 会占满 `max_tokens=8192` 导致 `content` 为空、结构化抽取失败或极慢。补丁在 `_create_structured_completion` / `_create_completion` 里加 `extra_body={'enable_thinking': False}`，抽取速度从 ~1 分钟降到 ~10 秒。
+3. **small_model 必须显式指定**：graphiti 的 `small_model` 默认 `gpt-4.1-nano`，非 OpenAI 端点不存在 → 报 `Model not exist`。补丁设为 `deepseek-v4-flash`。
+4. **防 schema 描述复制的护栏**（`GuardedOpenAIGenericClient`）：推理模型抽取时容易把字段的 `description`/`title` 原样复制成值（如把 summary 输出成 `{"description":..., "title":..., "type":...}`），导致 Neo4j 写入报 `CypherTypeError`。补丁在 system + 末条消息加护栏提示。
+5. **强制关闭思考模式**：DeepSeek V4 默认开 reasoning，reasoning token 占满 `max_tokens=8192` 导致 `content` 为空、结构化抽取失败。补丁加 `extra_body={'thinking': {'type': 'disabled'}}`（CodePlan 端点对应参数是 `enable_thinking: False`）。
 6. **放宽 group_id 校验（允许冒号）**：原版只允许 `[a-zA-Z0-9_-]`，Memory Hub 用 `project:xxx` 命名空间（含 `:`）会抛 `GroupIdValidationError`。补丁 monkeypatch `graphiti_core.graphiti.validate_group_id` 额外放行冒号。
 7. **worker 韧性与 uuid 预建**（`patches/ingest.py`）：原版 ingest worker 只捕获 `CancelledError`，任何异常都会让 worker 静默死亡（`/healthcheck` 仍 healthy 但不再处理任何消息）。补丁改为捕获所有异常、打印 traceback 并继续处理后续消息。同时 graphiti 的 `add_episode(uuid=X)` 语义是「更新已有 episode」（X 不存在抛 `NodeNotFoundError`），而 Memory Hub 把自己的 Memory ID 作为 uuid 传入，补丁在调用前若该 uuid 不存在就先预建 episode（MERGE 幂等），使 `episode.uuid == Memory ID` 成立。
+8. **model_size 分层修复**：上游 `OpenAIGenericClient` 忽略 `model_size`（写死 `self.model`），small/medium 分层失效。补丁重写 `_generate_response`：small → `deepseek-v4-flash`，medium → `deepseek-v4-pro`。
+9. **历史上下文去重注入（降本）**：add_episode 每一步都带最近 10 条历史 episode 全文，属性抽取也带，占输入 ~86%。补丁把属性抽取的 `previous_episodes` 置空、历史窗口 10→3。详见 [architecture.md](references/architecture.md)。
 
 补丁通过 compose 的 bind mount 生效，无需重建镜像：
 ```yaml
@@ -92,8 +94,8 @@ volumes:
 - **改 Neo4j 密码后要清空 `data/neo4j/`**：数据用旧密码加密，无法登录。
 - **CodePlan 只含 LLM，不含 embedding**：`/models` 列表里没有任何 embedding 模型，`/embeddings` 一律 `Model not exist`。
 - **`qwen3.7-text-embedding` 在 CodePlan 上不存在**，必须在百炼 DashScope 端点用 `sk-ws-...` key 调用。
-- **small_model 默认 gpt-4.1-nano 会报 Model not exist**，已用补丁改成 `deepseek-v4-flash-0731`。
-- **CodePlan/百炼上所有模型默认开推理**：不显式传 `enable_thinking: false` 时，`reasoning_content` 会占满 `max_tokens`，导致结构化抽取失败或极慢。补丁已统一关闭推理模式。
+- **small_model 默认 gpt-4.1-nano 会报 Model not exist**，已用补丁改成 `deepseek-v4-flash`。
+- **DeepSeek V4 默认开思考（reasoning）**：不显式传 `thinking: disabled` 时，reasoning token 会占满 `max_tokens`，导致 `content` 为空、抽取失败。补丁已统一关闭思考模式。
 - **group_id 原版不允许冒号（`:`）**：上游 `validate_group_id` 只允许 `[a-zA-Z0-9_-]`，`project:xxx` 会抛 `GroupIdValidationError`。补丁已放宽为额外允许冒号。
 - **ingest worker 只捕获 `CancelledError`，其它异常会让它静默挂掉**：某条消息处理失败（非法 group_id、LLM 抽取失败等）后，worker 停止处理后续所有消息，`/episodes` 永远为空，但 `/healthcheck` 仍是 healthy。排查：看日志最后一次 `Got a job` 之后是否还有新记录，长时间没有就说明 worker 已死，需 `docker compose restart graphiti`。补丁已改为捕获所有异常并继续。
 - **`add_episode(uuid=X)` 是「更新」语义，X 必须是已存在的 episode**：新消息传入新 uuid（如 Memory Hub 的 Memory ID）会抛 `NodeNotFoundError`，导致该条记忆永远无法入库。补丁在调用前预建同 uuid 的 episode（MERGE 幂等），保证 `episode.uuid == 传入 uuid`。

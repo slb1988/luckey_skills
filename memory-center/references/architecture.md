@@ -17,7 +17,7 @@ memory-center/
 ## 数据流
 
 ```
-写入记忆：POST /messages → Graphiti 异步队列 → CodePlan qwen3.7-max（实体/关系抽取）
+写入记忆：POST /messages → Graphiti 异步队列 → DeepSeek deepseek-v4-pro(主)/deepseek-v4-flash(small)（实体/关系抽取）
          → 百炼 DashScope qwen3.7-text-embedding（生成 1024 维向量）→ Neo4j（存节点/边/向量）
 检索：   POST /search   → 查询词向量化 → Neo4j 向量相似度 + 图遍历 → 返回事实
 ```
@@ -64,25 +64,53 @@ validate_group_id
 
 > embedding 只作用于实体名与边事实（短文本），不作用于整条 episode 正文——所以长正文不会撞 embedding 输入上限，长正文的瓶颈在 LLM 抽取那步。
 
+### add_episode 的 LLM 调用次数与历史注入（成本结构）
+
+每入库一条消息，LLM 调用 = **3 次 medium + N 次 small（每实体属性）+ M 次 small（边去重，仅当有相关边）**：
+
+| 步骤 | 模型档 | 次数 | prompt 带历史？ |
+|------|--------|------|----------------|
+| extract_nodes | medium | 1 | 是（10 条历史全文） |
+| resolve_extracted_nodes（去重） | medium | 1 | 是 |
+| extract_edges | medium | 1 | 是 |
+| extract_attributes_from_nodes（属性） | small | N（每实体 1 次） | 是（10 条历史全文） |
+| resolve_extracted_edges（边去重） | small | M（仅当有相关边） | 否（只带边 fact） |
+
+`RELEVANT_SCHEMA_LIMIT=10`：add_episode 拉同 group 最近 10 条 episode 全文作
+`previous_episodes`，注入除边去重外的每一步。单条历史平均 ~1600 字符、10 条 ≈ 11K token，
+被重复注入 3+N 次——这是 LLM 消耗的主要来源（实测占单条记忆输入 token 的 ~86%）。
+
+补丁降本（不砍抽取环节，只减历史重复注入）：
+- 属性抽取 `previous_episodes` 置空——属性更新只看当前 episode。
+- `RELEVANT_SCHEMA_LIMIT` 10 → 3——去重/消歧上下文最近 3 条足够。
+
+实测单条记忆 prompt 从 ~75K 降到 ~15K（降 ~80%）。
+
+> monkeypatch `graphiti_core.graphiti.RELEVANT_SCHEMA_LIMIT` 只影响 add_episode：graphiti.py 是
+> `from graphiti_core.search.search_utils import RELEVANT_SCHEMA_LIMIT`，改 graphiti 模块命名空间
+> 里的名字不动 search_utils 内部引用的同名全局常量（search 的 limit 仍是 10）。
+
 ## 端点分离（为什么需要 patches/）
 
 graphiti 默认 LLM 和 embedding 用**同一个 OpenAI 配置**。本项目两者是不同端点，必须分离：
 
 | 用途 | 端点 | 模型 |
 |------|------|------|
-| LLM | CodePlan `token-plan.cn-beijing.maas.aliyuncs.com` | `qwen3.7-max`（small: `deepseek-v4-flash-0731`） |
+| LLM | DeepSeek `api.deepseek.com` | `deepseek-v4-pro`（small: `deepseek-v4-flash`） |
 | Embedding | 百炼 `dashscope.aliyuncs.com` | `qwen3.7-text-embedding`（1024 维） |
 
 补丁里 `_build_llm_client()` 构造 `OpenAIClient`，`_build_embedder()` 构造 `OpenAIEmbedder`，分别读 `.env` 的两组变量，在 `_create_client()` 注入 `ZepGraphiti`。
 
 ### 补丁处理的问题
 
-1. **端点分离** —— LLM 走 CodePlan，embedding 走百炼（见上）。
-2. **small_model 默认值失效** —— graphiti 的 `small_model` 默认 `gpt-4.1-nano`，非 OpenAI 端点不存在 → `Model not exist`。补丁显式设为 `deepseek-v4-flash-0731`。
-3. **推理模型复制 schema 描述** —— `GuardedOpenAIClient`（继承 `OpenAIClient`）在 system 消息加护栏，防止 qwen3.7-max 把字段 `description` 当值输出（否则 Neo4j 报 `CypherTypeError`）。
-4. **推理模式必须关闭** —— CodePlan/百炼端点所有模型默认开推理（返回 `reasoning_content`），推理 token 会占满 `max_tokens=8192` 导致 `content` 为空、抽取失败/极慢。补丁在 `_create_structured_completion` / `_create_completion` 里加 `extra_body={'enable_thinking': False}`。
-5. **group_id 不允许冒号** —— 上游 `validate_group_id` 只允许 `[a-zA-Z0-9_-]`，`project:xxx` 会抛 `GroupIdValidationError` 并让 ingest worker 静默挂掉（worker 只捕获 `CancelledError`）。补丁 monkeypatch `graphiti_core.graphiti.validate_group_id` 额外放行冒号。
-6. **worker 静默死 + uuid 必须是已存在 episode** —— 原版 ingest worker 只捕获 `CancelledError`，任何异常都会让 worker 静默死亡（task 引用未释放，asyncio 不打印）；且 `add_episode(uuid=X)` 是「更新」语义，X 不存在抛 `NodeNotFoundError`。Memory Hub 把自己的 Memory ID 作为 uuid 传入，新记忆必然报错。补丁（`patches/ingest.py`）改为捕获所有异常继续处理，并在调用前预建同 uuid 的 episode。
+1. **端点分离** —— LLM 走 DeepSeek，embedding 走百炼（见上）。
+2. **small_model 默认值失效** —— graphiti 的 `small_model` 默认 `gpt-4.1-nano`，非 OpenAI 端点不存在 → `Model not exist`。补丁显式设为 `deepseek-v4-flash`。
+3. **推理模型复制 schema 描述** —— `GuardedOpenAIGenericClient`（DeepSeek json_object 模式）在 system 消息 + 末条消息加护栏，防止模型把字段 `description` 当值输出（否则 Neo4j 报 `CypherTypeError`）。
+4. **思考模式必须关闭** —— DeepSeek V4 默认开思考（reasoning），reasoning token 计入 completion 且会占满 `max_tokens` 导致 `content` 为空、抽取失败。补丁在 generic client 请求里加 `extra_body={'thinking': {'type': 'disabled'}}`。（CodePlan 端点对应参数是 `enable_thinking: False`，见 provider-switch.md。）
+5. **`OpenAIGenericClient` 忽略 `model_size`** —— 上游 `_generate_response` 写死 `self.model`，small/medium 分层失效。补丁重写 `_generate_response`：`model_size == small` 用 `small_model`（deepseek-v4-flash），否则用主模型（deepseek-v4-pro）。
+6. **历史上下文重复注入** —— add_episode 每一步（除边去重）都把最近 10 条历史 episode 全文塞进 prompt，占单条记忆输入 token 的 ~86%。补丁把属性抽取的 `previous_episodes` 置空、历史窗口降到 3（详见上「LLM 调用次数与历史注入」）。
+7. **group_id 不允许冒号** —— 上游 `validate_group_id` 只允许 `[a-zA-Z0-9_-]`，`project:xxx` 会抛 `GroupIdValidationError` 并让 ingest worker 静默挂掉（worker 只捕获 `CancelledError`）。补丁 monkeypatch `graphiti_core.graphiti.validate_group_id` 额外放行冒号。
+8. **worker 静默死 + uuid 必须是已存在 episode** —— 原版 ingest worker 只捕获 `CancelledError`，任何异常都会让 worker 静默死亡（task 引用未释放，asyncio 不打印）；且 `add_episode(uuid=X)` 是「更新」语义，X 不存在抛 `NodeNotFoundError`。Memory Hub 把自己的 Memory ID 作为 uuid 传入，新记忆必然报错。补丁（`patches/ingest.py`）改为捕获所有异常继续处理，并在调用前预建同 uuid 的 episode。
 
 ### 补丁生效方式
 
