@@ -6,12 +6,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import queue
 import selectors
 import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -69,7 +71,7 @@ def is_managed_handler(handler: Any) -> bool:
     return (
         isinstance(handler, dict)
         and isinstance(handler.get("command"), str)
-        and MANAGED_COMMAND_MARKER in handler["command"]
+        and MANAGED_COMMAND_MARKER in handler["command"].replace("\\", "/")
     )
 
 
@@ -230,8 +232,13 @@ class CodexAppServer:
         )
         if self.process.stdin is None or self.process.stdout is None:
             raise InstallError("failed to open Codex app-server pipes")
-        self.selector = selectors.DefaultSelector()
-        self.selector.register(self.process.stdout, selectors.EVENT_READ)
+        # selectors/select() does not work on anonymous pipes on Windows;
+        # use a reader thread + queue which is portable.
+        self.lines: "queue.Queue[str]" = queue.Queue()
+        self.reader = threading.Thread(
+            target=self._read_lines, args=(self.process.stdout, self.lines), daemon=True
+        )
+        self.reader.start()
         self.next_id = 1
         self.request(
             "initialize",
@@ -241,6 +248,15 @@ class CodexAppServer:
             },
         )
         self._send({"method": "initialized"})
+
+    @staticmethod
+    def _read_lines(stream: Any, out: "queue.Queue[str]") -> None:
+        try:
+            for line in stream:
+                out.put(line)
+        except Exception:
+            pass
+        out.put("")
 
     def _send(self, message: Dict[str, Any]) -> None:
         assert self.process.stdin is not None
@@ -253,11 +269,10 @@ class CodexAppServer:
         self._send({"id": request_id, "method": method, "params": params})
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
-            events = self.selector.select(deadline - time.monotonic())
-            if not events:
+            try:
+                line = self.lines.get(timeout=max(0.05, deadline - time.monotonic()))
+            except queue.Empty:
                 break
-            assert self.process.stdout is not None
-            line = self.process.stdout.readline()
             if not line:
                 break
             try:
@@ -282,7 +297,6 @@ class CodexAppServer:
         except subprocess.TimeoutExpired:
             self.process.terminate()
             self.process.wait(timeout=5)
-        self.selector.close()
 
     def __enter__(self) -> "CodexAppServer":
         return self
@@ -305,7 +319,7 @@ def codex_memory_hooks(result: Dict[str, Any], hooks_path: Path) -> List[Dict[st
         for hook in entry.get("hooks") or []:
             if hook.get("sourcePath") == expected_path and MANAGED_COMMAND_MARKER in str(
                 hook.get("command") or ""
-            ):
+            ).replace("\\", "/"):
                 hooks.append(hook)
     if errors:
         raise InstallError("Codex hook errors: %s" % json.dumps(errors, ensure_ascii=False))

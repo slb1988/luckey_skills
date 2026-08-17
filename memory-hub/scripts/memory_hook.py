@@ -9,7 +9,11 @@ from __future__ import annotations
 
 import argparse
 from collections import deque
-import fcntl
+try:
+    import fcntl
+except ImportError:  # Windows
+    fcntl = None
+    import msvcrt
 import gzip
 import hashlib
 import json
@@ -733,13 +737,12 @@ class HubClient:
             idempotency_key=job_idempotency_key("memory", job),
             json_body={
                 "schema_version": "memory-write/1",
-                "user_id": job["user_id"],
                 "agent_id": self.config.agent_id,
                 "project_id": self.config.archive_project_id,
                 "session_id": job["session_id"],
                 "session_version": version,
                 "file_id": file_id,
-                "scope_type": "user",
+                "scope_type": "project",
                 "memory_type": "session_summary",
                 "distilled_content": distilled[: 16 * 1024],
                 "summary": latest_user[:1024],
@@ -823,7 +826,6 @@ class HubClient:
             idempotency_key=job_idempotency_key("session", job),
             json_body={
                 "schema_version": "session-version/1",
-                "user_id": user_id,
                 "agent_id": self.config.agent_id,
                 "project_id": project_id,
                 "file_id": file_id,
@@ -848,7 +850,6 @@ class HubClient:
             json_body={
                 "schema_version": "memory-search/1",
                 "query": query,
-                "user_id": user_id,
                 "agent_id": self.config.agent_id,
                 "project_id": project_id,
                 "limit": limit,
@@ -863,8 +864,12 @@ def flush_pending(store: StateStore, config: Config, limit: int) -> Dict[str, An
     lock_file = store.flush_lock_path.open("a+b")
     try:
         try:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
+            if fcntl is not None:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            else:
+                lock_file.seek(0)
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+        except (BlockingIOError, OSError):
             return {"busy": True, "completed": 0, "failed": 0}
         client = HubClient(config)
         completed = 0
