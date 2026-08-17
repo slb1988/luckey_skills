@@ -38,6 +38,7 @@ FENCED_CODE_RE = re.compile(
 MAX_RECENT_MESSAGES = 10
 MAX_MESSAGE_CHARS = 32 * 1024
 UNCONFIGURED_USER_ID = "unconfigured"
+LEGACY_DEFAULT_USER_ID = "sun"
 PROFILE_FILENAME = "client-profile.json"
 TEAM_SETTINGS_PATH = Path(".team") / "settings.local.json"
 
@@ -211,11 +212,11 @@ class Config:
 
     @property
     def profile_complete(self) -> bool:
+        # 多用户就绪条件：只要确定了 user_id 即可工作；display_name / summary
+        # 仅对显式配置的 profile 强制要求，旧数据默认用户（sun）允许缺省。
         return bool(
             self.default_user_id
             and self.default_user_id != UNCONFIGURED_USER_ID
-            and self.display_name
-            and self.profile_summary
         )
 
     def default_profile(self) -> Optional[UserProfile]:
@@ -249,6 +250,8 @@ class Config:
             environment_user_id
             or team_user_id
             or (stored_profile.user_id if stored_profile else None)
+            # 历史（配置前）数据统一归属到默认用户 sun，便于未来多用户迁移。
+            or LEGACY_DEFAULT_USER_ID
         )
         normalized_user_id = (
             normalize_identifier(default_user_id, UNCONFIGURED_USER_ID)
@@ -285,7 +288,7 @@ class Config:
                 if team_user_id
                 else "profile"
                 if stored_profile
-                else "unconfigured"
+                else "legacy-default"
             ),
         )
 
@@ -924,36 +927,32 @@ def request_user_profile(
     use_default_details = user_id == config.default_user_id
     hook_display_name = hook.get("user_display_name") if hook else None
     hook_summary = hook.get("user_summary") if hook else None
-    return UserProfile(
-        user_id=user_id,
-        display_name=compact_text(
-            explicit_display_name
-            or (
-                hook_display_name
-                if isinstance(hook_display_name, str)
-                else (config.display_name if use_default_details else "")
-            ),
-            128,
-        ),
-        summary=compact_text(
-            explicit_summary
-            or (
-                hook_summary
-                if isinstance(hook_summary, str)
-                else (config.profile_summary if use_default_details else "")
-            ),
-            1024,
-        ),
+    display_name = compact_text(
+        explicit_display_name
+        or (
+            hook_display_name
+            if isinstance(hook_display_name, str)
+            else (config.display_name if use_default_details else "")
+        )
+        or user_id,
+        128,
     )
+    summary = compact_text(
+        explicit_summary
+        or (
+            hook_summary
+            if isinstance(hook_summary, str)
+            else (config.profile_summary if use_default_details else "")
+        )
+        or ("legacy default user" if user_id == LEGACY_DEFAULT_USER_ID else ""),
+        1024,
+    )
+    return UserProfile(user_id=user_id, display_name=display_name, summary=summary)
 
 
 def profile_is_ready(profile: Optional[UserProfile]) -> bool:
-    return bool(
-        profile
-        and profile.user_id != UNCONFIGURED_USER_ID
-        and profile.display_name
-        and profile.summary
-    )
+    # 指定了有效 user_id 即视为就绪，支持未来多用户按 user_id 区分数据。
+    return bool(profile and profile.user_id != UNCONFIGURED_USER_ID)
 
 
 def setup_reminder(config: Config, profile: Optional[UserProfile] = None) -> str:
@@ -964,13 +963,15 @@ def setup_reminder(config: Config, profile: Optional[UserProfile] = None) -> str
         user_id = profile.user_id
         detected = "已识别候选 user_id：%s；" % profile.user_id
     return (
-        "Memory Hub 客户端尚未完成用户身份配置，当前不会检索或上传记忆。"
+        "Memory Hub 客户端尚未完成用户身份配置；未配置期间历史数据统一归属默认用户 "
+        "'%s'。支持多用户：可用 --user-id、环境变量 MEMORY_HUB_USER_ID 或 "
+        ".team/settings.local.json 的 currentMember 指定 user_id。"
         "%s请先向用户确认：①长期稳定的内部 user_id；②显示名称；③一段简短概要"
         "（身份、偏好或长期目标，不要包含密码/API Key）。确认后执行：\n"
         "/usr/bin/python3 %s configure --user-id %s "
         "--display-name '<display-name>' --summary '<short-summary>'\n"
         "配置文件将保存到 %s。不要替用户臆造这些信息。"
-        % (detected, app, user_id, config.state_dir / PROFILE_FILENAME)
+        % (LEGACY_DEFAULT_USER_ID, detected, app, user_id, config.state_dir / PROFILE_FILENAME)
     )
 
 

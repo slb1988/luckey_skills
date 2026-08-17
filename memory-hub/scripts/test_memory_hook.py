@@ -222,14 +222,15 @@ class MemoryHookTest(unittest.TestCase):
             self.assertEqual(memory_call[4]["json_body"]["scope_type"], "user")
             self.assertEqual(memory_call[4]["json_body"]["user_id"], "user-b")
 
-    def test_environment_without_profile_has_no_identity_fallback(self):
+    def test_environment_without_profile_falls_back_to_legacy_default_user(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ, {"MEMORY_HOOK_STATE_DIR": directory}, clear=True
         ):
             config = Config.from_environment(cwd=directory)
-            self.assertIsNone(config.default_user_id)
-            self.assertFalse(config.configured)
-            self.assertEqual(config.identity_source, "unconfigured")
+            # 未配置身份时统一归属默认用户 sun（旧数据兼容）。
+            self.assertEqual(config.default_user_id, "sun")
+            self.assertTrue(config.configured)
+            self.assertEqual(config.identity_source, "legacy-default")
 
     def test_team_current_member_precedes_local_profile(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -253,7 +254,8 @@ class MemoryHookTest(unittest.TestCase):
                 config = Config.from_environment(cwd=str(nested))
             self.assertEqual(config.default_user_id, "team-user")
             self.assertEqual(config.identity_source, "team")
-            self.assertFalse(config.configured)
+            # 指定 user_id 即视为就绪（多用户按 user_id 区分）。
+            self.assertTrue(config.configured)
 
     def test_environment_user_precedes_team_current_member(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -318,7 +320,8 @@ class MemoryHookTest(unittest.TestCase):
             )
             profile = request_user_profile(config, {"cwd": str(root)})
             self.assertEqual(profile.user_id, "team-user")
-            self.assertEqual(profile.display_name, "")
+            # 未提供显示名/概要时回退为 user_id 本身。
+            self.assertEqual(profile.display_name, "team-user")
             self.assertEqual(profile.summary, "")
             self.assertIn(
                 "configure --user-id team-user", setup_reminder(config, profile)
