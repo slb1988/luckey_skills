@@ -208,6 +208,28 @@ setsid .venv/bin/memory-hub serve > data/memory-hub.log 2>&1 < /dev/null &
 | memory 变 `failed` | 看 `error_code`，常见 group_id 非法 / Graphiti 永久错误 |
 | data 写到奇怪的地方 | 没从项目目录启动，`.env` 相对路径失效 |
 
+## 观测面板（dashboard）部署
+
+面板是独立服务（`backend/` + `frontend/dist/`），与主服务分离部署：
+
+```bash
+cd /share/Container/memory-hub
+git pull                                    # 拉取 backend/ 与 frontend/dist/
+
+cd backend
+uv venv .venv --python 3.12                 # 首次
+uv pip install --python .venv/bin/python -e .
+
+# 启动/重启（先杀掉旧进程）
+ps aux | grep memory-hub-dashboard | grep -v grep
+kill <旧PID> 2>/dev/null
+setsid .venv/bin/memory-hub-dashboard > ../data/dashboard.log 2>&1 < /dev/null &
+
+curl -sS http://127.0.0.1:9288/api/v1/health/live
+```
+
+浏览器访问 `http://10.77.77.6:9288/`。详细配置见仓库 `docs/DASHBOARD.md`。
+
 ## 运行测试（改代码后）
 
 ```bash
