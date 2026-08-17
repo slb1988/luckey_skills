@@ -17,7 +17,7 @@ memory-center/
 ## 数据流
 
 ```
-写入记忆：POST /messages → Graphiti 异步队列 → DeepSeek deepseek-v4-pro(主)/deepseek-v4-flash(small)（实体/关系抽取）
+写入记忆：POST /messages → Graphiti 异步队列 → Kimi 网关 kimi-k3(主)/deepseek-v4-flash(small)（实体/关系抽取，Anthropic 协议）
          → 百炼 DashScope qwen3.7-text-embedding（生成 1024 维向量）→ Neo4j（存节点/边/向量）
 检索：   POST /search   → 查询词向量化 → Neo4j 向量相似度 + 图遍历 → 返回事实
 ```
@@ -96,18 +96,18 @@ graphiti 默认 LLM 和 embedding 用**同一个 OpenAI 配置**。本项目两�
 
 | 用途 | 端点 | 模型 |
 |------|------|------|
-| LLM | DeepSeek `api.deepseek.com` | `deepseek-v4-pro`（small: `deepseek-v4-flash`） |
+| LLM | Kimi 网关 `10.77.77.4:8600`（Anthropic 协议） | `kimi-k3`（small: `deepseek-v4-flash`） |
 | Embedding | 百炼 `dashscope.aliyuncs.com` | `qwen3.7-text-embedding`（1024 维） |
 
-补丁里 `_build_llm_client()` 构造 `OpenAIClient`，`_build_embedder()` 构造 `OpenAIEmbedder`，分别读 `.env` 的两组变量，在 `_create_client()` 注入 `ZepGraphiti`。
+补丁里 `_build_llm_client()` 构造 `GuardedAnthropicClient`（httpx 直连，不依赖 anthropic SDK），`_build_embedder()` 构造 `OpenAIEmbedder`，分别读 `.env` 的两组变量，在 `_create_client()` 注入 `ZepGraphiti`。
 
 ### 补丁处理的问题
 
-1. **端点分离** —— LLM 走 DeepSeek，embedding 走百炼（见上）。
+1. **端点分离** —— LLM 走 Kimi 网关（Anthropic 协议），embedding 走百炼（见上）。
 2. **small_model 默认值失效** —— graphiti 的 `small_model` 默认 `gpt-4.1-nano`，非 OpenAI 端点不存在 → `Model not exist`。补丁显式设为 `deepseek-v4-flash`。
-3. **推理模型复制 schema 描述** —— `GuardedOpenAIGenericClient`（DeepSeek json_object 模式）在 system 消息 + 末条消息加护栏，防止模型把字段 `description` 当值输出（否则 Neo4j 报 `CypherTypeError`）。
-4. **思考模式必须关闭** —— DeepSeek V4 默认开思考（reasoning），reasoning token 计入 completion 且会占满 `max_tokens` 导致 `content` 为空、抽取失败。补丁在 generic client 请求里加 `extra_body={'thinking': {'type': 'disabled'}}`。（CodePlan 端点对应参数是 `enable_thinking: False`，见 provider-switch.md。）
-5. **`OpenAIGenericClient` 忽略 `model_size`** —— 上游 `_generate_response` 写死 `self.model`，small/medium 分层失效。补丁重写 `_generate_response`：`model_size == small` 用 `small_model`（deepseek-v4-flash），否则用主模型（deepseek-v4-pro）。
+3. **推理模型复制 schema 描述** —— `GuardedAnthropicClient` 在 system 消息加护栏，防止模型把字段 `description` 当值输出（否则 Neo4j 报 `CypherTypeError`）。
+4. **思考模式必须关闭 + tool_choice 必须 any** —— Kimi k3 / deepseek-v4-flash 默认开思考，reasoning token 占满 `max_tokens` 导致 `content` 为空；且网关 `tool_choice specified` 与 thinking 不兼容。补丁加 `thinking: {'type':'disabled'}` + `tool_choice: {'type':'any'}`。
+5. **内置 AnthropicClient 忽略 `model_size` 且不传 base_url** —— 补丁自定义 `GuardedAnthropicClient` 重写 `_generate_response`：`model_size == small` 用 `small_model`（deepseek-v4-flash），否则主模型（kimi-k3）；httpx 直连自定义 base_url。
 6. **历史上下文重复注入** —— add_episode 每一步（除边去重）都把最近 10 条历史 episode 全文塞进 prompt，占单条记忆输入 token 的 ~86%。补丁把属性抽取的 `previous_episodes` 置空、历史窗口降到 3（详见上「LLM 调用次数与历史注入」）。
 7. **group_id 不允许冒号** —— 上游 `validate_group_id` 只允许 `[a-zA-Z0-9_-]`，`project:xxx` 会抛 `GroupIdValidationError` 并让 ingest worker 静默挂掉（worker 只捕获 `CancelledError`）。补丁 monkeypatch `graphiti_core.graphiti.validate_group_id` 额外放行冒号。
 8. **worker 静默死 + uuid 必须是已存在 episode** —— 原版 ingest worker 只捕获 `CancelledError`，任何异常都会让 worker 静默死亡（task 引用未释放，asyncio 不打印）；且 `add_episode(uuid=X)` 是「更新」语义，X 不存在抛 `NodeNotFoundError`。Memory Hub 把自己的 Memory ID 作为 uuid 传入，新记忆必然报错。补丁（`patches/ingest.py`）改为捕获所有异常继续处理，并在调用前预建同 uuid 的 episode。
@@ -120,7 +120,7 @@ graphiti 默认 LLM 和 embedding 用**同一个 OpenAI 配置**。本项目两�
 volumes:
   - ./patches/zep_graphiti.py:/app/graph_service/zep_graphiti.py:ro
 environment:
-  OPENAI_API_KEY: ${OPENAI_API_KEY}          # LLM (CodePlan)
+  OPENAI_API_KEY: ${OPENAI_API_KEY}          # LLM (Kimi 网关，Anthropic 协议)
   OPENAI_BASE_URL: ${OPENAI_BASE_URL}
   MODEL_NAME: ${MODEL_NAME}
   EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL}  # embedding (百炼)
@@ -128,7 +128,7 @@ environment:
   EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
 ```
 
-> 改补丁/.env 后要 `docker compose restart graphiti`（不是 `up -d`）。
+> 改 `patches/` 后要 `docker compose restart graphiti`（bind mount 内容变化需重启进程重新 import）；改 `.env` 后要 `docker compose up -d`（recreate 才重新注入环境变量）。
 
 ## 切换 provider
 

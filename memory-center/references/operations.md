@@ -13,7 +13,8 @@ docker compose up -d
 
 # 停止 / 重启
 docker compose down
-docker compose restart graphiti   # 改补丁/.env 后必须 restart（不是 up -d）
+docker compose restart graphiti   # 改 patches/ 后必须 restart（bind mount 内容变化需重启进程重新 import）
+docker compose up -d             # 改 .env / compose.yml 后必须 up -d（recreate 才重新读环境变量）
 docker compose restart neo4j
 
 # 日志
@@ -100,7 +101,7 @@ docker compose start neo4j
 ## 从零重新部署（关键步骤）
 
 1. 恢复目录结构 + `compose.yml` + `.env` + `patches/zep_graphiti.py` + `config/neo4j.conf`。
-2. `.env` 配两把 key（`OPENAI_*` = CodePlan，`EMBEDDING_*` = 百炼 DashScope）；`NEO4J_USER=neo4j`，密码 >= 8 位。
+2. `.env` 配两把 key（`OPENAI_*` = Kimi 网关 LLM，`EMBEDDING_*` = 百炼 DashScope）；`NEO4J_USER=neo4j`，密码 >= 8 位。
 3. 检查端口（见上），有占用就改 compose 左侧宿主端口。
 4. 拉镜像并启动：
    ```bash

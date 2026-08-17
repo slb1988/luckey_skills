@@ -48,6 +48,7 @@ QNAP 是定制 Linux（QTS），没有自带包管理器，git 需通过 Entware
 - **安装 git** → [references/git-install.md](references/git-install.md) — opkg 安装、权限处理、PATH 配置
 - **SSH Key 生成与 GitHub 绑定** → [references/ssh-github.md](references/ssh-github.md) — Ed25519 key 生成、添加 known_hosts、测试连接
 - **绑定到已有仓库** → [references/bind-repo.md](references/bind-repo.md) — remote 设置、拉取推送验证
+- **NAS 提交/更新（GitHub）** → [references/nas-commit.md](references/nas-commit.md) — 全局身份缺失、SSH vs HTTPS、提交身份与敏感值存放约定
 
 ## 快速参考
 
