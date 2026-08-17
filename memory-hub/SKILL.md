@@ -21,6 +21,16 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 - Memory 写入先落 SQLite outbox（可靠），再异步投递 Graphiti；Graphiti 暂不可用时写入仍可保存。
 - Memory Hub 同时服务多个用户；`user_id` 是逐请求业务身份，不是 Hub 服务端固定配置。
 
+## 观测面板（Dashboard）
+
+浏览器打开 `http://10.77.77.6:9288/`：Hub/Metadata/Graphiti 健康、memory 索引状态分布（pending/submitted/indexed/failed）、
+outbox 重试与错误、最近更新的 session 列表、Graphiti episode 探测、Hub 日志尾部、检索测试工具。
+
+- 面板是独立服务：`backend/`（FastAPI BFF，:9288）+ `frontend/`（Vue 3 SPA）+ `protocol/`（共用 openapi 契约），
+  只读 SQLite 元数据，**不影响** :9287 的写入链路。详见仓库 `docs/DASHBOARD.md`。
+- 排障入口优先级：面板 Overview 状态灯 → Outbox 页签（retry/failed 的 last_error）→ Graphiti 页签（episode 探测）→ 日志页签。
+- 面板开发/部署细节（本机构建、FastAPI 嵌套路由坑）见 [references/dashboard.md](references/dashboard.md)。
+
 ## 快速信息
 
 | 项目 | 值 |
@@ -43,6 +53,7 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 | 部署 / 启动 / 重启 / 备份 / 排障 | [references/deploy.md](references/deploy.md) |
 | 已知 project 一览与检索 scope 选择 | [references/projects.md](references/projects.md) |
 | Hook 安装 / 身份配置 / 环境变量 | [references/agent-integration.md](references/agent-integration.md) |
+| API 实测备忘（Idempotency-Key、字段约束、常用 curl） | [references/api-notes.md](references/api-notes.md) |
 | 项目完整使用手册（写入/检索示例） | `docs/USAGE.md` |
 | HTTP/MCP 接口契约 | `docs/API_CONTRACT.md` |
 | 当前实现说明（模块、状态机、已实现/未实现） | `docs/IMPLEMENTATION.md` |
@@ -92,8 +103,6 @@ group_id 由服务端计算，客户端不能注入：
 | GET | `/v1/memories/{memory_id}` | 查询索引状态 |
 | POST | `/v1/memories/search` | 检索记忆 |
 | GET | `/v1/projects` | 列出已知 project（含 memory/session 计数，用于选择检索 scope） |
-| POST | `/v1/context/assemble` | 待实现 |
-| POST | `/v1/feedback` | 待实现 |
 
 ## 完整写入流程（顺序固定）
 
@@ -108,28 +117,9 @@ group_id 由服务端计算，客户端不能注入：
 5. `POST /v1/memories`：传 `session_id/session_version/file_id` + `scope_type` + `memory_type` + `distilled_content` + `summary`，拿 `memory_id`（状态 `pending`）。
 6. `GET /v1/memories/{id}` 轮询直到 `indexed`。
 
+约束（实测）：**写操作必须带 `Idempotency-Key` 头**；`media_type` 仅 `application/json`/`application/gzip`；
+session 文件必须是**合法 JSON 文档**，原始 .jsonl 会被拒。常用 curl 与字段细节见 [api-notes](references/api-notes.md)。
 完整带变量的 curl 示例见 `docs/USAGE.md` 第 7 节。
-
-## 常用接口速查
-
-```bash
-HUB_URL=http://10.77.77.6:9287
-# 请求头：X-User-Id / X-Agent-Id / X-Project-Id（生产另需 Bearer token）
-
-# 0) 列出已知 project（检索前先确认该用哪个 project scope）
-curl -sS "$HUB_URL/v1/projects" -H "X-User-Id: $USER_ID" -H "X-Agent-Id: $AGENT_ID" -H "X-Project-Id: $PROJECT_ID"
-
-# 1) 检索记忆（body 不带 user_id；body 的 agent_id/project_id 必须与请求头一致）
-curl -sS -X POST "$HUB_URL/v1/memories/search" -H 'Content-Type: application/json' \
-  -H "X-User-Id: $USER_ID" -H "X-Agent-Id: $AGENT_ID" -H "X-Project-Id: $PROJECT_ID" \
-  -d '{"schema_version":"memory-search/1","query":"...","agent_id":"...","project_id":"...","limit":10,"session_view":"captured"}'
-
-# 2) 查询记忆索引状态（pending/submitted/indexed/failed）
-curl -sS "$HUB_URL/v1/memories/{memory_id}" -H "X-User-Id: $USER_ID" -H "X-Agent-Id: $AGENT_ID" -H "X-Project-Id: $PROJECT_ID"
-
-# 3) 健康检查（dependencies.graphiti 才反映上游连通）
-curl -sS "$HUB_URL/health/ready"
-```
 
 ## 检索
 
@@ -137,17 +127,7 @@ curl -sS "$HUB_URL/health/ready"
 **检索前先根据目标内容选择正确的 project**（调 `GET /v1/projects` 或见 [references/projects.md](references/projects.md)）；
 空结果时先切换其他已知 project 重试，确认都不命中再认为"没有这条记忆"。不要因为 Hub 搜不到就绕过 Hub 直查 Graphiti。
 
-检索 curl 见上方「常用接口速查」第 1 条。
-
-## 手动回补历史 session 文件
-
-<memory category="code-locations">
-历史 session 文件位置（Windows）：Claude Code 在 `%USERPROFILE%\.claude\projects\<slug>\*.jsonl`，一个文件一个 session，文件名即 session UUID；Pi 在 `%USERPROFILE%\.pi\agent\sessions\<slug>\*.jsonl`，文件名 `<UTC时间戳>_<uuid>.jsonl`，单个项目可积累上千个文件（E:\sununity 的 Pi 目录有 1094 个）。两者 slug 方案不同：`E:\sununity` 在 Claude 是 `E--sununity`，在 Pi 是 `--E--sununity--`——定位时按 `sessions/` 实际列表匹配，不要自行推算。
-</memory>
-
-<memory category="common-patterns">
-`memory_hook.py` 没有 backfill/import 子命令（仅 capture/recall/search/flush/configure/status），capture 只处理当前 live transcript。回补历史文件必须走「完整写入流程」的原始 HTTP 通道：每个 transcript 文件建一个独立 Hub session（归档 id 形如 `{source}:{session_uuid}`，source 取值 claude/codex/pi），`X-Agent-Id` 按来源工具区分，目标 project 用 `X-Project-Id` 显式指定（如 `unity2018`），不要依赖默认的 `agent-history`。上传按快照 SHA-256 幂等，批量脚本中断后可安全重跑。
-</memory>
+检索 curl 见 [api-notes](references/api-notes.md)「常用接口速查」第 1 条。
 
 ## Agent 自动记忆集成
 
@@ -155,11 +135,20 @@ Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`（仅
 
 > 详细参考：[agent-integration](references/agent-integration.md)（install、身份配置、环境变量、命令）
 
+<memory category="troubleshooting">
+agent-integration.md 的 install/configure 示例命令是 macOS 写法（`/usr/bin/python3`、`/Users/sun/...`）。Windows 上曾发现扩展配置里原样保留了 `/usr/bin/python3` 这个 Unix 路径导致 hook 无法执行——Windows 端 hook 失效先查安装命令里的 python 解释器路径，须改为本机 Windows python 全路径。排查「关窗提示有进程未结束」是否 hook 残留时，按命令行列 python.exe 分辨：本机常驻 python 通常是 UnrealMCP 和 pytest，与 memory-hook 无关；memory_hook.py 是逐事件短进程，正常不常驻。
+</memory>
+
 ## 手动上传历史 session（upload_sessions.py）
 
 `scripts/upload_sessions.py`（仅标准库）把任意机器/目录下的历史 session 记录（`.jsonl`）批量上传到
 Hub，每个文件成为独立 session（`{source}:{原始session_id}`），并附一条可检索的 `session_summary`
-记忆。适用于 hook 上线前的历史归档、其他电脑导出的 session 等。
+记忆。适用于 hook 上线前的历史归档、其他电脑导出的 session 等（`memory_hook.py` 没有 backfill 子命令，
+capture 只处理当前 live transcript）。
+
+<memory category="code-locations">
+历史 session 文件位置（Windows）：Claude Code 在 `%USERPROFILE%\.claude\projects\<slug>\*.jsonl`（文件名即 session UUID）；Pi 在 `%USERPROFILE%\.pi\agent\sessions\<slug>\*.jsonl`（文件名 `<UTC时间戳>_<uuid>.jsonl`，单项目可积累上千个）。两者 slug 方案不同：`E:\sununity` 在 Claude 是 `E--sununity`，在 Pi 是 `--E--sununity--`——定位时按 `sessions/` 实际列表匹配，不要自行推算。
+</memory>
 
 幂等保证：对包装后的归档文档（`agent-session-archive/1`，服务端要求 session 文件必须是合法 JSON，
 原始 jsonl 不行）计算 SHA-256；上传前比对远端 latest 版本，一致则 `skipped`；所有写操作带确定性
@@ -167,15 +156,13 @@ Hub，每个文件成为独立 session（`{source}:{原始session_id}`），并�
 
 ```bash
 SKILL_DIR="<本 SKILL.md 所在目录的绝对路径>"
-# 常用：指定 project，自动识别 claude/pi/codex，agent 按来源分类（claude-code/pi/codex）
+# 指定 project，自动识别 claude/pi/codex，agent 按来源分类（claude-code/pi/codex）
 python3 "$SKILL_DIR/scripts/upload_sessions.py" --project-id unity2018 <session文件或目录>...
 # 干跑只看扫描结果，不碰服务器
 python3 "$SKILL_DIR/scripts/upload_sessions.py" --project-id unity2018 --dry-run <目录>
-# 强制来源 / 覆盖身份
-python3 "$SKILL_DIR/scripts/upload_sessions.py" --source pi --agent-id pi --user-id sun --project-id X <目录>
 ```
 
-- `--user-id` 默认取 hook 的 client-profile；`--project-id` 不显式给时按 session cwd 目录名推导。
+- `--user-id` 默认取 hook 的 client-profile；`--source/--agent-id` 可强制来源与身份。
 - 目录会递归扫描 `*.jsonl`；`--limit N` 可先小批量验证。
 - 大量上传后 memory 经 outbox 异步投递 Graphiti，`indexed` 状态用 `GET /v1/memories/{id}` 跟踪。
 
