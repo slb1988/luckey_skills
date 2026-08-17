@@ -60,8 +60,9 @@ memory-center/
 ├── data/neo4j/          # Neo4j 数据
 ├── data/ollama/         # Ollama 模型 (bge-m3 已拉取，未删除)
 ├── logs/neo4j/ · logs/graphiti/
-├── patches/zep_graphiti.py  # LLM/embedding 端点分离 + 关推理 + group_id 放宽（bind mount）
-├── patches/ingest.py        # worker 韧性 + uuid 预建（bind mount）
+├── patches/zep_graphiti.py  # LLM/embedding 端点分离 + 关推理 + group_id 放宽 + 重试 2 次 + LLM 落盘（bind mount）
+├── patches/ingest.py        # worker 韧性 + uuid 预建 + episode 上下文注入（bind mount）
+├── scripts/llm_stats.py     # LLM 调用日志汇总分析（读 logs/graphiti/llm_calls.jsonl）
 └── backup/              # 挂载到 neo4j:/backup
 ```
 
@@ -78,6 +79,47 @@ memory-center/
 7. **worker 韧性与 uuid 预建**（`patches/ingest.py`）：原版 ingest worker 只捕获 `CancelledError`，任何异常都会让 worker 静默死亡（`/healthcheck` 仍 healthy 但不再处理任何消息）。补丁改为捕获所有异常、打印 traceback 并继续处理后续消息。同时 graphiti 的 `add_episode(uuid=X)` 语义是「更新已有 episode」（X 不存在抛 `NodeNotFoundError`），而 Memory Hub 把自己的 Memory ID 作为 uuid 传入，补丁在调用前若该 uuid 不存在就先预建 episode（MERGE 幂等），使 `episode.uuid == Memory ID` 成立。
 8. **model_size 分层修复**：上游 Anthropic/Generic client 忽略 `model_size`（写死 `self.model`），small/medium 分层失效。补丁重写 `_generate_response`：small → `deepseek-v4-flash`，medium → `kimi-k3`。
 9. **历史上下文去重注入（降本）**：add_episode 每一步都带最近 10 条历史 episode 全文，属性抽取也带，占输入 ~86%。补丁把属性抽取的 `previous_episodes` 置空、历史窗口 10→3。详见 [architecture.md](references/architecture.md)。
+10. **LLM 重试收敛为 2 次**：上游 tenacity 写死 `stop_after_attempt(4)` + 退避 `max=120s`，网关 503 时单 job 被拖到 76s+ 仍失败。补丁覆盖 `_generate_response_with_retry`：`stop_after_attempt(2)`、退避 `multiplier=2, min=2, max=10`，快速失败交给上层。
+11. **LLM 调用落盘（JSONL）**：每次调用（ok/error/retry）追加到 `logs/graphiti/llm_calls.jsonl`（容器内 `/app/logs/llm_calls.jsonl`）。字段：`ts, status(ok/error/retry), model, size, caller（哪个抽取步骤发起的，如 node_operations.extract_nodes / edge_operations.extract_edges / extract_attributes_from_node）, attempt, latency_ms, http_status, stop_reason, prompt_tokens, completion_tokens, prompt_chars, usage_raw, response_model, episode_uuid, group_id, error, traceback`，以及完整原文：`system, messages, request_params(max_tokens/temperature/tool_choice/tools schema), response(解析后结果), raw_response(网关原始响应)`（episode/group 由 ingest worker 通过 contextvar 注入；设 `LLM_LOG_PAYLOAD=0` 可只记指标不记原文；原文里的 `\uXXXX` 转义已解码为可读中文，仅显示层面处理，LLM 实际收到的仍是转义形式——graphiti 上游拼 prompt 用 json.dumps 默认转义所致）。超 200MB 轮转为 `llm_calls.YYYYMMDD_HHMMSS.jsonl` 归档（**历史记录全部保留不删除**）。可用 `LLM_LOG_PATH` / `LLM_LOG_MAX_BYTES` / `LLM_LOG_PAYLOAD` 环境变量调整。
+
+## LLM 调用复盘 / 监控
+
+```bash
+cd /share/Container/memory_center/memory-center
+
+# 汇总（默认全量，含所有时间戳归档文件）
+python3 scripts/llm_stats.py
+
+# 只看最近 2 小时
+python3 scripts/llm_stats.py --hours 2
+
+# 列出 token 最多的 5 个 episode
+python3 scripts/llm_stats.py --episodes 5
+
+# 原始记录（每行一个 JSON）
+tail -f logs/graphiti/llm_calls.jsonl
+
+# 找某次失败/重试
+grep '"status": "error"' logs/graphiti/llm_calls.jsonl | tail
+grep '"status": "retry"' logs/graphiti/llm_calls.jsonl | tail
+
+# 复盘某个 episode 的全部 LLM 调用（含完整 prompt 原文与响应）
+grep '<episode_uuid>' logs/graphiti/llm_calls.jsonl
+
+# 提取某次调用的完整 prompt 看内容
+python3 -c "
+import json
+for line in open('logs/graphiti/llm_calls.jsonl'):
+    r = json.loads(line)
+    if r.get('episode_uuid') == '<episode_uuid>':
+        print('='*20, r.get('caller'), r.get('model'))
+        print(r.get('system',''))
+        for m in r.get('messages') or []: print(f\"[{m['role']}] {m['content'][:2000]}\")
+        print('→ response:', json.dumps(r.get('response'), ensure_ascii=False)[:1000])
+"
+```
+
+> 注意：`logs/graphiti/` 需对容器内 uid 999(app) 可写（已 chmod 777），重建目录后记得重新放权。
 
 补丁通过 compose 的 bind mount 生效，无需重建镜像：
 ```yaml

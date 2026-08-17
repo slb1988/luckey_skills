@@ -105,6 +105,35 @@ OUTBOX_MAX_BACKOFF_SECONDS=300
 
 ## 启动
 
+### 一键脚本（推荐，NAS 常驻）
+
+仓库自带幂等脚本（任意目录可执行，自动 cd 到仓库根）：
+
+```bash
+scripts/start_all.sh   # 启动 Hub(:9287) + Dashboard(:9288，含前端静态托管)，已运行则跳过
+scripts/status.sh      # 进程/端口/健康总览（含上游 Graphiti :8005 探测）
+scripts/stop_all.sh    # 停止全部
+```
+
+- pid 文件在 `data/run/*.pid`，日志：Hub → `data/memory-hub.log`，Dashboard → `data/dashboard.log`。
+- Dashboard 前端无需单独启动：`frontend/dist` 由 dashboard backend 静态托管（:9288）。
+
+### 开机自启（NAS 重启自动拉起）
+
+链路：QTS → Container Station 拉起 memory-center 容器（docker `restart: unless-stopped`）
+→ Entware qpkg（已启用）→ `/opt/etc/init.d/S99memory-hub` → `scripts/boot_start.sh`
+**轮询等 Graphiti(:8005) healthy（最多 10 分钟，5s 间隔）** → `start_all.sh`。
+超时仍启动（写入会先进 outbox 降级）。启动日志：`data/boot.log`。
+
+```bash
+# 一次性安装（需 admin/sudo 密码，agent 无权限写 /opt/etc/init.d）
+sh scripts/install_autostart.sh
+# 卸载
+sh scripts/uninstall_autostart.sh
+# 手动控制（安装后）
+/opt/etc/init.d/S99memory-hub {start|stop|restart}
+```
+
 ### 开发模式（web + outbox worker 一体，最简单）
 
 ```bash
@@ -115,6 +144,8 @@ cd /share/Container/memory-hub
 默认监听 `http://127.0.0.1:9287`，进程内启动 outbox worker（`ENABLE_OUTBOX_WORKER=true`）。
 
 ### 后台启动（NAS 上常驻）
+
+> 推荐直接用 `scripts/start_all.sh`（幂等 + pid 管理 + 健康等待），以下是手动方式：
 
 `nohup` 在本机不存在，用 `setsid`：
 
