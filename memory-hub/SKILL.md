@@ -29,7 +29,6 @@ outbox 重试与错误、最近更新的 session 列表、Graphiti episode 探�
 - 面板是独立服务：`backend/`（FastAPI BFF，:9288）+ `frontend/`（Vue 3 SPA）+ `protocol/`（共用 openapi 契约），
   只读 SQLite 元数据，**不影响** :9287 的写入链路。详见仓库 `docs/DASHBOARD.md`。
 - 排障入口优先级：面板 Overview 状态灯 → Outbox 页签（retry/failed 的 last_error）→ Graphiti 页签（episode 探测）→ 日志页签。
-- 面板开发/部署细节（本机构建、FastAPI 嵌套路由坑）见 [references/dashboard.md](references/dashboard.md)。
 
 ## 快速信息
 
