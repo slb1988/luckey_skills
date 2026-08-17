@@ -215,12 +215,13 @@ class MemoryHookTest(unittest.TestCase):
             client.ensure_memory(job, 1, "file-1")
 
             search_call = calls[0]
+            # user_id 通过位置参数传入并体现在 X-User-Id 头，不再放在请求体。
             self.assertEqual(search_call[3], "user-b")
-            self.assertEqual(search_call[4]["json_body"]["user_id"], "user-b")
+            self.assertNotIn("user_id", search_call[4]["json_body"])
             memory_call = calls[1]
             self.assertEqual(memory_call[3], "user-b")
-            self.assertEqual(memory_call[4]["json_body"]["scope_type"], "user")
-            self.assertEqual(memory_call[4]["json_body"]["user_id"], "user-b")
+            self.assertEqual(memory_call[4]["json_body"]["scope_type"], "project")
+            self.assertNotIn("user_id", memory_call[4]["json_body"])
 
     def test_environment_without_profile_falls_back_to_legacy_default_user(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(
