@@ -237,7 +237,48 @@ setsid .venv/bin/memory-hub serve > data/memory-hub.log 2>&1 < /dev/null &
 | 日志无 `outbox worker started` | worker 没起来，检查 `ENABLE_OUTBOX_WORKER` |
 | memory 一直 `pending` | outbox worker 未运行或 Graphiti 投递失败，查日志 |
 | memory 变 `failed` | 看 `error_code`，常见 group_id 非法 / Graphiti 永久错误 |
+| 大批 memory 卡 `submitted`，outbox `confirm_episode` 反复 retry「episode is not indexed yet」 | Graphiti 侧 episode 丢失（如其内存队列随容器重启清空）：把事件重置回投递阶段重放，见下文「outbox 重投递」 |
 | data 写到奇怪的地方 | 没从项目目录启动，`.env` 相对路径失效 |
+
+### outbox 重投递（Graphiti 丢失 episode 后的恢复）
+
+症状：memory 状态 `submitted` 但永不变 `indexed`，outbox 里 `graphiti.confirm_episode`
+事件 `last_error = episode is not indexed yet`。原因：投递已成功（202），但 Graphiti
+的 ingest 队列是内存态，容器重启后未处理的 episode 丢失，确认环节永远查不到。
+
+恢复（payload 不变，把事件打回 `add_episode` 阶段重投，Graphiti 侧 uuid 幂等）：
+
+```bash
+cd /share/Container/memory-hub
+cp data/memory-hub.sqlite3 data/memory-hub.sqlite3.bak.$(date +%F_%H%M%S)   # 先备份
+.venv/bin/python - << 'EOF'
+import sqlite3
+from datetime import datetime, timezone
+db = sqlite3.connect('data/memory-hub.sqlite3')
+now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+cur = db.execute(
+    """UPDATE outbox
+       SET event_type='graphiti.add_episode', status='retry', attempt_count=0,
+           next_attempt_at=?, lease_until=NULL, last_error=NULL, updated_at=?
+       WHERE event_type='graphiti.confirm_episode' AND status='retry'""",
+    (now, now),
+)
+db.commit()
+print(f'reset {cur.rowcount} events')
+EOF
+```
+
+无需重启：进程内 outbox worker（`OUTBOX_POLL_SECONDS=1`）会立即开始重投。
+投递快（POST 202），瓶颈在 Graphiti 串行抽取（~35-70s/episode），几百条需数小时，
+用 `scripts/status.sh` 或 dashboard :9288 的 Memories/Outbox 页签观察 `indexed` 增长即可。
+
+### 默认 user_id（多用户）
+
+hook 端默认 user_id 解析顺序：环境变量 `MEMORY_HUB_CLIENT_USER_ID` /
+`MEMORY_HUB_USER_ID` → 团队当前成员 → 本机 profile
+`~/.local/state/memory-hub-hook/client-profile.json`（`{"user_id": "sun", ...}`，
+NAS 上已配置为 sun）。服务端对不带 `X-User-Id` 的旧客户端回退 agent_id。
+user scope 记忆落在 Graphiti group `user:{user_id}`。
 
 ## 观测面板（dashboard）部署
 
