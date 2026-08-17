@@ -34,6 +34,7 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 | session 文件 | `data/session-files/objects/{sha256 前缀}/{sha256}.json[.gz]` |
 | 运行日志 | `data/memory-hub.log` |
 | 独立 Hook App | `scripts/memory_hook.py`（仅 Python 标准库） |
+| 手动 session 上传 | `scripts/upload_sessions.py`（仅 Python 标准库，幂等批量归档历史 session） |
 
 ## 参考文档
 
@@ -138,11 +139,45 @@ curl -sS "$HUB_URL/health/ready"
 
 检索 curl 见上方「常用接口速查」第 1 条。
 
+## 手动回补历史 session 文件
+
+<memory category="code-locations">
+历史 session 文件位置（Windows）：Claude Code 在 `%USERPROFILE%\.claude\projects\<slug>\*.jsonl`，一个文件一个 session，文件名即 session UUID；Pi 在 `%USERPROFILE%\.pi\agent\sessions\<slug>\*.jsonl`，文件名 `<UTC时间戳>_<uuid>.jsonl`，单个项目可积累上千个文件（E:\sununity 的 Pi 目录有 1094 个）。两者 slug 方案不同：`E:\sununity` 在 Claude 是 `E--sununity`，在 Pi 是 `--E--sununity--`——定位时按 `sessions/` 实际列表匹配，不要自行推算。
+</memory>
+
+<memory category="common-patterns">
+`memory_hook.py` 没有 backfill/import 子命令（仅 capture/recall/search/flush/configure/status），capture 只处理当前 live transcript。回补历史文件必须走「完整写入流程」的原始 HTTP 通道：每个 transcript 文件建一个独立 Hub session（归档 id 形如 `{source}:{session_uuid}`，source 取值 claude/codex/pi），`X-Agent-Id` 按来源工具区分，目标 project 用 `X-Project-Id` 显式指定（如 `unity2018`），不要依赖默认的 `agent-history`。上传按快照 SHA-256 幂等，批量脚本中断后可安全重跑。
+</memory>
+
 ## Agent 自动记忆集成
 
 Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`（仅标准库），本地 spool + 失败自动补传。
 
 > 详细参考：[agent-integration](references/agent-integration.md)（install、身份配置、环境变量、命令）
+
+## 手动上传历史 session（upload_sessions.py）
+
+`scripts/upload_sessions.py`（仅标准库）把任意机器/目录下的历史 session 记录（`.jsonl`）批量上传到
+Hub，每个文件成为独立 session（`{source}:{原始session_id}`），并附一条可检索的 `session_summary`
+记忆。适用于 hook 上线前的历史归档、其他电脑导出的 session 等。
+
+幂等保证：对包装后的归档文档（`agent-session-archive/1`，服务端要求 session 文件必须是合法 JSON，
+原始 jsonl 不行）计算 SHA-256；上传前比对远端 latest 版本，一致则 `skipped`；所有写操作带确定性
+`Idempotency-Key`，中断可直接重跑。内容变化时自动 append 新版本。
+
+```bash
+SKILL_DIR="<本 SKILL.md 所在目录的绝对路径>"
+# 常用：指定 project，自动识别 claude/pi/codex，agent 按来源分类（claude-code/pi/codex）
+python3 "$SKILL_DIR/scripts/upload_sessions.py" --project-id unity2018 <session文件或目录>...
+# 干跑只看扫描结果，不碰服务器
+python3 "$SKILL_DIR/scripts/upload_sessions.py" --project-id unity2018 --dry-run <目录>
+# 强制来源 / 覆盖身份
+python3 "$SKILL_DIR/scripts/upload_sessions.py" --source pi --agent-id pi --user-id sun --project-id X <目录>
+```
+
+- `--user-id` 默认取 hook 的 client-profile；`--project-id` 不显式给时按 session cwd 目录名推导。
+- 目录会递归扫描 `*.jsonl`；`--limit N` 可先小批量验证。
+- 大量上传后 memory 经 outbox 异步投递 Graphiti，`indexed` 状态用 `GET /v1/memories/{id}` 跟踪。
 
 ## Memory 索引状态
 

@@ -16,6 +16,7 @@ Memory Hub 提供 `GET /v1/projects` 列出已知 project（含 memory/session �
 | `agent-history` | Claude Code 的 session 归档主库（`MEMORY_HUB_ARCHIVE_PROJECT_ID` 默认归档目标） | 最大归档 project（数百条 memory/session），2026-08 活跃 |
 | `claude-history` | Claude Code 会话历史提炼记忆 | 2026-08 活跃 |
 | `unity2019` | Unity 2019.4 源码项目：Apple Silicon Mac 构建（MacEditor/MacPlayer、Rosetta 2、nxxbuild.sh）、授权排查（SUNSET_LAUNCHER=1 硬编码、独立 LicensingClient 进程），文档见该项目 `docs/unity2019-license-crack-and-hub-disable.md`、`docs/unity2019-troubleshooting-guide.md` | 8 条 indexed 记忆 |
+| `unity2018` | Unity 2018 源码项目（E:\\sununity）历史 session 归档：1094 个 Pi session + 1 个 Claude session（agent 分别为 `pi` / `claude-code`），2026-08 由 `upload_sessions.py` 手动批量归档 | 1095 sessions / 1095 memories |
 | `home` | 家庭/个人环境相关记录 | 少量记忆，用途待补充 |
 
 ## scope 速查
