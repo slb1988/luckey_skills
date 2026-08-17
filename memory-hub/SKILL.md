@@ -40,6 +40,7 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 | 主题 | 文件 |
 |------|------|
 | 部署 / 启动 / 重启 / 备份 / 排障 | [references/deploy.md](references/deploy.md) |
+| 已知 project 一览与检索 scope 选择 | [references/projects.md](references/projects.md) |
 | 项目完整使用手册（写入/检索示例） | `docs/USAGE.md` |
 | HTTP/MCP 接口契约 | `docs/API_CONTRACT.md` |
 | 当前实现说明（模块、状态机、已实现/未实现） | `docs/IMPLEMENTATION.md` |
@@ -88,6 +89,7 @@ group_id 由服务端计算，客户端不能注入：
 | POST | `/v1/memories` | 写入精炼记忆（返回 202，初始 pending） |
 | GET | `/v1/memories/{memory_id}` | 查询索引状态 |
 | POST | `/v1/memories/search` | 检索记忆 |
+| GET | `/v1/projects` | 列出已知 project（含 memory/session 计数，用于选择检索 scope） |
 | POST | `/v1/context/assemble` | 待实现 |
 | POST | `/v1/feedback` | 待实现 |
 
@@ -106,13 +108,38 @@ group_id 由服务端计算，客户端不能注入：
 
 完整带变量的 curl 示例见 `docs/USAGE.md` 第 7 节。
 
+## 常用接口速查
+
+```bash
+HUB_URL=http://10.77.77.6:9287
+# 请求头：X-User-Id / X-Agent-Id / X-Project-Id（生产另需 Bearer token）
+
+# 0) 列出已知 project（检索前先确认该用哪个 project scope）
+curl -sS "$HUB_URL/v1/projects" -H "X-User-Id: $USER_ID" -H "X-Agent-Id: $AGENT_ID" -H "X-Project-Id: $PROJECT_ID"
+
+# 1) 检索记忆（body 不带 user_id；body 的 agent_id/project_id 必须与请求头一致）
+curl -sS -X POST "$HUB_URL/v1/memories/search" -H 'Content-Type: application/json' \
+  -H "X-User-Id: $USER_ID" -H "X-Agent-Id: $AGENT_ID" -H "X-Project-Id: $PROJECT_ID" \
+  -d '{"schema_version":"memory-search/1","query":"...","agent_id":"...","project_id":"...","limit":10,"session_view":"captured"}'
+
+# 2) 查询记忆索引状态（pending/submitted/indexed/failed）
+curl -sS "$HUB_URL/v1/memories/{memory_id}" -H "X-User-Id: $USER_ID" -H "X-Agent-Id: $AGENT_ID" -H "X-Project-Id: $PROJECT_ID"
+
+# 3) 健康检查（dependencies.graphiti 才反映上游连通）
+curl -sS "$HUB_URL/health/ready"
+```
+
 ## 检索
+
+搜索只覆盖调用者身份对应的 `global` + `user:*` + `project:{X-Project-Id}` + `agent:{X-Agent-Id}`。
+**检索前先根据目标内容选择正确的 project**（调 `GET /v1/projects` 或见 [references/projects.md](references/projects.md)）；
+空结果时先切换其他已知 project 重试，确认都不命中再认为"没有这条记忆"。不要因为 Hub 搜不到就绕过 Hub 直查 Graphiti。
 
 ```bash
 curl -sS -X POST "$HUB_URL/v1/memories/search" \
   -H 'Content-Type: application/json' \
   -H "X-User-Id: $USER_ID" -H "X-Agent-Id: $AGENT_ID" -H "X-Project-Id: $PROJECT_ID" \
-  -d '{"schema_version":"memory-search/1","query":"...","user_id":"...","agent_id":"...","project_id":"...","limit":10,"session_view":"captured"}'
+  -d '{"schema_version":"memory-search/1","query":"...","agent_id":"...","project_id":"...","limit":10,"session_view":"captured"}'
 ```
 
 ## Agent 自动记忆集成
@@ -252,6 +279,7 @@ APP=/Users/sun/Documents/ObsidianVault/.claude/skills/memory-hub/scripts/memory_
 
 ## 关键坑位
 
+- **搜索空结果先怀疑 project scope 错了**：记忆按 `project:{project_id}` 隔离，用错 `X-Project-Id` 必然 0 命中（这是设计行为，不是 bug）。先 `GET /v1/projects` 或查 [references/projects.md](references/projects.md) 换 project 重试。
 - **`.env` 用相对路径**（`./data/...`），必须从项目目录启动，否则 data 会写到别处。
 - **本项目没有 Neo4j 凭证**，也不需要。若 agent 拿着 Neo4j URI/密码说"连不上 memory"，先确认它走的是 Memory Hub 而不是直连 Neo4j。
 - **Graphiti 检索不可用 ≠ 空结果**：返回 `GRAPHITI_UNAVAILABLE` 才是后端不可用。

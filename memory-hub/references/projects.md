@@ -1,7 +1,7 @@
 # Memory Hub 已知 Project 一览
 
-Memory Hub 自 2026-08 版本起提供 `GET /v1/projects` 列出已知 project（含 memory/session 计数与最近活动时间）；
-旧版本无此 API 时，以本表为准手动切换。本表同时记录每个 project 的用途，**发现新 project 时追加**。
+Memory Hub 提供 `GET /v1/projects` 列出已知 project（含 memory/session 计数与最近活动时间），检索前优先调用它；
+本表记录每个 project 的用途，**发现新 project 时追加**。
 
 检索时的规则：
 
@@ -13,10 +13,10 @@ Memory Hub 自 2026-08 版本起提供 `GET /v1/projects` 列出已知 project�
 
 | project_id | 内容 / 用途 | 备注 |
 |---|---|---|
-| `unity2019` | Unity 2019.4 源码项目：Apple Silicon Mac 构建（MacEditor/MacPlayer、Rosetta 2、nxxbuild.sh）、授权排查（SUNSET_LAUNCHER=1 硬编码、独立 LicensingClient 进程），文档见该项目 `docs/unity2019-license-crack-and-hub-disable.md`、`docs/unity2019-troubleshooting-guide.md` | 2026-08 确认有 indexed 记忆 |
-| `ObsidianVault` | 本 Obsidian vault 仓库相关的 agent 记忆 | Pi 端默认使用 |
-| `agent-history` | session 归档（`MEMORY_HUB_ARCHIVE_PROJECT_ID` 默认值） | 归档用 |
-| `ProjectLungfish` | SKILL.md 示例中出现的 project，实际内容待确认 | 待确认 |
+| `agent-history` | Claude Code 的 session 归档主库（`MEMORY_HUB_ARCHIVE_PROJECT_ID` 默认归档目标） | 最大归档 project（数百条 memory/session），2026-08 活跃 |
+| `claude-history` | Claude Code 会话历史提炼记忆 | 2026-08 活跃 |
+| `unity2019` | Unity 2019.4 源码项目：Apple Silicon Mac 构建（MacEditor/MacPlayer、Rosetta 2、nxxbuild.sh）、授权排查（SUNSET_LAUNCHER=1 硬编码、独立 LicensingClient 进程），文档见该项目 `docs/unity2019-license-crack-and-hub-disable.md`、`docs/unity2019-troubleshooting-guide.md` | 8 条 indexed 记忆 |
+| `home` | 家庭/个人环境相关记录 | 少量记忆，用途待补充 |
 
 ## scope 速查
 
