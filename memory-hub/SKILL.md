@@ -52,10 +52,9 @@ outbox 重试与错误、最近更新的 session 列表、Graphiti episode 探�
 |------|------|
 | 部署 / 启动 / 重启 / 备份 / 排障 | [references/deploy.md](references/deploy.md) |
 | 观测面板（dashboard）开发/部署备忘 | [references/dashboard.md](references/dashboard.md) |
-| API 实测备忘（幂等/错误码/curl） | [references/api-notes.md](references/api-notes.md) |
+| API 实测备忘（Idempotency-Key、字段约束、错误码、常用 curl） | [references/api-notes.md](references/api-notes.md) |
 | 已知 project 一览与检索 scope 选择 | [references/projects.md](references/projects.md) |
 | Hook 安装 / 身份配置 / 环境变量 | [references/agent-integration.md](references/agent-integration.md) |
-| API 实测备忘（Idempotency-Key、字段约束、常用 curl） | [references/api-notes.md](references/api-notes.md) |
 | 项目完整使用手册（写入/检索示例） | `docs/USAGE.md` |
 | HTTP/MCP 接口契约 | `docs/API_CONTRACT.md` |
 | 当前实现说明（模块、状态机、已实现/未实现） | `docs/IMPLEMENTATION.md` |
