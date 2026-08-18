@@ -282,23 +282,29 @@ user scope 记忆落在 Graphiti group `user:{user_id}`。
 
 ## 观测面板（dashboard）部署
 
-面板是独立服务（`backend/` + `frontend/dist/`），与主服务分离部署：
+面板是独立服务（`backend/` + `frontend/dist/`），与主服务分离部署。`frontend/dist` **已不纳入 git 追踪**（自 commit 2c3b935），NAS 上有 node v22（`~/.local/bin/node`），需在 NAS 本地构建：
 
 ```bash
 cd /share/Container/memory-hub
-git pull                                    # 拉取 backend/ 与 frontend/dist/
+git pull                                    # 拉取 backend/ 与 frontend/src/
+
+cd frontend && npm ci && npm run build && cd ..   # 生成 frontend/dist（依赖未变可跳过 npm ci）
 
 cd backend
 uv venv .venv --python 3.12                 # 首次
 uv pip install --python .venv/bin/python -e .
 
-# 启动/重启（先杀掉旧进程）
+# 启动/重启（推荐用一键脚本，stop_all + start_all 会同时处理 Hub 与 dashboard）
+sh scripts/stop_all.sh && sh scripts/start_all.sh
+# 或手动：
 ps aux | grep memory-hub-dashboard | grep -v grep
 kill <旧PID> 2>/dev/null
-setsid .venv/bin/memory-hub-dashboard > ../data/dashboard.log 2>&1 < /dev/null &
+cd backend && setsid .venv/bin/memory-hub-dashboard > ../data/dashboard.log 2>&1 < /dev/null &
 
 curl -sS http://127.0.0.1:9288/api/v1/health/live
 ```
+
+> Hub 与 dashboard 都是 editable 安装，纯代码变更重启即生效，无需 reinstall。浏览器如缓存旧 JS 需强刷。
 
 浏览器访问 `http://10.77.77.6:9288/`。详细配置见仓库 `docs/DASHBOARD.md`。
 
