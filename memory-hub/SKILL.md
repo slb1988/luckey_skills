@@ -154,6 +154,10 @@ capture 只处理当前 live transcript）。
 原始 jsonl 不行）计算 SHA-256；上传前比对远端 latest 版本，一致则 `skipped`；所有写操作带确定性
 `Idempotency-Key`，中断可直接重跑。内容变化时自动 append 新版本。
 
+<memory category="common-patterns">
+不传 `--project-id` 时按**每个 session 的 cwd 文件夹名**逐个派生 project——全机批量归档会散落到 `admin`、`sununity`、`MainDev`、`ObsidianVault` 等十几个 project（实测 3 个 pi session 落进 2 个 project）。检索按 project 隔离，散落后必须逐 project 切换才能搜全。批量归档历史 session 应显式加 `--project-id agent-history`（hook 归档主库）集中存放。
+</memory>
+
 ```bash
 SKILL_DIR="<本 SKILL.md 所在目录的绝对路径>"
 # 指定 project，自动识别 claude/pi/codex，agent 按来源分类（claude-code/pi/codex）
