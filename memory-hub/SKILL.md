@@ -45,6 +45,10 @@ outbox 重试与错误、最近更新的 session 列表、Graphiti episode 探�
 | 独立 Hook App | `scripts/memory_hook.py`（仅 Python 标准库） |
 | 手动 session 上传 | `scripts/upload_sessions.py`（仅 Python 标准库，幂等批量归档历史 session） |
 
+<memory category="common-patterns">
+`MEMORY_HUB_TITLE_LLM` 代码默认 `0`（关闭时退化为启发式标题、不做低价值过滤），置 `1` 才走内网 vLLM。本机是通过 **Machine 作用域**环境变量开启的（`=1`）——在新进程里发现标题走 LLM 属预期；其他机器若想开启须自行设该变量，不要改代码默认值。
+</memory>
+
 ## 参考文档
 
 | 主题 | 文件 |
@@ -137,6 +141,10 @@ Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`（仅
 
 <memory category="troubleshooting">
 agent-integration.md 的 install/configure 示例命令是 macOS 写法（`/usr/bin/python3`、`/Users/sun/...`）。Windows 上曾发现扩展配置里原样保留了 `/usr/bin/python3` 这个 Unix 路径导致 hook 无法执行——Windows 端 hook 失效先查安装命令里的 python 解释器路径，须改为本机 Windows python 全路径。排查「关窗提示有进程未结束」是否 hook 残留时，按命令行列 python.exe 分辨：本机常驻 python 通常是 UnrealMCP 和 pytest，与 memory-hook 无关；memory_hook.py 是逐事件短进程，正常不常驻。
+</memory>
+
+<memory category="troubleshooting">
+Spool job 在 capture 时固化 `user_id`（这是设计，防止补传到错误用户）。副作用：身份配置变更（如 install 写入新的 `MEMORY_HUB_CLIENT_USER_ID`）之前积压的 queued job 仍带旧身份，flush 时持续报 `SCOPE_FORBIDDEN` 且不会自愈（实测一次积压 11 个）。看到 spool 反复 403 时直接清理这些旧 job，不要当作服务端权限配置问题排查。
 </memory>
 
 ## 手动上传历史 session（upload_sessions.py）
