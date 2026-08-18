@@ -89,6 +89,7 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HUB_TITLE_LLM_MODEL=qwen3-30b
 # MEMORY_HUB_TITLE_LLM_API_KEY=vllm
 # MEMORY_HUB_TITLE_LLM_TIMEOUT=15
+# MEMORY_HUB_PROJECT_ALIASES=sununity=unity2018,foo=bar   # project 名归并，内置默认 sununity=unity2018
 ```
 
 标题与低价值判断按内容 SHA-256 缓存在 `MEMORY_HOOK_STATE_DIR/title-cache.jsonl`（追加式），

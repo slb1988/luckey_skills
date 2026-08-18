@@ -51,6 +51,8 @@ UNCONFIGURED_USER_ID = "unconfigured"
 LEGACY_DEFAULT_USER_ID = "sun"
 PROFILE_FILENAME = "client-profile.json"
 TEAM_SETTINGS_PATH = Path(".team") / "settings.local.json"
+# 历史目录名归并：E:\sununity 的归档统一进 unity2018 project。
+DEFAULT_PROJECT_ALIASES = {"sununity": "unity2018"}
 
 
 def normalize_identifier(value: str, fallback: str) -> str:
@@ -60,9 +62,24 @@ def normalize_identifier(value: str, fallback: str) -> str:
     return normalized[:128]
 
 
+def project_aliases() -> Dict[str, str]:
+    aliases = dict(DEFAULT_PROJECT_ALIASES)
+    for item in os.environ.get("MEMORY_HUB_PROJECT_ALIASES", "").split(","):
+        item = item.strip()
+        if not item or "=" not in item:
+            continue
+        src, dst = (part.strip().lower() for part in item.split("=", 1))
+        src = normalize_identifier(src, "")
+        dst = normalize_identifier(dst, "")
+        if src and dst:
+            aliases[src] = dst
+    return aliases
+
+
 def project_id_for_cwd(cwd: str, fallback: str) -> str:
     # 按工作根目录名分类归档（小写归一，避免 MainDev/maindev 分裂）。
-    return normalize_identifier(Path(cwd).name if cwd else "", fallback).lower()
+    name = normalize_identifier(Path(cwd).name if cwd else "", fallback).lower()
+    return project_aliases().get(name, name)
 
 
 def compact_text(value: str, limit: int) -> str:

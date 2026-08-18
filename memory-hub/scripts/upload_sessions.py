@@ -64,6 +64,8 @@ NOISE_USER_TEXTS = {
 }
 DEFAULT_HUB_URL = "http://10.77.77.6:9287"
 SOURCE_AGENT_DEFAULTS = {"claude": "claude-code", "pi": "pi", "codex": "codex"}
+# 历史目录名归并：E:\sununity 的归档统一进 unity2018 project。
+DEFAULT_PROJECT_ALIASES = {"sununity": "unity2018"}
 
 
 def normalize_identifier(value: str, fallback: str) -> str:
@@ -295,6 +297,32 @@ def resolve_classification(
     if persist:
         cache[session.content_sha256] = {"title": title, "meaningful": meaningful}
         append_title_cache(cache_path, session.content_sha256, title, meaningful)
+
+
+def load_project_aliases(cli_aliases: Optional[List[str]]) -> Dict[str, str]:
+    aliases = dict(DEFAULT_PROJECT_ALIASES)
+    sources: List[str] = []
+    env_value = os.environ.get("MEMORY_HUB_PROJECT_ALIASES", "")
+    if env_value:
+        sources.append(env_value)
+    sources.extend(cli_aliases or [])
+    for source in sources:
+        for item in source.split(","):
+            item = item.strip()
+            if not item:
+                continue
+            if "=" not in item:
+                print(
+                    "warning: ignore invalid project alias %r (expect from=to)" % item,
+                    file=sys.stderr,
+                )
+                continue
+            src, dst = (part.strip().lower() for part in item.split("=", 1))
+            src = normalize_identifier(src, "")
+            dst = normalize_identifier(dst, "")
+            if src and dst:
+                aliases[src] = dst
+    return aliases
 
 
 # ---------------------------------------------------------------------------
@@ -833,6 +861,21 @@ def build_parser() -> argparse.ArgumentParser:
         "(session ownership is fixed at first commit; reuse their original project)",
     )
     parser.add_argument(
+        "--project-alias",
+        action="append",
+        default=None,
+        metavar="FROM=TO",
+        help="Map a derived (lowercased) project name to another; repeatable. "
+        "Env MEMORY_HUB_PROJECT_ALIASES accepts comma-separated pairs. "
+        "Built-in default: sununity=unity2018",
+    )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Never touch sessions already on the hub (per --existing-map): no new "
+        "version, no new memory; they are reported as skipped",
+    )
+    parser.add_argument(
         "--user-id",
         default=None,
         help="Memory Hub user id (default: MEMORY_HUB_CLIENT_USER_ID or hook client profile)",
@@ -916,11 +959,24 @@ def main(argv: Optional[List[str]] = None) -> int:
         except (OSError, json.JSONDecodeError) as error:
             print("error: cannot load existing map %s: %s" % (args.existing_map, error), file=sys.stderr)
             return 2
+    project_aliases = load_project_aliases(args.project_alias)
 
     for index, path in enumerate(files, 1):
         session = scan_session_file(path, forced_source)
         if session is None:
             failures += 1
+            continue
+        if args.skip_existing and session.archive_session_id in existing_map:
+            result = UploadResult(
+                status="skipped",
+                session_id=session.archive_session_id,
+                detail="already on hub (%s)" % existing_map[session.archive_session_id],
+            )
+            results.append(result)
+            print(
+                "[%d/%d] skipped | %s | 「已在库」 | %s | %s"
+                % (index, total, result.session_id, path.name, result.detail)
+            )
             continue
         resolve_classification(
             session,
@@ -953,9 +1009,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         elif mapped_project:
             project_id = mapped_project
         else:
-            project_id = normalize_identifier(
+            derived = normalize_identifier(
                 Path(session.cwd).name if session.cwd else "", "agent-history"
             ).lower()
+            project_id = project_aliases.get(derived, derived)
 
         if args.dry_run or client is None:
             print(
