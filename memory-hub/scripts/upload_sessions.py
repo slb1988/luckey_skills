@@ -827,6 +827,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Target project scope (default: derive from each session's cwd folder name)",
     )
     parser.add_argument(
+        "--existing-map",
+        default=os.environ.get("MEMORY_HUB_EXISTING_MAP"),
+        help="JSON file mapping session_id -> hub project for sessions already on the hub "
+        "(session ownership is fixed at first commit; reuse their original project)",
+    )
+    parser.add_argument(
         "--user-id",
         default=None,
         help="Memory Hub user id (default: MEMORY_HUB_CLIENT_USER_ID or hook client profile)",
@@ -898,6 +904,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     title_cache_file = title_cache_path()
     title_cache = load_title_cache(title_cache_file)
     use_llm = title_llm_enabled() and not args.dry_run
+    existing_map: Dict[str, str] = {}
+    if args.existing_map:
+        try:
+            raw_map = json.loads(Path(args.existing_map).read_text(encoding="utf-8"))
+            for key, value in raw_map.items():
+                if isinstance(value, str) and value:
+                    existing_map[key] = value
+                elif isinstance(value, dict) and value.get("project"):
+                    existing_map[key] = str(value["project"])
+        except (OSError, json.JSONDecodeError) as error:
+            print("error: cannot load existing map %s: %s" % (args.existing_map, error), file=sys.stderr)
+            return 2
 
     for index, path in enumerate(files, 1):
         session = scan_session_file(path, forced_source)
@@ -927,10 +945,17 @@ def main(argv: Optional[List[str]] = None) -> int:
         if not args.dry_run:
             finalize_payload(session)
         agent_id = args.agent_id or SOURCE_AGENT_DEFAULTS.get(session.source, session.source)
-        # 按工作根目录名分类归档（小写归一，避免 MainDev/maindev 分裂），与 hook 一致。
-        project_id = args.project_id or normalize_identifier(
-            Path(session.cwd).name if session.cwd else "", "agent-history"
-        ).lower()
+        # 按工作根目录名分类归档（小写归一，避免 MainDev/maindev 分裂），与 hook 一致；
+        # 已在 hub 存在的 session 归属在首版固定，沿用其原 project。
+        mapped_project = existing_map.get(session.archive_session_id)
+        if args.project_id:
+            project_id = args.project_id
+        elif mapped_project:
+            project_id = mapped_project
+        else:
+            project_id = normalize_identifier(
+                Path(session.cwd).name if session.cwd else "", "agent-history"
+            ).lower()
 
         if args.dry_run or client is None:
             print(
