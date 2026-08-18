@@ -149,7 +149,7 @@ def heuristic_meaningful(user_texts: List[str]) -> bool:
 
 
 def title_llm_enabled() -> bool:
-    return os.environ.get("MEMORY_HUB_TITLE_LLM", "1").strip().lower() not in (
+    return os.environ.get("MEMORY_HUB_TITLE_LLM", "0").strip().lower() not in (
         "0",
         "false",
         "no",
@@ -160,7 +160,7 @@ def title_llm_enabled() -> bool:
 def llm_classify_session(user_texts: List[str], last_assistant: str) -> Optional[Dict[str, Any]]:
     """Classify archival value + summarize topic via the intranet LLM.
 
-    Controlled by env (default ON): MEMORY_HUB_TITLE_LLM=0 disables;
+    Controlled by env (default OFF): MEMORY_HUB_TITLE_LLM=1 enables;
     MEMORY_HUB_TITLE_LLM_BASE_URL / _MODEL / _API_KEY / _TIMEOUT customize.
     Returns {"title": str, "meaningful": bool}, or None on any failure so
     callers fall back to heuristics.

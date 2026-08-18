@@ -35,6 +35,10 @@ UserPromptSubmit hook 若尚无完整配置，会停止检索并向 Agent 注入
   --summary '身份、偏好或长期目标的简短概要'
 ```
 
+> 更推荐的做法是直接运行 `install_hooks.py install --user-id ... --display-name ... --summary ...`：
+> 它会把身份三项持久化到用户级环境变量（见「install 关键字」一节），全局所有进程统一从环境变量取值；
+> `configure` 写入的本机 `client-profile.json` 仅作为环境变量缺失时的 fallback。
+
 配置以 `0600` 权限保存到
 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/client-profile.json`。配置完成前，capture
 仍会把最近会话安全暂存到本机，但这些 job 使用隔离占位身份，不会进入上传队列；配置成功后会归属到
@@ -46,11 +50,20 @@ UserPromptSubmit hook 若尚无完整配置，会停止检索并向 Agent 注入
 
 ```bash
 SKILL_DIR="<本 SKILL.md 所在目录的绝对路径>"
-/usr/bin/python3 "$SKILL_DIR/scripts/install_hooks.py" install --agents auto
+/usr/bin/python3 "$SKILL_DIR/scripts/install_hooks.py" install --agents auto \
+  --user-id 'internal-user-id' \
+  --display-name 'Display Name' \
+  --summary '身份、偏好或长期目标的简短概要'
 ```
 
 必须将占位符替换为加载本 Skill 时获得的实际目录，不得相对当前工作目录猜测。`auto` 配置本机检测到的
 Claude Code、Codex、Pi；用户明确要求全部安装时改用 `--agents all`。不得手工拼装 Hook JSON。
+
+**install 必须指定用户身份**：`--user-id` 必填（或已预设 `MEMORY_HUB_CLIENT_USER_ID`），
+`--display-name` / `--summary` 同理可由对应环境变量预置。安装器会把这三项**持久化到用户级环境变量**：
+Windows 写入注册表 `HKCU\Environment` 并广播 `WM_SETTINGCHANGE`；POSIX 写入 `~/.profile`
+标记块（macOS 同时写 `~/.zprofile`）。之后本机所有新启动的 agent / hook 进程都默认从环境变量取身份，
+优先级高于 `.team/settings.local.json` 与 `client-profile.json`；已在运行的进程需重启才能看到。
 
 安装成功必须同时满足：
 
@@ -75,7 +88,8 @@ Claude Code、Codex、Pi；用户明确要求全部安装时改用 `--agents all
 export MEMORY_HUB_URL=http://10.77.77.6:9287
 export MEMORY_HUB_AGENT_ID=claude-code-mac
 export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
-# 可用环境变量代替 client-profile.json，但三项必须同时配置：
+# 可用环境变量代替 client-profile.json，但三项必须同时配置
+# （install_hooks.py install 会把这三项持久化到用户级环境变量，全局生效）：
 # MEMORY_HUB_CLIENT_USER_ID=internal-user-id
 # MEMORY_HUB_CLIENT_DISPLAY_NAME='Display Name'
 # MEMORY_HUB_CLIENT_SUMMARY='身份、偏好或长期目标的简短概要'
@@ -83,8 +97,8 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HOOK_TIMEOUT_SECONDS=8
 # MEMORY_HOOK_STATE_DIR=~/.local/state/memory-hub-hook
 # MEMORY_HOOK_DEBUG=1             # 调试失败原因
-# 会话标题 / 低价值过滤（内网 vLLM，hook 与 upload_sessions.py 共用，默认开）：
-# MEMORY_HUB_TITLE_LLM=1          # 0 关闭，关闭后退化为启发式标题且不做低价值过滤
+# 会话标题 / 低价值过滤（内网 vLLM，hook 与 upload_sessions.py 共用，默认关）：
+# MEMORY_HUB_TITLE_LLM=1          # 默认 0 关闭；置 1 开启，关闭时退化为启发式标题且不做低价值过滤
 # MEMORY_HUB_TITLE_LLM_BASE_URL=http://192.168.2.76:8000/v1
 # MEMORY_HUB_TITLE_LLM_MODEL=qwen3-30b
 # MEMORY_HUB_TITLE_LLM_API_KEY=vllm
