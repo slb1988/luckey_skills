@@ -927,9 +927,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         if not args.dry_run:
             finalize_payload(session)
         agent_id = args.agent_id or SOURCE_AGENT_DEFAULTS.get(session.source, session.source)
+        # 按工作根目录名分类归档（小写归一，避免 MainDev/maindev 分裂），与 hook 一致。
         project_id = args.project_id or normalize_identifier(
             Path(session.cwd).name if session.cwd else "", "agent-history"
-        )
+        ).lower()
 
         if args.dry_run or client is None:
             print(
