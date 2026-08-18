@@ -206,6 +206,9 @@ class Config:
     display_name: str = ""
     profile_summary: str = ""
     identity_source: str = "explicit"
+    # dry_run=True：capture/flush 上传的记忆只落 hub（SQLite），不进入 Graphiti
+    # 索引，用于链路测试；经 memory-write/1 的 dry_run 字段透传。
+    dry_run: bool = False
 
     @property
     def configured(self) -> bool:
@@ -299,6 +302,8 @@ class Config:
                 if stored_profile
                 else "legacy-default"
             ),
+            dry_run=os.environ.get("MEMORY_HOOK_DRY_RUN", "").lower()
+            in ("1", "true", "yes"),
         )
 
 
@@ -774,6 +779,7 @@ class HubClient:
                 "distilled_content": distilled[: 16 * 1024],
                 "summary": latest_user[:1024],
                 "source_event_id": job_idempotency_key("event", job),
+                "dry_run": self.config.dry_run,
             },
         )
         return {
@@ -1206,6 +1212,7 @@ def command_configure(args: argparse.Namespace, config: Config) -> int:
         display_name=display_name,
         profile_summary=summary,
         identity_source="profile",
+        dry_run=config.dry_run,
     )
     store = StateStore(configured)
     assigned = store.assign_unconfigured(user_id)
