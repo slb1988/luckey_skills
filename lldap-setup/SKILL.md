@@ -122,6 +122,10 @@ Bind DN: cn=admin,ou=people,dc=example,dc=com
 
 集成其他服务时，按各自文档填写上述 LDAP 参数即可。具体集成模板见 lldap 仓库的 `example_configs/` 目录。
 
+<memory category="common-patterns">
+Windows 盘 FTP 想统一用 LLDAP 账号：微软 IIS FTP 只认 Windows 本地账户或 AD 域，不支持通用 LDAP Bind，接不进 LLDAP；pGina 也无效（IIS FTP 走 LogonUser 网络登录，不经过交互式登录）；LLDAP 只存密码哈希不可导出，"同步成 Windows 本地账户"路线不通。已确认可行路径：用 SFTPGo（Windows 原生服务，FTP/FTPS/SFTP/WebDAV 一体）替代 IIS FTP，其内置 LDAP 用 `bind_as_user: true`，用户 DN 模式 `uid=%username%,ou=people,<base dn>`，首次登录自动建档；盘符权限用 SFTPGo 的 per-user/per-group virtual folder 映射（如 D:\、E:\ 分用户设只读/读写）。
+</memory>
+
 ---
 
 ## 默认管理员账号

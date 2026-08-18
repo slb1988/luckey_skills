@@ -54,6 +54,7 @@ description: |
 | "列出所有 XXX" 答不全 | `top_n` 是否过小；`chunk_method` 是否为 `table` |
 | 表格行答案混杂无关内容 | `chunk_method` 从 `naive` 改为 `table` |
 | 目标文档被大量近义行淹没（如问"象蛇"命中一堆"象蛇蛋"） | 文档级 `auto_questions`；别名注入让查询字面词进索引；见 `references/retrieval-tuning.md` |
+| 同一问题多次回答结果不一致（抖动），或答案自行脑补映射/归纳 | 检索×生成两层分诊：先关 `prompt_config.keyword`（LLM 查询扩展是检索层最大随机源）；生成侧查 temperature 和"禁止推测"硬约束；隔离定位法见 `references/retrieval-tuning.md` |
 | 同一文档重解析后排名反而暴跌 | 数据集 `pagerank` 是否改过——旧 chunk 带 `pagerank_fea` 快照加分，见 `references/api-notes.md` |
 | 检索得分都低于阈值 | `similarity_threshold` 是否过高 |
 | 更新 chunk_method 报 405 | 是否用了批量端点，应改用单文档端点 |
