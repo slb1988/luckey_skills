@@ -334,13 +334,14 @@ class MemoryHookTest(unittest.TestCase):
             environment = {
                 "MEMORY_HOOK_STATE_DIR": str(root / "state"),
                 "MEMORY_HUB_CLIENT_USER_ID": "environment-user",
-                "MEMORY_HUB_CLIENT_DISPLAY_NAME": "Environment User",
-                "MEMORY_HUB_CLIENT_SUMMARY": "Configured through environment",
             }
             with patch.dict(os.environ, environment, clear=True):
                 config = Config.from_environment(cwd=str(root))
             self.assertEqual(config.default_user_id, "environment-user")
             self.assertEqual(config.identity_source, "environment")
+            # 环境身份只携带 user_id；display_name/summary 仅来自本机 profile。
+            self.assertEqual(config.display_name, "")
+            self.assertEqual(config.profile_summary, "")
             self.assertTrue(config.configured)
 
     def test_team_current_member_reuses_matching_stored_profile(self):

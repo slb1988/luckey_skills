@@ -27,11 +27,6 @@ MEMORY_HOOK = SKILL_DIR / "scripts" / "memory_hook.py"
 PI_TEMPLATE = SKILL_DIR / "assets" / "pi-memory-hub.ts"
 MANAGED_COMMAND_MARKER = "memory-hub/scripts/memory_hook.py"
 
-IDENTITY_ENV_VARS = (
-    "MEMORY_HUB_CLIENT_USER_ID",
-    "MEMORY_HUB_CLIENT_DISPLAY_NAME",
-    "MEMORY_HUB_CLIENT_SUMMARY",
-)
 PROFILE_BLOCK_BEGIN = "# >>> memory-hub identity >>>"
 PROFILE_BLOCK_END = "# <<< memory-hub identity <<<"
 
@@ -420,20 +415,7 @@ def resolve_identity(args: argparse.Namespace) -> Dict[str, str]:
         raise InstallError(
             "install requires --user-id (or a preset MEMORY_HUB_CLIENT_USER_ID)"
         )
-    display_name = (
-        args.display_name or os.environ.get("MEMORY_HUB_CLIENT_DISPLAY_NAME") or ""
-    ).strip()
-    summary = (args.summary or os.environ.get("MEMORY_HUB_CLIENT_SUMMARY") or "").strip()
-    if not display_name or not summary:
-        raise InstallError(
-            "install requires --display-name and --summary "
-            "(or preset MEMORY_HUB_CLIENT_DISPLAY_NAME / MEMORY_HUB_CLIENT_SUMMARY)"
-        )
-    return {
-        "MEMORY_HUB_CLIENT_USER_ID": user_id,
-        "MEMORY_HUB_CLIENT_DISPLAY_NAME": display_name,
-        "MEMORY_HUB_CLIENT_SUMMARY": summary,
-    }
+    return {"MEMORY_HUB_CLIENT_USER_ID": user_id}
 
 
 def persist_env_windows(values: Dict[str, str]) -> bool:
@@ -527,8 +509,6 @@ def identity_status() -> Dict[str, Any]:
     return {
         "user_id": user_id,
         "source": "environment" if user_id else "missing",
-        "display_name_set": bool(os.environ.get("MEMORY_HUB_CLIENT_DISPLAY_NAME")),
-        "summary_set": bool(os.environ.get("MEMORY_HUB_CLIENT_SUMMARY")),
     }
 
 
@@ -609,16 +589,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--user-id",
         default=None,
         help="Memory Hub user id; install 时必填，持久化到用户环境变量 MEMORY_HUB_CLIENT_USER_ID",
-    )
-    parser.add_argument(
-        "--display-name",
-        default=None,
-        help="用户显示名称，持久化到 MEMORY_HUB_CLIENT_DISPLAY_NAME",
-    )
-    parser.add_argument(
-        "--summary",
-        default=None,
-        help="用户概要（身份/偏好/长期目标），持久化到 MEMORY_HUB_CLIENT_SUMMARY",
     )
     return parser
 

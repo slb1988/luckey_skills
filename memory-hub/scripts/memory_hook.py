@@ -500,13 +500,11 @@ class Config:
             timeout_seconds=float(os.environ.get("MEMORY_HOOK_TIMEOUT_SECONDS", "8")),
             state_dir=state_dir,
             display_name=compact_text(
-                os.environ.get("MEMORY_HUB_CLIENT_DISPLAY_NAME")
-                or (stored_profile.display_name if use_stored_details else ""),
+                stored_profile.display_name if use_stored_details else "",
                 128,
             ),
             profile_summary=compact_text(
-                os.environ.get("MEMORY_HUB_CLIENT_SUMMARY")
-                or (stored_profile.summary if use_stored_details else ""),
+                stored_profile.summary if use_stored_details else "",
                 1024,
             ),
             identity_source=(
