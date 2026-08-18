@@ -83,7 +83,18 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HOOK_TIMEOUT_SECONDS=8
 # MEMORY_HOOK_STATE_DIR=~/.local/state/memory-hub-hook
 # MEMORY_HOOK_DEBUG=1             # 调试失败原因
+# 会话标题 / 低价值过滤（内网 vLLM，hook 与 upload_sessions.py 共用，默认开）：
+# MEMORY_HUB_TITLE_LLM=1          # 0 关闭，关闭后退化为启发式标题且不做低价值过滤
+# MEMORY_HUB_TITLE_LLM_BASE_URL=http://192.168.2.76:8000/v1
+# MEMORY_HUB_TITLE_LLM_MODEL=qwen3-30b
+# MEMORY_HUB_TITLE_LLM_API_KEY=vllm
+# MEMORY_HUB_TITLE_LLM_TIMEOUT=15
 ```
+
+标题与低价值判断按内容 SHA-256 缓存在 `MEMORY_HOOK_STATE_DIR/title-cache.jsonl`（追加式），
+重跑不重复调 LLM。判定为低价值（无信息量，如只发了 hi 测模型）的会话不上传：
+hook 侧 job 直接 `completed/skipped_meaningless`，批传侧计 `skipped`。
+批量归档的 session 文件内嵌标题（`agent-session-archive/2` 的 `archive.title` 字段）。
 
 User ID 解析优先级为命令行 `--user-id`、hook 输入的 `user_id`、
 `MEMORY_HUB_CLIENT_USER_ID`、当前项目最近的 `.team/settings.local.json.currentMember`，最后为本机

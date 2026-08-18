@@ -37,6 +37,16 @@ FENCED_CODE_RE = re.compile(
 )
 MAX_RECENT_MESSAGES = 10
 MAX_MESSAGE_CHARS = 32 * 1024
+TITLE_MAX_CHARS = 80
+TITLE_LLM_DEFAULT_BASE_URL = "http://192.168.2.76:8000/v1"
+TITLE_LLM_DEFAULT_MODEL = "qwen3-30b"
+THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+TRAILING_PUNCTUATION = "。.!！?？;；,，、~～…-—_ \"'`「」『』《》〈〉:："
+NOISE_USER_TEXTS = {
+    "hi", "hello", "hey", "你好", "您好", "在吗", "在么", "在",
+    "继续", "continue", "ok", "okay", "好的", "好", "嗯", "嗯嗯",
+    "test", "测试", "go", "yes", "是", "对", "谢谢", "thanks",
+}
 UNCONFIGURED_USER_ID = "unconfigured"
 LEGACY_DEFAULT_USER_ID = "sun"
 PROFILE_FILENAME = "client-profile.json"
@@ -68,6 +78,12 @@ def flatten_text(value: Any) -> str:
     if isinstance(value, str):
         return value
     if isinstance(value, list):
+        # Block-structured content (claude/pi): keep only text blocks; skip
+        # tool_result/tool_use/thinking blocks that would pollute titles.
+        if any(isinstance(item, dict) and isinstance(item.get("type"), str) for item in value):
+            return " ".join(
+                part for part in (flatten_block(item) for item in value) if part
+            )
         return " ".join(part for part in (flatten_text(item) for item in value) if part)
     if not isinstance(value, dict):
         return ""
@@ -77,6 +93,189 @@ def flatten_text(value: Any) -> str:
             if text:
                 return text
     return ""
+
+
+def flatten_block(item: Any) -> str:
+    if isinstance(item, dict) and isinstance(item.get("type"), str) and item["type"] != "text":
+        return ""
+    return flatten_text(item)
+
+
+def is_noise_user_text(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return True
+    lowered = stripped.lower()
+    if lowered in NOISE_USER_TEXTS:
+        return True
+    if stripped.startswith(("<", "/")):  # system-reminder / command wrappers, slash commands
+        return True
+    if lowered.startswith(("caveat:", "system-reminder")):
+        return True
+    return False
+
+
+def clean_llm_title(raw: str) -> str:
+    content = THINK_BLOCK_RE.sub(" ", raw)
+    first_line = ""
+    for line in content.splitlines():
+        if line.strip():
+            first_line = line.strip()
+            break
+    return compact_text(first_line.strip(TRAILING_PUNCTUATION), TITLE_MAX_CHARS)
+
+
+def heuristic_title(user_texts: List[str]) -> str:
+    for text in user_texts:
+        if not is_noise_user_text(text):
+            return compact_text(text, TITLE_MAX_CHARS)
+    return ""
+
+
+def heuristic_meaningful(user_texts: List[str]) -> bool:
+    """No-information sessions (pure greetings / model probes) need no archive."""
+    if not user_texts:
+        return True  # 没有用户文本时保守保留
+    return any(not is_noise_user_text(text) for text in user_texts)
+
+
+def title_llm_enabled() -> bool:
+    return os.environ.get("MEMORY_HUB_TITLE_LLM", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def llm_classify_session(user_texts: List[str], last_assistant: str) -> Optional[Dict[str, Any]]:
+    """Classify archival value + summarize topic via the intranet LLM.
+
+    Controlled by env (default ON): MEMORY_HUB_TITLE_LLM=0 disables;
+    MEMORY_HUB_TITLE_LLM_BASE_URL / _MODEL / _API_KEY / _TIMEOUT customize.
+    Returns {"title": str, "meaningful": bool}, or None on any failure so
+    callers fall back to heuristics.
+    """
+    if not title_llm_enabled():
+        return None
+    material = [text for text in user_texts if text and not is_noise_user_text(text)][:6]
+    if not material and not last_assistant:
+        return None
+    lines = ["用户消息 %d: %s" % (index + 1, text) for index, text in enumerate(material)]
+    if not material and user_texts:
+        lines = ["用户消息 %d: %s" % (index + 1, text) for index, text in enumerate(user_texts[:6])]
+    if last_assistant:
+        lines.append("助手最近回复: %s" % compact_text(last_assistant, 200))
+    prompt = (
+        "你是编程助手会话的归档助手。根据会话片段判断这个会话是否有归档价值，并给出主题标题。\n"
+        "没有归档价值的会话：只是打招呼、闲聊、测试模型是否可用（如只说了 hi/hello）、"
+        "没有任何实际任务或技术内容。\n"
+        "只输出 JSON：{\"meaningful\": true或false, \"title\": \"不超过20字的主题标题，meaningful为false时给空字符串\"}\n\n"
+        "会话片段：\n" + "\n".join(lines)
+    )
+    base_url = os.environ.get("MEMORY_HUB_TITLE_LLM_BASE_URL", TITLE_LLM_DEFAULT_BASE_URL).rstrip("/")
+    body = {
+        "model": os.environ.get("MEMORY_HUB_TITLE_LLM_MODEL", TITLE_LLM_DEFAULT_MODEL),
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 128,
+        "temperature": 0,
+        "chat_template_kwargs": {"enable_thinking": False},
+        "response_format": {"type": "json_object"},
+    }
+    api_key = os.environ.get("MEMORY_HUB_TITLE_LLM_API_KEY", "vllm")
+    timeout = float(os.environ.get("MEMORY_HUB_TITLE_LLM_TIMEOUT", "15"))
+    request = urllib.request.Request(
+        base_url + "/chat/completions",
+        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + api_key,
+        },
+        method="POST",
+    )
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        choices = payload.get("choices")
+        if not isinstance(choices, list) or not choices:
+            return None
+        message = choices[0].get("message")
+        if not isinstance(message, dict):
+            return None
+        verdict = json.loads(THINK_BLOCK_RE.sub(" ", str(message.get("content") or "")))
+        if not isinstance(verdict, dict):
+            return None
+        meaningful = verdict.get("meaningful")
+        title = clean_llm_title(str(verdict.get("title") or ""))
+        return {"title": title, "meaningful": bool(meaningful)}
+    except Exception:
+        return None
+
+
+def title_cache_path(state_dir: Path) -> Path:
+    return state_dir / "title-cache.jsonl"
+
+
+def load_title_cache(path: Path) -> Dict[str, Dict[str, Any]]:
+    cache: Dict[str, Dict[str, Any]] = {}
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                sha256 = record.get("sha256")
+                title = record.get("title")
+                if isinstance(sha256, str) and isinstance(title, str):
+                    cache[sha256] = {
+                        "title": title,
+                        "meaningful": bool(record.get("meaningful", True)),
+                    }
+    except OSError:
+        pass
+    return cache
+
+
+def append_title_cache(path: Path, sha256: str, title: str, meaningful: bool) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {"sha256": sha256, "title": title, "meaningful": meaningful},
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+    except OSError:
+        pass
+
+
+def classify_snapshot(
+    config: "Config", sha256: str, last_user: str, last_assistant: str
+) -> Tuple[str, bool]:
+    """Topic title + archival-worthiness for a snapshot; cached by content sha256."""
+    cache_path = title_cache_path(config.state_dir)
+    cache = load_title_cache(cache_path)
+    cached = cache.get(sha256)
+    if cached is not None:
+        return cached["title"], cached["meaningful"]
+    user_texts = [last_user] if last_user else []
+    verdict = llm_classify_session(user_texts, last_assistant)
+    if verdict is not None:
+        title = verdict["title"]
+        meaningful = verdict["meaningful"]
+    else:
+        meaningful = heuristic_meaningful(user_texts)
+        title = ""
+    if not title:
+        title = heuristic_title(user_texts)
+    append_title_cache(cache_path, sha256, title, meaningful)
+    return title, meaningful
 
 
 def extract_role_text(record: Dict[str, Any]) -> Optional[Tuple[str, str]]:
@@ -748,7 +947,7 @@ class HubClient:
         return value
 
     def ensure_memory(
-        self, job: sqlite3.Row, version: int, file_id: str
+        self, job: sqlite3.Row, version: int, file_id: str, title: str = ""
     ) -> Dict[str, Any]:
         # project/agent 归属跟随 job：project 按捕获时的工作目录分类，
         # agent 取捕获来源（pi/claude/codex），与当前进程 config 无关。
@@ -756,9 +955,10 @@ class HubClient:
         agent_id = job["source"] or self.config.agent_id
         latest_user = job["last_user"] or "未提取到用户文本"
         latest_assistant = job["last_assistant"] or "未提取到助手最终文本"
+        topic = title or compact_text(latest_user, TITLE_MAX_CHARS) or "未命名会话"
         distilled = (
-            "%s 会话归档，工作目录：%s。最近用户目标：%s。最近会话结果：%s"
-            % (job["source"], job["cwd"], latest_user, latest_assistant)
+            "%s 会话「%s」，工作目录：%s。最近用户目标：%s。最近会话结果：%s"
+            % (job["source"], topic, job["cwd"], latest_user, latest_assistant)
         )
         memory = self.request(
             "POST",
@@ -777,7 +977,7 @@ class HubClient:
                 "scope_type": "project",
                 "memory_type": "session_summary",
                 "distilled_content": distilled[: 16 * 1024],
-                "summary": latest_user[:1024],
+                "summary": topic[:1024],
                 "source_event_id": job_idempotency_key("event", job),
                 "dry_run": self.config.dry_run,
             },
@@ -791,6 +991,14 @@ class HubClient:
         project_id = job["project_id"] or self.config.archive_project_id
         agent_id = job["source"] or self.config.agent_id
         user_id = job["user_id"]
+        title, meaningful = classify_snapshot(
+            self.config,
+            job["sha256"],
+            job["last_user"] or "",
+            job["last_assistant"] or "",
+        )
+        if not meaningful:
+            return {"status": "skipped_meaningless", "title": title}
         session = self.request(
             "GET",
             "/v1/sessions/%s" % job["session_id"],
@@ -809,7 +1017,7 @@ class HubClient:
                 agent_id=agent_id,
             )
             if latest.get("content_sha256") == job["sha256"]:
-                ensured = self.ensure_memory(job, latest_version, latest["file_id"])
+                ensured = self.ensure_memory(job, latest_version, latest["file_id"], title)
                 return {"status": "unchanged", "version": latest_version, **ensured}
 
         snapshot_path = Path(job["snapshot_path"])
@@ -876,7 +1084,7 @@ class HubClient:
             },
         )
         version = int(version_response["version"])
-        ensured = self.ensure_memory(job, version, file_id)
+        ensured = self.ensure_memory(job, version, file_id, title)
         return {"status": "captured", "version": version, "file_id": file_id, **ensured}
 
     def search(
