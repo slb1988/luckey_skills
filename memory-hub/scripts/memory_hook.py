@@ -51,7 +51,8 @@ def normalize_identifier(value: str, fallback: str) -> str:
 
 
 def project_id_for_cwd(cwd: str, fallback: str) -> str:
-    return normalize_identifier(Path(cwd).name if cwd else "", fallback)
+    # 按工作根目录名分类归档（小写归一，避免 MainDev/maindev 分裂）。
+    return normalize_identifier(Path(cwd).name if cwd else "", fallback).lower()
 
 
 def compact_text(value: str, limit: int) -> str:
@@ -229,8 +230,16 @@ class Config:
         )
 
     @classmethod
-    def from_environment(cls, cwd: Optional[str] = None) -> "Config":
-        agent_id = os.environ.get("MEMORY_HUB_AGENT_ID", "claude-code-mac")
+    def from_environment(
+        cls, cwd: Optional[str] = None, default_agent_id: Optional[str] = None
+    ) -> "Config":
+        # agent_id 缺省跟随 --source（pi/claude/codex），不再硬编码单一值；
+        # MEMORY_HUB_AGENT_ID 仍可显式覆盖。
+        agent_id = (
+            os.environ.get("MEMORY_HUB_AGENT_ID")
+            or default_agent_id
+            or "claude-code-mac"
+        )
         state_dir = Path(
             os.environ.get(
                 "MEMORY_HOOK_STATE_DIR",
@@ -430,6 +439,8 @@ class StateStore:
                     "UPDATE jobs SET user_id=? WHERE user_id IS NULL",
                     (self.config.default_user_id or UNCONFIGURED_USER_ID,),
                 )
+            if "project_id" not in columns:
+                connection.execute("ALTER TABLE jobs ADD COLUMN project_id TEXT")
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_jobs_user_state "
                 "ON jobs(user_id, state, created_at)"
@@ -449,10 +460,15 @@ class StateStore:
         source_session_id: str,
         cwd: str,
         transcript_path: Path,
+        project_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         user_id = user_profile.user_id
+        # session_id 编入 project：归属（project/agent）变更后同名 session 不再
+        # 冲突（hub 端 session 归属在首版创建时固定，跨归属追加 version 会被
+        # scope 校验 403）；新旧归档各自独立，各走各的 version 序列。
         session_id = normalize_identifier(
-            "%s:%s" % (source, source_session_id), "%s-session" % source
+            "%s:%s:%s" % (source, project_id or "archive", source_session_id),
+            "%s-session" % source,
         )
         user_object_dir = self.object_dir / hashlib.sha256(
             user_id.encode("utf-8")
@@ -474,8 +490,8 @@ class StateStore:
                 INSERT OR IGNORE INTO jobs (
                     user_id, source, source_session_id, session_id, cwd, transcript_path,
                     snapshot_path, sha256, size_bytes, last_user, last_assistant,
-                    state, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)
+                    state, created_at, updated_at, project_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)
                 """,
                 (
                     user_id,
@@ -491,6 +507,7 @@ class StateStore:
                     snapshot.last_assistant,
                     now,
                     now,
+                    project_id,
                 ),
             )
             inserted = cursor.rowcount == 1
@@ -665,10 +682,11 @@ class HubClient:
         user_id: str,
         idempotency_key: Optional[str] = None,
         content_type: Optional[str] = None,
+        agent_id: Optional[str] = None,
     ) -> Dict[str, str]:
         headers = {
             "X-User-Id": user_id,
-            "X-Agent-Id": self.config.agent_id,
+            "X-Agent-Id": agent_id or self.config.agent_id,
             "X-Project-Id": project_id,
             "Accept": "application/json",
         }
@@ -691,6 +709,7 @@ class HubClient:
         idempotency_key: Optional[str] = None,
         content_type: Optional[str] = None,
         allow_404: bool = False,
+        agent_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         if json_body is not None:
             body = json.dumps(json_body, ensure_ascii=False, separators=(",", ":")).encode(
@@ -701,7 +720,7 @@ class HubClient:
             self.config.hub_url + path,
             data=body,
             method=method,
-            headers=self.headers(project_id, user_id, idempotency_key, content_type),
+            headers=self.headers(project_id, user_id, idempotency_key, content_type, agent_id),
         )
         try:
             with self.opener.open(request, timeout=self.config.timeout_seconds) as response:
@@ -726,6 +745,10 @@ class HubClient:
     def ensure_memory(
         self, job: sqlite3.Row, version: int, file_id: str
     ) -> Dict[str, Any]:
+        # project/agent 归属跟随 job：project 按捕获时的工作目录分类，
+        # agent 取捕获来源（pi/claude/codex），与当前进程 config 无关。
+        project_id = job["project_id"] or self.config.archive_project_id
+        agent_id = job["source"] or self.config.agent_id
         latest_user = job["last_user"] or "未提取到用户文本"
         latest_assistant = job["last_assistant"] or "未提取到助手最终文本"
         distilled = (
@@ -735,13 +758,14 @@ class HubClient:
         memory = self.request(
             "POST",
             "/v1/memories",
-            self.config.archive_project_id,
+            project_id,
             job["user_id"],
             idempotency_key=job_idempotency_key("memory", job),
+            agent_id=agent_id,
             json_body={
                 "schema_version": "memory-write/1",
-                "agent_id": self.config.agent_id,
-                "project_id": self.config.archive_project_id,
+                "agent_id": agent_id,
+                "project_id": project_id,
                 "session_id": job["session_id"],
                 "session_version": version,
                 "file_id": file_id,
@@ -758,7 +782,8 @@ class HubClient:
         }
 
     def upload_job(self, job: sqlite3.Row) -> Dict[str, Any]:
-        project_id = self.config.archive_project_id
+        project_id = job["project_id"] or self.config.archive_project_id
+        agent_id = job["source"] or self.config.agent_id
         user_id = job["user_id"]
         session = self.request(
             "GET",
@@ -766,6 +791,7 @@ class HubClient:
             project_id,
             user_id,
             allow_404=True,
+            agent_id=agent_id,
         )
         if session:
             latest_version = int(session["latest_version"])
@@ -774,6 +800,7 @@ class HubClient:
                 "/v1/sessions/%s/versions/%s" % (job["session_id"], latest_version),
                 project_id,
                 user_id,
+                agent_id=agent_id,
             )
             if latest.get("content_sha256") == job["sha256"]:
                 ensured = self.ensure_memory(job, latest_version, latest["file_id"])
@@ -788,6 +815,7 @@ class HubClient:
             project_id,
             user_id,
             idempotency_key=job_idempotency_key("upload", job),
+            agent_id=agent_id,
             json_body={
                 "schema_version": "file-upload/1",
                 "purpose": "session_snapshot",
@@ -800,7 +828,7 @@ class HubClient:
         upload_id = upload["upload_id"]
         file_id = upload["file_id"]
         file_status = self.request(
-            "GET", "/v1/files/%s" % file_id, project_id, user_id
+            "GET", "/v1/files/%s" % file_id, project_id, user_id, agent_id=agent_id
         )
         if file_status.get("status") != "available":
             content = snapshot_path.read_bytes()
@@ -811,12 +839,14 @@ class HubClient:
                 user_id,
                 body=content,
                 content_type="application/gzip",
+                agent_id=agent_id,
             )
             completed = self.request(
                 "POST",
                 "/v1/files/uploads/%s/complete" % upload_id,
                 project_id,
                 user_id,
+                agent_id=agent_id,
             )
             if completed.get("status") != "available":
                 raise HubError("uploaded file did not become available")
@@ -827,9 +857,10 @@ class HubClient:
             project_id,
             user_id,
             idempotency_key=job_idempotency_key("session", job),
+            agent_id=agent_id,
             json_body={
                 "schema_version": "session-version/1",
-                "agent_id": self.config.agent_id,
+                "agent_id": agent_id,
                 "project_id": project_id,
                 "file_id": file_id,
                 "base_version": base_version,
@@ -1048,14 +1079,18 @@ def command_capture(args: argparse.Namespace, config: Config, store: StateStore)
     transcript_path = Path(transcript).expanduser()
     if not transcript_path.is_file():
         return 0
+    cwd = str(hook.get("cwd") or os.getcwd())
+    # 归档 project 按工作根目录名分类（如 memory-hub / maindev / obsidianvault）。
+    project_id = project_id_for_cwd(cwd, config.archive_project_id)
     try:
         if not profile_is_ready(profile):
             queued = store.enqueue(
                 UserProfile(UNCONFIGURED_USER_ID),
                 args.source,
                 source_session_id,
-                str(hook.get("cwd") or os.getcwd()),
+                cwd,
                 transcript_path,
+                project_id,
             )
             if args.verbose:
                 print(
@@ -1069,8 +1104,9 @@ def command_capture(args: argparse.Namespace, config: Config, store: StateStore)
             profile,
             args.source,
             source_session_id,
-            str(hook.get("cwd") or os.getcwd()),
+            cwd,
             transcript_path,
+            project_id,
         )
         flushed = flush_pending(store, config, args.flush_limit)
         if args.verbose:
@@ -1208,6 +1244,7 @@ def build_parser() -> argparse.ArgumentParser:
     recall.add_argument("--max-chars", type=int, default=6000)
     search = commands.add_parser("search")
     search.add_argument("query")
+    search.add_argument("--source", choices=("claude", "codex", "pi"))
     search.add_argument("--user-id")
     search.add_argument("--display-name")
     search.add_argument("--summary")
@@ -1228,7 +1265,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    config = Config.from_environment()
+    config = Config.from_environment(
+        default_agent_id=getattr(args, "source", None)
+    )
     if args.command == "configure":
         return command_configure(args, config)
     if args.command == "capture":

@@ -20,6 +20,7 @@ from memory_hook import (
     command_configure,
     command_recall,
     flush_pending,
+    project_id_for_cwd,
     request_user_profile,
     save_client_profile,
     setup_reminder,
@@ -120,6 +121,70 @@ class MemoryHookTest(unittest.TestCase):
                 self.assertNotIn("secret = 1", markdown)
             finally:
                 snapshot.path.unlink(missing_ok=True)
+
+    def test_project_id_for_cwd_uses_work_root_folder_name_lowercased(self):
+        self.assertEqual(
+            project_id_for_cwd("D:\\Github\\Memory-Hub", "agent-history"), "memory-hub"
+        )
+        self.assertEqual(project_id_for_cwd("D:\\MainDev", "agent-history"), "maindev")
+        self.assertEqual(
+            project_id_for_cwd("D:\\Github\\ObsidianVault", "agent-history"),
+            "obsidianvault",
+        )
+        self.assertEqual(project_id_for_cwd("/home/sun/My App", "agent-history"), "my-app")
+        self.assertEqual(project_id_for_cwd("", "agent-history"), "agent-history")
+
+    def test_upload_uses_job_project_and_source_agent(self):
+        # 归档归属跟随 job：project 取捕获时的工作目录名，agent 取捕获来源，
+        # 不随当前进程 config（默认 claude-code-mac / agent-history）漂移。
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "user", "message": {"content": "hi"}}),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="claude-code-mac",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            store.enqueue(
+                self.profile(), "pi", "session-1", str(root), transcript, "memory-hub"
+            )
+            job = store.queued(1)[0]
+            client = HubClient(config)
+            calls = []
+
+            def fake_request(method, path, project_id, user_id, **kwargs):
+                calls.append((method, path, project_id, user_id, kwargs))
+                if method == "GET" and path.startswith("/v1/sessions/"):
+                    return None if kwargs.get("allow_404") else {}
+                if path == "/v1/files/uploads":
+                    return {"upload_id": "u-1", "file_id": "f-1"}
+                if path.startswith("/v1/files/"):
+                    return {"status": "available"}
+                if method == "PUT" and path.endswith("/versions"):
+                    return {"version": 1}
+                if path == "/v1/memories":
+                    return {"memory_id": "m-1", "status": "dry_run"}
+                return {}
+
+            client.request = fake_request
+            result = client.upload_job(job)
+            self.assertEqual(result["status"], "captured")
+            self.assertTrue(calls)
+            for _, _, project_id, _, kwargs in calls:
+                self.assertEqual(project_id, "memory-hub")
+                self.assertEqual(kwargs.get("agent_id"), "pi")
+            memory_call = calls[-1]
+            self.assertEqual(memory_call[4]["json_body"]["agent_id"], "pi")
+            self.assertEqual(memory_call[4]["json_body"]["project_id"], "memory-hub")
 
     def test_hub_headers_use_request_user_not_process_identity(self):
         with tempfile.TemporaryDirectory() as directory:
