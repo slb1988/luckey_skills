@@ -120,6 +120,8 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HUB_TITLE_LLM_API_KEY=vllm
 # MEMORY_HUB_TITLE_LLM_TIMEOUT=15
 # MEMORY_HUB_PROJECT_ALIASES=sununity=unity2018,foo=bar   # project 名归并，内置默认 sununity=unity2018
+# MEMORY_HUB_SKIP_CAPTURE=1     # capture 完全跳过（不入队不发请求）；auto-skill extraction
+#                               # 子 session 等明确不归档的场景由扩展自行设置，见 memory_hook.py
 ```
 
 标题与低价值判断按内容 SHA-256 缓存在 `MEMORY_HOOK_STATE_DIR/title-cache.jsonl`（追加式），

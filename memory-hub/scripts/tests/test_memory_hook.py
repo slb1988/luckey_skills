@@ -577,6 +577,124 @@ class MemoryHookTest(unittest.TestCase):
             with gzip.open(row["snapshot_path"], "rt", encoding="utf-8") as stored:
                 self.assertIsNone(json.load(stored)["user"])
 
+    def test_capture_skips_when_skip_env_set(self):
+        # MEMORY_HUB_SKIP_CAPTURE=1（auto-skill extraction 子 session 等 opt-out
+        # 场景）→ capture 直接返回，不入队任何 job。
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "user", "message": {"content": "remember"}}),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            args = SimpleNamespace(
+                user_id=None, source="pi", flush_limit=10, verbose=False
+            )
+            with patch.dict(os.environ, {"MEMORY_HUB_SKIP_CAPTURE": "1"}):
+                self.assertEqual(command_capture(args, config, store), 0)
+            self.assertEqual(store.status()["counts"], {})
+            self.assertEqual(store.status()["unconfigured_jobs"], 0)
+
+    def test_capture_skips_extraction_subsession_transcript(self):
+        # env 标记失效时的兜底：首条 user 消息以 extraction 签名开头 → 跳过。
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps(
+                    {
+                        "type": "user",
+                        "message": {
+                            "content": "You are the Skill extraction sub-agent. Analyze the ~5 messages above."
+                        },
+                    }
+                )
+                + "\n"
+                + json.dumps(
+                    {"type": "assistant", "message": {"content": "done"}}
+                ),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            args = SimpleNamespace(
+                user_id=None, source="pi", flush_limit=10, verbose=False
+            )
+            hook = {
+                "session_id": "session-1",
+                "transcript_path": str(transcript),
+                "cwd": str(root),
+            }
+            with patch("sys.stdin", io.StringIO(json.dumps(hook))):
+                with patch.dict(os.environ) as env:
+                    env.pop("MEMORY_HUB_SKIP_CAPTURE", None)
+                    self.assertEqual(command_capture(args, config, store), 0)
+            self.assertEqual(store.status()["counts"], {})
+            self.assertEqual(store.status()["unconfigured_jobs"], 0)
+
+    def test_capture_keeps_session_that_only_quotes_extraction_prompt(self):
+        # 首条消息是真实提问、后续消息才出现签名（如开发 auto-skill 本身的会话）
+        # → 不属于 extraction 子 session，必须正常归档。
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps(
+                    {"type": "user", "message": {"content": "优化 extractPrompt.ts"}}
+                )
+                + "\n"
+                + json.dumps(
+                    {
+                        "type": "assistant",
+                        "message": {
+                            "content": "首行是 You are the Skill extraction sub-agent. ..."
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id=None,
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            args = SimpleNamespace(
+                user_id=None, source="pi", flush_limit=10, verbose=False
+            )
+            hook = {
+                "session_id": "session-1",
+                "transcript_path": str(transcript),
+                "cwd": str(root),
+            }
+            with patch("sys.stdin", io.StringIO(json.dumps(hook))):
+                with patch.dict(os.environ) as env:
+                    env.pop("MEMORY_HUB_SKIP_CAPTURE", None)
+                    self.assertEqual(command_capture(args, config, store), 0)
+            self.assertEqual(store.status()["unconfigured_jobs"], 1)
+
     def test_configure_persists_profile_and_claims_local_jobs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

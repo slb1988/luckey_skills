@@ -49,6 +49,14 @@ NOISE_USER_TEXTS = {
 }
 UNCONFIGURED_USER_ID = "unconfigured"
 LEGACY_DEFAULT_USER_ID = "sun"
+# 客户端 capture opt-out：置 "1" 时 capture 直接返回，不入队、不发任何请求。
+# 用于 auto-skill extraction 子 session 等明确不想归档的场景；env 在 hook 进程
+# spawn 时从 agent 进程继承，过滤发生在入队前，服务器零开销。
+SKIP_CAPTURE_ENV = "MEMORY_HUB_SKIP_CAPTURE"
+# 兜底签名：auto-skill extraction 子 session 的首条 user 消息一定以此开头
+# （对应 .pi/extensions/auto-skill/lib/extractPrompt.ts 首行，改该行需同步此处）。
+# 防 dispose 时序导致 env 标记已恢复；正常 session 首条消息是真实用户提问，不会误杀。
+EXTRACTION_PROMPT_PREFIX = "You are the Skill extraction sub-agent."
 PROFILE_FILENAME = "client-profile.json"
 TEAM_SETTINGS_PATH = Path(".team") / "settings.local.json"
 # 历史目录名归并：E:\sununity 的归档统一进 unity2018 project。
@@ -320,6 +328,31 @@ def extract_role_text(record: Dict[str, Any]) -> Optional[Tuple[str, str]]:
             text = flatten_text(payload.get("message") or payload.get("content"))
             return ("assistant", text) if text else None
     return None
+
+
+def transcript_is_extraction_subsession(transcript_path: Path) -> bool:
+    """首条 user 消息以 extraction 签名开头 → 是 auto-skill 的 extraction 子 session。
+
+    流式早退，只读到第一条 user 消息为止（extraction 转录内嵌整个主会话，可能很大）。
+    """
+    try:
+        with transcript_path.open("r", encoding="utf-8", errors="replace") as transcript:
+            for line in transcript:
+                if not line.strip():
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(event, dict):
+                    continue
+                extracted = extract_role_text(event)
+                if not extracted or extracted[0] != "user":
+                    continue
+                return extracted[1].lstrip().startswith(EXTRACTION_PROMPT_PREFIX)
+    except OSError:
+        pass
+    return False
 
 
 @dataclass(frozen=True)
@@ -1470,6 +1503,9 @@ def format_context(
 
 
 def command_capture(args: argparse.Namespace, config: Config, store: StateStore) -> int:
+    # opt-out：auto-skill extraction 子 session 等场景置 MEMORY_HUB_SKIP_CAPTURE=1
+    if os.environ.get(SKIP_CAPTURE_ENV) == "1":
+        return 0
     hook = read_hook_input()
     profile = request_user_profile(
         config,
@@ -1484,6 +1520,9 @@ def command_capture(args: argparse.Namespace, config: Config, store: StateStore)
         return 0
     transcript_path = Path(transcript).expanduser()
     if not transcript_path.is_file():
+        return 0
+    # env 标记的兜底：按首条 user 消息签名识别 extraction 子 session
+    if transcript_is_extraction_subsession(transcript_path):
         return 0
     cwd = str(hook.get("cwd") or os.getcwd())
     # 归档 project 按工作根目录名分类（如 memory-hub / maindev / obsidianvault）。
