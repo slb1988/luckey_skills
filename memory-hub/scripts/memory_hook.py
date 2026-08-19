@@ -531,16 +531,22 @@ class Snapshot:
     message_count: int
 
 
-def build_snapshot(
-    transcript_path: Path,
-    source: str,
-    normalized_session_id: str,
-    cwd: str,
-    object_dir: Path,
-    user_profile: Optional[UserProfile] = None,
-) -> Snapshot:
-    object_dir.mkdir(parents=True, exist_ok=True)
-    recent_messages = deque(maxlen=MAX_RECENT_MESSAGES)
+@dataclass
+class FullPackage:
+    path: Path
+    sha256: str
+    size_bytes: int
+
+
+def source_format_for(source: str) -> str:
+    """与 hub session_usage / dashboard usage_scan / 前端 sessionParse 的判定链一致：
+    pi → claude-code-jsonl → jsonl(codex)。claude 必须显式区分，否则被误判为 codex。"""
+    return "claude-code-jsonl" if source == "claude" else "jsonl"
+
+
+def read_transcript_events(transcript_path: Path) -> List[Dict[str, Any]]:
+    """逐行读取 transcript，返回全部合法 JSON 事件（原样，不 sanitize/不截断）。"""
+    events: List[Dict[str, Any]] = []
     with transcript_path.open("r", encoding="utf-8", errors="replace") as transcript:
         for line in transcript:
             if not line.strip():
@@ -549,15 +555,86 @@ def build_snapshot(
                 event = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if not isinstance(event, dict):
-                continue
-            extracted = extract_role_text(event)
-            if not extracted:
-                continue
-            role, raw_text = extracted
-            text = sanitize_message_text(raw_text)
-            if text:
-                recent_messages.append({"role": role, "content": text})
+            if isinstance(event, dict):
+                events.append(event)
+    return events
+
+
+def build_full_package(
+    events: List[Dict[str, Any]],
+    source: str,
+    normalized_session_id: str,
+    cwd: str,
+    transcript_path: Path,
+    object_dir: Path,
+) -> FullPackage:
+    """完整 session 文件（agent-session-full/1）：全量事件原样打包，信息不缺失，
+    供 dashboard 完整记录视图 / review / token 用量提取。"""
+    object_dir.mkdir(parents=True, exist_ok=True)
+    temporary = tempfile.NamedTemporaryFile(
+        prefix="full-", suffix=".json.gz", dir=str(object_dir), delete=False
+    )
+    temporary_path = Path(temporary.name)
+    try:
+        with temporary, gzip.GzipFile(
+            filename="", fileobj=temporary, mode="wb", mtime=0
+        ) as compressed:
+            compressed.write(
+                json.dumps(
+                    {
+                        "schema_version": "agent-session-full/1",
+                        "source": {
+                            "agent": source,
+                            "session_id": normalized_session_id,
+                            "cwd": cwd,
+                            "transcript_path": str(transcript_path),
+                            "format": source_format_for(source),
+                        },
+                        "events": events,
+                        "event_count": len(events),
+                    },
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            )
+        digest = hashlib.sha256()
+        with temporary_path.open("rb") as content:
+            for chunk in iter(lambda: content.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return FullPackage(
+            path=temporary_path,
+            sha256=digest.hexdigest(),
+            size_bytes=temporary_path.stat().st_size,
+        )
+    except Exception:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+def build_snapshot(
+    transcript_path: Path,
+    source: str,
+    normalized_session_id: str,
+    cwd: str,
+    object_dir: Path,
+    user_profile: Optional[UserProfile] = None,
+    events: Optional[List[Dict[str, Any]]] = None,
+    full_session: Optional[Dict[str, str]] = None,
+) -> Snapshot:
+    """记忆提取窗口快照（agent-session/3）：最近 N 条消息（去 fenced code），
+    full_session 指针关联完整 session 文件（ADR-009 双资产）。"""
+    object_dir.mkdir(parents=True, exist_ok=True)
+    recent_messages = deque(maxlen=MAX_RECENT_MESSAGES)
+    if events is None:
+        events = read_transcript_events(transcript_path)
+    for event in events:
+        extracted = extract_role_text(event)
+        if not extracted:
+            continue
+        role, raw_text = extracted
+        text = sanitize_message_text(raw_text)
+        if text:
+            recent_messages.append({"role": role, "content": text})
 
     temporary = tempfile.NamedTemporaryFile(
         prefix="snapshot-", suffix=".json.gz", dir=str(object_dir), delete=False
@@ -575,13 +652,13 @@ def build_snapshot(
             filename="", fileobj=temporary, mode="wb", mtime=0
         ) as compressed:
             payload = {
-                "schema_version": "agent-session/2",
+                "schema_version": "agent-session/3",
                 "source": {
                     "agent": source,
                     "session_id": normalized_session_id,
                     "cwd": cwd,
                     "transcript_path": str(transcript_path),
-                    "format": "jsonl",
+                    "format": source_format_for(source),
                 },
                 "user": user_profile.as_dict() if user_profile else None,
                 "window": {
@@ -591,6 +668,9 @@ def build_snapshot(
                 },
                 "messages": list(recent_messages),
             }
+            if full_session:
+                # 指针：本快照提取自哪个完整 session 文件（命名对象名 + 内容 sha）
+                payload["full_session"] = full_session
             compressed.write(
                 json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(
                     "utf-8"
@@ -660,6 +740,11 @@ class StateStore:
                 )
             if "project_id" not in columns:
                 connection.execute("ALTER TABLE jobs ADD COLUMN project_id TEXT")
+            if "full_path" not in columns:
+                # 双资产（ADR-009）：完整 session 文件的 spool 副本；老 job 为 NULL
+                connection.execute("ALTER TABLE jobs ADD COLUMN full_path TEXT")
+                connection.execute("ALTER TABLE jobs ADD COLUMN full_sha256 TEXT")
+                connection.execute("ALTER TABLE jobs ADD COLUMN full_size_bytes INTEGER")
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_jobs_user_state "
                 "ON jobs(user_id, state, created_at)"
@@ -692,6 +777,13 @@ class StateStore:
         user_object_dir = self.object_dir / hashlib.sha256(
             user_id.encode("utf-8")
         ).hexdigest()[:16]
+        # 双资产：完整 session 文件（events 原样）+ 窗口快照（内嵌 full_session 指针）。
+        # full 的 sha 进入快照内容 → transcript 任何变化都会传导到快照 sha，
+        # upload 时的 unchanged 判定（对比快照 sha）保持正确。
+        events = read_transcript_events(transcript_path)
+        full = build_full_package(
+            events, source, session_id, cwd, transcript_path, user_object_dir
+        )
         snapshot = build_snapshot(
             transcript_path,
             source,
@@ -699,9 +791,16 @@ class StateStore:
             cwd,
             user_object_dir,
             None if user_id == UNCONFIGURED_USER_ID else user_profile,
+            events=events,
+            full_session={
+                "object_name": "%s/%s" % (source, transcript_path.name),
+                "content_sha256": full.sha256,
+            },
         )
         final_path = user_object_dir / (snapshot.sha256 + ".json.gz")
         os.replace(str(snapshot.path), str(final_path))
+        full_final_path = user_object_dir / (full.sha256 + ".full.json.gz")
+        os.replace(str(full.path), str(full_final_path))
         now = time.time()
         with self.connect() as connection:
             cursor = connection.execute(
@@ -709,8 +808,9 @@ class StateStore:
                 INSERT OR IGNORE INTO jobs (
                     user_id, source, source_session_id, session_id, cwd, transcript_path,
                     snapshot_path, sha256, size_bytes, last_user, last_assistant,
-                    state, created_at, updated_at, project_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)
+                    state, created_at, updated_at, project_id,
+                    full_path, full_sha256, full_size_bytes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     user_id,
@@ -727,6 +827,9 @@ class StateStore:
                     now,
                     now,
                     project_id,
+                    str(full_final_path),
+                    full.sha256,
+                    full.size_bytes,
                 ),
             )
             inserted = cursor.rowcount == 1
