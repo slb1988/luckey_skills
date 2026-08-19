@@ -141,6 +141,10 @@ Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`（仅
 > 详细参考：[agent-integration](references/agent-integration.md)（install、身份配置、环境变量、命令）
 
 <memory category="troubleshooting">
+在刚执行完 install 的**同一 shell** 里跑 `install_hooks.py check --agents auto`，`identity.source` 显示 `missing` 是预期——user-id 环境变量已写入 `~/.profile`/`~/.zprofile` 但当前进程未加载；新开终端或重启 agent 后即正常。不要据此重装或重复 configure。
+</memory>
+
+<memory category="troubleshooting">
 agent-integration.md 的 install/configure 示例命令是 macOS 写法（`/usr/bin/python3`、`/Users/sun/...`）。Windows 上曾发现扩展配置里原样保留了 `/usr/bin/python3` 这个 Unix 路径导致 hook 无法执行——Windows 端 hook 失效先查安装命令里的 python 解释器路径，须改为本机 Windows python 全路径。排查「关窗提示有进程未结束」是否 hook 残留时，按命令行列 python.exe 分辨：本机常驻 python 通常是 UnrealMCP 和 pytest，与 memory-hook 无关；memory_hook.py 是逐事件短进程，正常不常驻。
 </memory>
 
