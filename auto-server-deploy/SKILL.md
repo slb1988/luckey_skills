@@ -43,6 +43,15 @@ description: Full-stack deploy of the auto-server frontend and backend on dev@au
 | 客户端 | `auto-server` |
 | 字符集 | `utf8`（**必须**，Unicode 服务器） |
 
+> **⚠️ 本机 shell 默认 P4 环境指向错误服务器**：登录 auto-server 后，shell 的 `P4PORT/P4USER/P4CLIENT` 默认指向 `192.168.2.236:1666` + `CyanCookCI`，但该 server 上**没有** `auto-server` client，`p4 have` 返回空、`p4 changes` 无输出，容易误判为同步失败。真正用于本工作区的源是 **`admin_sun@192.168.2.13:1666` + client `auto-server`**。手动跑 p4 时务必显式指定：
+>
+> ```bash
+> P4="-u admin_sun -p 192.168.2.13:1666 -c auto-server"
+> p4 $P4 sync
+> ```
+>
+> `deploy.sh` 已内置这些参数，无需关心；但脚本外的手动操作（查看版本、手动 sync）会被默认环境误导。
+
 ## 注册自定义环境变量（防 p4 覆盖）
 
 后端进程需要自定义环境变量时（如 AI Review 的独立 P4 账号），**必须写在本 skill 的 `scripts/deploy.sh` B5 启动前**，不能写进后端工作区：
