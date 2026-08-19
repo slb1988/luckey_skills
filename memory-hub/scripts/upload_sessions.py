@@ -824,6 +824,182 @@ def upload_session(
 
 
 # ---------------------------------------------------------------------------
+# Backfill-full：为存量快照 session 补传完整 session 文件（ADR-009 双资产）
+# ---------------------------------------------------------------------------
+# 语义：只补 full 文件 + 等价快照新版本（纯本地构建），不走 LLM title、不重写
+# memory（存量快照链路已执行过，重复执行很费）。session 不存在（hook 从未
+# capture 过）则跳过——那些走正常全量上传模式。
+
+import gzip  # noqa: E402  (backfill 段集中使用)
+
+
+def _gzip_bytes(document: Dict[str, Any]) -> bytes:
+    """确定性 gzip（mtime=0）：同一文档跨机器得到同一 SHA-256。"""
+    raw = json.dumps(document, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return gzip.compress(raw, mtime=0)
+
+
+def _source_format_for(source: str) -> str:
+    """与 hub session_usage / dashboard usage_scan / 前端 sessionParse 判定链一致。"""
+    return "claude-code-jsonl" if source == "claude" else "jsonl"
+
+
+def build_full_package_bytes(session: SessionFile, session_id: str) -> bytes:
+    """完整 session 文件（agent-session-full/1）：全量事件原样，信息不缺失。"""
+    return _gzip_bytes(
+        {
+            "schema_version": "agent-session-full/1",
+            "source": {
+                "agent": session.source,
+                "session_id": session_id,
+                "cwd": session.cwd,
+                "transcript_path": str(session.path),
+                "format": _source_format_for(session.source),
+            },
+            "events": session.events,
+            "event_count": len(session.events),
+        }
+    )
+
+
+def build_backfill_snapshot_bytes(
+    session: SessionFile, session_id: str, full_object_name: str, full_sha256: str
+) -> bytes:
+    """等价窗口快照（agent-session/3）：与 hook 快照同构（最近 N 条消息窗口），
+    内嵌 full_session 指针关联完整文件。内容含 full sha → 全量文件变化时快照
+    sha 随之变化，commit 幂等键自然失效产生新版本。"""
+    return _gzip_bytes(
+        {
+            "schema_version": "agent-session/3",
+            "source": {
+                "agent": session.source,
+                "session_id": session_id,
+                "cwd": session.cwd,
+                "transcript_path": str(session.path),
+                "format": _source_format_for(session.source),
+            },
+            "window": {
+                "max_messages": MAX_RECENT_MESSAGES,
+                "message_count": len(session.recent_messages),
+                "fenced_code_removed": True,
+            },
+            "messages": session.recent_messages,
+            "full_session": {
+                "object_name": full_object_name,
+                "content_sha256": full_sha256,
+            },
+        }
+    )
+
+
+def _upload_blob(
+    client: HubClient,
+    agent_id: str,
+    idem: str,
+    blob: bytes,
+    object_name: Optional[str] = None,
+) -> str:
+    """上传一个 gzip blob（幂等键含内容 sha），返回 file_id。"""
+    sha = hashlib.sha256(blob).hexdigest()
+    request: Dict[str, Any] = {
+        "schema_version": "file-upload/1",
+        "purpose": "session_snapshot",
+        "media_type": "application/gzip",
+        "compression": "gzip",
+        "size_bytes": len(blob),
+        "sha256": sha,
+    }
+    if object_name is not None:
+        request["object_name"] = object_name
+    upload = client.request(
+        "POST", "/v1/files/uploads", agent_id, idempotency_key=idem, json_body=request
+    )
+    upload_id = upload["upload_id"]
+    file_id = upload["file_id"]
+    file_status = client.request("GET", "/v1/files/%s" % file_id, agent_id)
+    if not file_status or file_status.get("status") != "available":
+        client.request(
+            "PUT",
+            "/v1/files/uploads/%s/content" % upload_id,
+            agent_id,
+            body=blob,
+            content_type="application/gzip",
+        )
+        completed = client.request(
+            "POST", "/v1/files/uploads/%s/complete" % upload_id, agent_id
+        )
+        if not completed or completed.get("status") != "available":
+            raise HubError("uploaded file did not become available")
+    return file_id
+
+
+def backfill_full(
+    client: HubClient, session: SessionFile, agent_id: str, project_id: str
+) -> UploadResult:
+    """为存量快照 session 补传完整 session 文件：
+    full（命名对象覆盖写）+ 等价快照新版本（full_file_id 关联），不重写 memory。
+    """
+    # 与 hook 一致的三段式 session_id（source:project:uuid）
+    sid = normalize_identifier(
+        "%s:%s:%s" % (session.source, project_id, session.source_session_id),
+        "%s-session" % session.source,
+    )
+    existing = client.request("GET", "/v1/sessions/%s" % sid, agent_id, allow_404=True)
+    if not existing:
+        return UploadResult(
+            status="skipped", session_id=sid, detail="no existing session (never captured)"
+        )
+    if existing.get("status") == "deleted":
+        return UploadResult(status="skipped", session_id=sid, detail="session is deleted")
+
+    full_object_name = "%s/%s" % (session.source, session.path.name)
+    full_blob = build_full_package_bytes(session, sid)
+    full_sha = hashlib.sha256(full_blob).hexdigest()
+    snapshot_blob = build_backfill_snapshot_bytes(session, sid, full_object_name, full_sha)
+    snapshot_sha = hashlib.sha256(snapshot_blob).hexdigest()
+
+    latest_version = int(existing["latest_version"])
+    latest = client.request(
+        "GET", "/v1/sessions/%s/versions/%s" % (sid, latest_version), agent_id
+    )
+    if latest and latest.get("full_file_id") and latest.get("content_sha256") == snapshot_sha:
+        return UploadResult(
+            status="skipped", session_id=sid, detail="already has up-to-date full file",
+            version=latest_version,
+        )
+
+    full_file_id = _upload_blob(
+        client,
+        agent_id,
+        idem_key("backfill-full", sid, full_sha),
+        full_blob,
+        object_name=full_object_name,
+    )
+    snapshot_file_id = _upload_blob(
+        client, agent_id, idem_key("backfill-snapshot", sid, snapshot_sha), snapshot_blob
+    )
+    version_response = client.request(
+        "PUT",
+        "/v1/sessions/%s/versions" % sid,
+        agent_id,
+        idempotency_key=idem_key("backfill-commit", sid, snapshot_sha),
+        json_body={
+            "schema_version": "session-version/1",
+            "agent_id": agent_id,
+            "project_id": project_id,
+            "file_id": snapshot_file_id,
+            "full_file_id": full_file_id,
+            "base_version": latest_version,
+            "update_mode": "append",
+            "session_schema": "%s-session" % session.source,
+            "session_schema_version": "3",
+        },
+    )
+    version = int(version_response["version"])
+    return UploadResult(status="uploaded", session_id=sid, version=version)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -904,6 +1080,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--api-key",
         default=os.environ.get("MEMORY_HUB_API_KEY"),
         help="Bearer token (production only)",
+    )
+    parser.add_argument(
+        "--backfill-full",
+        action="store_true",
+        help="Backfill mode (ADR-009): for sessions ALREADY on the hub (three-part "
+        "hook session id source:project:uuid), upload the full session file "
+        "(named object, overwrite) + an equivalent snapshot version carrying the "
+        "full_session pointer. Pure local build: no LLM title, no memory rewrite. "
+        "Sessions not on the hub are skipped.",
     )
     parser.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout seconds")
     parser.add_argument("--limit", type=int, default=0, help="Process at most N files")
@@ -988,6 +1173,65 @@ def main(argv: Optional[List[str]] = None) -> int:
                 % (index, total, result.session_id, path.name, result.detail)
             )
             continue
+        agent_id = args.agent_id or SOURCE_AGENT_DEFAULTS.get(session.source, session.source)
+        # 按工作根目录名分类归档（小写归一，避免 MainDev/maindev 分裂），与 hook 一致；
+        # 已在 hub 存在的 session 归属在首版固定，沿用其原 project。
+        mapped_project = existing_map.get(session.archive_session_id)
+        if args.project_id:
+            project_id = args.project_id
+        elif mapped_project:
+            project_id = mapped_project
+        else:
+            derived = normalize_identifier(
+                Path(session.cwd).name if session.cwd else "", "agent-history"
+            ).lower()
+            project_id = project_aliases.get(derived, derived)
+
+        if args.backfill_full:
+            # 补传模式：纯本地构建，不走 LLM title / finalize / memory 重写
+            sid_preview = normalize_identifier(
+                "%s:%s:%s" % (session.source, project_id, session.source_session_id),
+                "%s-session" % session.source,
+            )
+            if args.dry_run or client is None:
+                print(
+                    "[dry-run %d/%d] backfill-full | %s | project=%s session=%s events=%d"
+                    % (index, total, path.name, project_id, sid_preview, session.event_count)
+                )
+                continue
+            upload_client = client
+            if project_id != client.config.project_id:
+                if project_id not in per_project_clients:
+                    per_project_clients[project_id] = HubClient(
+                        HubConfig(
+                            hub_url=client.config.hub_url,
+                            user_id=client.config.user_id,
+                            project_id=project_id,
+                            api_key=client.config.api_key,
+                            timeout_seconds=client.config.timeout_seconds,
+                        )
+                    )
+                upload_client = per_project_clients[project_id]
+            try:
+                result = backfill_full(upload_client, session, agent_id, project_id)
+            except HubError as error:
+                failures += 1
+                result = UploadResult(status="failed", session_id=sid_preview, detail=str(error))
+            results.append(result)
+            if args.verbose or result.status == "failed" or index % 50 == 0 or index == total:
+                print(
+                    "[%d/%d] %s | %s | %s %s"
+                    % (
+                        index,
+                        total,
+                        result.status,
+                        result.session_id,
+                        path.name,
+                        ("| " + result.detail) if result.detail else "",
+                    )
+                )
+            continue
+
         resolve_classification(
             session,
             title_cache,
@@ -1010,19 +1254,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 continue
         if not args.dry_run:
             finalize_payload(session)
-        agent_id = args.agent_id or SOURCE_AGENT_DEFAULTS.get(session.source, session.source)
-        # 按工作根目录名分类归档（小写归一，避免 MainDev/maindev 分裂），与 hook 一致；
-        # 已在 hub 存在的 session 归属在首版固定，沿用其原 project。
-        mapped_project = existing_map.get(session.archive_session_id)
-        if args.project_id:
-            project_id = args.project_id
-        elif mapped_project:
-            project_id = mapped_project
-        else:
-            derived = normalize_identifier(
-                Path(session.cwd).name if session.cwd else "", "agent-history"
-            ).lower()
-            project_id = project_aliases.get(derived, derived)
+        # agent_id / project_id 已在上方统一计算（backfill 分支共用）
 
         if args.dry_run or client is None:
             print(
