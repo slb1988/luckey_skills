@@ -480,14 +480,22 @@ def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[Sess
                 summary_value = record.get("summary")
                 if isinstance(summary_value, str):
                     claude_summary = summary_value
+            payload = record.get("payload")
             if not cwd and isinstance(record.get("cwd"), str):
                 cwd = record["cwd"]
+            if not cwd and isinstance(payload, dict) and isinstance(payload.get("cwd"), str):
+                # codex 新格式（session_meta）：cwd 在 payload 内
+                cwd = payload["cwd"]
             if not started_at and isinstance(record.get("timestamp"), str):
                 started_at = record["timestamp"]
-            if not codex_session_id:
-                payload = record.get("payload")
-                if isinstance(payload, dict) and payload.get("type") == "session":
+            if not codex_session_id and isinstance(payload, dict):
+                if payload.get("type") == "session":
                     codex_session_id = str(payload.get("id") or "")
+                elif record.get("type") == "session_meta":
+                    # codex 新格式：首行 session_meta，真实 uuid 在 payload.id
+                    codex_session_id = str(
+                        payload.get("id") or payload.get("session_id") or ""
+                    )
             extracted = extract_role_text(record)
             if not extracted:
                 continue

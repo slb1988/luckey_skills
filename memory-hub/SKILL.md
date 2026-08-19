@@ -175,7 +175,11 @@ Hub，每个文件成为独立 session（`{source}:{原始session_id}`），并�
 capture 只处理当前 live transcript）。
 
 <memory category="code-locations">
-历史 session 文件位置（Windows）：Claude Code 在 `%USERPROFILE%\.claude\projects\<slug>\*.jsonl`（文件名即 session UUID）；Pi 在 `%USERPROFILE%\.pi\agent\sessions\<slug>\*.jsonl`（文件名 `<UTC时间戳>_<uuid>.jsonl`，单项目可积累上千个）。两者 slug 方案不同：`E:\sununity` 在 Claude 是 `E--sununity`，在 Pi 是 `--E--sununity--`——定位时按 `sessions/` 实际列表匹配，不要自行推算。
+历史 session 文件位置（Windows）：Claude Code 在 `%USERPROFILE%\.claude\projects\<slug>\*.jsonl`（文件名即 session UUID）；Pi 在 `%USERPROFILE%\.pi\agent\sessions\<slug>\*.jsonl`（文件名 `<UTC时间戳>_<uuid>.jsonl`，单项目可积累上千个）；Codex 在 `%USERPROFILE%\.codex\sessions\`（递归子目录，单机可积累数百个、上百 MB）。 slug 方案各家不同：`E:\sununity` 在 Claude 是 `E--sununity`，在 Pi 是 `--E--sununity--`——定位时按 `sessions/` 实际列表匹配，不要自行推算。
+</memory>
+
+<memory category="troubleshooting">
+Codex 新格式 session 文件首行是 `session_meta` 记录，cwd 与 session uuid 只存在于该行的 payload 内、无法从文件路径推出。旧版 `upload_sessions.py` 不识别该格式时 cwd 全部丢失——实测 238 个 codex session 会全部落入兜底 project 且 session id 退化为文件名；已修补 `scan_session_file` 支持（dry-run 238/238 解析成功）。批量归档不熟悉的来源前，先 `--dry-run` 核对 cwd 解析率和 session id 形态（应为 `{source}:{project}:{uuid}` 三段式）再实际上传。
 </memory>
 
 幂等保证：对包装后的归档文档（`agent-session-archive/1`，服务端要求 session 文件必须是合法 JSON，
