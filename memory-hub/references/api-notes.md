@@ -3,6 +3,40 @@
 服务端仓库的 `docs/API_CONTRACT.md` 是权威契约；本文件记录客户端**实测确认**的契约细节与常用 curl。
 权威契约与本文件冲突时以权威契约为准，并更新本文件。
 
+## 端点总览
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/health/live` | 存活探针 |
+| GET | `/health/ready` | 就绪探针（含 graphiti/metadata 依赖） |
+| POST | `/v1/files/uploads` | 初始化文件上传（只收元数据 + SHA-256） |
+| PUT | `/v1/files/uploads/{upload_id}/content` | 上传 session JSON 原始字节流 |
+| POST | `/v1/files/uploads/{upload_id}/complete` | 校验并置为 available |
+| GET | `/v1/files/{file_id}` / `/download` | 文件元数据 / 下载 |
+| POST | `/v1/sessions` | 由 Hub 分配 session_id |
+| PUT | `/v1/sessions/{session_id}/versions` | 提交不可变 session 版本 |
+| GET | `/v1/sessions/{session_id}` / `/versions/{v}` | 查询 latest / 确定版本 |
+| POST | `/v1/memories` | 写入精炼记忆（返回 202，初始 pending） |
+| GET | `/v1/memories/{memory_id}` | 查询索引状态 |
+| POST | `/v1/memories/search` | 检索记忆 |
+| GET | `/v1/projects` | 列出已知 project（含 memory/session 计数，用于选择检索 scope） |
+
+## 完整写入流程（顺序固定）
+
+```text
+初始化上传 → 上传字节流 → complete 校验 → 提交 SessionVersion → 写精炼 Memory → 等 submitted/indexed
+```
+
+1. `POST /v1/files/uploads`：传 `size_bytes`、`sha256`、`media_type`、`compression`，拿 `upload_id` + `file_id`。
+2. `PUT /v1/files/uploads/{upload_id}/content`：`--data-binary @file`，原始字节流，不 base64。
+3. `POST .../complete`：等 `status: available`。
+4. `PUT /v1/sessions/{id}/versions`：首版本 `base_version=null, update_mode=replace`；后续 `base_version=latest, update_mode=append`（文件仍是完整快照）。
+5. `POST /v1/memories`：传 `session_id/session_version/file_id` + `scope_type` + `memory_type` + `distilled_content` + `summary`，拿 `memory_id`（状态 `pending`）。
+6. `GET /v1/memories/{id}` 轮询直到 `indexed`。
+
+约束详见下文「变更端点必须带 Idempotency-Key」与「文件上传通道的字段约束」。
+完整带变量的 curl 示例见服务端仓库 `docs/USAGE.md` 第 7 节。
+
 ## 变更端点必须带 Idempotency-Key
 
 `POST /v1/files/uploads`、`PUT /v1/sessions/{id}/versions`、`POST /v1/memories` 等写操作要求
@@ -53,3 +87,26 @@ curl -sS "$HUB_URL/health/ready"
 # 4) 下载已归档 session 文件（验证归档保真度）
 curl -sS "$HUB_URL/v1/files/{file_id}/download" -H "X-User-Id: $USER_ID" -H "X-Agent-Id: $AGENT_ID" -H "X-Project-Id: $PROJECT_ID"
 ```
+
+## Memory 索引状态
+
+- `pending`：已可靠落库，尚未投递 Graphiti。
+- `submitted`：Graphiti 已接受，等待 episode 可查询确认。
+- `indexed`：对应 group 最近 episodes 中已确认该 memory_id。
+- `failed`：永久错误或重试耗尽（看 `error_code`）。
+
+## 错误码表
+
+| code | 处理 |
+|---|---|
+| `UNAUTHENTICATED` | 检查 Bearer token、X-Agent-Id/X-Project-Id |
+| `SCOPE_FORBIDDEN` | 资源越权；global 写需受信角色 |
+| `RAW_SESSION_CONTENT_FORBIDDEN` | 完整内容改走文件上传通道 |
+| `FILE_TOO_LARGE` | 超 100MiB 原始 / 250MiB 解压上限 |
+| `FILE_NOT_AVAILABLE` | 先 complete，或上传已过期需重新初始化 |
+| `SESSION_REFERENCE_MISMATCH` | session/version/file 不是同一确定版本 |
+| `SESSION_VERSION_CONFLICT` | base 不是 latest；拉 latest 重生成快照 |
+| `IDEMPOTENCY_CONFLICT` | 同 key 用于不同请求；换新 key |
+| `GRAPHITI_UNAVAILABLE` | 检查 `10.77.77.6:8005/healthcheck`；≠空结果 |
+
+所有错误返回 `error.code/message/request_id/retryable/details`，`request_id` 同时出现在 `X-Request-Id` 响应头。

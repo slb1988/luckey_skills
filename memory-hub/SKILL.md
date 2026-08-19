@@ -56,7 +56,7 @@ outbox 重试与错误、最近更新的 session 列表、Graphiti episode 探�
 |------|------|
 | 部署 / 启动 / 重启 / 备份 / 排障 | [references/deploy.md](references/deploy.md) |
 | 观测面板（dashboard）开发/部署备忘 | [references/dashboard.md](references/dashboard.md) |
-| API 实测备忘（Idempotency-Key、字段约束、错误码、常用 curl） | [references/api-notes.md](references/api-notes.md) |
+| API 参考（端点总览、写入流程、索引状态、错误码）与实测备忘（Idempotency-Key、字段约束、常用 curl） | [references/api-notes.md](references/api-notes.md) |
 | 已知 project 一览与检索 scope 选择 | [references/projects.md](references/projects.md) |
 | Hook 安装 / 身份配置 / 环境变量 | [references/agent-integration.md](references/agent-integration.md) |
 | outbox 确认机制 / 大批量 retry 判读（graphiti 排队 vs 确认失效） | [memory-center/references/ingest-performance.md](../../memory-center/references/ingest-performance.md) |
@@ -92,40 +92,10 @@ group_id 由服务端计算，客户端不能注入：
 
 搜索自动覆盖调用者可读的 `global` + `user:xxx` + `project:xxx` + `agent:xxx` 四个 group，客户端不传 `group_ids`。
 
-## HTTP API 概览
+## HTTP API 与写入流程
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/health/live` | 存活探针 |
-| GET | `/health/ready` | 就绪探针（含 graphiti/metadata 依赖） |
-| POST | `/v1/files/uploads` | 初始化文件上传（只收元数据 + SHA-256） |
-| PUT | `/v1/files/uploads/{upload_id}/content` | 上传 session JSON 原始字节流 |
-| POST | `/v1/files/uploads/{upload_id}/complete` | 校验并置为 available |
-| GET | `/v1/files/{file_id}` / `/download` | 文件元数据 / 下载 |
-| POST | `/v1/sessions` | 由 Hub 分配 session_id |
-| PUT | `/v1/sessions/{session_id}/versions` | 提交不可变 session 版本 |
-| GET | `/v1/sessions/{session_id}` / `/versions/{v}` | 查询 latest / 确定版本 |
-| POST | `/v1/memories` | 写入精炼记忆（返回 202，初始 pending） |
-| GET | `/v1/memories/{memory_id}` | 查询索引状态 |
-| POST | `/v1/memories/search` | 检索记忆 |
-| GET | `/v1/projects` | 列出已知 project（含 memory/session 计数，用于选择检索 scope） |
-
-## 完整写入流程（顺序固定）
-
-```text
-初始化上传 → 上传字节流 → complete 校验 → 提交 SessionVersion → 写精炼 Memory → 等 submitted/indexed
-```
-
-1. `POST /v1/files/uploads`：传 `size_bytes`、`sha256`、`media_type`、`compression`，拿 `upload_id` + `file_id`。
-2. `PUT /v1/files/uploads/{upload_id}/content`：`--data-binary @file`，原始字节流，不 base64。
-3. `POST .../complete`：等 `status: available`。
-4. `PUT /v1/sessions/{id}/versions`：首版本 `base_version=null, update_mode=replace`；后续 `base_version=latest, update_mode=append`（文件仍是完整快照）。
-5. `POST /v1/memories`：传 `session_id/session_version/file_id` + `scope_type` + `memory_type` + `distilled_content` + `summary`，拿 `memory_id`（状态 `pending`）。
-6. `GET /v1/memories/{id}` 轮询直到 `indexed`。
-
-约束（实测）：**写操作必须带 `Idempotency-Key` 头**；`media_type` 仅 `application/json`/`application/gzip`；
-session 文件必须是**合法 JSON 文档**，原始 .jsonl 会被拒。常用 curl 与字段细节见 [api-notes](references/api-notes.md)。
-完整带变量的 curl 示例见 `docs/USAGE.md` 第 7 节。
+端点总览、固定写入流程（初始化上传 → 字节流 → complete → SessionVersion → memory → 等 indexed）、
+Memory 索引状态与错误码表见 [api-notes](references/api-notes.md)。
 
 ## 检索
 
@@ -168,6 +138,10 @@ agent-integration.md 的 install/configure 示例命令是 macOS 写法（`/usr/
 Spool job 在 capture 时固化 `user_id`（这是设计，防止补传到错误用户）。副作用：身份配置变更（如 install 写入新的 `MEMORY_HUB_CLIENT_USER_ID`）之前积压的 queued job 仍带旧身份，flush 时持续报 `SCOPE_FORBIDDEN` 且不会自愈（实测一次积压 11 个）。看到 spool 反复 403 时直接清理这些旧 job，不要当作服务端权限配置问题排查。
 </memory>
 
+<memory category="troubleshooting">
+`scripts/tests/` 在 Windows 本机跑 pytest 稳定有 13 个用例失败（10 passed），失败点全在 tearDown 的 `shutil.rmtree`——spool.sqlite3 文件锁 PermissionError，属 Windows 平台既有环境问题（stash 验证未改动代码同样 13 败），不是 regression。评估改动是否破坏测试时对比改动前后的失败集合；要干净结果去 Linux/macOS 跑。
+</memory>
+
 ## 手动上传历史 session（upload_sessions.py）
 
 `scripts/upload_sessions.py`（仅标准库）把任意机器/目录下的历史 session 记录（`.jsonl`）批量上传到
@@ -201,30 +175,7 @@ python3 "$SKILL_DIR/scripts/upload_sessions.py" --project-id unity2018 --dry-run
 
 - `--user-id` 默认取 hook 的 client-profile；`--source/--agent-id` 可强制来源与身份。
 - 目录会递归扫描 `*.jsonl`；`--limit N` 可先小批量验证。
-- 大量上传后 memory 经 outbox 异步投递 Graphiti，`indexed` 状态用 `GET /v1/memories/{id}` 跟踪。
-
-## Memory 索引状态
-
-- `pending`：已可靠落库，尚未投递 Graphiti。
-- `submitted`：Graphiti 已接受，等待 episode 可查询确认。
-- `indexed`：对应 group 最近 episodes 中已确认该 memory_id。
-- `failed`：永久错误或重试耗尽（看 `error_code`）。
-
-## 常见错误
-
-| code | 处理 |
-|---|---|
-| `UNAUTHENTICATED` | 检查 Bearer token、X-Agent-Id/X-Project-Id |
-| `SCOPE_FORBIDDEN` | 资源越权；global 写需受信角色 |
-| `RAW_SESSION_CONTENT_FORBIDDEN` | 完整内容改走文件上传通道 |
-| `FILE_TOO_LARGE` | 超 100MiB 原始 / 250MiB 解压上限 |
-| `FILE_NOT_AVAILABLE` | 先 complete，或上传已过期需重新初始化 |
-| `SESSION_REFERENCE_MISMATCH` | session/version/file 不是同一确定版本 |
-| `SESSION_VERSION_CONFLICT` | base 不是 latest；拉 latest 重生成快照 |
-| `IDEMPOTENCY_CONFLICT` | 同 key 用于不同请求；换新 key |
-| `GRAPHITI_UNAVAILABLE` | 检查 `10.77.77.6:8005/healthcheck`；≠空结果 |
-
-所有错误返回 `error.code/message/request_id/retryable/details`，`request_id` 同时出现在 `X-Request-Id` 响应头。
+- 大量上传后 memory 经 outbox 异步投递 Graphiti，`indexed` 状态用 `GET /v1/memories/{id}` 跟踪（索引状态定义见 [api-notes](references/api-notes.md)）。
 
 ## 关键坑位
 
