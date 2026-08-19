@@ -1,0 +1,66 @@
+# Ingest 链路吞吐实测报告（2026-08-18 批量补传实测）
+
+一次 655 条 memory 批量补传（upload_sessions.py）暴露并量化了整条链路的吞吐特征。
+数据来源：graphiti `llm_calls.jsonl`（2750 次调用样本）、hub SQLite outbox、Neo4j 直连核验。
+
+## 链路结构
+
+```text
+upload/hook → memory-hub outbox(add_episode) → graphiti 内存队列 → 单 worker → LLM 网关 → Neo4j
+                   ↓                                                           ↑
+            outbox(confirm_episode) ── GET /episodes/{group}?last_n=N ── 轮询确认
+```
+
+## graphiti ingest 性能特征（核心瓶颈）
+
+| 指标 | 实测值 |
+|---|---|
+| 消费模型 | **单 asyncio worker task**，队列严格串行（`patches/ingest.py` 的 `AsyncWorker`） |
+| 每 episode LLM 调用数 | **~24.6 次** |
+| ├ medium（kimi-k3，实体/边抽取） | ~3 次，**avg 13.6s/次**，p99 27s |
+| └ small（deepseek-v4-flash，逐边去重/解析） | ~21 次，avg 3.1s/次 |
+| 单 episode 串行延迟 | p50 **89s**，p90 167s |
+| 实际吞吐 | **~85 episodes/小时**（~42s/条，内部有部分 gather 并发） |
+| 排空估算 | 650 条积压 ≈ **7.5-8 小时** |
+| LLM 错误率 | 极低（2750 次中 1 次限流、2 次解析失败）→ 网关有并发余量 |
+| 容器 CPU | 30-55%（大部分时间在等 LLM IO），**NAS CPU 不是瓶颈** |
+
+结论：吞吐 = 单 worker × 每条 25 次 LLM 调用 × 网关延迟 的串行乘积。
+加速优先级：① worker 并发化（`AsyncWorker.start()` 改为 `create_task` × N，4 并发→~2h 排空；
+风险：同 group 并发时边去重可能产生少量重复实体/边）；② medium 换快模型（质量下降，不建议为补传换）；
+③ 补传端限速（upload_sessions.py 大批量加速率上限，避免洪峰）。
+
+## memory-hub outbox 确认机制
+
+- 每条 memory 产生一个 outbox 事件，两段式：`add_episode` 成功后**原地改写**为
+  `confirm_episode`（attempt_count 归零、status=retry），确认成功才 completed。
+- **episode uuid == memory_id**：graphiti 侧 ingest.py 补丁在 add_episode 前按 uuid MERGE 预建
+  EpisodicNode，使 hub 可用 memory_id 直接确认。
+- confirm 实现：`GraphitiClient.episode_exists()` 每事件每轮调
+  `GET /episodes/{group}?last_n={GRAPHITI_EPISODE_CONFIRM_LIMIT=100000}`，拉**全量 episode
+  （含完整 content）**在客户端逐个比 uuid。N 个待确认事件 = 每轮 N 次全量查询。
+- 重试策略（.env）：`OUTBOX_MAX_ATTEMPTS=100000`（实际永不失败）、退避 2^n 秒封顶
+  `OUTBOX_MAX_BACKOFF_SECONDS=3600`、`OUTBOX_POLL_SECONDS=1`。
+- 大批量补传时 retry 堆积是**正常现象**（episode 还在 graphiti 队列里，`episode is not
+  indexed yet` 为真），队列排空后自动转 completed/indexed；抽样直连 Neo4j 验证
+  `Episodic.uuid` 命中即可区分「真排队」与「确认逻辑失效」。
+- 低效放大点：confirm 逐条轮询 + dashboard episode 探测（秒级 `last_n=100000`）叠加，
+  给 graphiti/neo4j 增加可观的只读负载。可优化为 group 级批量确认（每 group 每轮查一次）。
+
+## 分析方法（可复用）
+
+| 目的 | 方法 |
+|---|---|
+| graphiti 队列深度 | `docker logs memory-center-graphiti \| grep "remaining queue" \| tail` |
+| 处理速率 | `docker logs --since 2h ... \| grep -c "Got a job"` |
+| LLM 延迟/调用数分布 | 解析 `logs/graphiti/llm_calls.jsonl`（字段含 latency_ms/model/size/caller/episode_uuid/status；200MB 自动轮转归档，历史保留） |
+| episode 是否已入 Neo4j | cypher-ro `POST :8006/query`，body 字段名是 **`cypher`**（不是 query），头 `Authorization: Bearer $DASHBOARD_NEO4J_GATEWAY_TOKEN`（token 在 memory-hub `.env`）；`MATCH (n:Episodic {uuid:'<memory_id>'}) RETURN n.uuid, n.created_at` |
+| hub outbox 堆积 | SQLite `data/memory-hub.sqlite3` 的 `outbox` 表，按 `status/last_error/attempt_count/substr(created_at,1,13)` 聚合 |
+| 端到端对账 | retry 集合的 aggregate_id 批量 `WHERE n.uuid IN [...]` 查 cypher-ro：命中=已入库待确认，未命中=仍在 graphiti 队列 |
+
+## 判读速查
+
+- retry 全是 `episode is not indexed yet` + graphiti 队列深度 ≈ retry 数 → **正常排队**，等即可。
+- retry 的 episode 已在 Neo4j 查到但 hub 一直不 confirm → 确认逻辑/查询路径失效（查
+  `episode_confirm_limit` 是否小于 group episode 总量、`/episodes` 响应是否含 uuid 字段）。
+- 长时间没有新的 `Got a job` → ingest worker 死了（补丁后理论上不会，仍需先排除）。

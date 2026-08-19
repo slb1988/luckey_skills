@@ -26,6 +26,7 @@ description: Memory Center（Graphiti 时序知识图谱记忆服务）运维与
 | 运维命令 / 备份 / 重新部署 | [references/operations.md](references/operations.md) |
 | 切换 LLM / Embedding provider | [references/provider-switch.md](references/provider-switch.md) |
 | 换 embedding 模型后的数据迁移 (re-embed) | [references/reembedding.md](references/reembedding.md) |
+| ingest 吞吐瓶颈 / 批量补传实测 / outbox 确认判读 | [references/ingest-performance.md](references/ingest-performance.md) |
 
 ## 架构
 
@@ -33,6 +34,7 @@ description: Memory Center（Graphiti 时序知识图谱记忆服务）运维与
 |------|--------|------|------|------|------|
 | Neo4j | `memory-center-neo4j` | `neo4j:5.26-community` | 7474 (HTTP) / 7687 (Bolt) | 运行中 | 图数据库 |
 | Graphiti | `memory-center-graphiti` | `zepai/graphiti:latest` (core 0.22.0) | **8005** → 8000 | 运行中 | REST API + Swagger |
+| 只读 Cypher 网关 | `memory-center-cypher-ro` | `zepai/graphiti:latest`（复用镜像，零构建） | **8006** → 8000 | 运行中 | 外部只读查图，Bearer token 认证 |
 | Ollama | `memory-center-ollama` | `ollama/ollama:latest` | 11434 | **已停用(未卸载)** | 旧本地 embedding (bge-m3)，备选 |
 
 数据流：Graphiti 调 **Kimi 网关 (kimi-k3 主 / deepseek-v4-flash small，Anthropic 协议)** 做实体/关系抽取 → 调 **百炼 DashScope (qwen3.7-text-embedding)** 生成 1024 维向量 → 写入 Neo4j。
@@ -54,8 +56,9 @@ description: Memory Center（Graphiti 时序知识图谱记忆服务）运维与
 
 ```
 memory-center/
-├── compose.yml          # 三容器编排 (ollama 保留但已停用)
-├── .env                 # 两把阿里云 key / Neo4j 密码 / embedding 配置
+├── compose.yml          # 四容器编排 (ollama 保留但已停用)
+├── .env                 # 两把阿里云 key / Neo4j 密码 / RO_TOKEN / embedding 配置
+├── cypher-ro/cypher_ro.py  # 只读 Cypher 网关代码（bind mount 进容器）
 ├── config/neo4j.conf    # Neo4j 内存配置（heap 512m / pagecache 256m）
 ├── data/neo4j/          # Neo4j 数据
 ├── data/ollama/         # Ollama 模型 (bge-m3 已拉取，未删除)
@@ -130,8 +133,32 @@ volumes:
 
 > 修改补丁后必须 `docker compose restart graphiti`（bind mount 内容变化不会触发 recreate，需重启进程重新 import）。
 
+## 只读 Cypher 网关（cypher-ro，端口 8006）
+
+给外部/dashboard 提供只读查图能力。**背景**：Neo4j Community 版不支持 RBAC（`GRANT ROLE` 是 Enterprise 功能，`SHOW ROLES`/`GRANT` 均报 `Unsupported administration command`），任何 `CREATE USER` 出来的账号都是**全权限**（实测可 CREATE/DELETE）——所以「建只读账号直连 7687」在社区版做不到，改用本网关做只读强制。
+
+- **只读强制**：所有查询在显式 READ access-mode 事务中执行（`execute_read`），写查询被服务端直接拒（`Neo.ClientError.Statement.AccessMode` → 403）；另有预检拦 `dbms.*`/用户/数据库管理命令；返回上限默认 500 行（最大 2000），查询超时 30s。
+- **铁律（修订版）**：外部读图一律走 8006 网关（只读账号 + 只读查询由网关强制）；**写入永远走 Graphiti REST (8005) / Memory Hub**，任何组件不得用 neo4j 管理员账号直连 7687 做写入。7474/7687 仅用于本机运维和 Neo4j Browser 临时看图。
+- 实现：复用 `zepai/graphiti:latest` 镜像（自带 python3.12 + fastapi + neo4j driver），零构建；代码 `cypher-ro/cypher_ro.py` bind mount，改代码后 `docker compose restart cypher-ro`。
+- 认证：`Authorization: Bearer $RO_TOKEN`（token 在 `.env` 的 `RO_TOKEN`）。
+
+```bash
+TOKEN=$(grep -E '^RO_TOKEN=' .env | cut -d= -f2)
+
+# 统计聚合
+curl -X POST http://10.77.77.6:8006/query -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"cypher":"MATCH (n) RETURN labels(n) AS labels, count(*) AS c"}'
+
+# episode↔entity MENTIONS 联查
+curl -X POST http://10.77.77.6:8006/query -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"cypher":"MATCH (e:Episodic)-[:MENTIONS]->(n:Entity) RETURN n.name, count(e) AS episodes ORDER BY episodes DESC", "limit": 10}'
+```
+
 ## 关键坑位
 
+- **Neo4j Community 版没有 RBAC**：`GRANT ROLE` 等管理命令报 `Unsupported administration command`；`CREATE USER` 可执行但新账号是全权限（实测可写可删），**绝不能**作为「只读账号」对外发放。外部只读访问走 cypher-ro 网关（8006）。
 - **Neo4j 管理员用户名必须是 `neo4j`**。`NEO4J_AUTH` 只允许设置 neo4j 的密码，写其他用户名报 `Invalid admin username, it must be neo4j.`。
 - **改 Neo4j 密码后要清空 `data/neo4j/`**：数据用旧密码加密，无法登录。
 - **`qwen3.7-text-embedding` 只在百炼 DashScope 端点存在**（`sk-ws-...` key）；Kimi 网关/DeepSeek 都不提供 embedding。
@@ -170,7 +197,7 @@ docker stats memory-center-neo4j memory-center-graphiti
 
 **端口检查**（部署前确认无占用）：
 ```bash
-for p in 8005 7474 7687 11434; do
+for p in 8005 8006 7474 7687 11434; do
   (exec 3<>/dev/tcp/127.0.0.1/$p) 2>/dev/null && echo "$p 已占用" || echo "$p 空闲"
 done
 ```
