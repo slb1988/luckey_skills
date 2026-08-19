@@ -21,6 +21,7 @@ Memory Hub 提供 `GET /v1/projects` 列出已知 project（含 memory/session �
 | `claude-history` | Mac 端 Claude Code 会话历史提炼记忆 | claude-code-mac，2026-08 活跃 |
 | `memory-hub` | memory-hub 项目自身 | pi 端为主 |
 | `mini-as` | 教学脚本引擎 `D:\Github\mini-as` | 2026-08 手动归档新建 |
+| `sun-p4` | QNAP P4 depot（`E:\My\pc_qnap_depot_9516`）工具区：claude-code 源码分析/二开（去遥测、/buddy、打包 exe、TUI 渲染、SKILL.md 整理） | 2026-08 codex 归档新建，15 sessions |
 | `admin` | `C:\Users\admin` cwd 派生 + `embedding` merge 目标 | merged_sources: embedding |
 | `devops` | 旧 DevOps 仓库 `D:\SunLaibing_Depot_8603\DevOps`（PreCheckin / SKILL.index） | 2026-08 手动归档新建 |
 | `evavm` | EvaVM `D:\Github\EvaVM` | |
@@ -31,10 +32,16 @@ Memory Hub 提供 `GET /v1/projects` 列出已知 project（含 memory/session �
 | `home` | 家庭/个人环境相关记录 | claude-code-mac，少量记忆 |
 | `speech_to_text` / `examples` / `luckey_skills` / `helloworld` | pi 端小型/试验项目 | 各 1-2 sessions |
 
-## Windows 本机 Claude Code 归档别名（2026-08 大批量归档定版）
+## Project 别名定版（assets/project-aliases.json）
 
-派生名（cwd 末级目录小写）→ 目标 project。批量上传时用 `--project-alias` 传入，
-避免按目录名无限分裂出新 project；新目录先查本表，再决定是否新增独立 project：
+派生名（cwd 末级目录小写）→ 目标 project 的映射**以 skill 仓库
+`assets/project-aliases.json` 为准**（版本化模板，带 `version` 字段）。
+`install_hooks.py install` 会把它部署到 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/project-aliases.json`，
+三端 hook capture 与 `upload_sessions.py` 批量归档共用；`check` 对本地副本做版本比对，
+修改模板后递增 `version` 并重跑 install。优先级：内置默认 < `MEMORY_HUB_PROJECT_ALIASES`
+环境变量 < 安装的 JSON < CLI `--project-alias`。
+
+2026-08 定版的完整映射（Windows 本机 Claude Code + Codex 大批量归档）：
 
 | 派生名 | 实际 cwd | 目标 project |
 |---|---|---|
@@ -47,10 +54,16 @@ Memory Hub 提供 `GET /v1/projects` 列出已知 project（含 memory/session �
 | downloads / admin | `C:\Users\admin\Downloads`、`C:\Users\admin` | `agent-history` |
 | angelscript / mem0 / hindsight | 一次性仓库调研（内容少或与仓库无关） | `agent-history` |
 | sununity | `E:\sununity` | `unity2018`（脚本内置别名） |
+| claude-code / claude-code-best | `...\pc_qnap_depot_9516\001-Common\Tools\claude-code[-best]`、`D:\Github\claude-code` | `sun-p4` |
+| pc_qnap_depot_9516 | `E:\My\pc_qnap_depot_9516`（depot 根，内容同样是 claude-code 分析） | `sun-p4` |
+| unrealengine-angelscript | `D:\UnrealEngine-Angelscript` | `maindev` |
+| system32 / a / subapi / n-r / da-mo / rag / zep-graphs-1-entities-facts-episodes | `C:\Windows\System32`、`C:\Users\admin\Documents\Codex\*` 一次性 scratch | `agent-history` |
 
 归档命令定版：`--hook-namespace --agent-id claude`（与本机 hook 三段式 session id
 同轨，resume 后 hook 接续追加版本）；`E--sununity` 那条两段式旧归档用
 `--existing-map` + `--skip-existing` 跳过，避免双轨重复。
+2026-08 Codex 归档（238 sessions）同轨执行：`--hook-namespace`（agent-id 默认 codex），
+别名全部由安装的 JSON 提供，无需 CLI 传入；LLM 判定 35 个低价值会话未上传。
 
 ## scope 速查
 

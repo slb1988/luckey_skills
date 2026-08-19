@@ -70,7 +70,45 @@ def normalize_identifier(value: str, fallback: str) -> str:
     return normalized[:128]
 
 
+PROJECT_ALIASES_FILENAME = "project-aliases.json"
+
+
+def default_state_dir() -> Path:
+    return Path(
+        os.environ.get(
+            "MEMORY_HOOK_STATE_DIR",
+            str(Path.home() / ".local" / "state" / "memory-hub-hook"),
+        )
+    ).expanduser()
+
+
+def load_installed_project_aliases() -> Dict[str, str]:
+    """读取 install_hooks.py 部署到 state dir 的 project 别名 JSON。
+
+    模板是 skill 仓库的 assets/project-aliases.json（版本化，进 git）；三端
+    hook 与 upload_sessions.py 共用此文件，保证 project 归并口径一致。
+    """
+    path = default_state_dir() / PROJECT_ALIASES_FILENAME
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    raw = data.get("aliases") if isinstance(data, dict) else None
+    if not isinstance(raw, dict):
+        return {}
+    aliases: Dict[str, str] = {}
+    for key, value in raw.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        src = normalize_identifier(key.strip().lower(), "")
+        dst = normalize_identifier(value.strip().lower(), "")
+        if src and dst:
+            aliases[src] = dst
+    return aliases
+
+
 def project_aliases() -> Dict[str, str]:
+    # 优先级：内置默认 < 环境变量 < install 部署的 JSON 定版。
     aliases = dict(DEFAULT_PROJECT_ALIASES)
     for item in os.environ.get("MEMORY_HUB_PROJECT_ALIASES", "").split(","):
         item = item.strip()
@@ -81,6 +119,7 @@ def project_aliases() -> Dict[str, str]:
         dst = normalize_identifier(dst, "")
         if src and dst:
             aliases[src] = dst
+    aliases.update(load_installed_project_aliases())
     return aliases
 
 

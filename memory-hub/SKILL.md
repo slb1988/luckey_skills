@@ -44,6 +44,7 @@ outbox 重试与错误、最近更新的 session 列表、Graphiti episode 探�
 | 运行日志 | `data/memory-hub.log` |
 | 独立 Hook App | `scripts/memory_hook.py`（仅 Python 标准库） |
 | 手动 session 上传 | `scripts/upload_sessions.py`（仅 Python 标准库，幂等批量归档历史 session） |
+| project 别名定版 | `assets/project-aliases.json`（install 部署到 state dir，hook 与批传共用） |
 
 <memory category="common-patterns">
 `MEMORY_HUB_TITLE_LLM` 代码默认 `0`（关闭时退化为启发式标题、不做低价值过滤），置 `1` 才走内网 vLLM。本机是通过 **Machine 作用域**环境变量开启的（`=1`）——在新进程里发现标题走 LLM 属预期；其他机器若想开启须自行设该变量，不要改代码默认值。

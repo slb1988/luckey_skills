@@ -302,29 +302,59 @@ def resolve_classification(
         append_title_cache(cache_path, session.content_sha256, title, meaningful)
 
 
+PROJECT_ALIASES_FILENAME = "project-aliases.json"
+
+
+def load_installed_project_aliases() -> Dict[str, str]:
+    """读取 install_hooks.py 部署到 state dir 的 project 别名 JSON（模板为
+    skill 仓库 assets/project-aliases.json），与 memory_hook.py 共用口径。"""
+    state_dir = os.environ.get("MEMORY_HOOK_STATE_DIR")
+    base = Path(state_dir) if state_dir else Path.home() / ".local" / "state" / "memory-hub-hook"
+    try:
+        data = json.loads((base / PROJECT_ALIASES_FILENAME).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    raw = data.get("aliases") if isinstance(data, dict) else None
+    if not isinstance(raw, dict):
+        return {}
+    aliases: Dict[str, str] = {}
+    for key, value in raw.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        src = normalize_identifier(key.strip().lower(), "")
+        dst = normalize_identifier(value.strip().lower(), "")
+        if src and dst:
+            aliases[src] = dst
+    return aliases
+
+
+def _apply_alias_pairs(aliases: Dict[str, str], source: str) -> None:
+    for item in source.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if "=" not in item:
+            print(
+                "warning: ignore invalid project alias %r (expect from=to)" % item,
+                file=sys.stderr,
+            )
+            continue
+        src, dst = (part.strip().lower() for part in item.split("=", 1))
+        src = normalize_identifier(src, "")
+        dst = normalize_identifier(dst, "")
+        if src and dst:
+            aliases[src] = dst
+
+
 def load_project_aliases(cli_aliases: Optional[List[str]]) -> Dict[str, str]:
+    # 优先级：内置默认 < 环境变量 < install 部署的 JSON 定版 < CLI --project-alias。
     aliases = dict(DEFAULT_PROJECT_ALIASES)
-    sources: List[str] = []
     env_value = os.environ.get("MEMORY_HUB_PROJECT_ALIASES", "")
     if env_value:
-        sources.append(env_value)
-    sources.extend(cli_aliases or [])
-    for source in sources:
-        for item in source.split(","):
-            item = item.strip()
-            if not item:
-                continue
-            if "=" not in item:
-                print(
-                    "warning: ignore invalid project alias %r (expect from=to)" % item,
-                    file=sys.stderr,
-                )
-                continue
-            src, dst = (part.strip().lower() for part in item.split("=", 1))
-            src = normalize_identifier(src, "")
-            dst = normalize_identifier(dst, "")
-            if src and dst:
-                aliases[src] = dst
+        _apply_alias_pairs(aliases, env_value)
+    aliases.update(load_installed_project_aliases())
+    for source in cli_aliases or []:
+        _apply_alias_pairs(aliases, source)
     return aliases
 
 

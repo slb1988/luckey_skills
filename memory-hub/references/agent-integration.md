@@ -120,9 +120,17 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HUB_TITLE_LLM_API_KEY=vllm
 # MEMORY_HUB_TITLE_LLM_TIMEOUT=15
 # MEMORY_HUB_PROJECT_ALIASES=sununity=unity2018,foo=bar   # project 名归并，内置默认 sununity=unity2018
+#   ↑ 优先级低于 install 部署的别名 JSON（见下），仅作无安装环境的 fallback
 # MEMORY_HUB_SKIP_CAPTURE=1     # capture 完全跳过（不入队不发请求）；auto-skill extraction
 #                               # 子 session 等明确不归档的场景由扩展自行设置，见 memory_hook.py
 ```
+
+Project 别名定版文件：skill 仓库 `assets/project-aliases.json` 是版本化模板（进 git），
+`install_hooks.py install` 会把它部署到 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/project-aliases.json`；
+`memory_hook.py`（三端 hook capture）与 `upload_sessions.py`（批量归档）都读取这份本地副本，
+优先级：内置默认 < 环境变量 < 安装的 JSON < CLI `--project-alias`。修改模板后递增 `version`
+并重跑 install；`check` 会对本地副本做版本比对（outdated 时提示 rerun install）。
+已知映射一览见 [projects.md](projects.md)。
 
 标题与低价值判断按内容 SHA-256 缓存在 `MEMORY_HOOK_STATE_DIR/title-cache.jsonl`（追加式），
 重跑不重复调 LLM。判定为低价值（无信息量，如只发了 hi 测模型）的会话不上传：

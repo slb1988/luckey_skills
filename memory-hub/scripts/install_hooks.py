@@ -25,6 +25,8 @@ from typing import Any, Dict, Iterable, List
 SKILL_DIR = Path(__file__).resolve().parent.parent
 MEMORY_HOOK = SKILL_DIR / "scripts" / "memory_hook.py"
 PI_TEMPLATE = SKILL_DIR / "assets" / "pi-memory-hub.ts"
+ALIAS_TEMPLATE = SKILL_DIR / "assets" / "project-aliases.json"
+ALIAS_FILENAME = "project-aliases.json"
 MANAGED_COMMAND_MARKER = "memory-hub/scripts/memory_hook.py"
 
 PROFILE_BLOCK_BEGIN = "# >>> memory-hub identity >>>"
@@ -409,6 +411,76 @@ def verify_or_trust_codex(
         return {"ok": True, "trusted": len(hooks), "path": str(hooks_path)}
 
 
+def alias_state_dir(home: Path) -> Path:
+    override = os.environ.get("MEMORY_HOOK_STATE_DIR")
+    if override:
+        return Path(override).expanduser()
+    return home / ".local" / "state" / "memory-hub-hook"
+
+
+def _alias_version(data: Any) -> str:
+    return str(data.get("version") or "") if isinstance(data, dict) else ""
+
+
+def install_project_aliases(home: Path) -> Dict[str, Any]:
+    """把 assets/project-aliases.json 部署到 hook state dir。
+
+    memory_hook.py（三端 hook capture）与 upload_sessions.py（批量归档）都读
+    这份本地副本，保证 project 归并口径一致。atomic_write 自带 .memory-hub.bak
+    备份与 unchanged 短路。
+    """
+    target = alias_state_dir(home) / ALIAS_FILENAME
+    try:
+        content = ALIAS_TEMPLATE.read_text(encoding="utf-8")
+        data = json.loads(content)
+    except (OSError, json.JSONDecodeError) as error:
+        raise InstallError("alias template unreadable: %s" % error)
+    if not isinstance(data, dict) or not isinstance(data.get("aliases"), dict):
+        raise InstallError("alias template has no 'aliases' object")
+    changed = atomic_write(target, content if content.endswith("\n") else content + "\n")
+    return {
+        "ok": True,
+        "changed": changed,
+        "path": str(target),
+        "version": _alias_version(data),
+    }
+
+
+def check_project_aliases(home: Path) -> Dict[str, Any]:
+    target = alias_state_dir(home) / ALIAS_FILENAME
+    try:
+        template_data = json.loads(ALIAS_TEMPLATE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        return {"ok": False, "errors": ["alias template unreadable: %s" % error]}
+    template_version = _alias_version(template_data)
+    if not target.exists():
+        return {
+            "ok": False,
+            "errors": ["project aliases not installed; rerun install"],
+            "path": str(target),
+        }
+    try:
+        installed_data = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        return {"ok": False, "errors": ["project aliases unreadable: %s" % error]}
+    installed_version = _alias_version(installed_data)
+    if template_version and installed_version != template_version:
+        return {
+            "ok": False,
+            "errors": [
+                "project aliases version %s is outdated (managed %s); rerun install"
+                % (installed_version or "<none>", template_version)
+            ],
+            "path": str(target),
+        }
+    return {
+        "ok": True,
+        "errors": [],
+        "path": str(target),
+        "version": installed_version,
+    }
+
+
 def health_check() -> Dict[str, Any]:
     url = os.environ.get("MEMORY_HUB_URL", "http://10.77.77.6:9287").rstrip("/")
     try:
@@ -624,8 +696,12 @@ def main() -> int:
         if args.action == "install":
             identity = resolve_identity(args)
             result["identity"] = persist_identity(identity, args.home)
+            result["project_aliases"] = install_project_aliases(args.home)
         else:
             result["identity"] = identity_status()
+            result["project_aliases"] = check_project_aliases(args.home)
+        if not result["project_aliases"].get("ok"):
+            result["ok"] = False
         result["service"] = health_check()
         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         return 0 if result["ok"] else 1
