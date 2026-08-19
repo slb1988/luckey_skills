@@ -8,7 +8,10 @@
 - **平台/agent 互调走了系统代理被 502**：开发机 Clash 等代理会劫持内网/回环流量。SDK 内所有 httpx
   已 `trust_env=False`；自己写 httpx 调用也要加，否则注册/心跳/派发全 502。
 - **装不上/升级失败（公共 PyPI 不通）**：内网机器常态。有 Clash 先 `set HTTPS_PROXY=http://127.0.0.1:7897`
-  再试；不行用离线 playbook——从平台托管 wheel 页 curl 两个 wheel 到本地，
+  再试；无代理的国内机器改用镜像：`UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple/`
+  （腾讯云/清华源亦可）再跑 install 脚本——注意脚本的 pip 兜底分支在 uv 管理的 Python 上会撞
+  PEP 668 `externally-managed-environment` 直接失败，uv 主路径必须一次成功。两条路都不行用
+  离线 playbook——从平台托管 wheel 页 curl 两个 wheel 到本地，
   `uv tool install --force --offline --with <本地 agent wheel> <本地 computer wheel>`
   （公共依赖走 uv 缓存，装过的机器缓存齐全；首次全新机器则必须先解决 PyPI 可达性）。
 - **install.ps1 假成功**：已修复（v2026-08 起显式查 `$LASTEXITCODE`）——原生命令非零退出不触发

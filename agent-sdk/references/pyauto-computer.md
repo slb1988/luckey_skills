@@ -36,6 +36,30 @@
   Windows 上 schtasks 被拒（令牌未提权/策略限制）时的等效替代：Startup 文件夹放一个指向
   `~/.local/bin/pyauto-computer.exe supervisor` 的快捷方式。
 
+## 跨网段 / 受限网络接入（0.4.1 QNAP NAS 实测）
+
+install 短链与真实脚本内部都**硬编码 192.168.2.13**；平台默认地址不可达的机器
+（跨网段、异地）按下面来：
+
+- **装 CLI**：用可达地址拉真实脚本、sed 替换内嵌 IP 再执行（短链转发目标也是 2.13，直接跑会超时）：
+  ```bash
+  curl -fsSL --max-time 30 http://<可达IP>:5000/agent_platform/a2a/computer/install.sh \
+    | sed 's/192\.168\.2\.13/<可达IP>/g' | sh
+  ```
+- **setup**：`PYAUTO_PLATFORM_URL=http://<可达IP>:5000 pyauto-computer setup`。setup 会把
+  platform_url 持久化进 `~/.pyauto/computer.json`。
+- **坑：env 覆盖不能只在 setup 时给**。`agent create/start/...` 子命令只读
+  `consts.platform_url()`（= `PYAUTO_PLATFORM_URL` 或内置默认），**不读 computer.json 里
+  持久化的 platform_url**——setup 成功后直接 `agent create` 仍报「平台不可达」。跨网段机器
+  必须把 `export PYAUTO_PLATFORM_URL=...` 写进 shell profile（如 `~/.profile`）长期生效。
+- **公共 PyPI 也不可达时**（国内服务器/QNAP 常态，与 troubleshooting 的 Clash 方案并列的
+  另一条路）：给 uv 传国内镜像 `UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple/`
+  再跑 install。注意 install.sh 的 pip 兜底分支在 uv 管理的 Python 上会撞 PEP 668
+  `externally-managed-environment` 直接失败——uv 主路径必须一次成功，镜像要在执行脚本前就
+  export 好。
+- 已知跨网段地址：auto-server 在 10.77.77.0/24 网段是 **10.77.77.4**（QNAP NAS 走此地址
+  访问平台，:5000 平台 / :80 nginx 短链同源可用）。
+
 ## 状态文件位置
 
 | 路径 | 内容 |
@@ -62,5 +86,7 @@ curl -X POST http://<本机IP>:<port>/ -H "A2A-Version: 1.0" -H "Content-Type: a
 
 ## 在库实例
 
-本机 `winbuilder3-maindev`（computer #4 / agent_id=32 / 端口 9100 / workroot=本仓库根），
-装机过程与运维细节见 `.team/win-builder/project_pyauto_computer_maindev_agent.md`。
+| 机器 | computer | agent | 端口 | workroot | 备注 |
+|---|---|---|---|---|---|
+| WinBuilder3 | #4 | winbuilder3-maindev（agent_id=32） | 9100 | MainDev 仓库根 | 装机细节见 `.team/win-builder/project_pyauto_computer_maindev_agent.md` |
+| QNAP NAS453Dmini | #5 | nas | 9100 | `/share/CACHEDEV1_DATA/homes/slb1988` | 跨网段（经 10.77.77.4 访问平台），`PYAUTO_PLATFORM_URL` 已写入 `~/.profile`；runtime=pi，平台未配 relay 走本机总线 |
