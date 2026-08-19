@@ -107,11 +107,12 @@ class MemoryHookTest(unittest.TestCase):
                 str(root),
                 root / "objects",
                 self.profile(),
+                full_session={"object_name": "codex/session.jsonl", "content_sha256": "ab" * 32},
             )
             try:
                 with gzip.open(snapshot.path, "rt", encoding="utf-8") as stored:
                     payload = json.load(stored)
-                self.assertEqual(payload["schema_version"], "agent-session/2")
+                self.assertEqual(payload["schema_version"], "agent-session/3")
                 self.assertEqual(payload["user"]["user_id"], "user-a")
                 self.assertEqual(payload["user"]["display_name"], "User A")
                 self.assertEqual(len(payload["messages"]), 10)
@@ -119,6 +120,12 @@ class MemoryHookTest(unittest.TestCase):
                 markdown = payload["messages"][-1]["content"]
                 self.assertIn("# Result", markdown)
                 self.assertNotIn("secret = 1", markdown)
+                # 双资产：快照内嵌完整 session 文件指针，不携带 events
+                self.assertNotIn("events", payload)
+                self.assertEqual(
+                    payload["full_session"],
+                    {"object_name": "codex/session.jsonl", "content_sha256": "ab" * 32},
+                )
             finally:
                 snapshot.path.unlink(missing_ok=True)
 
@@ -185,6 +192,88 @@ class MemoryHookTest(unittest.TestCase):
             memory_call = calls[-1]
             self.assertEqual(memory_call[4]["json_body"]["agent_id"], "pi")
             self.assertEqual(memory_call[4]["json_body"]["project_id"], "memory-hub")
+
+    def test_upload_sends_full_file_and_snapshot_with_pointer(self):
+        # 双资产（ADR-009）：enqueue 时构建 full 包 + 快照；upload 时先传 full
+        # （命名对象覆盖写）再传快照（CAS），commit 关联 full_file_id。
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            transcript = root / "2026-08-18T00-00-00-000Z_abc-123.jsonl"
+            transcript.write_text(
+                "\n".join(
+                    [
+                        json.dumps({"type": "session", "version": 3, "id": "abc-123"}),
+                        json.dumps({"type": "message", "message": {"role": "user", "content": "帮我修复登录接口的鉴权问题，token 过期后没有自动刷新"}}),
+                        json.dumps({"type": "message", "message": {"role": "assistant", "content": "已在 refresh 拦截器里补上重试逻辑，并加了回归测试"}}),
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="pi",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            store.enqueue(
+                self.profile(), "pi", "abc-123", str(root), transcript, "maindev"
+            )
+            job = store.queued(1)[0]
+            # spool 里固化了 full 副本
+            self.assertTrue(job["full_path"])
+            self.assertTrue(Path(job["full_path"]).is_file())
+
+            client = HubClient(config)
+            uploads = []
+
+            def fake_request(method, path, project_id, user_id, **kwargs):
+                if method == "GET" and path.startswith("/v1/sessions/"):
+                    return None if kwargs.get("allow_404") else {}
+                if path == "/v1/files/uploads":
+                    body = kwargs.get("json_body") or {}
+                    uploads.append(body)
+                    return {"upload_id": "u-%d" % len(uploads), "file_id": "f-%d" % len(uploads)}
+                if path.startswith("/v1/files/"):
+                    return {"status": "available"}
+                if method == "PUT" and path.endswith("/versions"):
+                    return {"version": 1}
+                if path == "/v1/memories":
+                    return {"memory_id": "m-1", "status": "dry_run"}
+                return {}
+
+            client.request = fake_request
+            result = client.upload_job(job)
+            self.assertEqual(result["status"], "captured")
+            self.assertEqual(result["full_file_id"], "f-1")
+            # 两次上传：full（带 object_name）在前，快照（CAS）在后
+            self.assertEqual(len(uploads), 2)
+            self.assertEqual(uploads[0]["object_name"], "pi/2026-08-18T00-00-00-000Z_abc-123.jsonl")
+            self.assertNotIn("object_name", uploads[1])
+            # 快照 /3 内嵌指针指向 full 的内容 sha
+            import gzip as _gzip
+            snapshot_payload = json.loads(
+                _gzip.decompress(Path(job["snapshot_path"]).read_bytes()).decode("utf-8")
+            )
+            self.assertEqual(snapshot_payload["schema_version"], "agent-session/3")
+            self.assertEqual(
+                snapshot_payload["full_session"]["object_name"],
+                "pi/2026-08-18T00-00-00-000Z_abc-123.jsonl",
+            )
+            self.assertEqual(
+                snapshot_payload["full_session"]["content_sha256"], job["full_sha256"]
+            )
+            self.assertNotIn("events", snapshot_payload)
+            # 完整包携带全量 events（含 session 元事件）
+            full_payload = json.loads(
+                _gzip.decompress(Path(job["full_path"]).read_bytes()).decode("utf-8")
+            )
+            self.assertEqual(full_payload["schema_version"], "agent-session-full/1")
+            self.assertEqual(full_payload["event_count"], 3)
+            self.assertEqual(full_payload["source"]["format"], "jsonl")
 
     def test_hub_headers_use_request_user_not_process_identity(self):
         with tempfile.TemporaryDirectory() as directory:

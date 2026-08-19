@@ -829,6 +829,9 @@ def upload_session(
 # 语义：只补 full 文件 + 等价快照新版本（纯本地构建），不走 LLM title、不重写
 # memory（存量快照链路已执行过，重复执行很费）。session 不存在（hook 从未
 # capture 过）则跳过——那些走正常全量上传模式。
+# --hook-namespace：正常全量上传但使用 hook 三段式 session_id + 双资产（快照
+# /3 + 完整文件 full/1 关联），与 hook capture 产物同轨同构（resume 后 hook
+# 继续追加版本，不会产生两段式平行记录）。
 
 import gzip  # noqa: E402  (backfill 段集中使用)
 
@@ -1003,10 +1006,73 @@ def backfill_full(
     return UploadResult(status="uploaded", session_id=sid, version=version)
 
 
+def upload_session_dual(
+    client: HubClient, session: SessionFile, agent_id: str, project_id: str, sid: str
+) -> UploadResult:
+    """双资产全量上传（--hook-namespace）：完整文件（命名对象覆盖写）+ 快照（/3
+    CAS，内嵌 full_session 指针），commit 关联 full_file_id，写入 memory。
+    与 hook capture 产物同构（同 session_id 轨道、同 schema）。"""
+    full_object_name = "%s/%s" % (session.source, session.path.name)
+    full_blob = build_full_package_bytes(session, sid)
+    full_sha = hashlib.sha256(full_blob).hexdigest()
+    snapshot_blob = build_backfill_snapshot_bytes(session, sid, full_object_name, full_sha)
+    snapshot_sha = hashlib.sha256(snapshot_blob).hexdigest()
+
+    existing = client.request("GET", "/v1/sessions/%s" % sid, agent_id, allow_404=True)
+    if existing:
+        latest_version = int(existing["latest_version"])
+        latest = client.request(
+            "GET", "/v1/sessions/%s/versions/%s" % (sid, latest_version), agent_id
+        )
+        if latest and latest.get("content_sha256") == snapshot_sha:
+            memory_id = ensure_memory(client, session, agent_id, latest_version, latest["file_id"])
+            return UploadResult(
+                status="skipped",
+                session_id=sid,
+                detail="content unchanged",
+                version=latest_version,
+                memory_id=memory_id,
+            )
+
+    full_file_id = _upload_blob(
+        client,
+        agent_id,
+        idem_key("dual-full", sid, full_sha),
+        full_blob,
+        object_name=full_object_name,
+    )
+    snapshot_file_id = _upload_blob(
+        client, agent_id, idem_key("dual-snapshot", sid, snapshot_sha), snapshot_blob
+    )
+    base_version = int(existing["latest_version"]) if existing else None
+    version_response = client.request(
+        "PUT",
+        "/v1/sessions/%s/versions" % sid,
+        agent_id,
+        idempotency_key=idem_key("dual-commit", sid, snapshot_sha),
+        json_body={
+            "schema_version": "session-version/1",
+            "agent_id": agent_id,
+            "project_id": project_id,
+            "file_id": snapshot_file_id,
+            "full_file_id": full_file_id,
+            "base_version": base_version,
+            "update_mode": "append" if existing else "replace",
+            "session_schema": "%s-session" % session.source,
+            "session_schema_version": "3",
+        },
+    )
+    version = int(version_response["version"])
+    memory_id = ensure_memory(client, session, agent_id, version, snapshot_file_id)
+    return UploadResult(
+        status="uploaded", session_id=sid, version=version, memory_id=memory_id
+    )
+
+
 def fetch_session_inventory(dashboard_url: str) -> Dict[str, Dict[str, Any]]:
     """从 dashboard（直读 hub SQLite 的只读 BFF）拉全量 session 清单：
-    session_id -> {project_id, status}。backfill 用它匹配两段式/三段式存量并
-    取得真实归属 project（避免探测式 404/403）。"""
+    session_id -> {project_id, agent_id, status}。backfill 用它匹配两段式/三段式
+    存量并取得真实归属 project/agent（避免探测式 404/403）。"""
     inventory: Dict[str, Dict[str, Any]] = {}
     offset = 0
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -1120,6 +1186,14 @@ def build_parser() -> argparse.ArgumentParser:
         "ids (source:project:uuid) and legacy two-part archive ids (source:uuid) "
         "via the dashboard session inventory. Pure local build: no LLM title, no "
         "memory rewrite. Sessions not on the hub are skipped.",
+    )
+    parser.add_argument(
+        "--hook-namespace",
+        action="store_true",
+        help="Upload with the hook's three-part session id (source:project:uuid) "
+        "and dual-asset packages (snapshot /3 + full file, ADR-009): same track as "
+        "hook captures, so a later resume+end appends versions instead of creating "
+        "a parallel two-part record.",
     )
     parser.add_argument(
         "--dashboard-url",
@@ -1331,6 +1405,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         if not args.dry_run:
             finalize_payload(session)
         # agent_id / project_id 已在上方统一计算（backfill 分支共用）
+        if args.hook_namespace:
+            # 三段式 session_id（与 hook capture 同轨）：resume 后 hook 追加版本，
+            # 不产生两段式平行记录
+            session.archive_session_id = normalize_identifier(
+                "%s:%s:%s" % (session.source, project_id, session.source_session_id),
+                "%s-session" % session.source,
+            )
 
         if args.dry_run or client is None:
             print(
@@ -1348,7 +1429,6 @@ def main(argv: Optional[List[str]] = None) -> int:
                 )
             )
             continue
-
         # Project can vary per file when derived from cwd; reuse a client per project.
         upload_client = client
         if project_id != client.config.project_id:
@@ -1365,7 +1445,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             upload_client = per_project_clients[project_id]
 
         try:
-            result = upload_session(upload_client, session, agent_id)
+            if args.hook_namespace:
+                result = upload_session_dual(
+                    upload_client, session, agent_id, project_id, session.archive_session_id
+                )
+            else:
+                result = upload_session(upload_client, session, agent_id)
         except HubError as error:
             failures += 1
             result = UploadResult(
