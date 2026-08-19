@@ -43,9 +43,12 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+MAX_RECENT_MESSAGES = 10
 
 IDENTIFIER_RE = re.compile(r"[^A-Za-z0-9._:-]+")
 FENCED_CODE_RE = re.compile(r"```.*?```", re.DOTALL)
@@ -350,6 +353,9 @@ class SessionFile:
     claude_summary: str = ""
     title: str = ""
     meaningful: bool = True
+    # 最近消息窗口（backfill-full 模式重建等价快照用；与 hook 的 sanitize 口径一致）
+    recent_messages: List[Dict[str, str]] = field(default_factory=list)
+    events: List[Dict[str, Any]] = field(default_factory=list)
 
 
 def detect_source(path: Path, head_records: List[Dict[str, Any]]) -> Optional[str]:
@@ -446,6 +452,7 @@ def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[Sess
     head_records: List[Dict[str, Any]] = []
     events: List[Dict[str, Any]] = []
     user_texts: List[str] = []
+    recent_messages: deque = deque(maxlen=MAX_RECENT_MESSAGES)
     cwd = ""
     started_at = ""
     first_user = ""
@@ -488,6 +495,7 @@ def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[Sess
             text = sanitize_message_text(raw_text)
             if not text:
                 continue
+            recent_messages.append({"role": role, "content": text})
             if role == "user":
                 if not first_user:
                     first_user = text
@@ -531,6 +539,8 @@ def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[Sess
         last_assistant=compact_text(last_assistant, 1400),
         user_texts=user_texts,
         claude_summary=claude_summary,
+        recent_messages=list(recent_messages),
+        events=events,
     )
 
 
