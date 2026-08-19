@@ -844,18 +844,21 @@ class StateStore:
             if inserted:
                 older = connection.execute(
                     """
-                    SELECT job_id, snapshot_path FROM jobs
+                    SELECT job_id, snapshot_path, full_path FROM jobs
                     WHERE user_id = ? AND source = ? AND source_session_id = ?
                       AND state = 'queued' AND job_id <> ?
                     """,
                     (user_id, source, source_session_id, row["job_id"]),
                 ).fetchall()
                 superseded_paths = [
-                    item["snapshot_path"] for item in older if item["snapshot_path"]
+                    item[col]
+                    for item in older
+                    for col in ("snapshot_path", "full_path")
+                    if item[col]
                 ]
                 connection.execute(
                     """
-                    UPDATE jobs SET state='superseded', snapshot_path=NULL, updated_at=?
+                    UPDATE jobs SET state='superseded', snapshot_path=NULL, full_path=NULL, updated_at=?
                     WHERE user_id=? AND source=? AND source_session_id=?
                       AND state='queued' AND job_id <> ?
                     """,
@@ -863,6 +866,7 @@ class StateStore:
                 )
         if not inserted and row["state"] == "completed":
             final_path.unlink(missing_ok=True)
+            full_final_path.unlink(missing_ok=True)
         for superseded_path in superseded_paths:
             Path(superseded_path).unlink(missing_ok=True)
         return {
@@ -890,7 +894,7 @@ class StateStore:
         with self.connect() as connection:
             duplicates = connection.execute(
                 """
-                SELECT pending.job_id, pending.snapshot_path
+                SELECT pending.job_id, pending.snapshot_path, pending.full_path
                 FROM jobs AS pending
                 JOIN jobs AS configured
                   ON configured.user_id = ?
@@ -903,7 +907,10 @@ class StateStore:
             ).fetchall()
             duplicate_ids = [row["job_id"] for row in duplicates]
             duplicate_paths = [
-                row["snapshot_path"] for row in duplicates if row["snapshot_path"]
+                row[col]
+                for row in duplicates
+                for col in ("snapshot_path", "full_path")
+                if row[col]
             ]
             if duplicate_ids:
                 placeholders = ",".join("?" for _ in duplicate_ids)
@@ -923,13 +930,13 @@ class StateStore:
     def complete(self, job_id: int, result: Dict[str, Any]) -> None:
         with self.connect() as connection:
             row = connection.execute(
-                "SELECT snapshot_path FROM jobs WHERE job_id = ?", (job_id,)
+                "SELECT snapshot_path, full_path FROM jobs WHERE job_id = ?", (job_id,)
             ).fetchone()
             connection.execute(
                 """
                 UPDATE jobs
-                SET state = 'completed', snapshot_path = NULL, last_error = NULL,
-                    remote_version = ?, memory_id = ?, updated_at = ?
+                SET state = 'completed', snapshot_path = NULL, full_path = NULL,
+                    last_error = NULL, remote_version = ?, memory_id = ?, updated_at = ?
                 WHERE job_id = ?
                 """,
                 (
@@ -939,8 +946,10 @@ class StateStore:
                     job_id,
                 ),
             )
-        if row and row["snapshot_path"]:
-            Path(row["snapshot_path"]).unlink(missing_ok=True)
+        if row:
+            for column in ("snapshot_path", "full_path"):
+                if row[column]:
+                    Path(row[column]).unlink(missing_ok=True)
 
     def fail(self, job_id: int, error: Exception) -> None:
         with self.connect() as connection:
@@ -1138,24 +1147,110 @@ class HubClient:
                 ensured = self.ensure_memory(job, latest_version, latest["file_id"], title)
                 return {"status": "unchanged", "version": latest_version, **ensured}
 
+        # 双资产：先传完整 session 文件（命名对象按本地 session 文件名覆盖写）。
+        # full 是增强：上传失败不拖死快照链路，降级为无 full 提交（下次 capture 自愈）。
+        full_file_id = None
+        job_keys = job.keys() if hasattr(job, "keys") else []
+        full_path_value = job["full_path"] if "full_path" in job_keys else None
+        if full_path_value:
+            full_path = Path(full_path_value)
+            if full_path.is_file():
+                try:
+                    full_file_id = self._upload_file(
+                        project_id,
+                        user_id,
+                        agent_id=agent_id,
+                        idempotency_key="agent-upload-full:%s"
+                        % hashlib.sha256(
+                            "\0".join(
+                                (user_id, job["source"], job["session_id"], job["full_sha256"])
+                            ).encode("utf-8")
+                        ).hexdigest(),
+                        path=full_path,
+                        size_bytes=int(job["full_size_bytes"]),
+                        sha256=job["full_sha256"],
+                        object_name="%s/%s" % (job["source"], Path(job["transcript_path"]).name),
+                    )
+                except HubError as error:
+                    if os.environ.get("MEMORY_HOOK_DEBUG") == "1":
+                        print("memory hook full upload degraded: %s" % error, file=sys.stderr)
+                    full_file_id = None
+
         snapshot_path = Path(job["snapshot_path"])
         if not snapshot_path.is_file():
             raise HubError("queued snapshot file is missing")
+        file_id = self._upload_file(
+            project_id,
+            user_id,
+            agent_id=agent_id,
+            idempotency_key=job_idempotency_key("upload", job),
+            path=snapshot_path,
+            size_bytes=int(job["size_bytes"]),
+            sha256=job["sha256"],
+        )
+        base_version = int(session["latest_version"]) if session else None
+        version_request: Dict[str, Any] = {
+            "schema_version": "session-version/1",
+            "agent_id": agent_id,
+            "project_id": project_id,
+            "file_id": file_id,
+            "base_version": base_version,
+            "update_mode": "append" if session else "replace",
+            "session_schema": "%s-session" % job["source"],
+            "session_schema_version": "3",
+        }
+        if full_file_id:
+            version_request["full_file_id"] = full_file_id
+        version_response = self.request(
+            "PUT",
+            "/v1/sessions/%s/versions" % job["session_id"],
+            project_id,
+            user_id,
+            idempotency_key=job_idempotency_key("session", job),
+            agent_id=agent_id,
+            json_body=version_request,
+        )
+        version = int(version_response["version"])
+        ensured = self.ensure_memory(job, version, file_id, title)
+        return {
+            "status": "captured",
+            "version": version,
+            "file_id": file_id,
+            "full_file_id": full_file_id,
+            **ensured,
+        }
+
+    def _upload_file(
+        self,
+        project_id: str,
+        user_id: str,
+        *,
+        agent_id: str,
+        idempotency_key: str,
+        path: Path,
+        size_bytes: int,
+        sha256: str,
+        object_name: Optional[str] = None,
+    ) -> str:
+        """上传一个 session 相关文件（gzip，幂等键含内容 sha），返回 file_id。"""
+        request_body: Dict[str, Any] = {
+            "schema_version": "file-upload/1",
+            "purpose": "session_snapshot",
+            "media_type": "application/gzip",
+            "compression": "gzip",
+            "size_bytes": size_bytes,
+            "sha256": sha256,
+        }
+        if object_name is not None:
+            request_body["object_name"] = object_name
         upload = self.request(
             "POST",
             "/v1/files/uploads",
             project_id,
             user_id,
-            idempotency_key=job_idempotency_key("upload", job),
+            idempotency_key=idempotency_key,
             agent_id=agent_id,
-            json_body={
-                "schema_version": "file-upload/1",
-                "purpose": "session_snapshot",
-                "media_type": "application/gzip",
-                "compression": "gzip",
-                "size_bytes": job["size_bytes"],
-                "sha256": job["sha256"],
-            },
+            json_body=request_body,
         )
         upload_id = upload["upload_id"]
         file_id = upload["file_id"]
@@ -1163,7 +1258,7 @@ class HubClient:
             "GET", "/v1/files/%s" % file_id, project_id, user_id, agent_id=agent_id
         )
         if file_status.get("status") != "available":
-            content = snapshot_path.read_bytes()
+            content = path.read_bytes()
             self.request(
                 "PUT",
                 "/v1/files/uploads/%s/content" % upload_id,
@@ -1182,28 +1277,7 @@ class HubClient:
             )
             if completed.get("status") != "available":
                 raise HubError("uploaded file did not become available")
-        base_version = int(session["latest_version"]) if session else None
-        version_response = self.request(
-            "PUT",
-            "/v1/sessions/%s/versions" % job["session_id"],
-            project_id,
-            user_id,
-            idempotency_key=job_idempotency_key("session", job),
-            agent_id=agent_id,
-            json_body={
-                "schema_version": "session-version/1",
-                "agent_id": agent_id,
-                "project_id": project_id,
-                "file_id": file_id,
-                "base_version": base_version,
-                "update_mode": "append" if session else "replace",
-                "session_schema": "%s-session" % job["source"],
-                "session_schema_version": "2",
-            },
-        )
-        version = int(version_response["version"])
-        ensured = self.ensure_memory(job, version, file_id, title)
-        return {"status": "captured", "version": version, "file_id": file_id, **ensured}
+        return file_id
 
     def search(
         self, query: str, project_id: str, limit: int, user_id: str
