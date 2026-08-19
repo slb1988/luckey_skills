@@ -1,0 +1,9 @@
+{
+  "_comment": "别名 -> 固定 argv 列表。只有这里列出的命令才会被执行；由 agent 所有者自行维护。",
+  "allowed_commands": {
+    "system_info": ["systeminfo"],
+    "list_dir": ["cmd", "/c", "dir"],
+    "ip_config": ["ipconfig", "/all"],
+    "echo_hello": ["cmd", "/c", "echo hello from agent"]
+  }
+}

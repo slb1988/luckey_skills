@@ -73,20 +73,28 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		if (context) return { systemPrompt: `${event.systemPrompt}\n\n${context}` };
 	});
 
+	let capturing = false;
+
 	async function captureSession(ctx: ExtensionContext) {
+		if (capturing) return; // agent_end 与 session_shutdown 可能并发，重入互斥
 		const transcriptPath = ctx.sessionManager.getSessionFile();
 		if (!transcriptPath) return;
-		await runHub(
-			["capture", "--source", "pi"],
-			{
-				hook_event_name: "SessionEnd",
-				session_id: ctx.sessionManager.getSessionId(),
-				transcript_path: transcriptPath,
-				cwd: ctx.cwd,
-			},
-			ctx.cwd,
-			120000,
-		);
+		capturing = true;
+		try {
+			await runHub(
+				["capture", "--source", "pi"],
+				{
+					hook_event_name: "SessionEnd",
+					session_id: ctx.sessionManager.getSessionId(),
+					transcript_path: transcriptPath,
+					cwd: ctx.cwd,
+				},
+				ctx.cwd,
+				120000,
+			);
+		} finally {
+			capturing = false;
+		}
 	}
 
 	pi.on("agent_end", async (_event, ctx) => {

@@ -1,0 +1,17 @@
+[project]
+name = "pyauto-agent"
+version = "0.8.0"
+description = "pyAutomation Agent Platform 本地 agent SDK（A2A 协议，注册/心跳/技能路由开箱即用）"
+requires-python = ">=3.10"
+dependencies = [
+    "a2a-sdk[http-server]>=1.1.0,<2",
+    "uvicorn>=0.30",
+    "httpx>=0.27",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["pyauto_agent*"]

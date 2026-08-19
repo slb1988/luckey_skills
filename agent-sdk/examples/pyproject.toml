@@ -1,0 +1,11 @@
+[project]
+name = "agent-sdk-examples"
+version = "0.1.0"
+description = "pyauto_agent SDK 示例 agent 的运行环境"
+requires-python = ">=3.10"
+dependencies = [
+    "pyauto-agent",
+]
+
+[tool.uv.sources]
+pyauto-agent = { path = ".." }

@@ -934,16 +934,20 @@ def _upload_blob(
 
 
 def backfill_full(
-    client: HubClient, session: SessionFile, agent_id: str, project_id: str
+    client: HubClient,
+    session: SessionFile,
+    agent_id: str,
+    project_id: str,
+    sid: Optional[str] = None,
 ) -> UploadResult:
-    """为存量快照 session 补传完整 session 文件：
+    """为存量 session 补传完整 session 文件：
     full（命名对象覆盖写）+ 等价快照新版本（full_file_id 关联），不重写 memory。
-    """
-    # 与 hook 一致的三段式 session_id（source:project:uuid）
-    sid = normalize_identifier(
-        "%s:%s:%s" % (session.source, project_id, session.source_session_id),
-        "%s-session" % session.source,
-    )
+    sid 缺省为 hook 三段式（source:project:uuid）；两段式旧归档由调用方传入。"""
+    if sid is None:
+        sid = normalize_identifier(
+            "%s:%s:%s" % (session.source, project_id, session.source_session_id),
+            "%s-session" % session.source,
+        )
     existing = client.request("GET", "/v1/sessions/%s" % sid, agent_id, allow_404=True)
     if not existing:
         return UploadResult(
@@ -997,6 +1001,32 @@ def backfill_full(
     )
     version = int(version_response["version"])
     return UploadResult(status="uploaded", session_id=sid, version=version)
+
+
+def fetch_session_inventory(dashboard_url: str) -> Dict[str, Dict[str, Any]]:
+    """从 dashboard（直读 hub SQLite 的只读 BFF）拉全量 session 清单：
+    session_id -> {project_id, status}。backfill 用它匹配两段式/三段式存量并
+    取得真实归属 project（避免探测式 404/403）。"""
+    inventory: Dict[str, Dict[str, Any]] = {}
+    offset = 0
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    while True:
+        request = urllib.request.Request(
+            "%s/api/v1/sessions?limit=500&offset=%d" % (dashboard_url.rstrip("/"), offset)
+        )
+        with opener.open(request, timeout=30) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        rows = payload.get("sessions", [])
+        for row in rows:
+            inventory[row["session_id"]] = {
+                "project_id": row.get("project_id") or "",
+                "agent_id": row.get("agent_id") or "",
+                "status": row.get("status") or "",
+            }
+        offset += len(rows)
+        if not rows or offset >= int(payload.get("total", 0)):
+            break
+    return inventory
 
 
 # ---------------------------------------------------------------------------
@@ -1084,11 +1114,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--backfill-full",
         action="store_true",
-        help="Backfill mode (ADR-009): for sessions ALREADY on the hub (three-part "
-        "hook session id source:project:uuid), upload the full session file "
-        "(named object, overwrite) + an equivalent snapshot version carrying the "
-        "full_session pointer. Pure local build: no LLM title, no memory rewrite. "
-        "Sessions not on the hub are skipped.",
+        help="Backfill mode (ADR-009): for sessions ALREADY on the hub, upload the "
+        "full session file (named object, overwrite) + an equivalent snapshot "
+        "version carrying the full_session pointer. Matches both hook three-part "
+        "ids (source:project:uuid) and legacy two-part archive ids (source:uuid) "
+        "via the dashboard session inventory. Pure local build: no LLM title, no "
+        "memory rewrite. Sessions not on the hub are skipped.",
+    )
+    parser.add_argument(
+        "--dashboard-url",
+        default=os.environ.get("MEMORY_HUB_DASHBOARD_URL"),
+        help="Dashboard BFF base URL for the session inventory (default: hub URL "
+        "with port 9288, e.g. http://nas:9288)",
     )
     parser.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout seconds")
     parser.add_argument("--limit", type=int, default=0, help="Process at most N files")
@@ -1142,6 +1179,19 @@ def main(argv: Optional[List[str]] = None) -> int:
     title_cache_file = title_cache_path()
     title_cache = load_title_cache(title_cache_file)
     use_llm = title_llm_enabled() and not args.dry_run
+    # backfill：从 dashboard 拉全量 session 清单（只读），用于两段式/三段式匹配
+    # 与真实归属 project 解析（避免探测式 404/403）。dry-run 也拉（纯只读 GET）。
+    inventory: Dict[str, Dict[str, Any]] = {}
+    if args.backfill_full:
+        dashboard_url = args.dashboard_url or re.sub(
+            r":9287(/|$)", r":9288\1", args.hub_url
+        )
+        try:
+            inventory = fetch_session_inventory(dashboard_url)
+            print("inventory: %d sessions on hub (from %s)" % (len(inventory), dashboard_url))
+        except Exception as error:
+            print("error: cannot fetch session inventory: %s" % error, file=sys.stderr)
+            return 2
     existing_map: Dict[str, str] = {}
     if args.existing_map:
         try:
@@ -1188,35 +1238,61 @@ def main(argv: Optional[List[str]] = None) -> int:
             project_id = project_aliases.get(derived, derived)
 
         if args.backfill_full:
-            # 补传模式：纯本地构建，不走 LLM title / finalize / memory 重写
-            sid_preview = normalize_identifier(
+            # 补传模式：纯本地构建，不走 LLM title / finalize / memory 重写。
+            # 双候选匹配：hook 三段式（source:project:uuid）优先，其次两段式旧归档
+            # （source:uuid）；project 归属以 inventory 记录为准。
+            sid3 = normalize_identifier(
                 "%s:%s:%s" % (session.source, project_id, session.source_session_id),
                 "%s-session" % session.source,
             )
-            if args.dry_run or client is None:
+            sid2 = session.archive_session_id
+            if sid3 in inventory:
+                target_sid = sid3
+                target_project = inventory[sid3]["project_id"] or project_id
+            elif sid2 in inventory:
+                target_sid = sid2
+                target_project = inventory[sid2]["project_id"] or project_id
+            else:
+                if args.dry_run or args.verbose:
+                    print(
+                        "[%s%d/%d] skip | %s | not on hub (neither %s nor %s)"
+                        % ("dry-run " if args.dry_run else "", index, total, path.name, sid3, sid2)
+                    )
+                continue
+            # 归属跟随存量记录（scope 校验要求与首版创建时的 agent/project 一致）
+            target_agent = inventory[target_sid]["agent_id"] or agent_id
+            if inventory[target_sid]["status"] == "deleted":
+                if args.verbose or args.dry_run:
+                    print(
+                        "[%s%d/%d] skip | %s | session deleted"
+                        % ("dry-run " if args.dry_run else "", index, total, path.name)
+                    )
+                continue
+            if args.dry_run:
                 print(
                     "[dry-run %d/%d] backfill-full | %s | project=%s session=%s events=%d"
-                    % (index, total, path.name, project_id, sid_preview, session.event_count)
+                    % (index, total, path.name, target_project, target_sid, session.event_count)
                 )
                 continue
+            assert client is not None
             upload_client = client
-            if project_id != client.config.project_id:
-                if project_id not in per_project_clients:
-                    per_project_clients[project_id] = HubClient(
+            if target_project != client.config.project_id:
+                if target_project not in per_project_clients:
+                    per_project_clients[target_project] = HubClient(
                         HubConfig(
                             hub_url=client.config.hub_url,
                             user_id=client.config.user_id,
-                            project_id=project_id,
+                            project_id=target_project,
                             api_key=client.config.api_key,
                             timeout_seconds=client.config.timeout_seconds,
                         )
                     )
-                upload_client = per_project_clients[project_id]
+                upload_client = per_project_clients[target_project]
             try:
-                result = backfill_full(upload_client, session, agent_id, project_id)
+                result = backfill_full(upload_client, session, target_agent, target_project, sid=target_sid)
             except HubError as error:
                 failures += 1
-                result = UploadResult(status="failed", session_id=sid_preview, detail=str(error))
+                result = UploadResult(status="failed", session_id=target_sid, detail=str(error))
             results.append(result)
             if args.verbose or result.status == "failed" or index % 50 == 0 or index == total:
                 print(
