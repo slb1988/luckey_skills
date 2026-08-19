@@ -43,7 +43,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -52,8 +52,20 @@ FENCED_CODE_RE = re.compile(r"```.*?```", re.DOTALL)
 WHITESPACE_RE = re.compile(r"\s+")
 MAX_MESSAGE_CHARS = 4000
 MAX_DISTILLED_CHARS = 16 * 1024
+TITLE_MAX_CHARS = 80
+TITLE_LLM_DEFAULT_BASE_URL = "http://192.168.2.76:8000/v1"
+TITLE_LLM_DEFAULT_MODEL = "qwen3-30b"
+THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+TRAILING_PUNCTUATION = "。.!！?？;；,，、~～…-—_ \"'`「」『』《》〈〉:："
+NOISE_USER_TEXTS = {
+    "hi", "hello", "hey", "你好", "您好", "在吗", "在么", "在",
+    "继续", "continue", "ok", "okay", "好的", "好", "嗯", "嗯嗯",
+    "test", "测试", "go", "yes", "是", "对", "谢谢", "thanks",
+}
 DEFAULT_HUB_URL = "http://10.77.77.6:9287"
 SOURCE_AGENT_DEFAULTS = {"claude": "claude-code", "pi": "pi", "codex": "codex"}
+# 历史目录名归并：E:\sununity 的归档统一进 unity2018 project。
+DEFAULT_PROJECT_ALIASES = {"sununity": "unity2018"}
 
 
 def normalize_identifier(value: str, fallback: str) -> str:
@@ -75,6 +87,12 @@ def flatten_text(value: Any) -> str:
     if isinstance(value, str):
         return value
     if isinstance(value, list):
+        # Block-structured content (claude/pi): keep only text blocks; skip
+        # tool_result/tool_use/thinking blocks that would pollute titles.
+        if any(isinstance(item, dict) and isinstance(item.get("type"), str) for item in value):
+            return " ".join(
+                part for part in (flatten_block(item) for item in value) if part
+            )
         return " ".join(part for part in (flatten_text(item) for item in value) if part)
     if not isinstance(value, dict):
         return ""
@@ -84,6 +102,227 @@ def flatten_text(value: Any) -> str:
             if text:
                 return text
     return ""
+
+
+def flatten_block(item: Any) -> str:
+    if isinstance(item, dict) and isinstance(item.get("type"), str) and item["type"] != "text":
+        return ""
+    return flatten_text(item)
+
+
+def is_noise_user_text(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return True
+    lowered = stripped.lower()
+    if lowered in NOISE_USER_TEXTS:
+        return True
+    if stripped.startswith(("<", "/")):  # system-reminder / command wrappers, slash commands
+        return True
+    if lowered.startswith(("caveat:", "system-reminder")):
+        return True
+    return False
+
+
+def clean_llm_title(raw: str) -> str:
+    content = THINK_BLOCK_RE.sub(" ", raw)
+    first_line = ""
+    for line in content.splitlines():
+        if line.strip():
+            first_line = line.strip()
+            break
+    return compact_text(first_line.strip(TRAILING_PUNCTUATION), TITLE_MAX_CHARS)
+
+
+def heuristic_title(user_texts: List[str]) -> str:
+    for text in user_texts:
+        if not is_noise_user_text(text):
+            return compact_text(text, TITLE_MAX_CHARS)
+    return ""
+
+
+def heuristic_meaningful(user_texts: List[str]) -> bool:
+    """No-information sessions (pure greetings / model probes) need no archive."""
+    if not user_texts:
+        return True  # 没有用户文本时保守保留
+    return any(not is_noise_user_text(text) for text in user_texts)
+
+
+def title_llm_enabled() -> bool:
+    return os.environ.get("MEMORY_HUB_TITLE_LLM", "0").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def llm_classify_session(user_texts: List[str], last_assistant: str) -> Optional[Dict[str, Any]]:
+    """Classify archival value + summarize topic via the intranet LLM.
+
+    Controlled by env (default OFF): MEMORY_HUB_TITLE_LLM=1 enables;
+    MEMORY_HUB_TITLE_LLM_BASE_URL / _MODEL / _API_KEY / _TIMEOUT customize.
+    Returns {"title": str, "meaningful": bool}, or None on any failure so
+    callers fall back to heuristics.
+    """
+    if not title_llm_enabled():
+        return None
+    material = [text for text in user_texts if text and not is_noise_user_text(text)][:6]
+    if not material and not last_assistant:
+        return None
+    lines = ["用户消息 %d: %s" % (index + 1, text) for index, text in enumerate(material)]
+    if not material and user_texts:
+        lines = ["用户消息 %d: %s" % (index + 1, text) for index, text in enumerate(user_texts[:6])]
+    if last_assistant:
+        lines.append("助手最近回复: %s" % compact_text(last_assistant, 200))
+    prompt = (
+        "你是编程助手会话的归档助手。根据会话片段判断这个会话是否有归档价值，并给出主题标题。\n"
+        "没有归档价值的会话：只是打招呼、闲聊、测试模型是否可用（如只说了 hi/hello）、"
+        "没有任何实际任务或技术内容。\n"
+        "只输出 JSON：{\"meaningful\": true或false, \"title\": \"不超过20字的主题标题，meaningful为false时给空字符串\"}\n\n"
+        "会话片段：\n" + "\n".join(lines)
+    )
+    base_url = os.environ.get("MEMORY_HUB_TITLE_LLM_BASE_URL", TITLE_LLM_DEFAULT_BASE_URL).rstrip("/")
+    body = {
+        "model": os.environ.get("MEMORY_HUB_TITLE_LLM_MODEL", TITLE_LLM_DEFAULT_MODEL),
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 128,
+        "temperature": 0,
+        "chat_template_kwargs": {"enable_thinking": False},
+        "response_format": {"type": "json_object"},
+    }
+    api_key = os.environ.get("MEMORY_HUB_TITLE_LLM_API_KEY", "vllm")
+    timeout = float(os.environ.get("MEMORY_HUB_TITLE_LLM_TIMEOUT", "15"))
+    request = urllib.request.Request(
+        base_url + "/chat/completions",
+        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + api_key,
+        },
+        method="POST",
+    )
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        choices = payload.get("choices")
+        if not isinstance(choices, list) or not choices:
+            return None
+        message = choices[0].get("message")
+        if not isinstance(message, dict):
+            return None
+        verdict = json.loads(THINK_BLOCK_RE.sub(" ", str(message.get("content") or "")))
+        if not isinstance(verdict, dict):
+            return None
+        meaningful = verdict.get("meaningful")
+        title = clean_llm_title(str(verdict.get("title") or ""))
+        return {"title": title, "meaningful": bool(meaningful)}
+    except Exception:
+        return None
+
+
+def title_cache_path() -> Path:
+    state_dir = os.environ.get("MEMORY_HOOK_STATE_DIR")
+    base = Path(state_dir) if state_dir else Path.home() / ".local" / "state" / "memory-hub-hook"
+    return base / "title-cache.jsonl"
+
+
+def load_title_cache(path: Path) -> Dict[str, Dict[str, Any]]:
+    cache: Dict[str, Dict[str, Any]] = {}
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                sha256 = record.get("sha256")
+                title = record.get("title")
+                if isinstance(sha256, str) and isinstance(title, str):
+                    cache[sha256] = {
+                        "title": title,
+                        "meaningful": bool(record.get("meaningful", True)),
+                    }
+    except OSError:
+        pass
+    return cache
+
+
+def append_title_cache(path: Path, sha256: str, title: str, meaningful: bool) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {"sha256": sha256, "title": title, "meaningful": meaningful},
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+    except OSError:
+        pass
+
+
+def resolve_classification(
+    session: "SessionFile",
+    cache: Dict[str, Dict[str, Any]],
+    cache_path: Path,
+    use_llm: bool,
+    persist: bool = True,
+) -> None:
+    """Decide the session topic title and whether it is worth archiving."""
+    cached = cache.get(session.content_sha256)
+    if cached is not None:
+        session.title = cached["title"]
+        session.meaningful = cached["meaningful"]
+        return
+    verdict = None
+    if not session.claude_summary and use_llm:
+        verdict = llm_classify_session(session.user_texts, session.last_assistant)
+    if verdict is not None:
+        meaningful = verdict["meaningful"]
+        title = verdict["title"]
+    else:
+        meaningful = heuristic_meaningful(session.user_texts)
+        title = compact_text(session.claude_summary, TITLE_MAX_CHARS) if session.claude_summary else ""
+    if not title:
+        title = heuristic_title(session.user_texts)
+    if not title:
+        title = "未命名会话" if meaningful else "（低价值会话）"
+    session.title = title
+    session.meaningful = meaningful
+    if persist:
+        cache[session.content_sha256] = {"title": title, "meaningful": meaningful}
+        append_title_cache(cache_path, session.content_sha256, title, meaningful)
+
+
+def load_project_aliases(cli_aliases: Optional[List[str]]) -> Dict[str, str]:
+    aliases = dict(DEFAULT_PROJECT_ALIASES)
+    sources: List[str] = []
+    env_value = os.environ.get("MEMORY_HUB_PROJECT_ALIASES", "")
+    if env_value:
+        sources.append(env_value)
+    sources.extend(cli_aliases or [])
+    for source in sources:
+        for item in source.split(","):
+            item = item.strip()
+            if not item:
+                continue
+            if "=" not in item:
+                print(
+                    "warning: ignore invalid project alias %r (expect from=to)" % item,
+                    file=sys.stderr,
+                )
+                continue
+            src, dst = (part.strip().lower() for part in item.split("=", 1))
+            src = normalize_identifier(src, "")
+            dst = normalize_identifier(dst, "")
+            if src and dst:
+                aliases[src] = dst
+    return aliases
 
 
 # ---------------------------------------------------------------------------
@@ -102,10 +341,15 @@ class SessionFile:
     payload: bytes  # JSON document wrapping the transcript events
     size_bytes: int
     sha256: str
+    content_sha256: str = ""  # title-independent hash; title cache key
     event_count: int = 0
     first_user: str = ""
     last_user: str = ""
     last_assistant: str = ""
+    user_texts: List[str] = field(default_factory=list)
+    claude_summary: str = ""
+    title: str = ""
+    meaningful: bool = True
 
 
 def detect_source(path: Path, head_records: List[Dict[str, Any]]) -> Optional[str]:
@@ -160,7 +404,7 @@ def build_archive_payload(
     transcript always yields the same SHA-256 across machines.
     """
     document = {
-        "schema_version": "agent-session-archive/1",
+        "schema_version": "agent-session-archive/2",
         "source": {
             "agent": source,
             "session_id": source_session_id,
@@ -172,6 +416,20 @@ def build_archive_payload(
         "events": events,
     }
     return json.dumps(document, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+
+def finalize_payload(session: "SessionFile") -> None:
+    """Embed the resolved topic title into the archive document.
+
+    The title participates in the payload SHA-256, so a tombstoned session
+    re-uploaded with a title becomes a genuinely new version instead of
+    hitting the "content unchanged" path against a deleted file.
+    """
+    document = json.loads(session.payload.decode("utf-8"))
+    document["archive"] = {"title": session.title}
+    session.payload = json.dumps(document, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    session.size_bytes = len(session.payload)
+    session.sha256 = hashlib.sha256(session.payload).hexdigest()
 
 
 def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[SessionFile]:
@@ -187,12 +445,14 @@ def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[Sess
 
     head_records: List[Dict[str, Any]] = []
     events: List[Dict[str, Any]] = []
+    user_texts: List[str] = []
     cwd = ""
     started_at = ""
     first_user = ""
     last_user = ""
     last_assistant = ""
     codex_session_id = ""
+    claude_summary = ""
 
     with path.open("r", encoding="utf-8", errors="replace") as handle:
         for line_number, line in enumerate(handle):
@@ -209,6 +469,10 @@ def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[Sess
             events.append(record)
             if line_number < 50:
                 head_records.append(record)
+            if not claude_summary and record.get("type") == "summary":
+                summary_value = record.get("summary")
+                if isinstance(summary_value, str):
+                    claude_summary = summary_value
             if not cwd and isinstance(record.get("cwd"), str):
                 cwd = record["cwd"]
             if not started_at and isinstance(record.get("timestamp"), str):
@@ -228,6 +492,8 @@ def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[Sess
                 if not first_user:
                     first_user = text
                 last_user = text
+                if len(user_texts) < 30:
+                    user_texts.append(compact_text(text, 300))
             else:
                 last_assistant = text
 
@@ -247,6 +513,7 @@ def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[Sess
         "%s:%s" % (source, source_session_id), "%s-session" % source
     )
     payload = build_archive_payload(path, source, source_session_id, cwd, events)
+    content_sha256 = hashlib.sha256(payload).hexdigest()
     return SessionFile(
         path=path,
         source=source,
@@ -256,11 +523,14 @@ def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[Sess
         started_at=started_at,
         payload=payload,
         size_bytes=len(payload),
-        sha256=hashlib.sha256(payload).hexdigest(),
+        sha256=content_sha256,
+        content_sha256=content_sha256,
         event_count=len(events),
         first_user=compact_text(first_user, 700),
         last_user=compact_text(last_user, 700),
         last_assistant=compact_text(last_assistant, 1400),
+        user_texts=user_texts,
+        claude_summary=claude_summary,
     )
 
 
@@ -420,17 +690,21 @@ class UploadResult:
 
 
 def idem_key(kind: str, session_id: str, sha256: str) -> str:
-    return "manual-upload:%s:%s:%s" % (kind, session_id, sha256[:16])
+    # v2: summary format with LLM/heuristic topic titles; v1 keys must not
+    # replay old "会话归档" memories when sessions are re-uploaded.
+    return "manual-upload-v2:%s:%s:%s" % (kind, session_id, sha256[:16])
 
 
 def ensure_memory(
     client: HubClient, session: "SessionFile", agent_id: str, version: int, file_id: str
 ) -> str:
     date_part = session.started_at[:10] if session.started_at else "未知日期"
+    topic = session.title or heuristic_title(session.user_texts) or "未命名会话"
     distilled = (
-        "%s 会话归档（%s），工作目录：%s。首个用户目标：%s。最近用户目标：%s。最近会话结果：%s"
+        "%s 会话「%s」（%s，工作目录：%s）。首个用户目标：%s。最近用户目标：%s。最近会话结果：%s"
         % (
             session.source,
+            topic,
             date_part,
             session.cwd or "未知",
             session.first_user or "未提取到用户文本",
@@ -453,7 +727,7 @@ def ensure_memory(
             "scope_type": "project",
             "memory_type": "session_summary",
             "distilled_content": distilled[:MAX_DISTILLED_CHARS],
-            "summary": (session.last_user or session.first_user or "会话归档")[:1024],
+            "summary": topic[:1024],
             "source_event_id": idem_key("event", session.archive_session_id, session.sha256),
         },
     )
@@ -581,6 +855,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="Target project scope (default: derive from each session's cwd folder name)",
     )
     parser.add_argument(
+        "--existing-map",
+        default=os.environ.get("MEMORY_HUB_EXISTING_MAP"),
+        help="JSON file mapping session_id -> hub project for sessions already on the hub "
+        "(session ownership is fixed at first commit; reuse their original project)",
+    )
+    parser.add_argument(
+        "--project-alias",
+        action="append",
+        default=None,
+        metavar="FROM=TO",
+        help="Map a derived (lowercased) project name to another; repeatable. "
+        "Env MEMORY_HUB_PROJECT_ALIASES accepts comma-separated pairs. "
+        "Built-in default: sununity=unity2018",
+    )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Never touch sessions already on the hub (per --existing-map): no new "
+        "version, no new memory; they are reported as skipped",
+    )
+    parser.add_argument(
         "--user-id",
         default=None,
         help="Memory Hub user id (default: MEMORY_HUB_CLIENT_USER_ID or hook client profile)",
@@ -649,20 +944,79 @@ def main(argv: Optional[List[str]] = None) -> int:
     results: List[UploadResult] = []
     failures = 0
     per_project_clients: Dict[str, HubClient] = {}
+    title_cache_file = title_cache_path()
+    title_cache = load_title_cache(title_cache_file)
+    use_llm = title_llm_enabled() and not args.dry_run
+    existing_map: Dict[str, str] = {}
+    if args.existing_map:
+        try:
+            raw_map = json.loads(Path(args.existing_map).read_text(encoding="utf-8"))
+            for key, value in raw_map.items():
+                if isinstance(value, str) and value:
+                    existing_map[key] = value
+                elif isinstance(value, dict) and value.get("project"):
+                    existing_map[key] = str(value["project"])
+        except (OSError, json.JSONDecodeError) as error:
+            print("error: cannot load existing map %s: %s" % (args.existing_map, error), file=sys.stderr)
+            return 2
+    project_aliases = load_project_aliases(args.project_alias)
 
     for index, path in enumerate(files, 1):
         session = scan_session_file(path, forced_source)
         if session is None:
             failures += 1
             continue
-        agent_id = args.agent_id or SOURCE_AGENT_DEFAULTS.get(session.source, session.source)
-        project_id = args.project_id or normalize_identifier(
-            Path(session.cwd).name if session.cwd else "", "agent-history"
+        if args.skip_existing and session.archive_session_id in existing_map:
+            result = UploadResult(
+                status="skipped",
+                session_id=session.archive_session_id,
+                detail="already on hub (%s)" % existing_map[session.archive_session_id],
+            )
+            results.append(result)
+            print(
+                "[%d/%d] skipped | %s | 「已在库」 | %s | %s"
+                % (index, total, result.session_id, path.name, result.detail)
+            )
+            continue
+        resolve_classification(
+            session,
+            title_cache,
+            title_cache_file,
+            use_llm,
+            persist=not args.dry_run,
         )
+        if not session.meaningful:
+            result = UploadResult(
+                status="skipped",
+                session_id=session.archive_session_id,
+                detail="low-value session, not uploaded",
+            )
+            results.append(result)
+            if not args.dry_run:
+                print(
+                    "[%d/%d] skipped | %s | 「低价值」 | %s | %s"
+                    % (index, total, result.session_id, path.name, result.detail)
+                )
+                continue
+        if not args.dry_run:
+            finalize_payload(session)
+        agent_id = args.agent_id or SOURCE_AGENT_DEFAULTS.get(session.source, session.source)
+        # 按工作根目录名分类归档（小写归一，避免 MainDev/maindev 分裂），与 hook 一致；
+        # 已在 hub 存在的 session 归属在首版固定，沿用其原 project。
+        mapped_project = existing_map.get(session.archive_session_id)
+        if args.project_id:
+            project_id = args.project_id
+        elif mapped_project:
+            project_id = mapped_project
+        else:
+            derived = normalize_identifier(
+                Path(session.cwd).name if session.cwd else "", "agent-history"
+            ).lower()
+            project_id = project_aliases.get(derived, derived)
 
         if args.dry_run or client is None:
             print(
-                "[dry-run %d/%d] %s | source=%s agent=%s project=%s session=%s size=%d"
+                "[dry-run %d/%d] %s | source=%s agent=%s project=%s session=%s size=%d title=%s"
                 % (
                     index,
                     total,
@@ -672,6 +1026,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                     project_id,
                     session.archive_session_id,
                     session.size_bytes,
+                    session.title,
                 )
             )
             continue
@@ -701,12 +1056,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         results.append(result)
         if args.verbose or result.status == "failed" or index % 50 == 0 or index == total:
             print(
-                "[%d/%d] %s | %s | %s %s"
+                "[%d/%d] %s | %s | 「%s」 | %s %s"
                 % (
                     index,
                     total,
                     result.status,
                     result.session_id,
+                    session.title,
                     path.name,
                     ("| " + result.detail) if result.detail else "",
                 )

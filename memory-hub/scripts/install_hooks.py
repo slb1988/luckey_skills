@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import queue
+import re
 import selectors
 import shlex
 import shutil
@@ -25,6 +26,9 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 MEMORY_HOOK = SKILL_DIR / "scripts" / "memory_hook.py"
 PI_TEMPLATE = SKILL_DIR / "assets" / "pi-memory-hub.ts"
 MANAGED_COMMAND_MARKER = "memory-hub/scripts/memory_hook.py"
+
+PROFILE_BLOCK_BEGIN = "# >>> memory-hub identity >>>"
+PROFILE_BLOCK_END = "# <<< memory-hub identity <<<"
 
 
 class InstallError(RuntimeError):
@@ -399,6 +403,115 @@ def health_check() -> Dict[str, Any]:
         return {"ok": False, "url": url, "error": str(error)}
 
 
+def resolve_identity(args: argparse.Namespace) -> Dict[str, str]:
+    """install 必须确定用户身份：优先命令行，其次已有环境变量。"""
+    user_id = (
+        args.user_id
+        or os.environ.get("MEMORY_HUB_CLIENT_USER_ID")
+        or os.environ.get("MEMORY_HUB_USER_ID")
+        or ""
+    ).strip()
+    if not user_id:
+        raise InstallError(
+            "install requires --user-id (or a preset MEMORY_HUB_CLIENT_USER_ID)"
+        )
+    return {"MEMORY_HUB_CLIENT_USER_ID": user_id}
+
+
+def persist_env_windows(values: Dict[str, str]) -> bool:
+    """写入 HKCU\\Environment（用户级）并广播 WM_SETTINGCHANGE。返回是否有变化。"""
+    import winreg
+
+    changed = False
+    with winreg.OpenKey(
+        winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE
+    ) as key:
+        for name, value in values.items():
+            try:
+                current, _ = winreg.QueryValueEx(key, name)
+            except FileNotFoundError:
+                current = None
+            if current != value:
+                winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
+                changed = True
+    if changed:
+        try:
+            import ctypes
+
+            ctypes.windll.user32.SendMessageTimeoutW(
+                0xFFFF,  # HWND_BROADCAST
+                0x001A,  # WM_SETTINGCHANGE
+                0,
+                "Environment",
+                0x0002,  # SMTO_ABORTIFHUNG
+                5000,
+                ctypes.byref(ctypes.c_ulong()),
+            )
+        except Exception:
+            pass  # 广播失败不影响注册表持久化结果
+    return changed
+
+
+def persist_env_posix(values: Dict[str, str], home: Path) -> List[str]:
+    """以标记块写入 ~/.profile（macOS 同时写 ~/.zprofile），返回涉及的文件。"""
+    block_lines = [PROFILE_BLOCK_BEGIN]
+    for name, value in values.items():
+        block_lines.append("export %s=%s" % (name, shlex.quote(value)))
+    block_lines.append(PROFILE_BLOCK_END)
+    block = "\n".join(block_lines)
+    pattern = re.compile(
+        re.escape(PROFILE_BLOCK_BEGIN) + ".*?" + re.escape(PROFILE_BLOCK_END), re.DOTALL
+    )
+    targets = [home / ".profile"]
+    if sys.platform == "darwin":
+        targets.append(home / ".zprofile")
+    written = []
+    for target in targets:
+        content = target.read_text(encoding="utf-8") if target.exists() else ""
+        if pattern.search(content):
+            updated = pattern.sub(block, content)
+        elif content.strip():
+            updated = content.rstrip("\n") + "\n\n" + block + "\n"
+        else:
+            updated = block + "\n"
+        if updated != content:
+            target.write_text(updated, encoding="utf-8")
+        written.append(str(target))
+    return written
+
+
+def persist_identity(values: Dict[str, str], home: Path) -> Dict[str, Any]:
+    """把身份三项持久化到用户级环境变量，全局进程默认读取。"""
+    for name, value in values.items():
+        os.environ[name] = value
+    if os.name == "nt":
+        changed = persist_env_windows(values)
+        return {
+            "user_id": values["MEMORY_HUB_CLIENT_USER_ID"],
+            "backend": "registry:HKCU\\Environment",
+            "changed": changed,
+            "vars": sorted(values),
+        }
+    files = persist_env_posix(values, home)
+    return {
+        "user_id": values["MEMORY_HUB_CLIENT_USER_ID"],
+        "backend": "shell-profile",
+        "files": files,
+        "vars": sorted(values),
+    }
+
+
+def identity_status() -> Dict[str, Any]:
+    """check 用的只读身份状态。"""
+    user_id = os.environ.get("MEMORY_HUB_CLIENT_USER_ID") or os.environ.get(
+        "MEMORY_HUB_USER_ID"
+    )
+    return {
+        "user_id": user_id,
+        "source": "environment" if user_id else "missing",
+    }
+
+
 def parse_agents(value: str, home: Path) -> List[str]:
     supported = ("claude", "codex", "pi")
     if value == "all":
@@ -472,6 +585,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--home", type=Path, default=Path.home())
     parser.add_argument("--codex-bin", default=shutil.which("codex") or "codex")
     parser.add_argument("--cwd", type=Path, default=Path.cwd())
+    parser.add_argument(
+        "--user-id",
+        default=None,
+        help="Memory Hub user id; install 时必填，持久化到用户环境变量 MEMORY_HUB_CLIENT_USER_ID",
+    )
     return parser
 
 
@@ -480,6 +598,11 @@ def main() -> int:
     try:
         agents = parse_agents(args.agents, args.home)
         result = run(args.action, agents, args.home, args.codex_bin, args.cwd)
+        if args.action == "install":
+            identity = resolve_identity(args)
+            result["identity"] = persist_identity(identity, args.home)
+        else:
+            result["identity"] = identity_status()
         result["service"] = health_check()
         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         return 0 if result["ok"] else 1

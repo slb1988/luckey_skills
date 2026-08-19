@@ -37,10 +37,22 @@ FENCED_CODE_RE = re.compile(
 )
 MAX_RECENT_MESSAGES = 10
 MAX_MESSAGE_CHARS = 32 * 1024
+TITLE_MAX_CHARS = 80
+TITLE_LLM_DEFAULT_BASE_URL = "http://192.168.2.76:8000/v1"
+TITLE_LLM_DEFAULT_MODEL = "qwen3-30b"
+THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+TRAILING_PUNCTUATION = "。.!！?？;；,，、~～…-—_ \"'`「」『』《》〈〉:："
+NOISE_USER_TEXTS = {
+    "hi", "hello", "hey", "你好", "您好", "在吗", "在么", "在",
+    "继续", "continue", "ok", "okay", "好的", "好", "嗯", "嗯嗯",
+    "test", "测试", "go", "yes", "是", "对", "谢谢", "thanks",
+}
 UNCONFIGURED_USER_ID = "unconfigured"
 LEGACY_DEFAULT_USER_ID = "sun"
 PROFILE_FILENAME = "client-profile.json"
 TEAM_SETTINGS_PATH = Path(".team") / "settings.local.json"
+# 历史目录名归并：E:\sununity 的归档统一进 unity2018 project。
+DEFAULT_PROJECT_ALIASES = {"sununity": "unity2018"}
 
 
 def normalize_identifier(value: str, fallback: str) -> str:
@@ -50,8 +62,24 @@ def normalize_identifier(value: str, fallback: str) -> str:
     return normalized[:128]
 
 
+def project_aliases() -> Dict[str, str]:
+    aliases = dict(DEFAULT_PROJECT_ALIASES)
+    for item in os.environ.get("MEMORY_HUB_PROJECT_ALIASES", "").split(","):
+        item = item.strip()
+        if not item or "=" not in item:
+            continue
+        src, dst = (part.strip().lower() for part in item.split("=", 1))
+        src = normalize_identifier(src, "")
+        dst = normalize_identifier(dst, "")
+        if src and dst:
+            aliases[src] = dst
+    return aliases
+
+
 def project_id_for_cwd(cwd: str, fallback: str) -> str:
-    return normalize_identifier(Path(cwd).name if cwd else "", fallback)
+    # 按工作根目录名分类归档（小写归一，避免 MainDev/maindev 分裂）。
+    name = normalize_identifier(Path(cwd).name if cwd else "", fallback).lower()
+    return project_aliases().get(name, name)
 
 
 def compact_text(value: str, limit: int) -> str:
@@ -67,6 +95,12 @@ def flatten_text(value: Any) -> str:
     if isinstance(value, str):
         return value
     if isinstance(value, list):
+        # Block-structured content (claude/pi): keep only text blocks; skip
+        # tool_result/tool_use/thinking blocks that would pollute titles.
+        if any(isinstance(item, dict) and isinstance(item.get("type"), str) for item in value):
+            return " ".join(
+                part for part in (flatten_block(item) for item in value) if part
+            )
         return " ".join(part for part in (flatten_text(item) for item in value) if part)
     if not isinstance(value, dict):
         return ""
@@ -76,6 +110,189 @@ def flatten_text(value: Any) -> str:
             if text:
                 return text
     return ""
+
+
+def flatten_block(item: Any) -> str:
+    if isinstance(item, dict) and isinstance(item.get("type"), str) and item["type"] != "text":
+        return ""
+    return flatten_text(item)
+
+
+def is_noise_user_text(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return True
+    lowered = stripped.lower()
+    if lowered in NOISE_USER_TEXTS:
+        return True
+    if stripped.startswith(("<", "/")):  # system-reminder / command wrappers, slash commands
+        return True
+    if lowered.startswith(("caveat:", "system-reminder")):
+        return True
+    return False
+
+
+def clean_llm_title(raw: str) -> str:
+    content = THINK_BLOCK_RE.sub(" ", raw)
+    first_line = ""
+    for line in content.splitlines():
+        if line.strip():
+            first_line = line.strip()
+            break
+    return compact_text(first_line.strip(TRAILING_PUNCTUATION), TITLE_MAX_CHARS)
+
+
+def heuristic_title(user_texts: List[str]) -> str:
+    for text in user_texts:
+        if not is_noise_user_text(text):
+            return compact_text(text, TITLE_MAX_CHARS)
+    return ""
+
+
+def heuristic_meaningful(user_texts: List[str]) -> bool:
+    """No-information sessions (pure greetings / model probes) need no archive."""
+    if not user_texts:
+        return True  # 没有用户文本时保守保留
+    return any(not is_noise_user_text(text) for text in user_texts)
+
+
+def title_llm_enabled() -> bool:
+    return os.environ.get("MEMORY_HUB_TITLE_LLM", "0").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def llm_classify_session(user_texts: List[str], last_assistant: str) -> Optional[Dict[str, Any]]:
+    """Classify archival value + summarize topic via the intranet LLM.
+
+    Controlled by env (default OFF): MEMORY_HUB_TITLE_LLM=1 enables;
+    MEMORY_HUB_TITLE_LLM_BASE_URL / _MODEL / _API_KEY / _TIMEOUT customize.
+    Returns {"title": str, "meaningful": bool}, or None on any failure so
+    callers fall back to heuristics.
+    """
+    if not title_llm_enabled():
+        return None
+    material = [text for text in user_texts if text and not is_noise_user_text(text)][:6]
+    if not material and not last_assistant:
+        return None
+    lines = ["用户消息 %d: %s" % (index + 1, text) for index, text in enumerate(material)]
+    if not material and user_texts:
+        lines = ["用户消息 %d: %s" % (index + 1, text) for index, text in enumerate(user_texts[:6])]
+    if last_assistant:
+        lines.append("助手最近回复: %s" % compact_text(last_assistant, 200))
+    prompt = (
+        "你是编程助手会话的归档助手。根据会话片段判断这个会话是否有归档价值，并给出主题标题。\n"
+        "没有归档价值的会话：只是打招呼、闲聊、测试模型是否可用（如只说了 hi/hello）、"
+        "没有任何实际任务或技术内容。\n"
+        "只输出 JSON：{\"meaningful\": true或false, \"title\": \"不超过20字的主题标题，meaningful为false时给空字符串\"}\n\n"
+        "会话片段：\n" + "\n".join(lines)
+    )
+    base_url = os.environ.get("MEMORY_HUB_TITLE_LLM_BASE_URL", TITLE_LLM_DEFAULT_BASE_URL).rstrip("/")
+    body = {
+        "model": os.environ.get("MEMORY_HUB_TITLE_LLM_MODEL", TITLE_LLM_DEFAULT_MODEL),
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 128,
+        "temperature": 0,
+        "chat_template_kwargs": {"enable_thinking": False},
+        "response_format": {"type": "json_object"},
+    }
+    api_key = os.environ.get("MEMORY_HUB_TITLE_LLM_API_KEY", "vllm")
+    timeout = float(os.environ.get("MEMORY_HUB_TITLE_LLM_TIMEOUT", "15"))
+    request = urllib.request.Request(
+        base_url + "/chat/completions",
+        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + api_key,
+        },
+        method="POST",
+    )
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        choices = payload.get("choices")
+        if not isinstance(choices, list) or not choices:
+            return None
+        message = choices[0].get("message")
+        if not isinstance(message, dict):
+            return None
+        verdict = json.loads(THINK_BLOCK_RE.sub(" ", str(message.get("content") or "")))
+        if not isinstance(verdict, dict):
+            return None
+        meaningful = verdict.get("meaningful")
+        title = clean_llm_title(str(verdict.get("title") or ""))
+        return {"title": title, "meaningful": bool(meaningful)}
+    except Exception:
+        return None
+
+
+def title_cache_path(state_dir: Path) -> Path:
+    return state_dir / "title-cache.jsonl"
+
+
+def load_title_cache(path: Path) -> Dict[str, Dict[str, Any]]:
+    cache: Dict[str, Dict[str, Any]] = {}
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                sha256 = record.get("sha256")
+                title = record.get("title")
+                if isinstance(sha256, str) and isinstance(title, str):
+                    cache[sha256] = {
+                        "title": title,
+                        "meaningful": bool(record.get("meaningful", True)),
+                    }
+    except OSError:
+        pass
+    return cache
+
+
+def append_title_cache(path: Path, sha256: str, title: str, meaningful: bool) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {"sha256": sha256, "title": title, "meaningful": meaningful},
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+    except OSError:
+        pass
+
+
+def classify_snapshot(
+    config: "Config", sha256: str, last_user: str, last_assistant: str
+) -> Tuple[str, bool]:
+    """Topic title + archival-worthiness for a snapshot; cached by content sha256."""
+    cache_path = title_cache_path(config.state_dir)
+    cache = load_title_cache(cache_path)
+    cached = cache.get(sha256)
+    if cached is not None:
+        return cached["title"], cached["meaningful"]
+    user_texts = [last_user] if last_user else []
+    verdict = llm_classify_session(user_texts, last_assistant)
+    if verdict is not None:
+        title = verdict["title"]
+        meaningful = verdict["meaningful"]
+    else:
+        meaningful = heuristic_meaningful(user_texts)
+        title = ""
+    if not title:
+        title = heuristic_title(user_texts)
+    append_title_cache(cache_path, sha256, title, meaningful)
+    return title, meaningful
 
 
 def extract_role_text(record: Dict[str, Any]) -> Optional[Tuple[str, str]]:
@@ -205,6 +422,9 @@ class Config:
     display_name: str = ""
     profile_summary: str = ""
     identity_source: str = "explicit"
+    # dry_run=True：capture/flush 上传的记忆只落 hub（SQLite），不进入 Graphiti
+    # 索引，用于链路测试；经 memory-write/1 的 dry_run 字段透传。
+    dry_run: bool = False
 
     @property
     def configured(self) -> bool:
@@ -229,8 +449,16 @@ class Config:
         )
 
     @classmethod
-    def from_environment(cls, cwd: Optional[str] = None) -> "Config":
-        agent_id = os.environ.get("MEMORY_HUB_AGENT_ID", "claude-code-mac")
+    def from_environment(
+        cls, cwd: Optional[str] = None, default_agent_id: Optional[str] = None
+    ) -> "Config":
+        # agent_id 缺省跟随 --source（pi/claude/codex），不再硬编码单一值；
+        # MEMORY_HUB_AGENT_ID 仍可显式覆盖。
+        agent_id = (
+            os.environ.get("MEMORY_HUB_AGENT_ID")
+            or default_agent_id
+            or "claude-code-mac"
+        )
         state_dir = Path(
             os.environ.get(
                 "MEMORY_HOOK_STATE_DIR",
@@ -272,13 +500,11 @@ class Config:
             timeout_seconds=float(os.environ.get("MEMORY_HOOK_TIMEOUT_SECONDS", "8")),
             state_dir=state_dir,
             display_name=compact_text(
-                os.environ.get("MEMORY_HUB_CLIENT_DISPLAY_NAME")
-                or (stored_profile.display_name if use_stored_details else ""),
+                stored_profile.display_name if use_stored_details else "",
                 128,
             ),
             profile_summary=compact_text(
-                os.environ.get("MEMORY_HUB_CLIENT_SUMMARY")
-                or (stored_profile.summary if use_stored_details else ""),
+                stored_profile.summary if use_stored_details else "",
                 1024,
             ),
             identity_source=(
@@ -290,6 +516,8 @@ class Config:
                 if stored_profile
                 else "legacy-default"
             ),
+            dry_run=os.environ.get("MEMORY_HOOK_DRY_RUN", "").lower()
+            in ("1", "true", "yes"),
         )
 
 
@@ -430,6 +658,8 @@ class StateStore:
                     "UPDATE jobs SET user_id=? WHERE user_id IS NULL",
                     (self.config.default_user_id or UNCONFIGURED_USER_ID,),
                 )
+            if "project_id" not in columns:
+                connection.execute("ALTER TABLE jobs ADD COLUMN project_id TEXT")
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_jobs_user_state "
                 "ON jobs(user_id, state, created_at)"
@@ -449,10 +679,15 @@ class StateStore:
         source_session_id: str,
         cwd: str,
         transcript_path: Path,
+        project_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         user_id = user_profile.user_id
+        # session_id 编入 project：归属（project/agent）变更后同名 session 不再
+        # 冲突（hub 端 session 归属在首版创建时固定，跨归属追加 version 会被
+        # scope 校验 403）；新旧归档各自独立，各走各的 version 序列。
         session_id = normalize_identifier(
-            "%s:%s" % (source, source_session_id), "%s-session" % source
+            "%s:%s:%s" % (source, project_id or "archive", source_session_id),
+            "%s-session" % source,
         )
         user_object_dir = self.object_dir / hashlib.sha256(
             user_id.encode("utf-8")
@@ -474,8 +709,8 @@ class StateStore:
                 INSERT OR IGNORE INTO jobs (
                     user_id, source, source_session_id, session_id, cwd, transcript_path,
                     snapshot_path, sha256, size_bytes, last_user, last_assistant,
-                    state, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)
+                    state, created_at, updated_at, project_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)
                 """,
                 (
                     user_id,
@@ -491,6 +726,7 @@ class StateStore:
                     snapshot.last_assistant,
                     now,
                     now,
+                    project_id,
                 ),
             )
             inserted = cursor.rowcount == 1
@@ -665,10 +901,11 @@ class HubClient:
         user_id: str,
         idempotency_key: Optional[str] = None,
         content_type: Optional[str] = None,
+        agent_id: Optional[str] = None,
     ) -> Dict[str, str]:
         headers = {
             "X-User-Id": user_id,
-            "X-Agent-Id": self.config.agent_id,
+            "X-Agent-Id": agent_id or self.config.agent_id,
             "X-Project-Id": project_id,
             "Accept": "application/json",
         }
@@ -691,6 +928,7 @@ class HubClient:
         idempotency_key: Optional[str] = None,
         content_type: Optional[str] = None,
         allow_404: bool = False,
+        agent_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         if json_body is not None:
             body = json.dumps(json_body, ensure_ascii=False, separators=(",", ":")).encode(
@@ -701,7 +939,7 @@ class HubClient:
             self.config.hub_url + path,
             data=body,
             method=method,
-            headers=self.headers(project_id, user_id, idempotency_key, content_type),
+            headers=self.headers(project_id, user_id, idempotency_key, content_type, agent_id),
         )
         try:
             with self.opener.open(request, timeout=self.config.timeout_seconds) as response:
@@ -724,32 +962,39 @@ class HubClient:
         return value
 
     def ensure_memory(
-        self, job: sqlite3.Row, version: int, file_id: str
+        self, job: sqlite3.Row, version: int, file_id: str, title: str = ""
     ) -> Dict[str, Any]:
+        # project/agent 归属跟随 job：project 按捕获时的工作目录分类，
+        # agent 取捕获来源（pi/claude/codex），与当前进程 config 无关。
+        project_id = job["project_id"] or self.config.archive_project_id
+        agent_id = job["source"] or self.config.agent_id
         latest_user = job["last_user"] or "未提取到用户文本"
         latest_assistant = job["last_assistant"] or "未提取到助手最终文本"
+        topic = title or compact_text(latest_user, TITLE_MAX_CHARS) or "未命名会话"
         distilled = (
-            "%s 会话归档，工作目录：%s。最近用户目标：%s。最近会话结果：%s"
-            % (job["source"], job["cwd"], latest_user, latest_assistant)
+            "%s 会话「%s」，工作目录：%s。最近用户目标：%s。最近会话结果：%s"
+            % (job["source"], topic, job["cwd"], latest_user, latest_assistant)
         )
         memory = self.request(
             "POST",
             "/v1/memories",
-            self.config.archive_project_id,
+            project_id,
             job["user_id"],
             idempotency_key=job_idempotency_key("memory", job),
+            agent_id=agent_id,
             json_body={
                 "schema_version": "memory-write/1",
-                "agent_id": self.config.agent_id,
-                "project_id": self.config.archive_project_id,
+                "agent_id": agent_id,
+                "project_id": project_id,
                 "session_id": job["session_id"],
                 "session_version": version,
                 "file_id": file_id,
                 "scope_type": "project",
                 "memory_type": "session_summary",
                 "distilled_content": distilled[: 16 * 1024],
-                "summary": latest_user[:1024],
+                "summary": topic[:1024],
                 "source_event_id": job_idempotency_key("event", job),
+                "dry_run": self.config.dry_run,
             },
         )
         return {
@@ -758,14 +1003,24 @@ class HubClient:
         }
 
     def upload_job(self, job: sqlite3.Row) -> Dict[str, Any]:
-        project_id = self.config.archive_project_id
+        project_id = job["project_id"] or self.config.archive_project_id
+        agent_id = job["source"] or self.config.agent_id
         user_id = job["user_id"]
+        title, meaningful = classify_snapshot(
+            self.config,
+            job["sha256"],
+            job["last_user"] or "",
+            job["last_assistant"] or "",
+        )
+        if not meaningful:
+            return {"status": "skipped_meaningless", "title": title}
         session = self.request(
             "GET",
             "/v1/sessions/%s" % job["session_id"],
             project_id,
             user_id,
             allow_404=True,
+            agent_id=agent_id,
         )
         if session:
             latest_version = int(session["latest_version"])
@@ -774,9 +1029,10 @@ class HubClient:
                 "/v1/sessions/%s/versions/%s" % (job["session_id"], latest_version),
                 project_id,
                 user_id,
+                agent_id=agent_id,
             )
             if latest.get("content_sha256") == job["sha256"]:
-                ensured = self.ensure_memory(job, latest_version, latest["file_id"])
+                ensured = self.ensure_memory(job, latest_version, latest["file_id"], title)
                 return {"status": "unchanged", "version": latest_version, **ensured}
 
         snapshot_path = Path(job["snapshot_path"])
@@ -788,6 +1044,7 @@ class HubClient:
             project_id,
             user_id,
             idempotency_key=job_idempotency_key("upload", job),
+            agent_id=agent_id,
             json_body={
                 "schema_version": "file-upload/1",
                 "purpose": "session_snapshot",
@@ -800,7 +1057,7 @@ class HubClient:
         upload_id = upload["upload_id"]
         file_id = upload["file_id"]
         file_status = self.request(
-            "GET", "/v1/files/%s" % file_id, project_id, user_id
+            "GET", "/v1/files/%s" % file_id, project_id, user_id, agent_id=agent_id
         )
         if file_status.get("status") != "available":
             content = snapshot_path.read_bytes()
@@ -811,12 +1068,14 @@ class HubClient:
                 user_id,
                 body=content,
                 content_type="application/gzip",
+                agent_id=agent_id,
             )
             completed = self.request(
                 "POST",
                 "/v1/files/uploads/%s/complete" % upload_id,
                 project_id,
                 user_id,
+                agent_id=agent_id,
             )
             if completed.get("status") != "available":
                 raise HubError("uploaded file did not become available")
@@ -827,9 +1086,10 @@ class HubClient:
             project_id,
             user_id,
             idempotency_key=job_idempotency_key("session", job),
+            agent_id=agent_id,
             json_body={
                 "schema_version": "session-version/1",
-                "agent_id": self.config.agent_id,
+                "agent_id": agent_id,
                 "project_id": project_id,
                 "file_id": file_id,
                 "base_version": base_version,
@@ -839,7 +1099,7 @@ class HubClient:
             },
         )
         version = int(version_response["version"])
-        ensured = self.ensure_memory(job, version, file_id)
+        ensured = self.ensure_memory(job, version, file_id, title)
         return {"status": "captured", "version": version, "file_id": file_id, **ensured}
 
     def search(
@@ -1048,14 +1308,18 @@ def command_capture(args: argparse.Namespace, config: Config, store: StateStore)
     transcript_path = Path(transcript).expanduser()
     if not transcript_path.is_file():
         return 0
+    cwd = str(hook.get("cwd") or os.getcwd())
+    # 归档 project 按工作根目录名分类（如 memory-hub / maindev / obsidianvault）。
+    project_id = project_id_for_cwd(cwd, config.archive_project_id)
     try:
         if not profile_is_ready(profile):
             queued = store.enqueue(
                 UserProfile(UNCONFIGURED_USER_ID),
                 args.source,
                 source_session_id,
-                str(hook.get("cwd") or os.getcwd()),
+                cwd,
                 transcript_path,
+                project_id,
             )
             if args.verbose:
                 print(
@@ -1069,8 +1333,9 @@ def command_capture(args: argparse.Namespace, config: Config, store: StateStore)
             profile,
             args.source,
             source_session_id,
-            str(hook.get("cwd") or os.getcwd()),
+            cwd,
             transcript_path,
+            project_id,
         )
         flushed = flush_pending(store, config, args.flush_limit)
         if args.verbose:
@@ -1170,6 +1435,7 @@ def command_configure(args: argparse.Namespace, config: Config) -> int:
         display_name=display_name,
         profile_summary=summary,
         identity_source="profile",
+        dry_run=config.dry_run,
     )
     store = StateStore(configured)
     assigned = store.assign_unconfigured(user_id)
@@ -1208,6 +1474,7 @@ def build_parser() -> argparse.ArgumentParser:
     recall.add_argument("--max-chars", type=int, default=6000)
     search = commands.add_parser("search")
     search.add_argument("query")
+    search.add_argument("--source", choices=("claude", "codex", "pi"))
     search.add_argument("--user-id")
     search.add_argument("--display-name")
     search.add_argument("--summary")
@@ -1228,7 +1495,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    config = Config.from_environment()
+    config = Config.from_environment(
+        default_agent_id=getattr(args, "source", None)
+    )
     if args.command == "configure":
         return command_configure(args, config)
     if args.command == "capture":
