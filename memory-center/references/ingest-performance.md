@@ -79,3 +79,24 @@ confirm 不再是逐事件轮询，而是**按 group 共享冷却时间点**调�
 - retry 的 episode 已在 Neo4j 查到但 hub 一直不 confirm → 确认逻辑/查询路径失效（查
   `episode_confirm_limit` 是否小于 group episode 总量、`/episodes` 响应是否含 uuid 字段）。
 - 长时间没有新的 `Got a job` → ingest worker 死了（补丁后理论上不会，仍需先排除）。
+
+## episode uuid 的 group 粘性（跨组投递语义）
+
+- graphiti `add_episode(uuid=X)` 是**更新语义**，且 episode 的 `group_id` 在创建时固化——
+  同 uuid 换 group 重投只更新内容，**episode 永远留在首个 group**（uuid 全局唯一，不按 group 隔离）。
+- 补丁的 uuid 预建已升级为**搬家语义**：已有 episode 的 group ≠ 请求 group 时先删旧再按新
+  group 重建（日志特征 `[ingest] uuid=... group move: old -> new`）。调用方无需再先手动
+  `DELETE /episode/{uuid}`。
+- 排查「Hub 永远 confirm 不过的 submitted」：先按 **payload 里的 group** 查 `/episodes` 找不到，
+  再查 episode 是否落在**别的 group**（用 cypher-ro 全局按 uuid 查 `n.group_id`）。
+
+## project merge 固化 vs Graphiti 积压
+
+Hub 的 `finalize_project_merge` 对在途事件的保护窗口是「+90s 清扫旧分组复活 episode、
++120s 新分组重建索引」，按 **outbox processing 租约 60s** 校准——隐含假设是 Graphiti ingest
+队列只有秒~分钟级积压。**Hub 删不掉已被 202 接受、躺在 Graphiti 内部队列里的旧 group job**：
+积压数小时时，旧 job 会在清扫窗口之后消费，episode 在旧 group「复活」（现在有搬家语义兜底，
+同 uuid 的新 group 重建到达时会自动纠正，但复活到纠正之间旧分组会被 dashboard 观测到非空）。
+
+实操建议：大批量补传期间避免固化合并；固化后若 source group 仍有 episode 复活，属预期窗口，
+等积压排空后同 uuid 的重投会自动搬走，无需人工干预。
