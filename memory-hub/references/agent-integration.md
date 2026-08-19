@@ -111,7 +111,14 @@ hook 侧 job 直接 `completed/skipped_meaningless`，批传侧计 `skipped`。
 User ID 解析优先级为命令行 `--user-id`、hook 输入的 `user_id`、
 `MEMORY_HUB_CLIENT_USER_ID`、当前项目最近的 `.team/settings.local.json.currentMember`，最后为本机
 `client-profile.json`；不再回退到
-`MEMORY_HUB_AGENT_ID`。命令行或 hook 输入覆盖默认用户时，还必须同时提供该用户的显示名称和概要
+`MEMORY_HUB_AGENT_ID`。
+
+安装器持久化身份的方式是 **shell-profile backend**：以标记块
+（`# >>> memory-hub identity >>>`）把 `export MEMORY_HUB_CLIENT_USER_ID=<id>` 写入
+`~/.profile`（macOS 加写 `~/.zprofile`）。注意 `install_hooks.py check` 的 identity
+探测**只读进程环境变量**，不读 client-profile.json——在未 source `.profile` 的 shell
+里会误报 `"source": "missing"`；确认真实身份解析结果用 `memory_hook.py status`
+（输出 `identity_source` 与 `default_user_id`）。命令行或 hook 输入覆盖默认用户时，还必须同时提供该用户的显示名称和概要
 （命令行用 `--display-name` / `--summary`，hook 输入用 `user_display_name` / `user_summary`），否则视为
 未完成身份配置。多用户调用方应在每次 hook 输入中显式提供这三项；Hub 进程本身不得配置固定用户。
 

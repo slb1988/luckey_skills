@@ -36,14 +36,29 @@ upload/hook → memory-hub outbox(add_episode) → graphiti 内存队列 → 单
   `confirm_episode`（attempt_count 归零、status=retry），确认成功才 completed。
 - **episode uuid == memory_id**：graphiti 侧 ingest.py 补丁在 add_episode 前按 uuid MERGE 预建
   EpisodicNode，使 hub 可用 memory_id 直接确认。
-- confirm 实现：`GraphitiClient.episode_exists()` 每事件每轮调
-  `GET /episodes/{group}?last_n={GRAPHITI_EPISODE_CONFIRM_LIMIT=100000}`，拉**全量 episode
-  （含完整 content）**在客户端逐个比 uuid。N 个待确认事件 = 每轮 N 次全量查询。
+- confirm 实现：客户端拉 group 的 `/episodes?last_n={GRAPHITI_EPISODE_CONFIRM_LIMIT=100000}`
+  全量列表（含完整 content）比对 uuid。**已改为组级批量结算**（一轮一次查询），
+  调度语义见下文「confirm 组级冷却语义」。
 - 重试策略（.env）：`OUTBOX_MAX_ATTEMPTS=100000`（实际永不失败）、退避 2^n 秒封顶
   `OUTBOX_MAX_BACKOFF_SECONDS=3600`、`OUTBOX_POLL_SECONDS=1`。
 - 大批量补传时 retry 堆积是**正常现象**（episode 还在 graphiti 队列里，`episode is not
   indexed yet` 为真），队列排空后自动转 completed/indexed；抽样直连 Neo4j 验证
   `Episodic.uuid` 命中即可区分「真排队」与「确认逻辑失效」。
+
+## confirm 组级冷却语义（批量确认版）
+
+confirm 不再是逐事件轮询，而是**按 group 共享冷却时间点**调度：
+
+- 同 group 的待确认事件对齐到同一个 `next_attempt_at`；到点后一轮只查一次
+  `/episodes`，按 **FIFO 前缀结算**：graphiti 对同 group 串行处理，命中最晚可见的
+  待确认事件即说明比它早提交的全部已处理完，整段前缀置 completed。
+- 有进展 → 退避重置为 poll 级（秒级紧跟下一轮）；无进展 → 指数退避封顶
+  `outbox_confirm_max_backoff_seconds`。
+- defer 时**整组统一改写**到最早共享点（含 processing 状态的当前事件），旧版逐条
+  退避留下的抖动散点一轮内自愈。
+- 后果：dashboard 上 submitted/indexed 计数是**阶梯式跳动**而非连续变化，
+  组退避到高档位时可能 30-60 分钟才跳一次——这不代表卡住，看 graphiti 队列深度
+  （`remaining queue`）才是真实进度。
 - 低效放大点：confirm 逐条轮询 + dashboard episode 探测（秒级 `last_n=100000`）叠加，
   给 graphiti/neo4j 增加可观的只读负载。可优化为 group 级批量确认（每 group 每轮查一次）。
 

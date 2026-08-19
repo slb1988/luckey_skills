@@ -276,9 +276,29 @@ EOF
 
 hook 端默认 user_id 解析顺序：环境变量 `MEMORY_HUB_CLIENT_USER_ID` /
 `MEMORY_HUB_USER_ID` → 团队当前成员 → 本机 profile
-`~/.local/state/memory-hub-hook/client-profile.json`（`{"user_id": "sun", ...}`，
-NAS 上已配置为 sun）。服务端对不带 `X-User-Id` 的旧客户端回退 agent_id。
+`~/.local/state/memory-hub-hook/client-profile.json`（已统一为 sunlaibing）。
+服务端对不带 `X-User-Id` 的旧客户端回退 agent_id。
 user scope 记忆落在 Graphiti group `user:{user_id}`。
+
+### user 身份归一迁移（改 user_id 时的完整 SOP）
+
+改 user_id 涉及三个存储面，缺一不可：
+
+| 层 | 工具 | 覆盖 |
+|---|---|---|
+| Hub SQLite | `scripts/migrate_user_identity.py`（仅标准库；默认 dry-run，`--apply` 才写；自动 `.bak` 备份 + 单事务） | sessions/memories/files 的 user 字段、users 表合并、memories 与 graphiti_cleanup 的 `user:<old>` group 改名、**outbox 未完结事件 payload_json 文本替换** |
+| Neo4j | 只能 `docker exec <neo4j> cypher-shell` 执行 `SET n.group_id`（节点和关系两条）；REST 无改 group 端点，**cypher-ro 网关是只读的，不能用于改名** | graph 侧 user scope 数据 |
+| 各机 hook 身份 | `client-profile.json` + `~/.profile` 的 `MEMORY_HUB_CLIENT_USER_ID`（安装器以标记块写入） | 不改则旧 user 分组会随下一次写入复活 |
+
+```bash
+cd /share/Container/memory-hub
+for OLD in <old-id...>; do
+  python3 scripts/migrate_user_identity.py data/memory-hub.sqlite3 --from "$OLD" --to <new-id> --apply
+done
+```
+
+验证：旧身份在三张表零残留、users 表只剩新 id、Neo4j `user:*` 分组只剩新组、
+以新 user 调 `/v1/memories/search` 能命中原 user scope 记忆。
 
 ## 观测面板（dashboard）部署
 
