@@ -134,9 +134,24 @@ session 文件必须是**合法 JSON 文档**，原始 .jsonl 会被拒。常用
 
 检索 curl 见 [api-notes](references/api-notes.md)「常用接口速查」第 1 条。
 
+<memory category="debug-commands">
+编辑器内 `memory_search` 0 命中时，绕过扩展用 CLI 复现：pi/claude 的记忆扩展只是薄封装，实际检索全部在 `scripts/memory_hook.py search`（扩展源码里 grep 不到 project/检索逻辑属正常）。`/usr/bin/python3 scripts/memory_hook.py search "<query>" --project <id> --limit 20 --json` 与编辑器内走同一链路，且 `--project` 可探测当前 cwd 派生 scope 之外的项目（如 agent-history、maindev），`--json` 可看原始返回结构排除展示层问题。
+</memory>
+
+<memory category="troubleshooting">
+Graphiti 语义检索噪音底线高：乱查（大小写无关）也会返回"近似"结果——**返回非空 ≠ 命中，目标不在 top-N ≠ 不存在**。判定"没有这条记忆"前先调大 `--limit`（默认 10）并换关键词重试，再按 project scope 排查。live hook 同样按写入时 cwd 文件夹名派生 project：Windows 端写的记忆散落在 maindev/unity2018/agent-history 等，Mac 端 ObsidianVault 会话默认只能看到 obsidianvault project——跨机器"重启后搜不到"几乎都是 scope 隔离而非故障。
+</memory>
+
 ## Agent 自动记忆集成
 
 Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`（仅标准库），本地 spool + 失败自动补传。
+
+<memory category="common-patterns">
+Pi 扩展带 EXTENSION_VERSION（模板在 `assets/pi-memory-hub.ts`，改模板必须递增版本号）；check 报
+`extension version X is outdated` 时重新 install 发布即可。Pi 端全链路留痕（session_start / recall /
+search / capture）写在 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`，
+分析检索质量先查这个文件。
+</memory>
 
 > 详细参考：[agent-integration](references/agent-integration.md)（install、身份配置、环境变量、命令）
 

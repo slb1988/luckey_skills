@@ -78,6 +78,25 @@ Windows 写入注册表 `HKCU\Environment` 并广播 `WM_SETTINGCHANGE`；POSIX 
 /usr/bin/python3 "$SKILL_DIR/scripts/install_hooks.py" check --agents auto
 ```
 
+check 会逐项比对 Pi 扩展的 **EXTENSION_VERSION**：已安装副本的版本号与模板
+（`assets/pi-memory-hub.ts`）不一致时报 `extension version X is outdated (managed Y); rerun install`，
+重新执行 install 即可重新发布。修改模板后必须递增模板里的版本号，否则 check 无法感知升级。
+
+## Pi 扩展全链路留痕
+
+Pi 扩展（v2 起）把每次与 Memory Hub 的交互追加为 JSONL，写到
+`${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`，供离线分析检索质量：
+
+| kind | 时机 | 关键字段 |
+|---|---|---|
+| `session_start` | 会话开始 | session_id、cwd |
+| `recall` | 每次 prompt 提交前召回 | prompt、exit_code、duration_ms、injected、context（注入全文） |
+| `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、result（结果全文） |
+| `capture` | agent_end / session_shutdown 归档 | trigger、exit_code、duration_ms、skipped（no_transcript/reentrant） |
+
+单字段超 20k 字符截断；写日志失败不阻断 agent。Claude/Codex 端的留痕在 spool
+（`memory_hook.py status` 可查 job 状态），不在此文件。
+
 安装器仅替换命令路径包含 `memory-hub/scripts/memory_hook.py` 的 handlers，保留其他 Hook，并在修改配置前生成
 `*.memory-hub.bak` 备份。运行中的 Agent 可能缓存配置；完成后提示重启对应 Agent 或执行其 reload 命令。
 

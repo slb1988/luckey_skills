@@ -196,6 +196,14 @@ def check_json_hooks(path: Path, agent: str) -> Dict[str, Any]:
     return {"ok": not errors, "path": str(path), "errors": errors, "hooks": len(actual)}
 
 
+VERSION_PATTERN = re.compile(r'EXTENSION_VERSION\s*=\s*"([^"]+)"')
+
+
+def pi_extension_version(content: str) -> str:
+    match = VERSION_PATTERN.search(content)
+    return match.group(1) if match else "unknown"
+
+
 def render_pi_extension() -> str:
     template = PI_TEMPLATE.read_text(encoding="utf-8")
     return template.replace("__MEMORY_HOOK_JSON__", json.dumps(str(MEMORY_HOOK)))
@@ -207,18 +215,33 @@ def install_pi_extension(path: Path) -> bool:
 
 def check_pi_extension(path: Path) -> Dict[str, Any]:
     errors = []
+    managed = render_pi_extension()
+    managed_version = pi_extension_version(managed)
+    installed_version = None
     if not path.is_file():
         errors.append("extension file is missing")
     else:
         content = path.read_text(encoding="utf-8")
-        if content != render_pi_extension():
+        installed_version = pi_extension_version(content)
+        if installed_version != managed_version:
+            errors.append(
+                "extension version %s is outdated (managed %s); rerun install"
+                % (installed_version, managed_version)
+            )
+        elif content != managed:
             errors.append("extension differs from the managed definition")
         if "--flush-limit" in content:
             errors.append("agent_end must upload instead of deferring the flush")
         for event in ("before_agent_start", "agent_end", "session_shutdown"):
             if 'pi.on("%s"' % event not in content:
                 errors.append("missing %s handler" % event)
-    return {"ok": not errors, "path": str(path), "errors": errors}
+    return {
+        "ok": not errors,
+        "path": str(path),
+        "errors": errors,
+        "version": installed_version,
+        "managed_version": managed_version,
+    }
 
 
 class CodexAppServer:
