@@ -43,6 +43,31 @@ description: Full-stack deploy of the auto-server frontend and backend on dev@au
 | 客户端 | `auto-server` |
 | 字符集 | `utf8`（**必须**，Unicode 服务器） |
 
+## 注册自定义环境变量（防 p4 覆盖）
+
+后端进程需要自定义环境变量时（如 AI Review 的独立 P4 账号），**必须写在本 skill 的 `scripts/deploy.sh` B5 启动前**，不能写进后端工作区：
+
+| 位置 | p4 sync 是否覆盖 | 原因 |
+|------|------------------|------|
+| `~/.pi/skills/auto-server-deploy/scripts/deploy.sh` | 永不 ✅ | 在 client view（`//depot/pyAutomation/... → /data/py_automation/...`）之外 |
+| backend 工作区 `start.sh` / `deploy.sh` / `setup_env.sh` | 会覆盖 ❌ | 均为 depot 文件，sync 还原 |
+| backend `server/config/*.py` | 会覆盖 ❌ | 全部在 depot 中 |
+
+> 已注册实例：B5 启动前 `export AI_REVIEW_P4USER=AutoServer AI_REVIEW_P4PASSWD=...`（AI Review 专用账号与业务 P4 账号 CyanCookCI 分离）。
+> `p4 sync` 会跳过本工作区 opened-for-edit 的文件——本地打开未提交的修改不会被覆盖。
+
+## 配置选择与 AI_REVIEW 环境变量链
+
+`server/__init__.py` 按环境变量 `Env` 选择配置类：
+
+| Env | 配置类 | P4 默认 |
+|-----|--------|---------|
+| 未设置 / dev | DevConfig | `P4PORT=''`（P4 功能不可用） |
+| `prod` | ProdConfig | `P4PORT=192.168.2.236:1666`、`P4USER=CyanCookCI` |
+
+- **`Env=prod` 来自 `~/.bashrc`，不在 deploy.sh 里**。若在未继承 bashrc 的 shell（cron 等）里跑部署，后端会静默回落到 DevConfig → P4 全不可用。
+- `config/base.py` 用 `os.getenv` 读 `AI_REVIEW_P4PORT/P4USER/P4PASSWD/P4CLIENT`（空值回落默认）；`ai_review/vcs/p4_adapter.py` 自动提交路径取值链为 `AI_REVIEW_P4PORT or P4PORT`。
+
 ## 日志管理（后端）
 
 | 操作 | 说明 |

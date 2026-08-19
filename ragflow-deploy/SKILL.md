@@ -98,12 +98,39 @@ RAGFlow v0.26.4 内置了 Langfuse tracing，密钥存储在 MySQL `tenant_langf
 
 **推荐用容器名直连**：省去 iptables NAT 规则依赖，`docker compose` 重启后容器 IP 变化也不会断。
 
-### 环境变量（.env 附加）
+### 网络连通前提
 
-> 注意：RAGFlow 优先从 DB 读密钥，env var 仅作备用。但添加后可在容器内直接 `env \| grep LANGFUSE` 检查。
+RAGFlow 和 Langfuse 必须在**同一个 Docker 网络**才能用容器名互访。默认 RAGFlow 在 `docker_ragflow`，Langfuse 在 `docker_default`，不互通。
 
 ```bash
-LANGFUSE_PUBLIC_KEY=pk-lf-ade6a02d-1393-4af4-9100-c755789722cc
-LANGFUSE_SECRET_KEY=sk-lf-a4850c13-3608-470f-a19e-6ee5f16c625b
-LANGFUSE_HOST=http://langfuse:3000
+# 一次性修复（持久化到容器重启，但不 survive docker compose down）
+docker network connect docker_default docker-ragflow-cpu-1
+
+# 永久修复：在 RAGFlow docker-compose.yml 的 ragflow-cpu service 添加
+networks:
+  - ragflow
+  - default   # docker_default 的外部网络
+```
+
+> 如果使用外部 IP (`192.168.2.13:3030`)，需确认 Docker 网桥到宿主机的 iptables 规则放行该端口。常见症状：`httpcore.ConnectError: Name or service not known`。
+
+### 已知代码 bug（v0.26.4）
+
+`langfuse_api.py` 的 `get_api_key()` 函数存在变量遮蔽（variable shadowing）bug：
+
+```python
+# Line 70: 局部变量 langfuse 遮蔽了 langfuse 模块
+langfuse = Langfuse(...)
+# Line 74: 报 AttributeError——Python 在局部变量上找 .api.core
+# 而非模块
+```
+
+**症状**：`AttributeError: 'LangfuseAPI' object has no attribute 'core'`
+
+**修复**：在文件头部导入 `ApiError`，except 子句直接用类名：
+
+```python
+from langfuse.api.core.api_error import ApiError  # 新增
+# ...
+except ApiError as api_err:  # 替换原 langfuse.api.core.api_error.ApiError
 ```

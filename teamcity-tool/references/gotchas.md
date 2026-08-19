@@ -78,3 +78,24 @@ build 入队时会快照当前参数值。之后修改 build config 的参数不
 ## TeamCity 状态同步延迟
 
 通过 REST API 修改配置后，如果 versioned settings 已启用，TeamCity 可能不会立即重新加载 VCS 中的最新 DSL。必要时需在 UI 手动点击 **"Load project settings from VCS"** 强制刷新。
+
+## 升级陷阱（2026-08-11 实测 2025.11 → 2026.1.3）
+
+### Java 17 → 21 是硬性要求
+新版本要求 Java 21，但启动脚本从 PATH/JAVA_HOME 解析 java，旧环境可能仍是 17。启动/升级后**必须验证实际 JVM**：
+```bash
+ss -tlnp | grep 8111                    # 拿 java PID
+sudo readlink /proc/<PID>/exe           # 必须是 java-21
+```
+⚠️ `ps aux | grep Bootstrap` 会同时匹配到本机的 **Jira** JVM（Java 17，atlassian-jira，端口 8083），别认错。
+
+### 数据格式升级页不是报错
+升级后首次启动会显示 "data directory and database need to be upgraded"，数据格式 1032 → 1039，**不可降级**。这不是故障，但必须先备份再确认（UI 上点确认即可，会自动重启）。
+
+### 升级前的备份是硬性要求
+- Web UI 内置备份到 `.BuildServer/backup/TeamCity_Before_Upgrade_*.zip`
+- 或 mysqldump（数据库在 docker 容器 `mysql`，13306 → 3306，root 密码在容器环境变量）
+- 数据目录 40GB，物理拷贝耗时较长，内置 zip + SQL dump 组合够用
+
+### 升级后 agent 要求
+Agent 必须用 Java 21，老 Java 的 agent 能连上但**无法跑新构建**。Windows agent 需单独升级其 JVM。

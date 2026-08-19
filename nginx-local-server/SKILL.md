@@ -68,10 +68,11 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
-    # Hashed assets（/assets/ 下）— 永久缓存（immutable）
+    # Hashed assets under /assets/ — cache forever (immutable)
     location /assets/ {
         add_header Cache-Control "public, max-age=31536000, immutable";
         try_files $uri =404;
+        # 404 on a hashed asset = stale SPA in browser memory → force reload
         error_page 404 = @missing_asset;
     }
 
@@ -88,6 +89,14 @@ server {
 > **备份文件**：`/etc/nginx/sites-available/py_automation.conf.bak`（修改前自动备份）
 
 ## 静态资源压缩
+
+### 三层防缓存策略
+
+| 层级 | 机制 | 说明 |
+|------|------|------|
+| 1. HTTP 头 | `no-store` + `if_modified_since off` + `etag off` + past `Expires` | 浏览器永不缓存 `index.html` |
+| 2. HTML `<meta>` | `http-equiv="Cache-Control/Pragma/Expires"` | 兜底，防止浏览器忽略 HTTP 头 |
+| 3. `@missing_asset` | 资产 404 → `window.location.reload(true)` | 旧 SPA 在浏览器内存中时，新部署后自动刷新 |
 
 ### 策略：gzip_static 优先 + 运行时 gzip 兜底
 
