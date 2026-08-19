@@ -8,7 +8,9 @@ description: >
   "TeamCity agent", "build agent", "teamcity data directory", "build chain", "build queue",
   "no compatible agents", "reverse.dep", "snapshot dependency", or any TeamCity
   admin/ops/API task. Also trigger when the user reports problems with the TeamCity
-  web UI, login, builds, or agent assignment on this host.
+  web UI, login, builds, or agent assignment on this host. Covers the PL packaging
+  pipeline (PL_BuildProjectWindows / PL_BuildUgsBinaries, UAT cook, MinIO upload)
+  and agent checkout-directory auto-clean incidents (DirectoryMap cleaner, 192h expiry).
 compatibility: linux, bash, ps, grep, find, curl
 ---
 
@@ -51,6 +53,8 @@ Always read the reference file before acting — it contains the actual paths, p
 | Build chain & parameter passing lessons | `references/build-chain-lessons.md` |
 | Agent pinning and `reverse.dep.*` behavior | `references/agent-pinning.md` |
 | Non-obvious traps and gotchas | `references/gotchas.md` |
+| 打包管线 (PL_BuildProjectWindows / PL_BuildUgsBinaries / UAT cook) | `references/package-pipeline.md` |
+| Checkout 目录自动清理事故 (DirectoryMap cleaner, 192h expiry) | `references/checkout-dir-auto-clean.md` |
 
 Read the relevant reference before acting on that topic.
 

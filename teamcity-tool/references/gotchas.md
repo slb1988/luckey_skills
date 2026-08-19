@@ -79,6 +79,18 @@ build 入队时会快照当前参数值。之后修改 build config 的参数不
 
 通过 REST API 修改配置后，如果 versioned settings 已启用，TeamCity 可能不会立即重新加载 VCS 中的最新 DSL。必要时需在 UI 手动点击 **"Load project settings from VCS"** 强制刷新。
 
+## Checkout directory 过期自动清理会整树删除目录（默认 192h）
+
+任何曾被 buildType 登记为 custom checkout directory 的目录都会进入 agent 的 directory map。当属主配置**移除 checkoutDir / 被删除 / 停止在该 agent 运行**后，条目成孤儿；距最后使用超过 `teamcity.agent.checkoutDir.expireHours`（默认 192h）即被 `DirectoryMapDirectoriesCleanerImpl` 整树 `rd /s /q`——agent 日志 "Build directory has expired, unused or free disk space is needed"，**与磁盘余量无关**。
+
+要点：
+- 删除发生在 P4 之外 → have-table 完好 → 裸 `p4 sync` 不会自愈，必须 `p4 -c <client> clean <root>\...`
+- 删除被进程占用会留 `<dir>\.teamcity.clean.checkout.required` 标记 → 下次强制重清，需手工删标记 + map 陈旧条目
+- 防御：`buildAgent.properties` 设 `teamcity.agent.checkoutDir.expireHours=never` 并重启 agent；用 checkoutDir 的配置必须 `requirements` 钉死 agent；游戏工作区路径永不登记为 checkout dir
+- agent 自升级会重写 directory map 时间戳 → 升级后一周是高危窗口
+
+2026-08-19 实战事故（E:\WinBuilder3_MainDev 被删、PL_BuildUgsBinaries 三连红、真凶 PLN Task_Sync_CyanCookDepot）完整报告见 [checkout-dir-auto-clean.md](checkout-dir-auto-clean.md)。
+
 ## 升级陷阱（2026-08-11 实测 2025.11 → 2026.1.3）
 
 ### Java 17 → 21 是硬性要求
