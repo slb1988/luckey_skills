@@ -47,7 +47,7 @@ outbox 重试与错误、最近更新的 session 列表、Graphiti episode 探�
 | project 别名定版 | `assets/project-aliases.json`（install 部署到 state dir，hook 与批传共用） |
 
 <memory category="common-patterns">
-`MEMORY_HUB_TITLE_LLM` 代码默认 `0`（关闭时退化为启发式标题、不做低价值过滤），置 `1` 才走内网 vLLM。本机是通过 **Machine 作用域**环境变量开启的（`=1`）——在新进程里发现标题走 LLM 属预期；其他机器若想开启须自行设该变量，不要改代码默认值。
+`MEMORY_HUB_TITLE_LLM` 代码默认 `0`（关闭时退化为启发式标题、不做低价值过滤），置 `1` 才走内网 vLLM。本机是通过 **Machine 作用域**环境变量开启的（`=1`）——在新进程里发现标题走 LLM 属预期；其他机器若想开启须自行设该变量，不要改代码默认值。低价值判定标准含**纯例行运维操作**（git-tool update/sync/commit、skill 更新提交、memory-hub check/install、批量上传归档等只有命令执行结果的会话）——这类会话不上传；但运维中含真实故障排查/bug 修复/技术决策的仍有价值（2026-08-20 用户要求加入，prompt 见 memory_hook.py 与 upload_sessions.py 的 llm_classify_session，两处保持同步）。
 </memory>
 
 ## 参考文档
@@ -177,7 +177,16 @@ Codex 新格式 session 文件首行是 `session_meta` 记录，cwd 与 session 
 `Idempotency-Key`，中断可直接重跑。内容变化时自动 append 新版本。
 
 <memory category="common-patterns">
-不传 `--project-id` 时按**每个 session 的 cwd 文件夹名**逐个派生 project——全机批量归档会散落到 `admin`、`sununity`、`MainDev`、`ObsidianVault` 等十几个 project（实测 3 个 pi session 落进 2 个 project）。检索按 project 隔离，散落后必须逐 project 切换才能搜全。批量归档历史 session 应显式加 `--project-id agent-history`（hook 归档主库）集中存放。
+批量上传的两条铁律（2026-08-20 用户定版，违反被明确纠正过）：
+1. **默认必须双资产一起传（`--hook-namespace`）**：快照 + 完整 session 文件一次到位，禁止先用普通
+   模式传单资产、再 `--backfill-full` 补——那是返工。普通单资产模式只用于确实没有完整 jsonl 源的场景。
+2. **project 归属必须先经用户 review**：任何批量上传实际执行前，先 `--dry-run` 生成每个 session 的
+   归属 project 清单交给用户确认，用户点头后才去掉 dry-run 执行；不得自作主张选定 `--project-id`
+   （包括"按 skill 文档默认 agent-history"也不行——文档默认值也要用户确认）。
+</memory>
+
+<memory category="common-patterns">
+不传 `--project-id` 时按**每个 session 的 cwd 文件夹名**逐个派生 project——全机批量归档会散落到 `admin`、`sununity`、`MainDev`、`ObsidianVault` 等十几个 project（实测 3 个 pi session 落进 2 个 project）。检索按 project 隔离，散落后必须逐 project 切换才能搜全。批量归档历史 session 可考虑 `--project-id agent-history`（hook 归档主库）集中存放，**但选定前必须先给用户 review 归属方案，确认后才执行**。
 </memory>
 
 ```bash
