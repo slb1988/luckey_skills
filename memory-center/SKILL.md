@@ -85,6 +85,8 @@ memory-center/
 10. **LLM 重试收敛为 2 次**：上游 tenacity 写死 `stop_after_attempt(4)` + 退避 `max=120s`，网关 503 时单 job 被拖到 76s+ 仍失败。补丁覆盖 `_generate_response_with_retry`：`stop_after_attempt(2)`、退避 `multiplier=2, min=2, max=10`，快速失败交给上层。
 11. **LLM 调用落盘（JSONL）**：每次调用（ok/error/retry）追加到 `logs/graphiti/llm_calls.jsonl`（容器内 `/app/logs/llm_calls.jsonl`）。字段：`ts, status(ok/error/retry), model, size, caller（哪个抽取步骤发起的，如 node_operations.extract_nodes / edge_operations.extract_edges / extract_attributes_from_node）, attempt, latency_ms, http_status, stop_reason, prompt_tokens, completion_tokens, prompt_chars, usage_raw, response_model, episode_uuid, group_id, error, traceback`，以及完整原文：`system, messages, request_params(max_tokens/temperature/tool_choice/tools schema), response(解析后结果), raw_response(网关原始响应)`（episode/group 由 ingest worker 通过 contextvar 注入；设 `LLM_LOG_PAYLOAD=0` 可只记指标不记原文；原文里的 `\uXXXX` 转义已解码为可读中文，仅显示层面处理，LLM 实际收到的仍是转义形式——graphiti 上游拼 prompt 用 json.dumps 默认转义所致）。超 200MB 轮转为 `llm_calls.YYYYMMDD_HHMMSS.jsonl` 归档（**历史记录全部保留不删除**）。可用 `LLM_LOG_PATH` / `LLM_LOG_MAX_BYTES` / `LLM_LOG_PAYLOAD` 环境变量调整。
 
+12. **实体抽取负例护栏（`_ENTITY_GUARD`）**：graphiti 默认 extract_nodes prompt 只要求抽 "significant entities"，无任何"什么不该抽"的约束——commit hash、会话标题、路径、uuid 都会被忠实抽成 Entity 节点，且 hash 每次不同、resolve 去重无法吸收（2026-08-20 噪声事故）。补丁按 `response_model.__name__ == 'ExtractedEntities'` 定向注入负例约束（只影响实体抽取，不影响 summary/edge 步骤），负例含 commit hash、分支引用（`origin/main`，首版护栏漏了它导致重建期间被重抽）、会话标题、路径、uuid、job id 等。结构化调用的 response_model 名单：`ExtractedEntities` / `ExtractedEdges` / `NodeResolutions` / `EdgeDuplicate` / `EntityAttributes_<hash>`（属性抽取，每实体动态生成）。事故全文：`incidents/2026-08-20-entity-extraction-noise.md`。
+
 ## LLM 调用复盘 / 监控
 
 ```bash
@@ -158,6 +160,7 @@ curl -X POST http://10.77.77.6:8006/query -H "Authorization: Bearer $TOKEN" \
 
 ## 关键坑位
 
+- **删 episode 的官方级联语义（重建图谱的基础）**：`DELETE /episode/{uuid}`（`remove_episode`）会连带删除：① 该 episode 创建的边（`edge.episodes[0] == uuid`）；② 只被该 episode 提及的实体节点；③ episode 本体。被多个 episode 共享的实体/边会保留。因此「删 episode → 重投同一内容」可以干净重建某条记忆的派生映射，配合 episode uuid == Memory ID 可实现整组重放（脚本见 memory-hub `scripts/reingest_group.py`）。**注意级联实测不是 100% 可靠**（出现过 MENTIONS 已空但实体残留的孤儿节点），重建后必须补一次模式扫描清扫。
 - **Neo4j Community 版没有 RBAC**：`GRANT ROLE` 等管理命令报 `Unsupported administration command`；`CREATE USER` 可执行但新账号是全权限（实测可写可删），**绝不能**作为「只读账号」对外发放。外部只读访问走 cypher-ro 网关（8006）。
 - **Neo4j 管理员用户名必须是 `neo4j`**。`NEO4J_AUTH` 只允许设置 neo4j 的密码，写其他用户名报 `Invalid admin username, it must be neo4j.`。
 - **改 Neo4j 密码后要清空 `data/neo4j/`**：数据用旧密码加密，无法登录。
