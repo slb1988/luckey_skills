@@ -37,9 +37,12 @@ class InstallError(RuntimeError):
     pass
 
 
+def default_python() -> str:
+    return "/usr/bin/python3" if Path("/usr/bin/python3").is_file() else sys.executable
+
+
 def python_command(*args: str) -> str:
-    python = "/usr/bin/python3" if Path("/usr/bin/python3").is_file() else sys.executable
-    return shlex.join([python, str(MEMORY_HOOK), *args])
+    return shlex.join([default_python(), str(MEMORY_HOOK), *args])
 
 
 def desired_hooks(agent: str) -> Dict[str, Dict[str, Any]]:
@@ -208,7 +211,9 @@ def pi_extension_version(content: str) -> str:
 
 def render_pi_extension() -> str:
     template = PI_TEMPLATE.read_text(encoding="utf-8")
-    return template.replace("__MEMORY_HOOK_JSON__", json.dumps(str(MEMORY_HOOK)))
+    return template.replace("__MEMORY_HOOK_JSON__", json.dumps(str(MEMORY_HOOK))).replace(
+        "__PYTHON_JSON__", json.dumps(default_python())
+    )
 
 
 def install_pi_extension(path: Path) -> bool:

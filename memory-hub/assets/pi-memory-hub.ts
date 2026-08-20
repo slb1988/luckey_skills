@@ -8,9 +8,11 @@ import { dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
-const EXTENSION_VERSION = "2";
+const EXTENSION_VERSION = "3";
 const memoryHook = __MEMORY_HOOK_JSON__;
-const python = "/usr/bin/python3";
+// python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
+// 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
+const python = __PYTHON_JSON__;
 const maxOutputBytes = 1024 * 1024;
 
 // 全链路留痕：每次与 Memory Hub 的交互（session_start / recall / search / capture）

@@ -124,6 +124,15 @@ search / capture）写在 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-ho
 分析检索质量先查这个文件。
 </memory>
 
+<memory category="common-patterns">
+升级版本号的判定规则（2026-08 定版）：**被 hook 直接按路径引用的 script 改动不需要升版本号**
+——Claude/Codex settings 和 Pi 扩展都是直接 spawn 仓库里的 `scripts/memory_hook.py`，repo pull 后逻辑即生效。
+**只有「安装副本」类产物才必须升版本号**：① Pi 扩展模板 `assets/pi-memory-hub.ts`（安装时渲染拷贝到
+`~/.pi/agent/extensions/`，改模板必须递增 EXTENSION_VERSION 并重跑 install）；② 别名定版
+`assets/project-aliases.json`（递增 version 并重跑 install 部署到 state dir）。判断依据：产物是否被
+install 复制/渲染到仓库外；复制出去的就必须让 check 能感知版本差。
+</memory>
+
 > 详细参考：[agent-integration](references/agent-integration.md)（install、身份配置、环境变量、命令）
 
 <memory category="troubleshooting">
@@ -131,7 +140,13 @@ search / capture）写在 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-ho
 </memory>
 
 <memory category="troubleshooting">
-agent-integration.md 的 install/configure 示例命令是 macOS 写法（`/usr/bin/python3`、`/Users/sun/...`）。Windows 上曾发现扩展配置里原样保留了 `/usr/bin/python3` 这个 Unix 路径导致 hook 无法执行——Windows 端 hook 失效先查安装命令里的 python 解释器路径，须改为本机 Windows python 全路径。排查「关窗提示有进程未结束」是否 hook 残留时，按命令行列 python.exe 分辨：本机常驻 python 通常是 UnrealMCP 和 pytest，与 memory-hook 无关；memory_hook.py 是逐事件短进程，正常不常驻。
+agent-integration.md 的 install/configure 示例命令是 macOS 写法（`/usr/bin/python3`、`/Users/sun/...`）。
+Windows 上曾发现扩展配置里原样保留了 `/usr/bin/python3` 这个 Unix 路径导致 hook 无法执行——Pi 扩展模板 v2
+把 python 路径硬编码为 `/usr/bin/python3`，Windows 端 spawn 全部 exit 127 静默失败（pi-trace.jsonl 里
+recall/capture 全红），且 check 因「副本与模板一致」误报 ok。**v3 起模板改为 `__PYTHON_JSON__` 占位符，
+由 install_hooks.py 注入本机解释器路径**（优先 /usr/bin/python3，否则 sys.executable）；老机器 check 报
+outdated 后重跑 install 即修复。排查「关窗提示有进程未结束」是否 hook 残留时，按命令行列 python.exe 分辨：
+本机常驻 python 通常是 UnrealMCP 和 pytest，与 memory-hook 无关；memory_hook.py 是逐事件短进程，正常不常驻。
 </memory>
 
 <memory category="troubleshooting">
