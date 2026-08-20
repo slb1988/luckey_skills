@@ -1155,9 +1155,13 @@ class HubClient:
         latest_user = job["last_user"] or "未提取到用户文本"
         latest_assistant = job["last_assistant"] or "未提取到助手最终文本"
         topic = title or compact_text(latest_user, TITLE_MAX_CHARS) or "未命名会话"
+        # 归档摘要只保留会话内容本身（用户目标/会话结果），不内嵌来源、标题、
+        # 工作目录等元数据——元数据由 Hub 侧 source_description 携带（参考通道，
+        # 不参与事实抽取）。否则 Graphiti 会把「会话标题」「工作目录」抽成实体，
+        # 产生噪声节点（见 memory-center 2026-08-20 实体抽取噪声事故报告）。
         distilled = (
-            "%s 会话「%s」，工作目录：%s。最近用户目标：%s。最近会话结果：%s"
-            % (job["source"], topic, job["cwd"], latest_user, latest_assistant)
+            "用户目标：%s。会话结果：%s"
+            % (latest_user, latest_assistant)
         )
         memory = self.request(
             "POST",

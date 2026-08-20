@@ -746,15 +746,12 @@ def idem_key(kind: str, session_id: str, sha256: str) -> str:
 def ensure_memory(
     client: HubClient, session: "SessionFile", agent_id: str, version: int, file_id: str
 ) -> str:
-    date_part = session.started_at[:10] if session.started_at else "未知日期"
     topic = session.title or heuristic_title(session.user_texts) or "未命名会话"
+    # 归档摘要只保留会话内容本身，不内嵌来源/标题/日期/工作目录等元数据——
+    # 元数据由 Hub 侧 source_description 携带，避免被 Graphiti 抽成噪声实体。
     distilled = (
-        "%s 会话「%s」（%s，工作目录：%s）。首个用户目标：%s。最近用户目标：%s。最近会话结果：%s"
+        "首个用户目标：%s。最近用户目标：%s。会话结果：%s"
         % (
-            session.source,
-            topic,
-            date_part,
-            session.cwd or "未知",
             session.first_user or "未提取到用户文本",
             session.last_user or "未提取到用户文本",
             session.last_assistant or "未提取到助手最终文本",
