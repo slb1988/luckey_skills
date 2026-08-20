@@ -1651,6 +1651,7 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
             "recall",
             {
                 "source": args.source,
+                "user_id": profile.user_id if profile else None,
                 "session_id": hook.get("session_id"),
                 "cwd": cwd,
                 "prompt": prompt,
@@ -1679,6 +1680,7 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
             "recall",
             {
                 "source": args.source,
+                "user_id": profile.user_id,
                 "session_id": hook.get("session_id"),
                 "cwd": cwd,
                 "project_id": project_id,
@@ -1699,6 +1701,7 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
             "recall",
             {
                 "source": args.source,
+                "user_id": profile.user_id if profile else None,
                 "session_id": hook.get("session_id"),
                 "cwd": cwd,
                 "project_id": project_id,
@@ -1744,6 +1747,7 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             "search",
             {
                 "source": getattr(args, "source", None),
+                "user_id": profile.user_id,
                 "cwd": os.getcwd(),
                 "project_id": project_id,
                 "query": args.query,
