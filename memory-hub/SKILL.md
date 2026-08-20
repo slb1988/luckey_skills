@@ -131,6 +131,13 @@ Pi 扩展带 EXTENSION_VERSION（模板在 `assets/pi-memory-hub.ts`，改模板
   含完整输出、query、project_id、facts_count），claude/codex 无 pi-trace 时只能查这个。
 </memory>
 
+<memory category="debug-commands">
+回答「hook 有没有成功安装/生效」必须分两层验证：`install_hooks.py check` 全绿只证明**安装副本与模板一致**
+（静态层，且历史上存在过误报 ok 的案例）；运行层证据看 pi-trace.jsonl **最后一条 `session_start`**——其
+`ext_version` 与模板版本一致、且时间戳属于当前会话，才证明扩展真的被 pi 加载并正在 firing。check 绿但本会话
+trace 无 `session_start` = 扩展未被加载（查扩展路径/加载冲突），两层都过才能回「已生效」。
+</memory>
+
 <memory category="common-patterns">
 search 输出不包含用户身份与概要（2026-08-20 起，format_context 已移除）：多身份场景下静态
 概要是先验知识、会影响模型判断；user_id 仅用于服务端检索 scoping，不作为文本输出。检索无结果时不输出任何内容。
