@@ -30,7 +30,7 @@ function captureDelayMs(): number {
 	return Math.trunc(parsed);
 }
 
-// 全链路留痕：每次与 Memory Hub 的交互（session_start / recall / search / capture）
+// 全链路留痕：每次与 Memory Hub 的交互（session_start / search / capture）
 // 追加一条 JSONL 到 ${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl，
 // 供离线分析检索与归档行为是否符合预期。写日志失败不影响主流程。
 const traceFile = join(
@@ -98,16 +98,6 @@ function runHub(
 	});
 }
 
-function recalledContext(stdout: string): string {
-	try {
-		const parsed = JSON.parse(stdout);
-		const context = parsed?.hookSpecificOutput?.additionalContext;
-		return typeof context === "string" ? context : "";
-	} catch {
-		return "";
-	}
-}
-
 export default function memoryHubExtension(pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
 		trace("session_start", {
@@ -116,34 +106,10 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		});
 	});
 
-	pi.on("before_agent_start", async (event, ctx) => {
-		// 用户回到键盘、会话继续生长：取消挂起的 AFK 归档，等下一轮空闲再计时
+	pi.on("before_agent_start", async (_event, _ctx) => {
+		// 用户回到键盘、会话继续生长：取消挂起的 AFK 归档，等下一轮空闲再计时。
+		// v4 起不再在此自动 recall；按需检索由 agent 主动调 memory_search 完成。
 		cancelPendingCapture("prompt");
-		const sessionId = ctx.sessionManager.getSessionId();
-		const result = await runHub(
-			["recall", "--source", "pi"],
-			{
-				hook_event_name: "UserPromptSubmit",
-				session_id: sessionId,
-				transcript_path: ctx.sessionManager.getSessionFile(),
-				cwd: ctx.cwd,
-				prompt: event.prompt,
-			},
-			ctx.cwd,
-			8000,
-		);
-		const context = recalledContext(result.stdout);
-		trace("recall", {
-			session_id: sessionId,
-			cwd: ctx.cwd,
-			prompt: clip(event.prompt ?? ""),
-			exit_code: result.code,
-			duration_ms: result.durationMs,
-			injected: context.length > 0,
-			context_chars: context.length,
-			context: clip(context),
-		});
-		if (context) return { systemPrompt: `${event.systemPrompt}\n\n${context}` };
 	});
 
 	interface CaptureTarget {
@@ -257,7 +223,12 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "memory_search",
 		label: "Memory Search",
-		description: "Search durable memories captured from Claude Code, Codex, and Pi sessions.",
+		description:
+			"Search durable memories captured from Claude Code, Codex, and Pi sessions. " +
+			"Use proactively when the current context is insufficient: references to past work " +
+			"(上次/之前/继续), unfamiliar project names or past decisions, user preferences, or facts " +
+			"not present in this session. Compose a focused keyword query instead of guessing; " +
+			"on empty or irrelevant results, retry with different keywords or a larger limit.",
 		parameters: Type.Object({
 			query: Type.String({ description: "Semantic search query" }),
 			limit: Type.Optional(Type.Number({ minimum: 1, maximum: 20 })),

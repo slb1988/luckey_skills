@@ -116,6 +116,9 @@ Graphiti 语义检索噪音底线高：乱查（大小写无关）也会返回"�
 ## Agent 自动记忆集成
 
 Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`（仅标准库），本地 spool + 失败自动补传。
+hook 只负责归档（capture），**不再自动召回注入**：检索由 agent 按需发起——Pi 用 `memory_search` 工具，
+Claude/Codex 用 `memory_hook.py search` CLI；行为契约写在 vault `AGENTS.md`「Memory Hub 按需检索」一节
+（2026-08-20 起，原 SessionStart/UserPromptSubmit/before_agent_start 的自动 recall 已全部移除）。
 
 <memory category="common-patterns">
 Pi 扩展带 EXTENSION_VERSION（模板在 `assets/pi-memory-hub.ts`，改模板必须递增版本号）；check 报
@@ -123,14 +126,15 @@ Pi 扩展带 EXTENSION_VERSION（模板在 `assets/pi-memory-hub.ts`，改模板
 空闲 `MEMORY_HOOK_PI_CAPTURE_DELAY_MS` 毫秒（默认 5 分钟，置 0 恢复逐轮立即上传）后才 capture，
 新 prompt 取消重计，session_shutdown 立即归档兜底；防抖行为有 Node e2e 值守
 （`scripts/tests/test_pi_extension_e2e.py`，需 node，无 node 机器跳过）。留痕有两个文件，分析检索质量先查它们：
-- `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`——Pi 扩展侧视角（session_start / recall / search / capture_schedule / capture_cancel / capture，含 exit_code）；
-- 同目录 `hook-trace.jsonl`——脚本侧 ground truth（memory_hook.py 的 recall/search，三端 agent 共用，
-  含完整注入 context、query、project_id、facts_count），claude/codex 无 pi-trace 时只能查这个。
+- `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`——Pi 扩展侧视角（session_start / search / capture_schedule / capture_cancel / capture，含 exit_code）；
+- 同目录 `hook-trace.jsonl`——脚本侧 ground truth（memory_hook.py 的 search，三端 agent 共用，
+  含完整输出、query、project_id、facts_count），claude/codex 无 pi-trace 时只能查这个。
 </memory>
 
 <memory category="common-patterns">
-recall/search 注入内容不包含用户身份与概要（2026-08-20 起，format_context 已移除）：多身份场景下静态
-概要是先验知识、会影响模型判断；user_id 仅用于服务端检索 scoping，不作为文本注入。检索无结果时不注入任何内容。
+search 输出不包含用户身份与概要（2026-08-20 起，format_context 已移除）：多身份场景下静态
+概要是先验知识、会影响模型判断；user_id 仅用于服务端检索 scoping，不作为文本输出。检索无结果时不输出任何内容。
+原自动 recall 注入已随 pi 扩展 v4 / hooks 精简移除，此约束现在只约束按需 search 的输出。
 </memory>
 
 <memory category="common-patterns">

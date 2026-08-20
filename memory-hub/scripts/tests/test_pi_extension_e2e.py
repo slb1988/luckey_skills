@@ -85,9 +85,10 @@ class PiExtensionE2ETest(unittest.TestCase):
             )
             summary = json.loads(result.stdout.strip().splitlines()[-1])
             self.assertTrue(summary["ok"])
-            # 2 次 idle 定时触发 + 1 次 shutdown 立即归档；中途 prompt/shutdown 各取消一次
+            # 2 次 idle 定时触发 + 1 次 shutdown 立即归档；中途 prompt/shutdown 各取消一次。
+            # v4 起 before_agent_start 不再自动 recall，只负责取消挂起的归档。
             self.assertEqual(summary["captures"], 3)
-            self.assertEqual(summary["recalls"], 2)
+            self.assertEqual(summary["recalls"], 0)
             self.assertEqual(summary["cancels"], 2)
 
 

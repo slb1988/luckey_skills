@@ -1534,8 +1534,8 @@ TRACE_MAX_FIELD = 20000
 def trace_event(config: "Config", kind: str, data: Dict[str, Any]) -> None:
     """追加一条留痕到 state_dir/hook-trace.jsonl（JSONL）。
 
-    三端 agent（claude/codex/pi）共用本脚本；脚本层留痕让任何 agent 实际注入
-    的内容（recall additionalContext / search 输出）都可离线核查。pi 扩展另有
+    三端 agent（claude/codex/pi）共用本脚本；脚本层留痕让 search 输出等实际检索
+    行为都可离线核查。pi 扩展另有
     pi-trace.jsonl 记录扩展侧视角，本文件是脚本侧 ground truth。失败不阻断主流程。
     """
     try:
@@ -1554,22 +1554,6 @@ def trace_event(config: "Config", kind: str, data: Dict[str, Any]) -> None:
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")
     except Exception:
         pass
-
-
-def emit_hook_context(hook: Dict[str, Any], context: str) -> None:
-    print(
-        json.dumps(
-            {
-                "hookSpecificOutput": {
-                    "hookEventName": str(
-                        hook.get("hook_event_name") or "UserPromptSubmit"
-                    ),
-                    "additionalContext": context,
-                }
-            },
-            ensure_ascii=False,
-        )
-    )
 
 
 def fact_text(fact: Any) -> str:
@@ -1670,90 +1654,6 @@ def command_capture(args: argparse.Namespace, config: Config, store: StateStore)
     except Exception as error:
         if os.environ.get("MEMORY_HOOK_DEBUG") == "1":
             print("memory hook capture: %s" % error, file=sys.stderr)
-    return 0
-
-
-def command_recall(args: argparse.Namespace, config: Config) -> int:
-    hook = read_hook_input()
-    cwd = str(hook.get("cwd") or os.getcwd())
-    prompt = str(hook.get("prompt") or "").strip()
-    profile = request_user_profile(
-        config,
-        hook,
-        args.user_id,
-        getattr(args, "display_name", None),
-        getattr(args, "summary", None),
-    )
-    if not profile_is_ready(profile):
-        # 身份未配置时注入的是配置提醒，同样属于「注入内容」，一并留痕
-        reminder = setup_reminder(config, profile)
-        trace_event(
-            config,
-            "recall",
-            {
-                "source": args.source,
-                "user_id": profile.user_id if profile else None,
-                "session_id": hook.get("session_id"),
-                "cwd": cwd,
-                "prompt": prompt,
-                "injected": True,
-                "injected_kind": "setup_reminder",
-                "context_chars": len(reminder),
-                "context": reminder,
-            },
-        )
-        emit_hook_context(hook, reminder)
-        return 0
-    assert profile is not None
-    query = prompt or "%s 项目的历史决策、约定、问题和解决结果" % Path(cwd).name
-    project_id = project_id_for_cwd(cwd, config.archive_project_id)
-    started = time.monotonic()
-    try:
-        facts = HubClient(config).search(
-            query,
-            project_id,
-            args.limit,
-            profile.user_id,
-        )
-        context = format_context(facts, args.max_chars, profile)
-        trace_event(
-            config,
-            "recall",
-            {
-                "source": args.source,
-                "user_id": profile.user_id,
-                "session_id": hook.get("session_id"),
-                "cwd": cwd,
-                "project_id": project_id,
-                "query": query,
-                "prompt": prompt,
-                "facts_count": len(facts),
-                "injected": bool(context),
-                "context_chars": len(context),
-                "duration_ms": int((time.monotonic() - started) * 1000),
-                "context": context,
-            },
-        )
-        if context:
-            emit_hook_context(hook, context)
-    except Exception as error:
-        trace_event(
-            config,
-            "recall",
-            {
-                "source": args.source,
-                "user_id": profile.user_id if profile else None,
-                "session_id": hook.get("session_id"),
-                "cwd": cwd,
-                "project_id": project_id,
-                "query": query,
-                "prompt": prompt,
-                "injected": False,
-                "error": str(error),
-            },
-        )
-        if os.environ.get("MEMORY_HOOK_DEBUG") == "1":
-            print("memory hook recall: %s" % error, file=sys.stderr)
     return 0
 
 
@@ -1863,13 +1763,6 @@ def build_parser() -> argparse.ArgumentParser:
     capture.add_argument("--summary")
     capture.add_argument("--flush-limit", type=int, default=10)
     capture.add_argument("--verbose", action="store_true")
-    recall = commands.add_parser("recall")
-    recall.add_argument("--source", required=True, choices=("claude", "codex", "pi"))
-    recall.add_argument("--user-id")
-    recall.add_argument("--display-name")
-    recall.add_argument("--summary")
-    recall.add_argument("--limit", type=int, default=8)
-    recall.add_argument("--max-chars", type=int, default=6000)
     search = commands.add_parser("search")
     search.add_argument("query")
     search.add_argument("--source", choices=("claude", "codex", "pi"))
@@ -1900,8 +1793,6 @@ def main() -> int:
         return command_configure(args, config)
     if args.command == "capture":
         return command_capture(args, config, StateStore(config))
-    if args.command == "recall":
-        return command_recall(args, config)
     if args.command == "search":
         return command_search(args, config)
     if args.command == "flush":

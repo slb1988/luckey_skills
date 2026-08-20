@@ -77,10 +77,10 @@ try {
 		assert.ok(handlers.has(event), `extension must register ${event}`);
 	}
 
-	// 1. prompt → recall runs, no capture
+	// 1. prompt → 不再自动 recall（v4 起按需检索由 memory_search 工具完成），也不 capture
 	await handlers.get("session_start")({}, ctx);
 	await handlers.get("before_agent_start")({ prompt: "hello", systemPrompt: "sys" }, ctx);
-	assert.equal(hookCalls("recall").length, 1);
+	assert.equal(hookCalls("recall").length, 0, "before_agent_start must not auto-recall");
 	assert.equal(hookCalls("capture").length, 0);
 
 	// 2. agent_end → capture is scheduled, NOT fired immediately

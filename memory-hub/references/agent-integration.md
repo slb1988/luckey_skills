@@ -13,8 +13,8 @@ Markdown fenced code 不上传；Markdown 标题、列表、链接和解释正�
 
 ## 首次用户身份配置
 
-Hook 客户端没有内置固定用户，也不得用 `agent_id` 代替用户身份。首次 SessionStart 或
-UserPromptSubmit hook 若尚无完整配置，会停止检索并向 Agent 注入设置提醒；Agent 必须向用户确认以下
+Hook 客户端没有内置固定用户，也不得用 `agent_id` 代替用户身份。身份在 install 时通过
+`--user-id` 持久化（推荐），或用 `configure` 写本机 profile。配置前必须先向用户确认以下
 三项信息，不得自行猜测：
 
 - 长期稳定的内部 `user_id`（仅字母、数字、`.`、`_`、`:`、`-`，最长 128 字符）；
@@ -22,9 +22,8 @@ UserPromptSubmit hook 若尚无完整配置，会停止检索并向 Agent 注入
 - 简短概要，例如身份、偏好或长期目标，不得包含密码、API Key 等秘密。
 
 若环境变量未指定用户，客户端会从 hook 工作目录向上查找最近的 `.team/settings.local.json`，读取字符串
-字段 `currentMember` 作为候选 `user_id`，优先于本机 profile。提醒和配置命令会自动带上该候选值；仍须
-让用户确认，并补充显示名称与概要。文件缺失、JSON 无效或 `currentMember` 不是合法字符串时，安全回退
-到本机 profile 或未配置状态。
+字段 `currentMember` 作为候选 `user_id`，优先于本机 profile。文件缺失、JSON 无效或 `currentMember`
+不是合法字符串时，安全回退到本机 profile 或未配置状态。
 
 确认后执行：
 
@@ -42,7 +41,7 @@ UserPromptSubmit hook 若尚无完整配置，会停止检索并向 Agent 注入
 配置以 `0600` 权限保存到
 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/client-profile.json`。配置完成前，capture
 仍会把最近会话安全暂存到本机，但这些 job 使用隔离占位身份，不会进入上传队列；配置成功后会归属到
-确认的用户并尝试补传。Recall/search 在配置完成前不会调用 Hub。
+确认的用户并尝试补传。search 在配置完成前不会调用 Hub（打印配置提醒并退出码 2）。
 
 ## install 关键字
 
@@ -66,10 +65,12 @@ Windows 写入注册表 `HKCU\Environment` 并广播 `WM_SETTINGCHANGE`；POSIX 
 
 安装成功必须同时满足：
 
-- Claude Code/Codex 各有且仅有 4 个 Memory Hub handlers：SessionStart、UserPromptSubmit、Stop、SessionEnd。
+- Claude Code/Codex 各有且仅有 2 个 Memory Hub handlers：Stop、SessionEnd（v4 起移除了
+  SessionStart/UserPromptSubmit 的自动 recall，检索改为 agent 按需发起）。
 - Stop 每轮直接执行 `capture`，不得带 `--flush-limit 0`；SessionEnd 再提交最终幂等快照。
-- Codex 必须通过 app-server `hooks/list` 确认 4 个 handlers 均为 `trusted`，且没有 Memory Hub 相关 warning/error。
-- Pi 全局扩展必须包含 `before_agent_start`、`agent_end`、`session_shutdown`；`agent_end` 走 AFK 防抖上传（默认空闲 5 分钟才归档，新 prompt 取消重计），`session_shutdown` 立即归档。
+- Codex 必须通过 app-server `hooks/list` 确认 2 个 handlers 均为 `trusted`，且没有 Memory Hub 相关 warning/error。
+- Pi 全局扩展必须包含 `before_agent_start`、`agent_end`、`session_shutdown`；`before_agent_start` 只负责
+  取消挂起归档（不再 recall），`agent_end` 走 AFK 防抖上传（默认空闲 5 分钟才归档，新 prompt 取消重计），`session_shutdown` 立即归档。
 - 安装器返回的各 agent `ok=true`。服务健康检查失败可保留 durable spool，但必须明确报告"已安装、尚未端到端验证"，不得宣称上传链路正常。
 
 安装或升级后执行只读复检：
@@ -90,7 +91,6 @@ Pi 扩展（v2 起）把每次与 Memory Hub 的交互追加为 JSONL，写到
 | kind | 时机 | 关键字段 |
 |---|---|---|
 | `session_start` | 会话开始 | session_id、cwd |
-| `recall` | 每次 prompt 提交前召回 | prompt、exit_code、duration_ms、injected、context（注入全文） |
 | `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、result（结果全文） |
 | `capture_schedule` | agent_end 排程 AFK 延时归档 | trigger、delay_ms |
 | `capture_cancel` | 新 prompt / reschedule / shutdown 取消挂起归档 | reason、trigger |
@@ -169,7 +169,9 @@ APP=/Users/sun/Documents/ObsidianVault/.claude/skills/memory-hub/scripts/memory_
 /usr/bin/python3 "$APP" flush --limit 100
 ```
 
-全局 hooks 在 SessionStart/UserPromptSubmit/before_agent_start 召回。Stop/agent_end 将当前最新完整快照写入
+检索全部由 agent 按需发起（2026-08-20 起）：Pi 用 `memory_search` 工具，Claude/Codex 用上面的
+`search` CLI；行为契约（何时检索、query 怎么写、scope 怎么切）写在 vault `AGENTS.md`「Memory Hub 按需检索」。
+hooks 不再在任何事件自动召回注入。Stop/agent_end 将当前最新完整快照写入
 本地 spool 并立即尝试上传；SessionEnd/session_shutdown 再上传最终幂等快照。服务器不可用时保留 queued job，
 下一次 capture 或手工 flush 自动补传。
 

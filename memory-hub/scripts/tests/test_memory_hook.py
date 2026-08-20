@@ -18,7 +18,6 @@ from memory_hook import (
     build_snapshot,
     command_capture,
     command_configure,
-    command_recall,
     flush_pending,
     project_id_for_cwd,
     request_user_profile,
@@ -506,37 +505,6 @@ class MemoryHookTest(unittest.TestCase):
             self.assertEqual(
                 profile, UserProfile("user-b", "User B", "Second request user")
             )
-
-    def test_first_recall_prompts_for_identity_without_contacting_hub(self):
-        with tempfile.TemporaryDirectory() as directory:
-            config = Config(
-                hub_url="http://memory.test",
-                default_user_id=None,
-                agent_id="test-agent",
-                archive_project_id="agent-history",
-                api_key=None,
-                timeout_seconds=1,
-                state_dir=Path(directory),
-            )
-            args = SimpleNamespace(user_id=None, limit=8, max_chars=6000)
-            hook = {"hook_event_name": "SessionStart", "cwd": directory}
-            stdout = io.StringIO()
-            with patch("sys.stdin", io.StringIO(json.dumps(hook))), patch(
-                "sys.stdout", stdout
-            ), patch.object(
-                HubClient,
-                "search",
-                side_effect=AssertionError("unconfigured recall must not search"),
-            ):
-                self.assertEqual(command_recall(args, config), 0)
-            output = json.loads(stdout.getvalue())
-            context = output["hookSpecificOutput"]["additionalContext"]
-            self.assertEqual(
-                output["hookSpecificOutput"]["hookEventName"], "SessionStart"
-            )
-            self.assertIn("尚未完成用户身份配置", context)
-            self.assertIn("configure --user-id <user-id>", context)
-            self.assertIn("不要替用户臆造", context)
 
     def test_unconfigured_capture_stays_local_until_configured(self):
         with tempfile.TemporaryDirectory() as directory:
