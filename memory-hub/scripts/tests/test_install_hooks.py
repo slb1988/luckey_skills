@@ -56,7 +56,7 @@ class InstallHooksTest(unittest.TestCase):
         self.assertEqual(hooks["Stop"]["timeout"], 120)
         self.assertEqual(hooks["SessionEnd"]["timeout"], 3)
 
-    def test_pi_install_uploads_on_agent_end_and_is_idempotent(self):
+    def test_pi_install_debounces_agent_end_upload_and_is_idempotent(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / ".pi" / "agent" / "extensions" / "memory-hub.ts"
             self.assertTrue(install_pi_extension(path))
@@ -65,7 +65,30 @@ class InstallHooksTest(unittest.TestCase):
             self.assertIn('pi.on("agent_end"', content)
             self.assertIn('pi.on("session_shutdown"', content)
             self.assertNotIn("--flush-limit", content)
+            # agent_end 不再逐轮立即上传：空闲延时计时 + 新 prompt 取消 + 计时器不拖住退出
+            self.assertIn("setTimeout", content)
+            self.assertIn(".unref()", content)
+            self.assertIn("MEMORY_HOOK_PI_CAPTURE_DELAY_MS", content)
+            self.assertIn("cancelPendingCapture", content)
             self.assertFalse(install_pi_extension(path))
+
+    def test_pi_check_rejects_extension_without_idle_debounce(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / ".pi" / "agent" / "extensions" / "memory-hub.ts"
+            install_pi_extension(path)
+            content = path.read_text(encoding="utf-8")
+            # 模拟有人把模板改回逐轮立即上传：去掉防抖计时器与 unref
+            degraded = content.replace("setTimeout", "deferUpload").replace(".unref()", ".noop()")
+            path.write_text(degraded, encoding="utf-8")
+            errors = check_pi_extension(path)["errors"]
+            self.assertTrue(
+                any("idle-debounced" in error and "setTimeout" in error for error in errors),
+                errors,
+            )
+            self.assertTrue(
+                any("idle-debounced" in error and ".unref()" in error for error in errors),
+                errors,
+            )
 
 
 if __name__ == "__main__":

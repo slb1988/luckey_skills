@@ -119,8 +119,11 @@ Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`（仅
 
 <memory category="common-patterns">
 Pi 扩展带 EXTENSION_VERSION（模板在 `assets/pi-memory-hub.ts`，改模板必须递增版本号）；check 报
-`extension version X is outdated` 时重新 install 发布即可。留痕有两个文件，分析检索质量先查它们：
-- `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`——Pi 扩展侧视角（session_start / recall / search / capture，含 exit_code）；
+`extension version X is outdated` 时重新 install 发布即可。v4 起 agent_end 改为 AFK 防抖上传：
+空闲 `MEMORY_HOOK_PI_CAPTURE_DELAY_MS` 毫秒（默认 5 分钟，置 0 恢复逐轮立即上传）后才 capture，
+新 prompt 取消重计，session_shutdown 立即归档兜底；防抖行为有 Node e2e 值守
+（`scripts/tests/test_pi_extension_e2e.py`，需 node，无 node 机器跳过）。留痕有两个文件，分析检索质量先查它们：
+- `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`——Pi 扩展侧视角（session_start / recall / search / capture_schedule / capture_cancel / capture，含 exit_code）；
 - 同目录 `hook-trace.jsonl`——脚本侧 ground truth（memory_hook.py 的 recall/search，三端 agent 共用，
   含完整注入 context、query、project_id、facts_count），claude/codex 无 pi-trace 时只能查这个。
 </memory>

@@ -69,7 +69,7 @@ Windows 写入注册表 `HKCU\Environment` 并广播 `WM_SETTINGCHANGE`；POSIX 
 - Claude Code/Codex 各有且仅有 4 个 Memory Hub handlers：SessionStart、UserPromptSubmit、Stop、SessionEnd。
 - Stop 每轮直接执行 `capture`，不得带 `--flush-limit 0`；SessionEnd 再提交最终幂等快照。
 - Codex 必须通过 app-server `hooks/list` 确认 4 个 handlers 均为 `trusted`，且没有 Memory Hub 相关 warning/error。
-- Pi 全局扩展必须包含 `before_agent_start`、`agent_end`、`session_shutdown`；`agent_end` 必须直接上传。
+- Pi 全局扩展必须包含 `before_agent_start`、`agent_end`、`session_shutdown`；`agent_end` 走 AFK 防抖上传（默认空闲 5 分钟才归档，新 prompt 取消重计），`session_shutdown` 立即归档。
 - 安装器返回的各 agent `ok=true`。服务健康检查失败可保留 durable spool，但必须明确报告"已安装、尚未端到端验证"，不得宣称上传链路正常。
 
 安装或升级后执行只读复检：
@@ -92,7 +92,13 @@ Pi 扩展（v2 起）把每次与 Memory Hub 的交互追加为 JSONL，写到
 | `session_start` | 会话开始 | session_id、cwd |
 | `recall` | 每次 prompt 提交前召回 | prompt、exit_code、duration_ms、injected、context（注入全文） |
 | `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、result（结果全文） |
-| `capture` | agent_end / session_shutdown 归档 | trigger、exit_code、duration_ms、skipped（no_transcript/reentrant） |
+| `capture_schedule` | agent_end 排程 AFK 延时归档 | trigger、delay_ms |
+| `capture_cancel` | 新 prompt / reschedule / shutdown 取消挂起归档 | reason、trigger |
+| `capture` | 空闲延时（agent_end_idle）/ session_shutdown 归档 | trigger、exit_code、duration_ms、skipped（no_transcript/reentrant） |
+
+Pi 扩展 v4 起 agent_end 不再逐轮立即上传：等会话空闲
+`MEMORY_HOOK_PI_CAPTURE_DELAY_MS` 毫秒（默认 5 分钟，置 0 恢复逐轮立即上传）后才 capture；
+计时器 unref，不拖住进程退出，提前退出由 session_shutdown 立即归档兜底。
 
 单字段超 20k 字符截断；写日志失败不阻断 agent。Claude/Codex 端的留痕在 spool
 （`memory_hook.py status` 可查 job 状态），不在此文件。
@@ -113,6 +119,7 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HOOK_TIMEOUT_SECONDS=8
 # MEMORY_HOOK_STATE_DIR=~/.local/state/memory-hub-hook
 # MEMORY_HOOK_DEBUG=1             # 调试失败原因
+# MEMORY_HOOK_PI_CAPTURE_DELAY_MS=300000  # Pi agent_end AFK 防抖归档延时；默认 5 分钟，置 0 逐轮立即上传
 # 会话标题 / 低价值过滤（内网 vLLM，hook 与 upload_sessions.py 共用，默认关）：
 # MEMORY_HUB_TITLE_LLM=1          # 默认 0 关闭；置 1 开启，关闭时退化为启发式标题且不做低价值过滤
 # MEMORY_HUB_TITLE_LLM_BASE_URL=http://192.168.2.76:8000/v1

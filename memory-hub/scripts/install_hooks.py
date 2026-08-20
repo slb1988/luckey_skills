@@ -242,6 +242,15 @@ def check_pi_extension(path: Path) -> Dict[str, Any]:
         for event in ("before_agent_start", "agent_end", "session_shutdown"):
             if 'pi.on("%s"' % event not in content:
                 errors.append("missing %s handler" % event)
+        # agent_end 必须 AFK 防抖上传（空闲计时，新 prompt 取消），不得逐轮立即归档
+        for marker in (
+            "setTimeout",
+            ".unref()",
+            "MEMORY_HOOK_PI_CAPTURE_DELAY_MS",
+            "cancelPendingCapture",
+        ):
+            if marker not in content:
+                errors.append("agent_end capture must be idle-debounced: missing %s" % marker)
     return {
         "ok": not errors,
         "path": str(path),

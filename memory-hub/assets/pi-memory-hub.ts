@@ -8,12 +8,27 @@ import { dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
-const EXTENSION_VERSION = "3";
+const EXTENSION_VERSION = "4";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
 const python = __PYTHON_JSON__;
 const maxOutputBytes = 1024 * 1024;
+
+// AFK 防抖归档：agent_end 不再立即上传，而是等会话空闲
+// MEMORY_HOOK_PI_CAPTURE_DELAY_MS 毫秒（默认 5 分钟）后才 capture；期间用户回到键盘
+// 提交新 prompt（before_agent_start）会取消挂起的上传，等下一轮空闲再重新计时，
+// 避免一个连续工作的会话被逐轮切成大量版本。置 0 恢复逐轮立即上传的旧行为。
+// session_shutdown 不等计时器：进程退出前取消挂起任务并立即归档最终状态。
+const defaultCaptureDelayMs = 5 * 60 * 1000;
+
+function captureDelayMs(): number {
+	const raw = process.env.MEMORY_HOOK_PI_CAPTURE_DELAY_MS;
+	if (!raw) return defaultCaptureDelayMs;
+	const parsed = Number(raw);
+	if (!Number.isFinite(parsed) || parsed < 0) return defaultCaptureDelayMs;
+	return Math.trunc(parsed);
+}
 
 // 全链路留痕：每次与 Memory Hub 的交互（session_start / recall / search / capture）
 // 追加一条 JSONL 到 ${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl，
@@ -102,6 +117,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 	});
 
 	pi.on("before_agent_start", async (event, ctx) => {
+		// 用户回到键盘、会话继续生长：取消挂起的 AFK 归档，等下一轮空闲再计时
+		cancelPendingCapture("prompt");
 		const sessionId = ctx.sessionManager.getSessionId();
 		const result = await runHub(
 			["recall", "--source", "pi"],
@@ -129,18 +146,31 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		if (context) return { systemPrompt: `${event.systemPrompt}\n\n${context}` };
 	});
 
-	let capturing = false;
+	interface CaptureTarget {
+		trigger: string;
+		sessionId: string;
+		transcriptPath: string;
+		cwd: string;
+	}
 
-	async function captureSession(trigger: string, ctx: ExtensionContext) {
-		const sessionId = ctx.sessionManager.getSessionId();
-		const transcriptPath = ctx.sessionManager.getSessionFile();
-		if (!transcriptPath) {
-			trace("capture", { trigger, session_id: sessionId, cwd: ctx.cwd, skipped: "no_transcript" });
-			return;
-		}
+	interface PendingCapture {
+		timer: ReturnType<typeof setTimeout>;
+		trigger: string;
+		sessionId: string;
+	}
+
+	let capturing = false;
+	let pendingCapture: PendingCapture | null = null;
+
+	async function captureSession(target: CaptureTarget): Promise<void> {
 		if (capturing) {
-			// agent_end 与 session_shutdown 可能并发，重入互斥
-			trace("capture", { trigger, session_id: sessionId, cwd: ctx.cwd, skipped: "reentrant" });
+			// 延时任务与 session_shutdown 可能并发，重入互斥
+			trace("capture", {
+				trigger: target.trigger,
+				session_id: target.sessionId,
+				cwd: target.cwd,
+				skipped: "reentrant",
+			});
 			return;
 		}
 		capturing = true;
@@ -149,18 +179,18 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				["capture", "--source", "pi"],
 				{
 					hook_event_name: "SessionEnd",
-					session_id: sessionId,
-					transcript_path: transcriptPath,
-					cwd: ctx.cwd,
+					session_id: target.sessionId,
+					transcript_path: target.transcriptPath,
+					cwd: target.cwd,
 				},
-				ctx.cwd,
+				target.cwd,
 				120000,
 			);
 			trace("capture", {
-				trigger,
-				session_id: sessionId,
-				cwd: ctx.cwd,
-				transcript_path: transcriptPath,
+				trigger: target.trigger,
+				session_id: target.sessionId,
+				cwd: target.cwd,
+				transcript_path: target.transcriptPath,
 				exit_code: result.code,
 				duration_ms: result.durationMs,
 				stdout: clip(result.stdout.trim()),
@@ -170,12 +200,58 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		}
 	}
 
+	function cancelPendingCapture(reason: string): void {
+		if (!pendingCapture) return;
+		clearTimeout(pendingCapture.timer);
+		trace("capture_cancel", {
+			reason,
+			trigger: pendingCapture.trigger,
+			session_id: pendingCapture.sessionId,
+		});
+		pendingCapture = null;
+	}
+
+	function captureTarget(ctx: ExtensionContext, trigger: string): CaptureTarget | null {
+		const sessionId = ctx.sessionManager.getSessionId();
+		const transcriptPath = ctx.sessionManager.getSessionFile();
+		if (!transcriptPath) {
+			trace("capture", { trigger, session_id: sessionId, cwd: ctx.cwd, skipped: "no_transcript" });
+			return null;
+		}
+		return { trigger, sessionId, transcriptPath, cwd: ctx.cwd };
+	}
+
+	// agent_end 只排程不上传；返回 Promise 仅在 delay<=0（兼容旧行为）时有实际等待意义。
+	function scheduleCapture(trigger: string, ctx: ExtensionContext): Promise<void> | undefined {
+		cancelPendingCapture("reschedule");
+		const target = captureTarget(ctx, trigger);
+		if (!target) return undefined;
+		const delayMs = captureDelayMs();
+		if (delayMs <= 0) return captureSession(target);
+		const timer = setTimeout(() => {
+			pendingCapture = null;
+			void captureSession({ ...target, trigger: `${trigger}_idle` });
+		}, delayMs);
+		// 计时器不得拖住 pi 进程退出；提前退出由 session_shutdown 立即归档兜底
+		timer.unref();
+		pendingCapture = { timer, trigger, sessionId: target.sessionId };
+		trace("capture_schedule", {
+			trigger,
+			session_id: target.sessionId,
+			cwd: target.cwd,
+			delay_ms: delayMs,
+		});
+		return undefined;
+	}
+
 	pi.on("agent_end", async (_event, ctx) => {
-		await captureSession("agent_end", ctx);
+		await scheduleCapture("agent_end", ctx);
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
-		await captureSession("session_shutdown", ctx);
+		cancelPendingCapture("shutdown");
+		const target = captureTarget(ctx, "session_shutdown");
+		if (target) await captureSession(target);
 	});
 
 	pi.registerTool({
