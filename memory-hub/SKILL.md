@@ -119,9 +119,15 @@ Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`（仅
 
 <memory category="common-patterns">
 Pi 扩展带 EXTENSION_VERSION（模板在 `assets/pi-memory-hub.ts`，改模板必须递增版本号）；check 报
-`extension version X is outdated` 时重新 install 发布即可。Pi 端全链路留痕（session_start / recall /
-search / capture）写在 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`，
-分析检索质量先查这个文件。
+`extension version X is outdated` 时重新 install 发布即可。留痕有两个文件，分析检索质量先查它们：
+- `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`——Pi 扩展侧视角（session_start / recall / search / capture，含 exit_code）；
+- 同目录 `hook-trace.jsonl`——脚本侧 ground truth（memory_hook.py 的 recall/search，三端 agent 共用，
+  含完整注入 context、query、project_id、facts_count），claude/codex 无 pi-trace 时只能查这个。
+</memory>
+
+<memory category="common-patterns">
+recall/search 注入内容不包含用户身份与概要（2026-08-20 起，format_context 已移除）：多身份场景下静态
+概要是先验知识、会影响模型判断；user_id 仅用于服务端检索 scoping，不作为文本注入。检索无结果时不注入任何内容。
 </memory>
 
 <memory category="common-patterns">
