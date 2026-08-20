@@ -172,6 +172,11 @@ APP=/Users/sun/Documents/ObsidianVault/.claude/skills/memory-hub/scripts/memory_
 全局 hooks 在 SessionStart/UserPromptSubmit/before_agent_start 召回。Stop/agent_end 将当前最新完整快照写入
 本地 spool 并立即尝试上传；SessionEnd/session_shutdown 再上传最终幂等快照。服务器不可用时保留 queued job，
 下一次 capture 或手工 flush 自动补传。
+
+Esc 中断保护（2026-08 起）：capture 由 **Stop** 事件触发且 transcript 尾部最新一条 user/assistant 消息是
+中断标记（`[Request interrupted by user…]`）时直接跳过，不入队不上传——避免把被用户放弃的半成品轮次
+立刻归档。SessionEnd/session_shutdown 触发的最终快照不受影响、始终归档；Esc 后继续对话，下一个正常
+Stop 会照常上传。pi 扩展 capture 固定传 `hook_event_name=SessionEnd`，不受此分支影响。
 重复事件安全：以
 `{source_agent}:{session_id}` 作为归档 ID，对确定性快照计算 SHA-256；相同内容命中本地与远端
 幂等，不重复创建，内容变化时创建同一 session 的下一不可变版本。

@@ -24,6 +24,7 @@ from memory_hook import (
     request_user_profile,
     save_client_profile,
     setup_reminder,
+    transcript_tail_interrupted,
 )
 
 
@@ -694,6 +695,215 @@ class MemoryHookTest(unittest.TestCase):
                     env.pop("MEMORY_HUB_SKIP_CAPTURE", None)
                     self.assertEqual(command_capture(args, config, store), 0)
             self.assertEqual(store.status()["unconfigured_jobs"], 1)
+
+    def test_capture_skips_stop_with_interrupted_tail(self):
+        # Esc 中断触发的 Stop：transcript 尾部最新消息是中断标记（其后还可能有
+        # file-history-snapshot 等非消息记录）→ 不入队不上传。
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                "\n".join(
+                    [
+                        json.dumps(
+                            {
+                                "type": "user",
+                                "message": {
+                                    "role": "user",
+                                    "content": [{"type": "text", "text": "做点什么"}],
+                                },
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "type": "assistant",
+                                "message": {
+                                    "role": "assistant",
+                                    "content": [{"type": "text", "text": "半成品输出"}],
+                                },
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "type": "user",
+                                "message": {
+                                    "role": "user",
+                                    "content": [
+                                        {"type": "text", "text": "[Request interrupted by user]"}
+                                    ],
+                                },
+                            }
+                        ),
+                        json.dumps({"type": "file-history-snapshot", "messageId": "x"}),
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id=None,
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            args = SimpleNamespace(
+                user_id=None, source="claude", flush_limit=10, verbose=False
+            )
+            hook = {
+                "hook_event_name": "Stop",
+                "session_id": "session-1",
+                "transcript_path": str(transcript),
+                "cwd": str(root),
+            }
+            with patch("sys.stdin", io.StringIO(json.dumps(hook))):
+                with patch.dict(os.environ) as env:
+                    env.pop("MEMORY_HUB_SKIP_CAPTURE", None)
+                    self.assertEqual(command_capture(args, config, store), 0)
+            self.assertEqual(store.status()["counts"], {})
+            self.assertEqual(store.status()["unconfigured_jobs"], 0)
+
+    def test_capture_session_end_archives_despite_interrupted_tail(self):
+        # 同样的中断尾部，但由 SessionEnd 触发 → 最终快照必须归档（幂等），不跳过。
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                "\n".join(
+                    [
+                        json.dumps(
+                            {
+                                "type": "user",
+                                "message": {
+                                    "role": "user",
+                                    "content": [{"type": "text", "text": "做点什么"}],
+                                },
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "type": "user",
+                                "message": {
+                                    "role": "user",
+                                    "content": [
+                                        {"type": "text", "text": "[Request interrupted by user]"}
+                                    ],
+                                },
+                            }
+                        ),
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id=None,
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            args = SimpleNamespace(
+                user_id=None, source="claude", flush_limit=10, verbose=False
+            )
+            hook = {
+                "hook_event_name": "SessionEnd",
+                "session_id": "session-1",
+                "transcript_path": str(transcript),
+                "cwd": str(root),
+            }
+            with patch("sys.stdin", io.StringIO(json.dumps(hook))):
+                with patch.dict(os.environ) as env:
+                    env.pop("MEMORY_HUB_SKIP_CAPTURE", None)
+                    self.assertEqual(command_capture(args, config, store), 0)
+            self.assertEqual(store.status()["unconfigured_jobs"], 1)
+
+    def test_capture_stop_with_normal_tail_still_captures(self):
+        # Stop 事件但尾部是正常 assistant 消息 → 不受影响，正常入队。
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                "\n".join(
+                    [
+                        json.dumps(
+                            {
+                                "type": "user",
+                                "message": {
+                                    "role": "user",
+                                    "content": [{"type": "text", "text": "提问"}],
+                                },
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "type": "assistant",
+                                "message": {
+                                    "role": "assistant",
+                                    "content": [{"type": "text", "text": "完整回答"}],
+                                },
+                            }
+                        ),
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id=None,
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            args = SimpleNamespace(
+                user_id=None, source="claude", flush_limit=10, verbose=False
+            )
+            hook = {
+                "hook_event_name": "Stop",
+                "session_id": "session-1",
+                "transcript_path": str(transcript),
+                "cwd": str(root),
+            }
+            with patch("sys.stdin", io.StringIO(json.dumps(hook))):
+                with patch.dict(os.environ) as env:
+                    env.pop("MEMORY_HUB_SKIP_CAPTURE", None)
+                    self.assertEqual(command_capture(args, config, store), 0)
+            self.assertEqual(store.status()["unconfigured_jobs"], 1)
+
+    def test_transcript_tail_interrupted_marker_variants(self):
+        # 标记变体（for tool use）/ 尾部无消息 / 文件缺失 的 fail-open 行为。
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            variant = root / "variant.jsonl"
+            variant.write_text(
+                json.dumps(
+                    {
+                        "type": "user",
+                        "message": {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "[Request interrupted by user for tool use]",
+                                }
+                            ],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertTrue(transcript_tail_interrupted(variant))
+            empty = root / "empty.jsonl"
+            empty.write_text("{\n", encoding="utf-8")
+            self.assertFalse(transcript_tail_interrupted(empty))
+            self.assertFalse(transcript_tail_interrupted(root / "missing.jsonl"))
 
     def test_configure_persists_profile_and_claims_local_jobs(self):
         with tempfile.TemporaryDirectory() as directory:

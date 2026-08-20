@@ -57,6 +57,9 @@ SKIP_CAPTURE_ENV = "MEMORY_HUB_SKIP_CAPTURE"
 # （对应 .pi/extensions/auto-skill/lib/extractPrompt.ts 首行，改该行需同步此处）。
 # 防 dispose 时序导致 env 标记已恢复；正常 session 首条消息是真实用户提问，不会误杀。
 EXTRACTION_PROMPT_PREFIX = "You are the Skill extraction sub-agent."
+# Claude transcript 中 Esc 中断标记（user 记录文本前缀，覆盖
+# `[Request interrupted by user]` / `[Request interrupted by user for tool use]` 等变体）
+INTERRUPT_MARKER_PREFIX = "[Request interrupted by user"
 PROFILE_FILENAME = "client-profile.json"
 TEAM_SETTINGS_PATH = Path(".team") / "settings.local.json"
 # 历史目录名归并：E:\sununity 的归档统一进 unity2018 project。
@@ -370,6 +373,39 @@ def extract_role_text(record: Dict[str, Any]) -> Optional[Tuple[str, str]]:
             text = flatten_text(payload.get("message") or payload.get("content"))
             return ("assistant", text) if text else None
     return None
+
+
+def transcript_tail_interrupted(transcript_path: Path) -> bool:
+    """transcript 尾部最新一条 user/assistant 消息是否为 Esc 中断标记。
+
+    Claude 的 Stop hook stdin 没有中断标志，只能看 transcript：Esc 中断会写入一条
+    user 记录（文本为 `[Request interrupted by user…]`），且其后可能还有
+    file-history-snapshot 等非消息记录，所以按消息记录判断而不是文件最后一行。
+    找不到消息或读取失败 → False（fail-open，维持原有上传行为）。
+    """
+    last_role: Optional[str] = None
+    last_text: Optional[str] = None
+    try:
+        with transcript_path.open("r", encoding="utf-8", errors="replace") as transcript:
+            for line in transcript:
+                if not line.strip():
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(event, dict):
+                    continue
+                extracted = extract_role_text(event)
+                if extracted:
+                    last_role, last_text = extracted
+    except OSError:
+        return False
+    return (
+        last_role == "user"
+        and last_text is not None
+        and last_text.strip().startswith(INTERRUPT_MARKER_PREFIX)
+    )
 
 
 def transcript_is_extraction_subsession(transcript_path: Path) -> bool:
@@ -1593,6 +1629,11 @@ def command_capture(args: argparse.Namespace, config: Config, store: StateStore)
         return 0
     # env 标记的兜底：按首条 user 消息签名识别 extraction 子 session
     if transcript_is_extraction_subsession(transcript_path):
+        return 0
+    # Esc 中断触发的 Stop：transcript 尾部是中断标记 → 不入队不上传。
+    # 仅 Stop 跳过；SessionEnd 始终归档最终快照（幂等）。
+    # pi 扩展 capture 固定传 hook_event_name=SessionEnd，不受此分支影响。
+    if hook.get("hook_event_name") == "Stop" and transcript_tail_interrupted(transcript_path):
         return 0
     cwd = str(hook.get("cwd") or os.getcwd())
     # 归档 project 按工作根目录名分类（如 memory-hub / maindev / obsidianvault）。
