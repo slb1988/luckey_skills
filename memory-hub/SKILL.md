@@ -166,6 +166,14 @@ Spool job 在 capture 时固化 `user_id`（这是设计，防止补传到错误
 `scripts/tests/` 在 Windows 本机跑 pytest 稳定有 13 个用例失败（10 passed），失败点全在 tearDown 的 `shutil.rmtree`——spool.sqlite3 文件锁 PermissionError，属 Windows 平台既有环境问题（stash 验证未改动代码同样 13 败），不是 regression。评估改动是否破坏测试时对比改动前后的失败集合；要干净结果去 Linux/macOS 跑。
 </memory>
 
+<memory category="troubleshooting">
+跑 `scripts/tests/` 的两个姿势坑（macOS 实测）：① `tests/conftest.py`（把 `scripts/` 加入 sys.path）**只在 pytest 下加载**，用 `python -m unittest` 必须 cd 到 `scripts/` 再跑，否则 import 失败；② macOS 上 `test_memory_hook` 同样稳定有 4 个平台性失败（如 `project_id_for_cwd` 的 Windows 路径断言，改动前干净检出复现），与 Windows 的 13 败同理——任何平台都不追求全绿，只对比失败集合差集。
+</memory>
+
+<memory category="common-patterns">
+`test_pi_extension_e2e.py`（Node 驱动 .mjs + fake hook .mjs）可行的前提是 **Node ≥24 原生 type-stripping 直接跑渲染后的 TS 扩展**，无构建步骤。写这类驱动/断言的铁律：capture 完成的权威信号是 **pi-trace.jsonl 落盘**，不是 hub 子进程退出、也不是 fake hook 日志——fake hook 在 stdin `end` 时写日志，而扩展在子进程 `close` 事件后才写 trace，两者之间存在窗口期；按错误信号等待会导致断言失败点逐次漂移（实测同一用例失败位置随机）。驱动失败时保留/打印 tmpdir 现场 artifact 再清理，否则竞态无法事后诊断。
+</memory>
+
 ## 手动上传历史 session（upload_sessions.py）
 
 `scripts/upload_sessions.py`（仅标准库）把任意机器/目录下的历史 session 记录（`.jsonl`）批量上传到
