@@ -77,6 +77,30 @@ sudo systemctl reload nginx          # 改配置后平滑重载
 
 > 详细部署方法（Docker / 二进制 / macOS）见仓库 `deploy/README.md`；管理员后台 API 用法见 `sub2api-admin` skill。
 
+## 更新升级
+
+**核心系统属性：源码与运行镜像解耦。** 运行中的服务用的是官方预构建镜像 `weishaw/sub2api:latest`，本地仓库 `/home/ubuntu/sub2api-build` 只是 GitHub 克隆——**拉取 GitHub 源码并不会升级运行中的服务**。两者独立，需分别处理。
+
+| 维度 | 更新方式 | 说明 |
+|---|---|---|
+| 运行服务 | `docker compose pull` + `docker compose up -d` | 镜像 `:latest` 变更→compose 自动重建容器；三个命名数据卷 + `config.yaml` 持久化，JWT 会话不丢 |
+| 源码仓库 | `git pull --ff-only origin main` | 只同步代码，不影响运行服务；本地有定制改动时需先 stash 保护（见下） |
+
+版本定位：
+- 运行镜像版本：`docker image inspect <img> --format '{{.Config.Labels}}'` → `org.opencontainers.image.version`（如 `0.1.179`）
+- 源码对应版本：`git describe --tags`（如 `v0.1.179-32-g354825674` = 比 v0.1.179 领先 32 个提交的 main）
+
+**本地定制需保护（廉价 pull 前必做）**：仓库 `main` 有 2 处本地有意未提交定制，上游更新常会改动同名文件：
+
+| 文件 | 定制内容 | 作用 |
+|---|---|---|
+| `Dockerfile` | 阿里云 Alpine 镜像源 + `HTTP_PROXY` 建参数 | 国内网络本地构建用 |
+| `deploy/docker-compose.yml` | `extra_hosts: luckeyhome.site → host-gateway` | 容器自引用宿主机域名 |
+
+安全拉取流程：`git pull --ff-only`（本地 0 领先时）前先 `git stash push -m "..."`，pull 后 `git stash pop` 还原；若 pop 冲突则手工合入保留定制意图。
+
+> 注意：官方镜像最新发布版（如 v0.1.179）可能落后于最新 main；要部署源码中更新的提交，需用本地定制 Dockerfile 自行 `docker build` 并更改 compose 指向。
+
 ## 诊断提示
 
 - 本机 shell 全局设置了 `http_proxy`/`https_proxy` → mihomo `127.0.0.1:7892`。本地验证服务时务必加 `--noproxy '*'`，否则 localhost 请求被代理拦截。
