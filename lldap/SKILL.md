@@ -1,6 +1,6 @@
 ---
 name: lldap
-description: 团队 LLDAP 统一认证服务：查询用户/组成员关系 + 部署运维。当用户提到 lldap、LDAP、查某人是否在某组（如 p4-devops）、组成员或用户列表、LDAP bind/集成配置、统一认证账号，或要安装/搭建/部署 LLDAP、Docker LDAP 时触发。即使用户只说「xx 在 yy 组里么」「查一下 LDAP 账号」「帮我搭个 LDAP」也应触发。
+description: 团队 LLDAP 统一认证服务：账号/组/成员关系查询、bind 集成配置、部署运维。只要提到 ldap 或 lldap 即触发。
 ---
 
 # LLDAP：查询访问 + 部署运维
