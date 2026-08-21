@@ -16,13 +16,18 @@ from memory_hook import (
     UNCONFIGURED_USER_ID,
     UserProfile,
     build_snapshot,
+    classify_snapshot,
     command_capture,
     command_configure,
     flush_pending,
+    head_tail_sample,
+    load_session_texts,
     project_id_for_cwd,
     request_user_profile,
     save_client_profile,
+    session_user_texts,
     setup_reminder,
+    strip_skill_wrapper,
     transcript_tail_interrupted,
 )
 
@@ -376,6 +381,115 @@ class MemoryHookTest(unittest.TestCase):
             self.assertEqual(memory_call[3], "user-b")
             self.assertEqual(memory_call[4]["json_body"]["scope_type"], "project")
             self.assertNotIn("user_id", memory_call[4]["json_body"])
+
+    def test_strip_skill_wrapper_recovers_real_user_text(self):
+        wrapped = (
+            '<skill name="memory-hub" location="x">\n整份 SKILL.md 模板内容\n</skill>\n\n'
+            "check & install"
+        )
+        self.assertEqual(strip_skill_wrapper(wrapped), "check & install")
+        self.assertEqual(strip_skill_wrapper("普通消息"), "普通消息")
+        self.assertEqual(strip_skill_wrapper('<skill name="x">只有模板</skill>'), "")
+
+    def test_head_tail_sample_keeps_goal_and_tail(self):
+        seq = ["msg-%d" % i for i in range(12)]
+        self.assertEqual(
+            head_tail_sample(seq),
+            ["msg-0", "msg-1", "msg-2", "msg-3", "msg-8", "msg-9", "msg-10", "msg-11"],
+        )
+        self.assertEqual(head_tail_sample(["a", "b"]), ["a", "b"])
+
+    def test_classify_snapshot_uses_whole_session_not_tail(self):
+        # 整会话判定：结尾的「commit」不能盖掉前段的真实任务。
+        with tempfile.TemporaryDirectory() as directory:
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=Path(directory) / "state",
+            )
+            user_texts = ["帮我排查并修复内存泄漏", "再补个回归测试", "commit"]
+            captured = {}
+
+            def fake_llm(texts, last_assistant):
+                captured["texts"] = list(texts)
+                return {"title": "修复内存泄漏", "meaningful": True}
+
+            with patch("memory_hook.llm_classify_session", fake_llm):
+                title, meaningful = classify_snapshot(
+                    config, "sha-whole-1", user_texts, "已提交。"
+                )
+            self.assertTrue(meaningful)
+            self.assertEqual(title, "修复内存泄漏")
+            # LLM 必须拿到整个会话的用户消息，而不是只有尾部一条。
+            self.assertEqual(captured["texts"], user_texts)
+
+            # LLM 不可用时启发式同样基于整会话：标题取首个非噪声消息（目标），
+            # 而不是尾部例行消息。
+            with patch.dict(os.environ, {"MEMORY_HUB_TITLE_LLM": "0"}):
+                title, meaningful = classify_snapshot(
+                    config, "sha-whole-2", user_texts, "已提交。"
+                )
+            self.assertTrue(meaningful)
+            self.assertEqual(title, "帮我排查并修复内存泄漏")
+
+    def test_ensure_memory_distilled_keeps_first_user_goal(self):
+        # 用户目标必须保留：取整会话首个真实用户消息（skill 包装剥离），
+        # 尾部「commit」只能进「最近用户目标」。
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                "\n".join(
+                    json.dumps(event)
+                    for event in (
+                        {
+                            "type": "user",
+                            "message": {
+                                "content": '<skill name="x" location="l">模板</skill>\n\n帮我排查并修复内存泄漏'
+                            },
+                        },
+                        {"type": "assistant", "message": {"content": "已定位并修复。"}},
+                        {"type": "user", "message": {"content": "commit"}},
+                        {"type": "assistant", "message": {"content": "已提交。"}},
+                    )
+                ),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            store.enqueue(self.profile(), "pi", "session-goal", str(root), transcript)
+            job = store.queued(1)[0]
+            # 整会话文本从 full 包重取：首条目标必须在，尽管它是 10 条窗口外的旧消息也能取到。
+            user_texts, first_user, last_user, last_assistant = load_session_texts(job)
+            self.assertEqual(first_user, "帮我排查并修复内存泄漏")
+            self.assertEqual(last_user, "commit")
+            self.assertEqual(last_assistant, "已提交。")
+
+            client = HubClient(config)
+            calls = []
+
+            def fake_request(method, path, project_id, user_id, **kwargs):
+                calls.append(kwargs.get("json_body") or {})
+                return {"memory_id": "memory-1", "status": "pending"}
+
+            client.request = fake_request
+            client.ensure_memory(job, 1, "file-1", "修复内存泄漏")
+            distilled = calls[0]["distilled_content"]
+            self.assertIn("首个用户目标：帮我排查并修复内存泄漏", distilled)
+            self.assertIn("最近用户目标：commit", distilled)
+            self.assertIn("会话结果：已提交。", distilled)
 
     def test_environment_without_profile_falls_back_to_legacy_default_user(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(

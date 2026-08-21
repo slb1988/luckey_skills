@@ -182,6 +182,67 @@ def is_noise_user_text(text: str) -> bool:
     return False
 
 
+SKILL_BLOCK_RE = re.compile(r"<skill\s[^>]*>.*?</skill>", re.DOTALL | re.IGNORECASE)
+
+
+def strip_skill_wrapper(text: str) -> str:
+    """剥掉 pi skill 注入的 <skill ...>...</skill> 包装，取出用户真实输入。
+
+    pi 的用户消息常是「整份 SKILL.md 注入 + 末尾一句真实问题」，不剥掉会把
+    用户目标 / 标题 / LLM 判定材料全部污染成 skill 模板文本（700 字截断后
+    甚至只剩模板，真实问题完全丢失）。
+    """
+    if "<skill" not in text:
+        return text.strip()
+    return SKILL_BLOCK_RE.sub("\n", text).strip()
+
+
+def head_tail_sample(seq: List[str], head: int = 4, tail: int = 4) -> List[str]:
+    """整会话抽样：条数超过 head+tail 时保留首（目标）尾（近况），中段抽掉。"""
+    if len(seq) <= head + tail:
+        return list(seq)
+    return list(seq[:head]) + list(seq[-tail:])
+
+
+def session_user_texts(pairs: List[Tuple[str, str]]) -> Tuple[List[str], str, str, str]:
+    """从 (role, raw_text) 序列提取整个会话的用户消息。
+
+    返回 (user_texts, first_user, last_user, last_assistant)：
+    - user_texts：供 LLM 整会话判定（skill 包装已剥，每条 ≤300 字，最多 30 条）
+    - first_user：首个非噪声用户消息——真正的会话目标，绝不能被尾部
+      「commit」之类的例行消息顶掉
+    """
+    user_texts: List[str] = []
+    first_user = ""
+    last_user = ""
+    last_assistant = ""
+    for role, raw_text in pairs:
+        text = sanitize_message_text(raw_text)
+        if not text:
+            continue
+        if role == "user":
+            text = strip_skill_wrapper(text)
+            if not text:
+                continue
+            if not is_noise_user_text(text):
+                # 首个/最近用户目标都只取非噪声消息——「hi」「继续」之类的
+                # 尾部噪声不能顶掉真实目标。
+                if not first_user:
+                    first_user = text
+                last_user = text
+            if len(user_texts) < 30:
+                user_texts.append(compact_text(text, 300))
+        else:
+            last_assistant = text
+    if user_texts:
+        # 全是噪声消息时退而求其次取字面首/末条，保证用户目标不为空。
+        if not first_user:
+            first_user = user_texts[0]
+        if not last_user:
+            last_user = user_texts[-1]
+    return user_texts, first_user, last_user, last_assistant
+
+
 def clean_llm_title(raw: str) -> str:
     content = THINK_BLOCK_RE.sub(" ", raw)
     first_line = ""
@@ -225,23 +286,31 @@ def llm_classify_session(user_texts: List[str], last_assistant: str) -> Optional
     """
     if not title_llm_enabled():
         return None
-    material = [text for text in user_texts if text and not is_noise_user_text(text)][:6]
+    # 整会话判定材料：非噪声用户消息过多时首尾抽样，避免尾部例行消息
+    # （如「commit」）盖掉前段的真实任务。
+    material = head_tail_sample(
+        [text for text in user_texts if text and not is_noise_user_text(text)]
+    )
     if not material and not last_assistant:
         return None
     lines = ["用户消息 %d: %s" % (index + 1, text) for index, text in enumerate(material)]
     if not material and user_texts:
-        lines = ["用户消息 %d: %s" % (index + 1, text) for index, text in enumerate(user_texts[:6])]
+        lines = [
+            "用户消息 %d: %s" % (index + 1, text)
+            for index, text in enumerate(head_tail_sample(user_texts))
+        ]
     if last_assistant:
         lines.append("助手最近回复: %s" % compact_text(last_assistant, 200))
     prompt = (
-        "你是编程助手会话的归档助手。根据会话片段判断这个会话是否有归档价值，并给出主题标题。\n"
+        "你是编程助手会话的归档助手。下面是整个会话的全部用户消息（条数过多时为首尾抽样），"
+        "请据此判断这个会话是否有归档价值，并给出主题标题。\n"
         "没有归档价值的会话：只是打招呼、闲聊、测试模型是否可用（如只说了 hi/hello）、"
         "没有任何实际任务或技术内容；以及纯例行运维操作——如 git-tool update/sync/commit 仓库同步、"
         "skill 更新提交、memory-hub check/install 等 hook 安装检查、批量上传 session 归档等机械性维护，"
         "只有命令执行结果、没有可复用的技术内容。注意：运维会话中如果包含真实的故障排查、bug 修复或"
         "技术决策（如发现并修复了某个问题），仍有归档价值。\n"
         "只输出 JSON：{\"meaningful\": true或false, \"title\": \"不超过20字的主题标题，meaningful为false时给空字符串\"}\n\n"
-        "会话片段：\n" + "\n".join(lines)
+        "整个会话的用户消息：\n" + "\n".join(lines)
     )
     base_url = os.environ.get("MEMORY_HUB_TITLE_LLM_BASE_URL", TITLE_LLM_DEFAULT_BASE_URL).rstrip("/")
     body = {
@@ -326,15 +395,18 @@ def append_title_cache(path: Path, sha256: str, title: str, meaningful: bool) ->
 
 
 def classify_snapshot(
-    config: "Config", sha256: str, last_user: str, last_assistant: str
+    config: "Config", sha256: str, user_texts: List[str], last_assistant: str
 ) -> Tuple[str, bool]:
-    """Topic title + archival-worthiness for a snapshot; cached by content sha256."""
+    """Topic title + archival-worthiness for a snapshot; cached by content sha256.
+
+    user_texts 必须是整个会话的用户消息序列（load_session_texts），不能只是
+    窗口尾部——否则实质内容的会话会被结尾的例行消息（如「commit」）误杀。
+    """
     cache_path = title_cache_path(config.state_dir)
     cache = load_title_cache(cache_path)
     cached = cache.get(sha256)
     if cached is not None:
         return cached["title"], cached["meaningful"]
-    user_texts = [last_user] if last_user else []
     verdict = llm_classify_session(user_texts, last_assistant)
     if verdict is not None:
         title = verdict["title"]
@@ -346,6 +418,56 @@ def classify_snapshot(
         title = heuristic_title(user_texts)
     append_title_cache(cache_path, sha256, title, meaningful)
     return title, meaningful
+
+
+def _read_gzip_payload(path: Path) -> Optional[Dict[str, Any]]:
+    try:
+        with gzip.open(str(path), "rt", encoding="utf-8", errors="replace") as handle:
+            payload = json.load(handle)
+        return payload if isinstance(payload, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def load_session_texts(job: sqlite3.Row) -> Tuple[List[str], str, str, str]:
+    """上传时重取整个会话的用户/助手文本，供 LLM 整会话判定与用户目标提取。
+
+    优先 full 包（全量事件，ADR-009 双资产）；老 job 无 full 退到窗口快照；
+    最后兑住 job 行的 last_user/last_assistant 列。
+    返回 (user_texts, first_user, last_user, last_assistant)。
+    """
+    pairs: List[Tuple[str, str]] = []
+    job_keys = job.keys() if hasattr(job, "keys") else []
+    full_path = job["full_path"] if "full_path" in job_keys else None
+    if full_path and Path(full_path).is_file():
+        payload = _read_gzip_payload(Path(full_path))
+        events = (payload or {}).get("events")
+        if isinstance(events, list):
+            for event in events:
+                if not isinstance(event, dict):
+                    continue
+                extracted = extract_role_text(event)
+                if extracted:
+                    pairs.append(extracted)
+    if not pairs:
+        snapshot_path = job["snapshot_path"]
+        if snapshot_path and Path(snapshot_path).is_file():
+            payload = _read_gzip_payload(Path(snapshot_path))
+            messages = (payload or {}).get("messages")
+            if isinstance(messages, list):
+                for message in messages:
+                    if not isinstance(message, dict):
+                        continue
+                    role = message.get("role")
+                    content = message.get("content")
+                    if role in ("user", "assistant") and isinstance(content, str):
+                        pairs.append((role, content))
+    if pairs:
+        return session_user_texts(pairs)
+    last_user = strip_skill_wrapper(job["last_user"] or "")
+    last_assistant = job["last_assistant"] or ""
+    user_texts = [compact_text(last_user, 300)] if last_user else []
+    return user_texts, last_user, last_user, last_assistant
 
 
 def extract_role_text(record: Dict[str, Any]) -> Optional[Tuple[str, str]]:
@@ -755,7 +877,9 @@ def build_snapshot(
     last_assistant = ""
     for message in recent_messages:
         if message["role"] == "user":
-            last_user = message["content"]
+            stripped = strip_skill_wrapper(message["content"])
+            if stripped:
+                last_user = stripped
         else:
             last_assistant = message["content"]
     try:
@@ -1185,22 +1309,37 @@ class HubClient:
         return value
 
     def ensure_memory(
-        self, job: sqlite3.Row, version: int, file_id: str, title: str = ""
+        self,
+        job: sqlite3.Row,
+        version: int,
+        file_id: str,
+        title: str = "",
+        texts: Optional[Tuple[List[str], str, str, str]] = None,
     ) -> Dict[str, Any]:
         # project/agent 归属跟随 job：project 按捕获时的工作目录分类，
         # agent 取捕获来源（pi/claude/codex），与当前进程 config 无关。
         project_id = job["project_id"] or self.config.archive_project_id
         agent_id = job["source"] or self.config.agent_id
-        latest_user = job["last_user"] or "未提取到用户文本"
-        latest_assistant = job["last_assistant"] or "未提取到助手最终文本"
-        topic = title or compact_text(latest_user, TITLE_MAX_CHARS) or "未命名会话"
+        if texts is None:
+            texts = load_session_texts(job)
+        _user_texts, first_user, last_user, last_assistant = texts
+        # 用户目标必须保留且取整会话的首个真实用户消息（skill 包装已剥）；
+        # 尾部例行消息（如「commit」）只能作「最近用户目标」，不能顶掉目标。
+        goal = first_user or last_user or title or "未提取到用户文本"
+        recent = last_user or goal
+        result = last_assistant or "未提取到助手最终文本"
+        topic = title or compact_text(goal, TITLE_MAX_CHARS) or "未命名会话"
         # 归档摘要只保留会话内容本身（用户目标/会话结果），不内嵌来源、标题、
         # 工作目录等元数据——元数据由 Hub 侧 source_description 携带（参考通道，
         # 不参与事实抽取）。否则 Graphiti 会把「会话标题」「工作目录」抽成实体，
         # 产生噪声节点（见 memory-center 2026-08-20 实体抽取噪声事故报告）。
         distilled = (
-            "用户目标：%s。会话结果：%s"
-            % (latest_user, latest_assistant)
+            "首个用户目标：%s。最近用户目标：%s。会话结果：%s"
+            % (
+                compact_text(goal, 700),
+                compact_text(recent, 700),
+                compact_text(result, 1400),
+            )
         )
         memory = self.request(
             "POST",
@@ -1233,11 +1372,12 @@ class HubClient:
         project_id = job["project_id"] or self.config.archive_project_id
         agent_id = job["source"] or self.config.agent_id
         user_id = job["user_id"]
+        texts = load_session_texts(job)
         title, meaningful = classify_snapshot(
             self.config,
             job["sha256"],
-            job["last_user"] or "",
-            job["last_assistant"] or "",
+            texts[0],
+            texts[3],
         )
         if not meaningful:
             return {"status": "skipped_meaningless", "title": title}
@@ -1259,7 +1399,9 @@ class HubClient:
                 agent_id=agent_id,
             )
             if latest.get("content_sha256") == job["sha256"]:
-                ensured = self.ensure_memory(job, latest_version, latest["file_id"], title)
+                ensured = self.ensure_memory(
+                    job, latest_version, latest["file_id"], title, texts=texts
+                )
                 return {"status": "unchanged", "version": latest_version, **ensured}
 
         # 双资产：先传完整 session 文件（命名对象按本地 session 文件名覆盖写）。
@@ -1326,7 +1468,7 @@ class HubClient:
             json_body=version_request,
         )
         version = int(version_response["version"])
-        ensured = self.ensure_memory(job, version, file_id, title)
+        ensured = self.ensure_memory(job, version, file_id, title, texts=texts)
         return {
             "status": "captured",
             "version": version,

@@ -127,6 +127,25 @@ def is_noise_user_text(text: str) -> bool:
     return False
 
 
+SKILL_BLOCK_RE = re.compile(r"<skill\s[^>]*>.*?</skill>", re.DOTALL | re.IGNORECASE)
+
+
+def strip_skill_wrapper(text: str) -> str:
+    """剥掉 pi skill 注入的 <skill ...>...</skill> 包装，取出用户真实输入。
+    与 memory_hook.py 保持同步。"""
+    if "<skill" not in text:
+        return text.strip()
+    return SKILL_BLOCK_RE.sub("\n", text).strip()
+
+
+def head_tail_sample(seq: List[str], head: int = 4, tail: int = 4) -> List[str]:
+    """整会话抽样：条数超过 head+tail 时保留首（目标）尾（近况），中段抽掉。
+    与 memory_hook.py 保持同步。"""
+    if len(seq) <= head + tail:
+        return list(seq)
+    return list(seq[:head]) + list(seq[-tail:])
+
+
 def clean_llm_title(raw: str) -> str:
     content = THINK_BLOCK_RE.sub(" ", raw)
     first_line = ""
@@ -170,23 +189,31 @@ def llm_classify_session(user_texts: List[str], last_assistant: str) -> Optional
     """
     if not title_llm_enabled():
         return None
-    material = [text for text in user_texts if text and not is_noise_user_text(text)][:6]
+    # 整会话判定材料：非噪声用户消息过多时首尾抽样，避免尾部例行消息
+    # （如「commit」）盖掉前段的真实任务。与 memory_hook.py 保持同步。
+    material = head_tail_sample(
+        [text for text in user_texts if text and not is_noise_user_text(text)]
+    )
     if not material and not last_assistant:
         return None
     lines = ["用户消息 %d: %s" % (index + 1, text) for index, text in enumerate(material)]
     if not material and user_texts:
-        lines = ["用户消息 %d: %s" % (index + 1, text) for index, text in enumerate(user_texts[:6])]
+        lines = [
+            "用户消息 %d: %s" % (index + 1, text)
+            for index, text in enumerate(head_tail_sample(user_texts))
+        ]
     if last_assistant:
         lines.append("助手最近回复: %s" % compact_text(last_assistant, 200))
     prompt = (
-        "你是编程助手会话的归档助手。根据会话片段判断这个会话是否有归档价值，并给出主题标题。\n"
+        "你是编程助手会话的归档助手。下面是整个会话的全部用户消息（条数过多时为首尾抽样），"
+        "请据此判断这个会话是否有归档价值，并给出主题标题。\n"
         "没有归档价值的会话：只是打招呼、闲聊、测试模型是否可用（如只说了 hi/hello）、"
         "没有任何实际任务或技术内容；以及纯例行运维操作——如 git-tool update/sync/commit 仓库同步、"
         "skill 更新提交、memory-hub check/install 等 hook 安装检查、批量上传 session 归档等机械性维护，"
         "只有命令执行结果、没有可复用的技术内容。注意：运维会话中如果包含真实的故障排查、bug 修复或"
         "技术决策（如发现并修复了某个问题），仍有归档价值。\n"
         "只输出 JSON：{\"meaningful\": true或false, \"title\": \"不超过20字的主题标题，meaningful为false时给空字符串\"}\n\n"
-        "会话片段：\n" + "\n".join(lines)
+        "整个会话的用户消息：\n" + "\n".join(lines)
     )
     base_url = os.environ.get("MEMORY_HUB_TITLE_LLM_BASE_URL", TITLE_LLM_DEFAULT_BASE_URL).rstrip("/")
     body = {
@@ -536,11 +563,19 @@ def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[Sess
             text = sanitize_message_text(raw_text)
             if not text:
                 continue
+            if role == "user":
+                # 剥掉 pi skill 注入包装，否则用户目标被 SKILL.md 模板污染。
+                text = strip_skill_wrapper(text)
+                if not text:
+                    continue
             recent_messages.append({"role": role, "content": text})
             if role == "user":
-                if not first_user:
-                    first_user = text
-                last_user = text
+                # 首个/最近用户目标都只取非噪声消息（「hi」「继续」之类不算目标）；
+                # 全是噪声时退而求其次取字面首/末条，保证用户目标不为空。
+                if not is_noise_user_text(text):
+                    if not first_user:
+                        first_user = text
+                    last_user = text
                 if len(user_texts) < 30:
                     user_texts.append(compact_text(text, 300))
             else:
@@ -561,6 +596,12 @@ def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[Sess
     archive_session_id = normalize_identifier(
         "%s:%s" % (source, source_session_id), "%s-session" % source
     )
+    if user_texts:
+        # 全是噪声消息时退而求其次，保证用户目标不为空。
+        if not first_user:
+            first_user = user_texts[0]
+        if not last_user:
+            last_user = user_texts[-1]
     payload = build_archive_payload(path, source, source_session_id, cwd, events)
     content_sha256 = hashlib.sha256(payload).hexdigest()
     return SessionFile(
