@@ -139,11 +139,19 @@ Pi 扩展带 EXTENSION_VERSION（模板在 `assets/pi-memory-hub.ts`，改模板
   含完整输出、query、project_id、facts_count），claude/codex 无 pi-trace 时只能查这个。
 </memory>
 
+<memory category="troubleshooting">
+v4 AFK 防抖有已确认的丢失窗口（2026-08-21 实测定性）：agent_end 后扩展只写 `capture_schedule`，若进程在防抖计时器到期前被杀——直接关终端**不会触发** `session_shutdown` 兜底——最后一段内容永不 capture。识别特征：pi-trace 末尾是孤立的 `capture_schedule` 且无后续 `capture`。另一观测盲区：capture 链路在 hook 脚本侧完全没有 trace（`trace_event` 只包 search），出现「capture exit 0 但 spool 无 job、objects 无快照、Hub 404」时无法事后定位根因，只能靠 spool × objects × Hub API 三方交叉排除。
+</memory>
+
 <memory category="debug-commands">
 回答「hook 有没有成功安装/生效」必须分两层验证：`install_hooks.py check` 全绿只证明**安装副本与模板一致**
 （静态层，且历史上存在过误报 ok 的案例）；运行层证据看 pi-trace.jsonl **最后一条 `session_start`**——其
 `ext_version` 与模板版本一致、且时间戳属于当前会话，才证明扩展真的被 pi 加载并正在 firing。check 绿但本会话
 trace 无 `session_start` = 扩展未被加载（查扩展路径/加载冲突），两层都过才能回「已生效」。
+</memory>
+
+<memory category="debug-commands">
+审计「本地 session 是否漏传 Hub」的交叉比对法（2026-08-21 全流程验证）：① spool.sqlite3 当日 job 中 `status='completed' AND remote_version IS NULL` = 被 LLM 过滤（skipped_meaningless）——被过滤 job 的 session 早期版本通常已在 Hub，丢的只是最后一次 capture 的尾部增量；② pi-trace 有 capture exit 0 但 spool 无 job = 早退（extraction 子 session 首消息签名 / transcript 从未落盘的「幽灵 session」走 `is_file()` 早退 / 未查明原因）；③ 拿本地 session 文件与 Hub latest 版本核对内容覆盖度。LLM 过滤器只按快照**尾部一对 user/assistant** 判定：以决策讨论/功能确认问答结尾的 session 易被误判低价值（单日实测 2 例误伤），评估过滤质量时重点抽查这类结尾。
 </memory>
 
 <memory category="common-patterns">
