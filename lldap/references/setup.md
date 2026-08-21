@@ -1,9 +1,4 @@
----
-name: lldap-setup
-description: 使用 Docker 部署 LLDAP（轻量级 LDAP 认证服务）。当用户提到安装 lldap、搭建 LDAP 服务器、Docker LDAP、统一认证、LDAP 认证、lldap 部署、配置 LDAP 服务时触发。即使用户只说"需要搭个 LDAP"或"有没有轻量的认证服务"，也应该考虑使用此 Skill。
----
-
-# LLDAP Docker 部署
+# LLDAP 部署与运维
 
 使用 Docker Compose 一键部署 LLDAP（Lightweight LDAP）认证服务，数据持久化到 `/data/lldap`。
 
@@ -38,7 +33,7 @@ echo "Admin: $ADMIN_PASS"
 
 ### 3. 创建配置文件
 
-写入 `/data/lldap/lldap_config.toml`，参考 `references/lldap_config.toml`。
+写入 `/data/lldap/lldap_config.toml`，参考 [lldap_config.toml](lldap_config.toml)。
 
 关键字段：
 
@@ -59,7 +54,7 @@ echo "Admin: $ADMIN_PASS"
 
 ### 4. 创建 docker-compose.yml
 
-写入 `/data/lldap/docker-compose.yml`，参考 `references/docker-compose.yml`。
+写入 `/data/lldap/docker-compose.yml`，参考 [docker-compose.yml](docker-compose.yml)。
 
 ```yaml
 services:
@@ -110,71 +105,6 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:17170
 |------|------|------|------|
 | LDAP | `3890` | TCP | 标准的 LDAP 查询与绑定 |
 | Web UI | `17170` | HTTP | 管理界面，用户登录、管理 |
-
-### LDAP 连接信息
-
-```
-Host: <服务器IP>
-Port: 3890
-Base DN: dc=example,dc=com
-Bind DN: cn=admin,ou=people,dc=example,dc=com
-```
-
-集成其他服务时，按各自文档填写上述 LDAP 参数即可。具体集成模板见 lldap 仓库的 `example_configs/` 目录。
-
-<memory category="code-locations">
-本团队生产实例：LLDAP 在 `192.168.2.13:3890`（Web 控制台 `http://192.168.2.13:17170`），Base DN `dc=example,dc=com`。**匿名 bind 被拒**，但任意有效 LLDAP 用户都能 bind 并读目录（含组成员关系 / `memberOf`）——核实"某人在不在某组"不需要 admin，借任一普通账号 bind 即可。Jira 不能当判据：它同步了 LLDAP 用户，但**没有同步 `p4-devops` 这类组**，Jira 里看不到不代表 LLDAP 里没有。
-</memory>
-
-<memory category="troubleshooting">
-别信 pyAutomation `backend/server/config/base.py:258-260` 里硬编码的 `svcteamcity` bind 默认值——默认密码已失效（bind 返回 invalidCredentials），真实密码只存在于 auto-server 部署环境的 `LDAP_BIND_PASSWORD`；本机直连 SSH `dev@192.168.2.13` 被 publickey 拒绝，取不到。旁证交叉验证：同文件 `DEBUG_GROUP_LDAP_SYNC_MAP`（base.py:102）把本地组 `devops` 映射为 LLDAP 组 `p4-devops`（JWT groups claim 实时判定），P4 侧（192.168.2.13:1666）`devops` 组的成员列表是运维上对应的名单，可在拿不到 LLDAP 凭据时用作参考（非权威，两边靠人工保持一致）。
-</memory>
-
-<memory category="common-patterns">
-Windows 盘 FTP 想统一用 LLDAP 账号：微软 IIS FTP 只认 Windows 本地账户或 AD 域，不支持通用 LDAP Bind，接不进 LLDAP；pGina 也无效（IIS FTP 走 LogonUser 网络登录，不经过交互式登录）；LLDAP 只存密码哈希不可导出，"同步成 Windows 本地账户"路线不通。已确认可行路径：用 SFTPGo（Windows 原生服务，FTP/FTPS/SFTP/WebDAV 一体）替代 IIS FTP，其内置 LDAP 用 `bind_as_user: true`，用户 DN 模式 `uid=%username%,ou=people,<base dn>`，首次登录自动建档；盘符权限用 SFTPGo 的 per-user/per-group virtual folder 映射（如 D:\、E:\ 分用户设只读/读写）。
-</memory>
-
----
-
-## 现网实例（团队 LLDAP）
-
-| 项 | 值 |
-|---|---|
-| LDAP | `192.168.2.13:3890`（无 SSL） |
-| Web UI | `http://192.168.2.13:17170` |
-| Base DN | `dc=example,dc=com` |
-| 用户 OU | `ou=people,dc=example,dc=com` |
-| 组 OU | `ou=groups,dc=example,dc=com` |
-
-### 只读服务账号（查询用）
-
-- 账号 `svcteamcity`（`uid=svcteamcity,ou=people,dc=example,dc=com`），**只读**，可 bind 后搜索全目录。
-- 凭据存于本机 `~/.env`：`LLDAP_HOST` / `LLDAP_PORT` / `LLDAP_BASE_DN` / `LLDAP_BIND_DN` / `LLDAP_BIND_PASSWORD`。
-- **保密规则**：使用时一律从 `~/.env` 读取，**禁止**把密码打印到对话、文档、git 仓库或记忆内容中；pyAutomation `config/base.py` 里硬编码的默认值可能过期，以 `~/.env` 为准。
-- 匿名 bind 被拒；LLDAP 内任意已认证用户均可读目录。
-
-查询示例（查某用户是否在某组，不回显密码）：
-
-```python
-import os
-from pathlib import Path
-from ldap3 import Server, Connection, SUBTREE
-
-# 从 ~/.env 读凭据
-env = dict(l.split('=', 1) for l in Path('~/.env').expanduser().read_text().splitlines() if '=' in l and not l.startswith('#'))
-s = Server(env['LLDAP_HOST'], port=int(env.get('LLDAP_PORT', '3890')), connect_timeout=5)
-c = Connection(s, user=env['LLDAP_BIND_DN'], password=env['LLDAP_BIND_PASSWORD'], auto_bind=True)
-c.search(f"ou=groups,{env['LLDAP_BASE_DN']}", '(cn=p4-devops)', search_scope=SUBTREE, attributes=['member'])
-members = [str(v) for e in c.entries for v in e.entry_attributes_as_dict.get('member', [])]
-print('xuzhiyang in group:', any('uid=xuzhiyang,' in m for m in members))
-c.unbind()
-```
-
-### Schema 坑位
-
-- 组成员在**组条目**的 `member` 属性（完整 DN 列表）；用户条目也有 `memberOf`。
-- 用户条目**没有 `displayName` 属性**，请求它会报 `invalid attribute type`；显示名用 `cn`。
-- 组对象类是 `groupOfUniqueNames`，用户是 `person`（`inetOrgPerson`）。
 
 ---
 
@@ -281,12 +211,12 @@ from = "LLDAP Admin <sender@gmail.com>"
 reply_to = "Do not reply <noreply@localhost>"
 ```
 
-> 各服务商具体配置及故障排查见：[references/smtp-config.md](references/smtp-config.md)
+> 各服务商具体配置及故障排查见：[smtp-config.md](smtp-config.md)
 
 ---
 
 ## 参考文件
 
-- `references/lldap_config.toml` — 完整配置文件模板
-- `references/docker-compose.yml` — 完整 Docker Compose 模板
-- `references/smtp-config.md` — SMTP 密码重置配置详解（多服务商对照）
+- [lldap_config.toml](lldap_config.toml) — 完整配置文件模板
+- [docker-compose.yml](docker-compose.yml) — 完整 Docker Compose 模板
+- [smtp-config.md](smtp-config.md) — SMTP 密码重置配置详解（多服务商对照）
