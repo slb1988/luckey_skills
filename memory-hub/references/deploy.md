@@ -302,7 +302,9 @@ done
 
 ## 观测面板（dashboard）部署
 
-面板是独立服务（`backend/` + `frontend/dist/`），与主服务分离部署。`frontend/dist` **已不纳入 git 追踪**（自 commit 2c3b935），NAS 上有 node v22（`~/.local/bin/node`），需在 NAS 本地构建：
+面板是独立服务（`backend/` + `frontend/dist/`），与主服务分离部署。`frontend/dist` **已不纳入 git 追踪**（自 commit 2c3b935），NAS 上有 node v22（`~/.local/bin/node`），需在 NAS 本地构建。
+
+**部署顺序铁律（「更新发布前后端」）**：① 先 `git pull`（「更新」= 拉代码，最先做，漏掉只重启不算完成）→ ② 有冲突优先修复冲突 → ③ 本地有未提交改动，更新后及时 commit（不要等用户提醒）→ ④ 重构建前端 → ⑤ 重启验证。只有纯「重启」才只做最后一步。
 
 ```bash
 cd /share/Container/memory-hub
