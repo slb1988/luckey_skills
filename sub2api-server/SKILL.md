@@ -16,6 +16,7 @@ description: 本机（VM-0-3-ubuntu / 81.68.211.31）Sub2API（LuckeyAPI）部�
    ▼
 nginx (systemd, 监听 0.0.0.0:80/443)
    │  80 → 301 跳转 HTTPS;  443 → proxy_pass http://127.0.0.1:8700
+   │  /memory-hub/ → proxy_pass http://10.77.77.6:9288/ (WG 内网, Vue SPA 子路径)
    ▼
 sub2api 容器  (宿主机 8700 → 容器内 8080)
    ├── sub2api-postgres  (postgres:18-alpine, 5432, 仅内网)
@@ -64,6 +65,7 @@ sudo systemctl reload nginx          # 改配置后平滑重载
 - `proxy_pass http://127.0.0.1:8700`（指向 sub2api 宿主机映射端口）
 - 反代带 WebSocket 升级头（`Upgrade` / `Connection: upgrade`），`proxy_buffering off`（适合流式/SSE）
 - ACME 校验放行 `/.well-known/acme-challenge/`
+- 子路径挂载 Vue SPA（`/memory-hub/` → `http://10.77.77.6:9288/`，含 sub_filter 配方与验证命令）：[vue-spa-subpath-proxy](references/vue-spa-subpath-proxy.md)
 
 ## .env 关键项
 
