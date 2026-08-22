@@ -46,25 +46,20 @@ outbox 重试与错误、最近更新的 session 列表、Graphiti episode 探�
 | 手动 session 上传 | `scripts/upload_sessions.py`（仅 Python 标准库，幂等批量归档历史 session） |
 | project 别名定版 | `assets/project-aliases.json`（install 部署到 state dir，hook 与批传共用） |
 
-<memory category="common-patterns">
 「更新发布前后端」是**完整部署流程，不是单纯重启**——「更新」二字 = 先 `git pull` 拉代码，漏掉只跑重启会被视为没完成。固定顺序：① `git pull`（更新，最先做）→ ② 有冲突优先修复冲突 → ③ 本地有未提交改动，更新后及时 commit（不要等用户提醒）→ ④ `cd frontend && npm run build`（前端重构建）→ ⑤ `sh scripts/stop_all.sh && sh scripts/start_all.sh && sh scripts/status.sh`（重启验证）。只有纯「重启」请求才只做 ⑤。memory-hub 自身结构：Hub API(:9287)=后端，dashboard(:9288)=前端（backend BFF + 静态托管 frontend/dist，二者由 start_all.sh 一并拉起）。不要误跳 auto-server-deploy——那是 py_automation 平台（192.168.2.13，`/data/py_automation`）的部署，与 memory-hub 完全无关；pi 现在跑在 NAS 上，auto-server 未授权 NAS 公钥，SSH `dev@10.77.77.4` 会 publickey 拒绝。
-</memory>
 
-<memory category="common-patterns">
 判断当前环境（专门针对 memory-hub）：每次运行 memory-hub 相关操作、不确定当前机器是哪种环境时，先从 `.env` 提取环境变量标识 `MEMORY_HUB_ENV`（区别于已有的 `ENVIRONMENT`）。取值只有两种：`release`（生产/发布环境，正式跑 Hub/dashboard/Graphiti 的服务端）与 `dev`（开发环境，含 agent 端与 Dev 职能）。**标识不存在时先提醒用户创建添加，不要瞎猜环境**；拿到标识后按 release/dev 做各自的特有处理（release：部署/重启/迁移；dev：开发/测试/hook 安装与检索）。
-</memory>
 
-<memory category="common-patterns">
 `MEMORY_HUB_TITLE_LLM` 代码默认 `0`（关闭时退化为启发式标题、不做低价值过滤），置 `1` 才走内网 vLLM。本机是通过 **Machine 作用域**环境变量开启的（`=1`）——在新进程里发现标题走 LLM 属预期；其他机器若想开启须自行设该变量，不要改代码默认值。低价值判定标准含**纯例行运维操作**（git-tool update/sync/commit、skill 更新提交、memory-hub check/install、批量上传归档等只有命令执行结果的会话）——这类会话不上传；但运维中含真实故障排查/bug 修复/技术决策的仍有价值（2026-08-20 用户要求加入，prompt 见 memory_hook.py 与 upload_sessions.py 的 llm_classify_session，两处保持同步）。
 
 **判定材料必须是整个会话，用户目标必须保留**（2026-08-21 用户定版，曾因此误过滤）：① LLM 分类与标题的输入是整会话的非噪声用户消息（`session_user_texts`，条数 >8 时 `head_tail_sample` 首尾各 4 抽样），绝不能只喂窗口尾部——否则实质会话会被结尾的「commit」误杀（当日 job 125/149 实例）；② 归档摘要 distilled 为三段式「首个用户目标/最近用户目标/会话结果」，目标取**首个非噪声用户消息**且先剥 `<skill>...</skill>` 注入包装（`strip_skill_wrapper`——pi 用户消息常是整份 SKILL.md + 末尾一句真实问题，不剥会把目标污染成模板文本），空目标兜底链 first→last→title；③ live hook 上传时经 `load_session_texts` 从 spool full 包重取全量事件提取文本，不依赖 job 行的尾部快照列。
-</memory>
 
 ## 参考文档
 
 | 主题 | 文件 |
 |------|------|
 | 部署 / 启动 / 重启 / 备份 / 排障 | [references/deploy.md](references/deploy.md) |
+| 排障与调试（检索 0 命中 / hook 生效验证 / spool / 测试平台坑 / Codex session 格式） | [references/troubleshooting.md](references/troubleshooting.md) |
 | 观测面板（dashboard）开发/部署备忘 | [references/dashboard.md](references/dashboard.md) |
 | API 参考（端点总览、写入流程、索引状态、错误码）与实测备忘（Idempotency-Key、字段约束、常用 curl） | [references/api-notes.md](references/api-notes.md) |
 | 已知 project 一览与检索 scope 选择 | [references/projects.md](references/projects.md) |
@@ -115,14 +110,6 @@ Memory 索引状态与错误码表见 [api-notes](references/api-notes.md)。
 
 检索 curl 见 [api-notes](references/api-notes.md)「常用接口速查」第 1 条。
 
-<memory category="debug-commands">
-编辑器内 `memory_search` 0 命中时，绕过扩展用 CLI 复现：pi/claude 的记忆扩展只是薄封装，实际检索全部在 `scripts/memory_hook.py search`（扩展源码里 grep 不到 project/检索逻辑属正常）。`/usr/bin/python3 scripts/memory_hook.py search "<query>" --project <id> --limit 20 --json` 与编辑器内走同一链路，且 `--project` 可探测当前 cwd 派生 scope 之外的项目（如 agent-history、maindev），`--json` 可看原始返回结构排除展示层问题。
-</memory>
-
-<memory category="troubleshooting">
-Graphiti 语义检索噪音底线高：乱查（大小写无关）也会返回"近似"结果——**返回非空 ≠ 命中，目标不在 top-N ≠ 不存在**。判定"没有这条记忆"前先调大 `--limit`（默认 10）并换关键词重试，再按 project scope 排查。live hook 同样按写入时 cwd 文件夹名派生 project：Windows 端写的记忆散落在 maindev/unity2018/agent-history 等，Mac 端 ObsidianVault 会话默认只能看到 obsidianvault project——跨机器"重启后搜不到"几乎都是 scope 隔离而非故障。
-</memory>
-
 ## Agent 自动记忆集成
 
 Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`（仅标准库），本地 spool + 失败自动补传。
@@ -130,7 +117,6 @@ hook 只负责归档（capture），**不再自动召回注入**：检索由 age
 Claude/Codex 用 `memory_hook.py search` CLI；行为契约写在 vault `AGENTS.md`「Memory Hub 按需检索」一节
 （2026-08-20 起，原 SessionStart/UserPromptSubmit/before_agent_start 的自动 recall 已全部移除）。
 
-<memory category="common-patterns">
 Pi 扩展带 EXTENSION_VERSION（模板在 `assets/pi-memory-hub.ts`，改模板必须递增版本号）；check 报
 `extension version X is outdated` 时重新 install 发布即可。v4 起 agent_end 改为 AFK 防抖上传：
 空闲 `MEMORY_HOOK_PI_CAPTURE_DELAY_MS` 毫秒（默认 5 分钟，置 0 恢复逐轮立即上传）后才 capture，
@@ -139,70 +125,21 @@ Pi 扩展带 EXTENSION_VERSION（模板在 `assets/pi-memory-hub.ts`，改模板
 - `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`——Pi 扩展侧视角（session_start / search / capture_schedule / capture_cancel / capture，含 exit_code）；
 - 同目录 `hook-trace.jsonl`——脚本侧 ground truth（memory_hook.py 的 search，三端 agent 共用，
   含完整输出、query、project_id、facts_count），claude/codex 无 pi-trace 时只能查这个。
-</memory>
 
-<memory category="troubleshooting">
-v4 AFK 防抖有已确认的丢失窗口（2026-08-21 实测定性）：agent_end 后扩展只写 `capture_schedule`，若进程在防抖计时器到期前被杀——直接关终端**不会触发** `session_shutdown` 兜底——最后一段内容永不 capture。识别特征：pi-trace 末尾是孤立的 `capture_schedule` 且无后续 `capture`。另一观测盲区：capture 链路在 hook 脚本侧完全没有 trace（`trace_event` 只包 search），出现「capture exit 0 但 spool 无 job、objects 无快照、Hub 404」时无法事后定位根因，只能靠 spool × objects × Hub API 三方交叉排除。
-</memory>
-
-<memory category="debug-commands">
-回答「hook 有没有成功安装/生效」必须分两层验证：`install_hooks.py check` 全绿只证明**安装副本与模板一致**
-（静态层，且历史上存在过误报 ok 的案例）；运行层证据看 pi-trace.jsonl **最后一条 `session_start`**——其
-`ext_version` 与模板版本一致、且时间戳属于当前会话，才证明扩展真的被 pi 加载并正在 firing。check 绿但本会话
-trace 无 `session_start` = 扩展未被加载（查扩展路径/加载冲突），两层都过才能回「已生效」。
-</memory>
-
-<memory category="debug-commands">
-审计「本地 session 是否漏传 Hub」的交叉比对法（2026-08-21 全流程验证）：① spool.sqlite3 当日 job 中 `status='completed' AND remote_version IS NULL` = 被 LLM 过滤（skipped_meaningless）——被过滤 job 的 session 早期版本通常已在 Hub，丢的只是最后一次 capture 的尾部增量；② pi-trace 有 capture exit 0 但 spool 无 job = 早退（extraction 子 session 首消息签名 / transcript 从未落盘的「幽灵 session」走 `is_file()` 早退 / 未查明原因）；③ 拿本地 session 文件与 Hub latest 版本核对内容覆盖度。LLM 过滤器只按快照**尾部一对 user/assistant** 判定：以决策讨论/功能确认问答结尾的 session 易被误判低价值（单日实测 2 例误伤），评估过滤质量时重点抽查这类结尾。
-</memory>
-
-<memory category="common-patterns">
 search 输出不包含用户身份与概要（2026-08-20 起，format_context 已移除）：多身份场景下静态
 概要是先验知识、会影响模型判断；user_id 仅用于服务端检索 scoping，不作为文本输出。检索无结果时不输出任何内容。
 原自动 recall 注入已随 pi 扩展 v4 / hooks 精简移除，此约束现在只约束按需 search 的输出。
-</memory>
 
-<memory category="common-patterns">
 升级版本号的判定规则（2026-08 定版）：**被 hook 直接按路径引用的 script 改动不需要升版本号**
 ——Claude/Codex settings 和 Pi 扩展都是直接 spawn 仓库里的 `scripts/memory_hook.py`，repo pull 后逻辑即生效。
 **只有「安装副本」类产物才必须升版本号**：① Pi 扩展模板 `assets/pi-memory-hub.ts`（安装时渲染拷贝到
 `~/.pi/agent/extensions/`，改模板必须递增 EXTENSION_VERSION 并重跑 install）；② 别名定版
 `assets/project-aliases.json`（递增 version 并重跑 install 部署到 state dir）。判断依据：产物是否被
 install 复制/渲染到仓库外；复制出去的就必须让 check 能感知版本差。
-</memory>
 
 > 详细参考：[agent-integration](references/agent-integration.md)（install、身份配置、环境变量、命令）
 
-<memory category="troubleshooting">
-在刚执行完 install 的**同一 shell** 里跑 `install_hooks.py check --agents auto`，`identity.source` 显示 `missing` 是预期——user-id 环境变量已写入 `~/.profile`/`~/.zprofile` 但当前进程未加载；新开终端或重启 agent 后即正常。不要据此重装或重复 configure。
-</memory>
-
-<memory category="troubleshooting">
-agent-integration.md 的 install/configure 示例命令是 macOS 写法（`/usr/bin/python3`、`/Users/sun/...`）。
-Windows 上曾发现扩展配置里原样保留了 `/usr/bin/python3` 这个 Unix 路径导致 hook 无法执行——Pi 扩展模板 v2
-把 python 路径硬编码为 `/usr/bin/python3`，Windows 端 spawn 全部 exit 127 静默失败（pi-trace.jsonl 里
-recall/capture 全红），且 check 因「副本与模板一致」误报 ok。**v3 起模板改为 `__PYTHON_JSON__` 占位符，
-由 install_hooks.py 注入本机解释器路径**（优先 /usr/bin/python3，否则 sys.executable）；老机器 check 报
-outdated 后重跑 install 即修复。排查「关窗提示有进程未结束」是否 hook 残留时，按命令行列 python.exe 分辨：
-本机常驻 python 通常是 UnrealMCP 和 pytest，与 memory-hook 无关；memory_hook.py 是逐事件短进程，正常不常驻。
-</memory>
-
-
-<memory category="troubleshooting">
-Spool job 在 capture 时固化 `user_id`（这是设计，防止补传到错误用户）。副作用：身份配置变更（如 install 写入新的 `MEMORY_HUB_CLIENT_USER_ID`）之前积压的 queued job 仍带旧身份，flush 时持续报 `SCOPE_FORBIDDEN` 且不会自愈（实测一次积压 11 个）。看到 spool 反复 403 时直接清理这些旧 job，不要当作服务端权限配置问题排查。
-</memory>
-
-<memory category="troubleshooting">
-`scripts/tests/` 在 Windows 本机跑 pytest 稳定有 13 个用例失败（10 passed），失败点全在 tearDown 的 `shutil.rmtree`——spool.sqlite3 文件锁 PermissionError，属 Windows 平台既有环境问题（stash 验证未改动代码同样 13 败），不是 regression。评估改动是否破坏测试时对比改动前后的失败集合；要干净结果去 Linux/macOS 跑。
-</memory>
-
-<memory category="troubleshooting">
-跑 `scripts/tests/` 的两个姿势坑（macOS 实测）：① `tests/conftest.py`（把 `scripts/` 加入 sys.path）**只在 pytest 下加载**，用 `python -m unittest` 必须 cd 到 `scripts/` 再跑，否则 import 失败；② macOS 上 `test_memory_hook` 同样稳定有 4 个平台性失败（如 `project_id_for_cwd` 的 Windows 路径断言，改动前干净检出复现），与 Windows 的 13 败同理——任何平台都不追求全绿，只对比失败集合差集。
-</memory>
-
-<memory category="common-patterns">
 `test_pi_extension_e2e.py`（Node 驱动 .mjs + fake hook .mjs）可行的前提是 **Node ≥24 原生 type-stripping 直接跑渲染后的 TS 扩展**，无构建步骤。写这类驱动/断言的铁律：capture 完成的权威信号是 **pi-trace.jsonl 落盘**，不是 hub 子进程退出、也不是 fake hook 日志——fake hook 在 stdin `end` 时写日志，而扩展在子进程 `close` 事件后才写 trace，两者之间存在窗口期；按错误信号等待会导致断言失败点逐次漂移（实测同一用例失败位置随机）。驱动失败时保留/打印 tmpdir 现场 artifact 再清理，否则竞态无法事后诊断。
-</memory>
 
 ## 手动上传历史 session（upload_sessions.py）
 
@@ -211,19 +148,12 @@ Hub，每个文件成为独立 session（`{source}:{原始session_id}`），并�
 记忆。适用于 hook 上线前的历史归档、其他电脑导出的 session 等（`memory_hook.py` 没有 backfill 子命令，
 capture 只处理当前 live transcript）。
 
-<memory category="code-locations">
 历史 session 文件位置（Windows）：Claude Code 在 `%USERPROFILE%\.claude\projects\<slug>\*.jsonl`（文件名即 session UUID）；Pi 在 `%USERPROFILE%\.pi\agent\sessions\<slug>\*.jsonl`（文件名 `<UTC时间戳>_<uuid>.jsonl`，单项目可积累上千个）；Codex 在 `%USERPROFILE%\.codex\sessions\`（递归子目录，单机可积累数百个、上百 MB）。 slug 方案各家不同：`E:\sununity` 在 Claude 是 `E--sununity`，在 Pi 是 `--E--sununity--`——定位时按 `sessions/` 实际列表匹配，不要自行推算。
-</memory>
-
-<memory category="troubleshooting">
-Codex 新格式 session 文件首行是 `session_meta` 记录，cwd 与 session uuid 只存在于该行的 payload 内、无法从文件路径推出。旧版 `upload_sessions.py` 不识别该格式时 cwd 全部丢失——实测 238 个 codex session 会全部落入兜底 project 且 session id 退化为文件名；已修补 `scan_session_file` 支持（dry-run 238/238 解析成功）。批量归档不熟悉的来源前，先 `--dry-run` 核对 cwd 解析率和 session id 形态（应为 `{source}:{project}:{uuid}` 三段式）再实际上传。
-</memory>
 
 幂等保证：对包装后的归档文档（`agent-session-archive/1`，服务端要求 session 文件必须是合法 JSON，
 原始 jsonl 不行）计算 SHA-256；上传前比对远端 latest 版本，一致则 `skipped`；所有写操作带确定性
 `Idempotency-Key`，中断可直接重跑。内容变化时自动 append 新版本。
 
-<memory category="common-patterns">
 本机 project 归属是**机器级映射（字典）**，写在 state dir 的 `project-aliases.local.json`（
 `install_hooks.py install --project <id>` 写入 `{"aliases":{"*":"<id>"}}`，不进 git、不随 skill
 模板扩散，其他机器/用户不受影响）。优先级：`--project`/`--project-id` 显式参数 > 本机 local 映射 >
@@ -233,24 +163,19 @@ Codex 新格式 session 文件首行是 `session_meta` 记录，cwd 与 session 
 `--project` 时：交互终端询问（默认建议主机名），非交互只输出建议不落盘。**本机映射只能写系统目录
 （state dir），绝不允许改 skill 模板 `assets/project-aliases.json` 来映射本机名**（那会污染共享模板、
 影响其他用户）。
-</memory>
 
-<memory category="common-patterns">
 批量上传的两条铁律（2026-08-20 用户定版，违反被明确纠正过）：
 1. **默认必须双资产一起传（`--hook-namespace`）**：快照 + 完整 session 文件一次到位，禁止先用普通
    模式传单资产、再 `--backfill-full` 补——那是返工。普通单资产模式只用于确实没有完整 jsonl 源的场景。
 2. **project 归属必须先经用户 review**：任何批量上传实际执行前，先 `--dry-run` 生成每个 session 的
    归属 project 清单交给用户确认，用户点头后才去掉 dry-run 执行；不得自作主张选定 `--project-id`
    （包括"按 skill 文档默认 agent-history"也不行——文档默认值也要用户确认）。
-</memory>
 
-<memory category="common-patterns">
 本机 local 映射（`project-aliases.local.json`）未设置时，不传 `--project-id` 会按**每个 session 的 cwd 文件夹名**逐个派生
 project——全机批量归档会散落到 `admin`、`sununity`、`MainDev`、`ObsidianVault` 等十几个 project
 （实测 3 个 pi session 落进 2 个 project）。检索按 project 隔离，散落后必须逐 project 切换才能搜全。
 批量归档历史 session 可考虑 `--project-id agent-history`（hook 归档主库）集中存放，**但选定前必须先给
 用户 review 归属方案，确认后才执行**。
-</memory>
 
 ```bash
 SKILL_DIR="<本 SKILL.md 所在目录的绝对路径>"
@@ -275,10 +200,6 @@ python3 "$SKILL_DIR/scripts/upload_sessions.py" --project-id unity2018 --dry-run
 - **venv 曾是从 macOS 拷来的坏环境**，在 NAS 上需要重建（见 [deploy.md](references/deploy.md)）。
 - **本机跑脚本用 `python3`，不是 `/usr/bin/python3`**（NAS 上无此路径），见 [agent-integration.md](references/agent-integration.md)。
 
-<memory category="common-patterns">
 Hub 投递 Graphiti 前会过一道内容清洗层 `strip_archival_boilerplate()`（service.py）：按模式剥掉归档摘要开头的元数据套话，只留知识正文进入抽取。当前覆盖三种前缀：`xx 会话归档，工作目录：…。`（legacy）、`xx 会话「标题」，工作目录：…。`、`xx 会话「标题」（日期，工作目录：…）。`。新前缀出现时在此加模式即可对存量内容生效——它作用于投递时刻而非写入时刻，改模式不需要回写 SQLite。
-</memory>
 
-<memory category="common-patterns">
 重建某 group 的图谱映射用 `scripts/reingest_group.py <group> [--noise-only] [--dry-run|--yes]`：删 episode（remove_episode 级联删派生边和独占实体）后把 SQLite 原记忆重入 outbox，episode uuid == memory_id 溯源不变。`--noise-only` 经 cypher-ro 反查命中噪声实体的 episode 定点重建（大 group 必用）。只处理 Hub 有记录的 episode，Graphiti 独有的只报告不删；级联删除会漏孤儿实体，重建后需按模式补一次终扫。事故全文：memory-center `incidents/2026-08-20-entity-extraction-noise.md`。
-</memory>

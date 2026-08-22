@@ -31,7 +31,6 @@ SDK 时用原生 a2a-sdk 手写代理 agent。
 自动注册 + 心跳 + 退出注销。人类向导见 `TUTORIAL.md`；本 skill 面向实现/调试。
 不便用 SDK 时（非 Python、已有 A2A 服务）见 [raw-a2a-sdk](references/raw-a2a-sdk.md)。
 
-<memory category="core-rules">
 机群化已落地（pyauto-computer，对标 Raft 接入体验）：① 平台托管 install.sh/ps1 一行装 CLI；
 ② Computer 一等实体：`setup` 登记（hostname+机器指纹+OS+探测 runtime）即签发 computer_token
 （内网开放，无审批环节）；③ 一机多 agent：每 agent 独立目录（=runtime cwd）+独立端口
@@ -41,7 +40,6 @@ SDK 时用原生 a2a-sdk 手写代理 agent。
 只有 CLI 模型不满足（自定义 skill 路由、特殊执行体）才裸用 SDK。
 受管 agent 要加自定义逻辑：workroot 放 `agent_ext.py`（`register(app)` 挂 skill，同一 SDK API），
 `agent create --ext` 出骨架，`agent dev <名> [消息]` 本地调试（不注册平台，可打断点）。
-</memory>
 
 ## 受管模式 pyauto-computer（零代码接入）
 
@@ -165,7 +163,6 @@ app.run(host="0.0.0.0", port=9000)             # 阻塞：起服务 + 后台注�
 `PYAUTO_PLATFORM_URL` 覆盖）。`public_url` 是本机内网地址（非 127.0.0.1、非 2.13），
 默认用「UDP connect 取路由源地址」自动探测（实现见 `examples/` 的 `_local_ip()`）。
 
-<memory category="common-patterns">
 平台自身的前后端发布（「@auto-server 前后端更新发布」）不走 internal-tool-deploy 的
 SFTP+systemd 套路：平台代码在 auto-server（192.168.2.13）上有自己的 P4 工作区，发布 =
 服务器侧 `p4 sync` → 后端按 PID 重启 flask 进程（杀旧 PID、记新 PID，以 HTTP 200 为健康门；
@@ -174,7 +171,6 @@ SFTP+systemd 套路：平台代码在 auto-server（192.168.2.13）上有自己�
 SKILL.md），前端对应 `<module>.ts` + `<Module>.vue` 文件对。sync 时提示 "must resolve #N
 before submitting" 的打开文件不阻塞本次发布，但会阻塞下一次提交——发布报告里要点名待
 resolve 清单，提醒负责人先 resolve。
-</memory>
 
 ## SDK 安装与发布
 
@@ -195,14 +191,6 @@ resolve 清单，提醒负责人先 resolve。
 **pyauto-computer CLI 自身的升级/卸载**：升级 = 重跑 install 一行命令（`uv tool install --force`
 覆盖，`~/.pyauto` 状态不动）；卸载 = `uv tool uninstall pyauto-computer`（CLI 无自带 uninstall，
 `service uninstall` 只是移除开机自启项）。
-
-<memory category="troubleshooting">
-a2a_send 派发工具的响应解析存在已知缺陷：派发本身成功（能拿到 dispatch id）但工具抛解析异常时，**不要重发任务**——用平台 token 直接调平台 API 按 dispatch id 拉取任务结果即可，结果是完整可查的。
-</memory>
-
-<memory category="troubleshooting">
-派发方单次等待窗口约 10 分钟（与平台 600s 派发超时同源）。「拉取项目并编译」这类 p4 sync + 增量编译任务常态化超限，**超时 ≠ 失败**——agent 往往仍在正常执行。处置：不要直接重发（重发会与仍在运行的首次任务冲突，受管机还有 workspace 互斥锁）；先按 dispatch id 拉结果确认真实状态，或把任务拆成「sync 并回报 CL 号」+「编译」两次独立派发。
-</memory>
 
 ## 深入参考
 

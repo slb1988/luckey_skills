@@ -33,3 +33,8 @@
 - **Linux 上杀 pi 进程树**：pi → node → 子命令是多级进程链，`proc.kill()` 只杀最外层。修法：
   `Popen(..., start_new_session=True)` + `os.killpg(os.getpgid(pid), SIGKILL)` 全组杀。
   见 `pi_runner.py` 的 `_kill_tree()`（Windows/POSIX 双分支）。
+
+## 派发相关
+
+- a2a_send 派发工具的响应解析存在已知缺陷：派发本身成功（能拿到 dispatch id）但工具抛解析异常时，**不要重发任务**——用平台 token 直接调平台 API 按 dispatch id 拉取任务结果即可，结果是完整可查的。
+- 派发方单次等待窗口约 10 分钟（与平台 600s 派发超时同源）。「拉取项目并编译」这类 p4 sync + 增量编译任务常态化超限，**超时 ≠ 失败**——agent 往往仍在正常执行。处置：不要直接重发（重发会与仍在运行的首次任务冲突，受管机还有 workspace 互斥锁）；先按 dispatch id 拉结果确认真实状态，或把任务拆成「sync 并回报 CL 号」+「编译」两次独立派发。
