@@ -135,16 +135,50 @@ class MemoryHookTest(unittest.TestCase):
                 snapshot.path.unlink(missing_ok=True)
 
     def test_project_id_for_cwd_uses_work_root_folder_name_lowercased(self):
-        self.assertEqual(
-            project_id_for_cwd("D:\\Github\\Memory-Hub", "agent-history"), "memory-hub"
-        )
-        self.assertEqual(project_id_for_cwd("D:\\MainDev", "agent-history"), "maindev")
-        self.assertEqual(
-            project_id_for_cwd("D:\\Github\\ObsidianVault", "agent-history"),
-            "obsidianvault",
-        )
-        self.assertEqual(project_id_for_cwd("/home/sun/My App", "agent-history"), "my-app")
-        self.assertEqual(project_id_for_cwd("", "agent-history"), "agent-history")
+        # 隔离 state dir（空临时目录）：本机 project 覆盖与别名都会影响派生，
+        # 测试纯 cwd 派生时必须排除这两者，保证跨机器确定性。
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            os.environ, {"MEMORY_HOOK_STATE_DIR": directory}, clear=True
+        ):
+            self.assertEqual(
+                project_id_for_cwd("D:\\Github\\Memory-Hub", "agent-history"), "memory-hub"
+            )
+            self.assertEqual(project_id_for_cwd("D:\\MainDev", "agent-history"), "maindev")
+            self.assertEqual(
+                project_id_for_cwd("D:\\Github\\ObsidianVault", "agent-history"),
+                "obsidianvault",
+            )
+            self.assertEqual(project_id_for_cwd("/home/sun/My App", "agent-history"), "my-app")
+            self.assertEqual(project_id_for_cwd("", "agent-history"), "agent-history")
+
+    def test_machine_project_overrides_cwd_derivation(self):
+        # 本机级 project 别名一旦写入 state dir/project-aliases.local.json，
+        # 覆盖共享模板的 cwd 派生（"*" 为 catch-all），与其他机器的项目完全隔离。
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            os.environ, {"MEMORY_HOOK_STATE_DIR": directory}, clear=True
+        ):
+            self.assertEqual(
+                project_id_for_cwd("/work/maindev", "agent-history"), "maindev"
+            )
+            (Path(directory) / "project-aliases.local.json").write_text(
+                json.dumps({"aliases": {"*": "nas"}}), encoding="utf-8"
+            )
+            self.assertEqual(project_id_for_cwd("/work/maindev", "agent-history"), "nas")
+            self.assertEqual(project_id_for_cwd("/work/whatever", "agent-history"), "nas")
+
+    def test_local_project_aliases_specific_entry_wins_over_catch_all(self):
+        # 本机映射是字典：具体条目优先，未命中才落到 "*" catch-all。
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            os.environ, {"MEMORY_HOOK_STATE_DIR": directory}, clear=True
+        ):
+            (Path(directory) / "project-aliases.local.json").write_text(
+                json.dumps({"aliases": {"memory-hub": "memory-hub", "*": "nas"}}),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                project_id_for_cwd("/work/memory-hub", "agent-history"), "memory-hub"
+            )
+            self.assertEqual(project_id_for_cwd("/work/other", "agent-history"), "nas")
 
     def test_upload_uses_job_project_and_source_agent(self):
         # 归档归属跟随 job：project 取捕获时的工作目录名，agent 取捕获来源，

@@ -11,6 +11,7 @@ import re
 import selectors
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -19,7 +20,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
@@ -27,6 +28,8 @@ MEMORY_HOOK = SKILL_DIR / "scripts" / "memory_hook.py"
 PI_TEMPLATE = SKILL_DIR / "assets" / "pi-memory-hub.ts"
 ALIAS_TEMPLATE = SKILL_DIR / "assets" / "project-aliases.json"
 ALIAS_FILENAME = "project-aliases.json"
+PROJECT_FILENAME = "project-aliases.local.json"
+PROJECT_ID_RE = re.compile(r"[^A-Za-z0-9._:-]+")
 MANAGED_COMMAND_MARKER = "memory-hub/scripts/memory_hook.py"
 
 PROFILE_BLOCK_BEGIN = "# >>> memory-hub identity >>>"
@@ -485,6 +488,131 @@ def check_project_aliases(home: Path) -> Dict[str, Any]:
     }
 
 
+def normalize_project(value: str) -> str:
+    normalized = PROJECT_ID_RE.sub("-", value.strip().lower()).strip("-._:")
+    if not normalized or not normalized[0].isalnum():
+        return ""
+    return normalized[:128]
+
+
+def machine_project_path(home: Path) -> Path:
+    return alias_state_dir(home) / PROJECT_FILENAME
+
+
+def load_local_aliases(home: Path) -> Dict[str, str]:
+    """读取本机级 project 别名（project-aliases.local.json 的 aliases 映射）。
+
+    本机级映射不进 git、不随 skill 模板扩散；支持 "*" catch-all。
+    """
+    path = machine_project_path(home)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    raw = data.get("aliases") if isinstance(data, dict) else None
+    if not isinstance(raw, dict):
+        return {}
+    aliases: Dict[str, str] = {}
+    for key, value in raw.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        dst = normalize_project(value)
+        if not dst:
+            continue
+        if key.strip() == "*":
+            aliases["*"] = dst
+            continue
+        src = normalize_project(key)
+        if src:
+            aliases[src] = dst
+    return aliases
+
+
+def load_machine_project(home: Path) -> Optional[str]:
+    """本机 catch-all project（local 别名的 "*" 条目，如 {"*": "nas"}）。"""
+    return load_local_aliases(home).get("*")
+
+
+def suggest_project() -> str:
+    """新机器的 project 建议：优先主机名（机器身份），其次 cwd 末级目录名。"""
+    host = normalize_project(socket.gethostname())
+    if host:
+        return host
+    cwd_name = normalize_project(Path.cwd().name)
+    return cwd_name or "agent-history"
+
+
+def resolve_machine_project(
+    args: argparse.Namespace, home: Path
+) -> Tuple[Optional[str], Dict[str, str]]:
+    """决定本机 project：--project 标志 > 已存在的本机 project > 交互询问/建议。
+
+    非交互且未设置时不自动落盘猜测值，只回传建议，避免误覆盖其他机器的归属。
+    """
+    if args.project:
+        project_id = normalize_project(args.project)
+        if not project_id:
+            raise InstallError("invalid --project %r" % args.project)
+        return project_id, {"source": "flag"}
+    existing = load_machine_project(home)
+    if existing:
+        return existing, {"source": "existing"}
+    suggestion = suggest_project()
+    if sys.stdin.isatty():
+        sys.stderr.write("Memory Hub project for this machine [%s]: " % suggestion)
+        sys.stderr.flush()
+        try:
+            line = sys.stdin.readline()
+        except (OSError, ValueError):
+            line = ""
+        project_id = normalize_project(line.strip()) or suggestion
+        return project_id, {"source": "prompt", "suggestion": suggestion}
+    return None, {"source": "none", "suggestion": suggestion}
+
+
+def install_machine_project(
+    project_id: str, home: Path, meta: Dict[str, str]
+) -> Dict[str, Any]:
+    target = machine_project_path(home)
+    # 本机映射是字典：--project <id> 写入 catch-all "*" 条目，保留已有具体条目。
+    aliases = load_local_aliases(home)
+    aliases["*"] = project_id
+    data = {
+        "aliases": aliases,
+        "source": meta.get("source"),
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    content = json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    changed = atomic_write(target, content)
+    return {
+        "ok": True,
+        "changed": changed,
+        "path": str(target),
+        "set": True,
+        "project_id": project_id,
+        "aliases": aliases,
+    }
+
+
+def check_machine_project(home: Path) -> Dict[str, Any]:
+    aliases = load_local_aliases(home)
+    path = str(machine_project_path(home))
+    if aliases:
+        return {
+            "ok": True,
+            "set": True,
+            "aliases": aliases,
+            "project_id": aliases.get("*"),
+            "path": path,
+        }
+    return {
+        "ok": True,
+        "set": False,
+        "suggestion": suggest_project(),
+        "path": path,
+    }
+
+
 def health_check() -> Dict[str, Any]:
     url = os.environ.get("MEMORY_HUB_URL", "http://10.77.77.6:9287").rstrip("/")
     try:
@@ -689,6 +817,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Memory Hub user id; install 时必填，持久化到用户环境变量 MEMORY_HUB_CLIENT_USER_ID",
     )
+    parser.add_argument(
+        "--project",
+        default=None,
+        help="本机级 project（机器级字典映射，写入 state dir 的 project-aliases.local.json，"
+        "如 --project nas 写为 {\"*\":\"nas\"} catch-all）；"
+        "install 时未提供且本机未设置过会交互询问，非交互则只输出建议不落盘",
+    )
     return parser
 
 
@@ -701,9 +836,22 @@ def main() -> int:
             identity = resolve_identity(args)
             result["identity"] = persist_identity(identity, args.home)
             result["project_aliases"] = install_project_aliases(args.home)
+            project_id, project_meta = resolve_machine_project(args, args.home)
+            if project_id:
+                result["project"] = install_machine_project(
+                    project_id, args.home, project_meta
+                )
+            else:
+                result["project"] = {
+                    "ok": True,
+                    "set": False,
+                    "suggestion": project_meta.get("suggestion"),
+                    "hint": "set this machine's project with --project <id>",
+                }
         else:
             result["identity"] = identity_status()
             result["project_aliases"] = check_project_aliases(args.home)
+            result["project"] = check_machine_project(args.home)
         if not result["project_aliases"].get("ok"):
             result["ok"] = False
         result["service"] = health_check()

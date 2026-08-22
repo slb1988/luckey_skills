@@ -74,6 +74,7 @@ def normalize_identifier(value: str, fallback: str) -> str:
 
 
 PROJECT_ALIASES_FILENAME = "project-aliases.json"
+PROJECT_LOCAL_FILENAME = "project-aliases.local.json"
 
 
 def default_state_dir() -> Path:
@@ -85,51 +86,85 @@ def default_state_dir() -> Path:
     ).expanduser()
 
 
-def load_installed_project_aliases() -> Dict[str, str]:
-    """读取 install_hooks.py 部署到 state dir 的 project 别名 JSON。
+def parse_alias_map(raw: Any) -> Dict[str, str]:
+    """把 JSON 里的 aliases 对象解析成 {派生名: project} 映射。
 
-    模板是 skill 仓库的 assets/project-aliases.json（版本化，进 git）；三端
-    hook 与 upload_sessions.py 共用此文件，保证 project 归并口径一致。
+    "*" 是 catch-all：派生名命中不到具体条目时统一落其目标 project。
     """
-    path = default_state_dir() / PROJECT_ALIASES_FILENAME
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    raw = data.get("aliases") if isinstance(data, dict) else None
     if not isinstance(raw, dict):
         return {}
     aliases: Dict[str, str] = {}
     for key, value in raw.items():
         if not isinstance(key, str) or not isinstance(value, str):
             continue
-        src = normalize_identifier(key.strip().lower(), "")
         dst = normalize_identifier(value.strip().lower(), "")
-        if src and dst:
+        if not dst:
+            continue
+        if key.strip() == "*":
+            aliases["*"] = dst
+            continue
+        src = normalize_identifier(key.strip().lower(), "")
+        if src:
             aliases[src] = dst
     return aliases
 
 
+def _read_aliases_file(path: Path) -> Dict[str, str]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return parse_alias_map(data.get("aliases"))
+
+
+def load_installed_project_aliases() -> Dict[str, str]:
+    """读取 install_hooks.py 部署到 state dir 的共享模板别名。
+
+    模板是 skill 仓库的 assets/project-aliases.json（版本化，进 git）；三端
+    hook 与 upload_sessions.py 共用此文件，保证 project 归并口径一致。
+    """
+    return _read_aliases_file(default_state_dir() / PROJECT_ALIASES_FILENAME)
+
+
+def load_local_project_aliases() -> Dict[str, str]:
+    """读取本机级 project 别名（state dir 的 project-aliases.local.json）。
+
+    本机级映射不进 git、不随 skill 模板扩散，与其他机器的项目完全隔离；
+    支持 "*" catch-all（如 {"*": "nas"} = 本机全部归 nas）。
+    """
+    return _read_aliases_file(default_state_dir() / PROJECT_LOCAL_FILENAME)
+
+
 def project_aliases() -> Dict[str, str]:
-    # 优先级：内置默认 < 环境变量 < install 部署的 JSON 定版。
+    # 优先级：内置默认 < 环境变量 < 共享模板 JSON < 本机 local JSON。
     aliases = dict(DEFAULT_PROJECT_ALIASES)
     for item in os.environ.get("MEMORY_HUB_PROJECT_ALIASES", "").split(","):
         item = item.strip()
         if not item or "=" not in item:
             continue
         src, dst = (part.strip().lower() for part in item.split("=", 1))
-        src = normalize_identifier(src, "")
         dst = normalize_identifier(dst, "")
-        if src and dst:
+        if not dst:
+            continue
+        if src.strip() == "*":
+            aliases["*"] = dst
+            continue
+        src = normalize_identifier(src, "")
+        if src:
             aliases[src] = dst
     aliases.update(load_installed_project_aliases())
+    aliases.update(load_local_project_aliases())
     return aliases
 
 
 def project_id_for_cwd(cwd: str, fallback: str) -> str:
-    # 按工作根目录名分类归档（小写归一，避免 MainDev/maindev 分裂）。
+    # 按工作根目录名分类归档（小写归一，避免 MainDev/maindev 分裂）；
+    # 命中不到具体条目时用 "*" catch-all（本机级映射可设 {"*": "nas"}）。
     name = normalize_identifier(Path(cwd).name if cwd else "", fallback).lower()
-    return project_aliases().get(name, name)
+    aliases = project_aliases()
+    return aliases.get(name, aliases.get("*", name))
 
 
 def compact_text(value: str, limit: int) -> str:

@@ -41,6 +41,10 @@ Memory Hub 提供 `GET /v1/projects` 列出已知 project（含 memory/session �
 修改模板后递增 `version` 并重跑 install。优先级：内置默认 < `MEMORY_HUB_PROJECT_ALIASES`
 环境变量 < 安装的 JSON < CLI `--project-alias`。
 
+> **本机级映射优先**：state dir 的 `project-aliases.local.json`（`install --project <id>` 写入
+> `{"aliases":{"*":"<id>"}}`，机器级、不进 git）设置后覆盖共享模板，本机 capture/search/批量归档
+> 默认按它归 project（`"*"` catch-all = 全部）；未设置时才按本表派生。
+
 2026-08 定版的完整映射（Windows 本机 Claude Code + Codex 大批量归档）：
 
 | 派生名 | 实际 cwd | 目标 project |

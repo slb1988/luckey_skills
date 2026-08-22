@@ -223,6 +223,18 @@ Codex 新格式 session 文件首行是 `session_meta` 记录，cwd 与 session 
 `Idempotency-Key`，中断可直接重跑。内容变化时自动 append 新版本。
 
 <memory category="common-patterns">
+本机 project 归属是**机器级映射（字典）**，写在 state dir 的 `project-aliases.local.json`（
+`install_hooks.py install --project <id>` 写入 `{"aliases":{"*":"<id>"}}`，不进 git、不随 skill
+模板扩散，其他机器/用户不受影响）。优先级：`--project`/`--project-id` 显式参数 > 本机 local 映射 >
+共享模板（`assets/project-aliases.json` 部署）> cwd 派生兜底；映射里 `"*"` 是 catch-all（如
+`{"*":"nas"}` = 本机全部归 `nas`，具体条目如 `{"memory-hub":"memory-hub"}` 优先于 `*`）。本机映射
+一旦设置，capture/search/批量归档默认按它归 project，与其他机器的项目完全隔离。install 未给
+`--project` 时：交互终端询问（默认建议主机名），非交互只输出建议不落盘。**本机映射只能写系统目录
+（state dir），绝不允许改 skill 模板 `assets/project-aliases.json` 来映射本机名**（那会污染共享模板、
+影响其他用户）。
+</memory>
+
+<memory category="common-patterns">
 批量上传的两条铁律（2026-08-20 用户定版，违反被明确纠正过）：
 1. **默认必须双资产一起传（`--hook-namespace`）**：快照 + 完整 session 文件一次到位，禁止先用普通
    模式传单资产、再 `--backfill-full` 补——那是返工。普通单资产模式只用于确实没有完整 jsonl 源的场景。
@@ -232,7 +244,11 @@ Codex 新格式 session 文件首行是 `session_meta` 记录，cwd 与 session 
 </memory>
 
 <memory category="common-patterns">
-不传 `--project-id` 时按**每个 session 的 cwd 文件夹名**逐个派生 project——全机批量归档会散落到 `admin`、`sununity`、`MainDev`、`ObsidianVault` 等十几个 project（实测 3 个 pi session 落进 2 个 project）。检索按 project 隔离，散落后必须逐 project 切换才能搜全。批量归档历史 session 可考虑 `--project-id agent-history`（hook 归档主库）集中存放，**但选定前必须先给用户 review 归属方案，确认后才执行**。
+本机 local 映射（`project-aliases.local.json`）未设置时，不传 `--project-id` 会按**每个 session 的 cwd 文件夹名**逐个派生
+project——全机批量归档会散落到 `admin`、`sununity`、`MainDev`、`ObsidianVault` 等十几个 project
+（实测 3 个 pi session 落进 2 个 project）。检索按 project 隔离，散落后必须逐 project 切换才能搜全。
+批量归档历史 session 可考虑 `--project-id agent-history`（hook 归档主库）集中存放，**但选定前必须先给
+用户 review 归属方案，确认后才执行**。
 </memory>
 
 ```bash

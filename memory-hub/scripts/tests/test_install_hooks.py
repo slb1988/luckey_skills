@@ -5,10 +5,14 @@ from pathlib import Path
 
 from install_hooks import (
     check_json_hooks,
+    check_machine_project,
     check_pi_extension,
     desired_hooks,
     install_json_hooks,
+    install_machine_project,
     install_pi_extension,
+    normalize_project,
+    resolve_machine_project,
 )
 
 
@@ -89,6 +93,48 @@ class InstallHooksTest(unittest.TestCase):
                 any("idle-debounced" in error and ".unref()" in error for error in errors),
                 errors,
             )
+
+    def test_normalize_project_lowercases_and_rejects_invalid(self):
+        self.assertEqual(normalize_project(" NAS-453D.mini "), "nas-453d.mini")
+        self.assertEqual(normalize_project("   "), "")
+        self.assertEqual(normalize_project("-._:"), "")
+
+    def test_install_and_check_machine_project(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            self.assertFalse(check_machine_project(home)["set"])
+            result = install_machine_project("nas", home, {"source": "flag"})
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["project_id"], "nas")
+            self.assertEqual(result["aliases"], {"*": "nas"})
+            check = check_machine_project(home)
+            self.assertTrue(check["set"])
+            self.assertEqual(check["project_id"], "nas")
+            self.assertEqual(check["aliases"], {"*": "nas"})
+            # 落盘为字典映射（"*" catch-all），非标量 project_id
+            local_file = (
+                home / ".local" / "state" / "memory-hub-hook" / "project-aliases.local.json"
+            )
+            self.assertEqual(
+                json.loads(local_file.read_text(encoding="utf-8"))["aliases"],
+                {"*": "nas"},
+            )
+
+    def test_resolve_machine_project_flag_wins_and_noninteractive_suggests(self):
+        from types import SimpleNamespace
+
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            pid, meta = resolve_machine_project(
+                SimpleNamespace(project=" My-NAS "), home
+            )
+            self.assertEqual(pid, "my-nas")
+            self.assertEqual(meta["source"], "flag")
+            # 未给 --project 且本机未设置、非交互（pytest stdin 非 tty）→ 不落盘只建议
+            pid2, meta2 = resolve_machine_project(SimpleNamespace(project=None), home)
+            self.assertIsNone(pid2)
+            self.assertEqual(meta2["source"], "none")
+            self.assertIn("suggestion", meta2)
 
 
 if __name__ == "__main__":

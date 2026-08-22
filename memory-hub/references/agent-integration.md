@@ -50,11 +50,18 @@ Hook 客户端没有内置固定用户，也不得用 `agent_id` 代替用户身
 ```bash
 SKILL_DIR="<本 SKILL.md 所在目录的绝对路径>"
 /usr/bin/python3 "$SKILL_DIR/scripts/install_hooks.py" install --agents auto \
-  --user-id 'internal-user-id'
+  --user-id 'internal-user-id' \
+  --project 'nas'   # 可选：本机级 project，见下
 ```
 
 必须将占位符替换为加载本 Skill 时获得的实际目录，不得相对当前工作目录猜测。`auto` 配置本机检测到的
 Claude Code、Codex、Pi；用户明确要求全部安装时改用 `--agents all`。不得手工拼装 Hook JSON。
+
+**install 建议指定本机 project（`--project`）**：它写入 state dir 的 `project-aliases.local.json`
+（机器级字典映射 `{"aliases":{"*":"<id>"}}`，不进 git、不随 skill 模板扩散），本机所有
+capture/search/批量归档默认都落该 project，与其他机器的项目完全隔离。映射里 `"*"` 是 catch-all，
+具体条目（如 `{"memory-hub":"memory-hub"}`）优先于 `*`。未提供时：交互终端会询问（默认建议主机名）；
+非交互只输出建议、不落盘。未设置本机映射时才退回按 cwd 派生（`assets/project-aliases.json` 部署的别名）。
 
 **install 必须指定用户身份**：`--user-id` 必填（或已预设 `MEMORY_HUB_CLIENT_USER_ID`）。
 安装器会把它**持久化到用户级环境变量**：
@@ -112,6 +119,9 @@ Pi 扩展 v4 起 agent_end 不再逐轮立即上传：等会话空闲
 export MEMORY_HUB_URL=http://10.77.77.6:9287
 export MEMORY_HUB_AGENT_ID=claude-code-mac
 export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
+#   ↑ 仅空 cwd 时的兜底；真正的本机级 project 是 state dir 的 project-aliases.local.json
+#     （install --project 写入 {"aliases":{"*":"<id>"}} 字典映射，支持 "*" catch-all），
+#     设置后覆盖 cwd 派生，本机所有写入/检索默认都落该 project
 # 可用环境变量指定全局用户身份
 # （install_hooks.py install 会把它持久化到用户级环境变量，全局生效）：
 # MEMORY_HUB_CLIENT_USER_ID=internal-user-id
