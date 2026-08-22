@@ -44,13 +44,14 @@ outbox 重试与错误、最近更新的 session 列表、Graphiti episode 探�
 | 运行日志 | `data/memory-hub.log` |
 | 独立 Hook App | `scripts/memory_hook.py`（仅 Python 标准库） |
 | 手动 session 上传 | `scripts/upload_sessions.py`（仅 Python 标准库，幂等批量归档历史 session） |
+| 漏传检测回填 | `scripts/backfill_missed_pi_sessions.py`（diff 本地 pi session 与 Hub 已归档，排除 LLM 分析子 session 后调 upload_sessions 幂等补传） |
 | project 别名定版 | `assets/project-aliases.json`（install 部署到 state dir，hook 与批传共用） |
 
 「更新发布前后端」是**完整部署流程，不是单纯重启**——「更新」二字 = 先 `git pull` 拉代码，漏掉只跑重启会被视为没完成。固定顺序：① `git pull`（更新，最先做）→ ② 有冲突优先修复冲突 → ③ 本地有未提交改动，更新后及时 commit（不要等用户提醒）→ ④ `cd frontend && npm run build`（前端重构建）→ ⑤ `sh scripts/stop_all.sh && sh scripts/start_all.sh && sh scripts/status.sh`（重启验证）。只有纯「重启」请求才只做 ⑤。memory-hub 自身结构：Hub API(:9287)=后端，dashboard(:9288)=前端（backend BFF + 静态托管 frontend/dist，二者由 start_all.sh 一并拉起）。不要误跳 auto-server-deploy——那是 py_automation 平台（192.168.2.13，`/data/py_automation`）的部署，与 memory-hub 完全无关；pi 现在跑在 NAS 上，auto-server 未授权 NAS 公钥，SSH `dev@10.77.77.4` 会 publickey 拒绝。
 
 判断当前环境（专门针对 memory-hub）：每次运行 memory-hub 相关操作、不确定当前机器是哪种环境时，先从 `.env` 提取环境变量标识 `MEMORY_HUB_ENV`（区别于已有的 `ENVIRONMENT`）。取值只有两种：`release`（生产/发布环境，正式跑 Hub/dashboard/Graphiti 的服务端）与 `dev`（开发环境，含 agent 端与 Dev 职能）。**标识不存在时先提醒用户创建添加，不要瞎猜环境**；拿到标识后按 release/dev 做各自的特有处理（release：部署/重启/迁移；dev：开发/测试/hook 安装与检索）。
 
-`MEMORY_HUB_TITLE_LLM` 代码默认 `0`（关闭时退化为启发式标题、不做低价值过滤），置 `1` 才走内网 vLLM。本机是通过 **Machine 作用域**环境变量开启的（`=1`）——在新进程里发现标题走 LLM 属预期；其他机器若想开启须自行设该变量，不要改代码默认值。低价值判定标准含**纯例行运维操作**（git-tool update/sync/commit、skill 更新提交、memory-hub check/install、批量上传归档等只有命令执行结果的会话）——这类会话不上传；但运维中含真实故障排查/bug 修复/技术决策的仍有价值（2026-08-20 用户要求加入，prompt 见 memory_hook.py 与 upload_sessions.py 的 llm_classify_session，两处保持同步）。
+`MEMORY_HUB_TITLE_LLM` 代码默认 `0`（关闭时用启发式标题、不走 LLM 判定），置 `1` 才走内网 vLLM（要开启的机器自行设该环境变量，不改代码默认值）。注意「关闭」只关掉 LLM 判定，**启发式低价值过滤始终生效**（`heuristic_meaningful`）：当一个会话的**全部** user 消息都是噪声时判低价值不上传——`is_noise_user_text` 把以 `<`/`/` 开头的消息（pi 的 skill 注入包装、slash 命令）和纯寒暄都视为噪声，且作用于**未剥 skill 包装的原始文本**，所以一个只有 skill 调用、没有任何口语化追问的会话（典型：单次 `git-tool update & commit`）即使 LLM 关闭也会被过滤（2026-08-22 实测）。低价值判定标准含**纯例行运维操作**（git-tool update/sync/commit、skill 更新提交、memory-hub check/install、批量上传归档等只有命令执行结果的会话）——这类会话不上传；但运维中含真实故障排查/bug 修复/技术决策的仍有价值（2026-08-20 用户要求加入，prompt 见 memory_hook.py 与 upload_sessions.py 的 llm_classify_session，两处保持同步）。
 
 **判定材料必须是整个会话，用户目标必须保留**（2026-08-21 用户定版，曾因此误过滤）：① LLM 分类与标题的输入是整会话的非噪声用户消息（`session_user_texts`，条数 >8 时 `head_tail_sample` 首尾各 4 抽样），绝不能只喂窗口尾部——否则实质会话会被结尾的「commit」误杀（当日 job 125/149 实例）；② 归档摘要 distilled 为三段式「首个用户目标/最近用户目标/会话结果」，目标取**首个非噪声用户消息**且先剥 `<skill>...</skill>` 注入包装（`strip_skill_wrapper`——pi 用户消息常是整份 SKILL.md + 末尾一句真实问题，不剥会把目标污染成模板文本），空目标兜底链 first→last→title；③ live hook 上传时经 `load_session_texts` 从 spool full 包重取全量事件提取文本，不依赖 job 行的尾部快照列。
 
@@ -147,6 +148,13 @@ install 复制/渲染到仓库外；复制出去的就必须让 check 能感知�
 Hub，每个文件成为独立 session（`{source}:{原始session_id}`），并附一条可检索的 `session_summary`
 记忆。适用于 hook 上线前的历史归档、其他电脑导出的 session 等（`memory_hook.py` 没有 backfill 子命令，
 capture 只处理当前 live transcript）。
+
+配套脚本 `scripts/backfill_missed_pi_sessions.py` 回答「有没有漏传」并一键补传（本机专用，2026-08-22 加入）。
+检测原理：Hub `sessions` 表是全部已归档 session 的 ground truth（id 形如 `pi:<project>:<uuid>`），本地
+pi session 文件名 `<ts>_<uuid>.jsonl` 的 uuid 即 session id，两边按 UUID 求 diff（local − hub）=
+全量漏传清单——比查 spool/pi-trace 更直接，且能覆盖 hook 上线前的历史 session。脚本再按首条 user 消息
+签名排除 auto-skill extraction 等 LLM 分析子 session，最后以 `--hook-namespace` 调 upload_sessions.py
+幂等回填（可中断重跑）。
 
 历史 session 文件位置（Windows）：Claude Code 在 `%USERPROFILE%\.claude\projects\<slug>\*.jsonl`（文件名即 session UUID）；Pi 在 `%USERPROFILE%\.pi\agent\sessions\<slug>\*.jsonl`（文件名 `<UTC时间戳>_<uuid>.jsonl`，单项目可积累上千个）；Codex 在 `%USERPROFILE%\.codex\sessions\`（递归子目录，单机可积累数百个、上百 MB）。 slug 方案各家不同：`E:\sununity` 在 Claude 是 `E--sununity`，在 Pi 是 `--E--sununity--`——定位时按 `sessions/` 实际列表匹配，不要自行推算。
 
