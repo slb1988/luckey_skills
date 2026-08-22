@@ -96,6 +96,35 @@ git -C <parent_submodule_path> push origin main
 
 ---
 
+## nested submodule 转普通文件（inline，保留内容）
+
+当用户要求「只保留本体文件、与源断开」时，不要删目录再重新拷贝——直接在父仓库里把 gitlink 换成普通文件（2026-08 实测：diagram-design/frontend-slides/huashu-design 三个 skill 共 778 文件入库）：
+
+```bash
+# 1. 从 index 移除 gitlink（工作区文件保留）
+git -C <parent> rm --cached <name>
+
+# 2. 注销 submodule 登记（三处都要清，缺一不可）
+git -C <parent> config -f .gitmodules --remove-section submodule.<name>
+git -C <parent> config --remove-section submodule.<name>
+rm -rf <parent>/.git/modules/<name>
+
+# 3. 关键坑：删掉目录内的 .git 文件（指向 .git/modules 的指针文件）。
+#    不删的话下一步 git add 会把目录重新登记成 gitlink
+#    （警告 "adding embedded git repository"），前功尽弃。
+rm <parent>/<name>/.git
+
+# 4. 重新 add + 提交
+git -C <parent> add .gitmodules <name>
+git -C <parent> commit -m "chore: inline <name>, drop submodule link"
+```
+
+两个注意点：
+- **入库前先扫密钥**：外部仓库内容从未按本仓库标准审过，重点看 `.env*` / `*.example` / 配置里的 `sk-` `key=`（本次三个 skill 的 `.env.example` 均为占位符，安全）。
+- inline 保留上游原始目录结构，skill 本体可能不在顶层——如 `diagram-design` 的 SKILL.md 实际在 `diagram-design/skills/diagram-design/` 下。
+
+---
+
 ## 本机仓库位置（重要）
 
 skill 文档与脚本示例路径写的是 `.claude/skills/...`，但**本机实际的仓库根是 `/home/dev/.pi/skills`**。两者不一致，直接照抄文档路径会失败。
@@ -103,7 +132,7 @@ skill 文档与脚本示例路径写的是 `.claude/skills/...`，但**本机实
 - 仓库根：`/home/dev/.pi/skills`（不是 `.claude/skills`）
 - 脚本实际位置：`/home/dev/.pi/skills/git-tool/git-tool-update.sh` / `git-tool-commit.sh`
 - 脚本内部用 `git rev-parse --show-toplevel` 自动定位 ROOT，所以在仓库根目录内任意位置执行都能工作；但**文档里的 `bash .claude/skills/...` 命令必须替换为 `.pi/skills/...`**
-- 该仓库自身含 4 个 submodule：`diagram-design`、`frontend-slides`、`huashu-design`、`axton-obsidian-visual-skills`
+- 该仓库自身现仅含 1 个 submodule：`axton-obsidian-visual-skills`（`diagram-design`/`frontend-slides`/`huashu-design` 已于 2026-08 转为普通文件 inline 入库，见上文「nested submodule 转普通文件」）
 
 **脚本自带了保留本地修改的能力**（`git-tool-update.sh` 自动 stash→pull→恢复 stash），所以即使仓库有未提交改动，也可以放心执行 update，改动会被暂存保护后还原。
 
