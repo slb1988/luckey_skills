@@ -187,6 +187,7 @@ outdated 后重跑 install 即修复。排查「关窗提示有进程未结束�
 本机常驻 python 通常是 UnrealMCP 和 pytest，与 memory-hook 无关；memory_hook.py 是逐事件短进程，正常不常驻。
 </memory>
 
+
 <memory category="troubleshooting">
 Spool job 在 capture 时固化 `user_id`（这是设计，防止补传到错误用户）。副作用：身份配置变更（如 install 写入新的 `MEMORY_HUB_CLIENT_USER_ID`）之前积压的 queued job 仍带旧身份，flush 时持续报 `SCOPE_FORBIDDEN` 且不会自愈（实测一次积压 11 个）。看到 spool 反复 403 时直接清理这些旧 job，不要当作服务端权限配置问题排查。
 </memory>
@@ -272,6 +273,7 @@ python3 "$SKILL_DIR/scripts/upload_sessions.py" --project-id unity2018 --dry-run
 - **健康检查只证明进程活着**：`/health/ready` 的 `dependencies.graphiti` 才反映上游连通；memory 是否真正 `indexed` 要查 `GET /v1/memories/{id}`。
 - **不要在对话中回显 `.env` 全文**（虽然当前无 secret，但生产会加 API key）。
 - **venv 曾是从 macOS 拷来的坏环境**，在 NAS 上需要重建（见 [deploy.md](references/deploy.md)）。
+- **本机跑脚本用 `python3`，不是 `/usr/bin/python3`**（NAS 上无此路径），见 [agent-integration.md](references/agent-integration.md)。
 
 <memory category="common-patterns">
 Hub 投递 Graphiti 前会过一道内容清洗层 `strip_archival_boilerplate()`（service.py）：按模式剥掉归档摘要开头的元数据套话，只留知识正文进入抽取。当前覆盖三种前缀：`xx 会话归档，工作目录：…。`（legacy）、`xx 会话「标题」，工作目录：…。`、`xx 会话「标题」（日期，工作目录：…）。`。新前缀出现时在此加模式即可对存量内容生效——它作用于投递时刻而非写入时刻，改模式不需要回写 SQLite。

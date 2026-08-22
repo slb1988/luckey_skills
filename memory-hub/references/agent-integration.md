@@ -3,6 +3,12 @@
 Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`。它不 import、调用或依赖
 Memory Hub 项目及其 venv，只使用 Python 标准库访问远端 HTTP API。
 
+> **本机（NAS）解释器路径**：这台机器没有 `/usr/bin/python3`，解释器在
+> `/share/homes/slb1988/.local/bin/python3`（`which python3` 即此路径）。下文所有示例里的
+> `/usr/bin/python3` 在本机都要写成 `python3`，否则 exit 127「No such file or directory」。
+> hook 内部 spawn 路径由 install 注入、不受影响；只有手工在 shell 跑脚本
+> （install / check / configure / search / status / flush）时才需要注意。
+
 每次 capture 先生成确定性 gzip 快照并写入本机 SQLite spool，然后才访问服务器。服务器不可用时
 job 永久保留为 `queued`；后续 Stop、SessionEnd、agent_end 或手工 flush 会自动补传。因此 hook
 仍可 fail-open，不会阻止 Agent，也不会因短期网络故障丢失 session。
