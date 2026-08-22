@@ -1,12 +1,3 @@
-[submodule "diagram-design"]
-	path = diagram-design
-	url = git@github.com:cathrynlavery/diagram-design.git
-[submodule "frontend-slides"]
-	path = frontend-slides
-	url = git@github.com:zarazhangrui/frontend-slides.git
-[submodule "huashu-design"]
-	path = huashu-design
-	url = git@github.com:alchaincyf/huashu-design.git
 [submodule "axton-obsidian-visual-skills"]
 	path = axton-obsidian-visual-skills
 	url = git@github.com:axtonliu/axton-obsidian-visual-skills.git
