@@ -101,7 +101,54 @@ OUTBOX_MAX_BACKOFF_SECONDS=300
 要点：
 - 所有 `./data` 路径是**相对路径**，必须从项目目录启动。
 - Memory Hub **不接受** `NEO4J_URI`、Neo4j 用户名/密码；它只通过 Graphiti HTTP 访问后端。
-- 非 development/test 环境必须设置 `MEMORY_HUB_API_KEY`。
+- 非 development/test 环境强制账号认证（`mhu_` token）；`MEMORY_HUB_API_KEY` 仅为 legacy 共享 key（`legacy_api_key_enabled=true` 才可用，账号体系上线后弃用）。
+
+## 多用户账号体系（认证 / 授权 / 历史接管）
+
+> 权威设计见仓库 `docs/MULTI_USER_AUTH.md`；本节只记运维关键点。
+
+### 三个环境标识作用域不同（勿混用）
+
+| 变量 | 读它的进程 | 作用 |
+|---|---|---|
+| `ENVIRONMENT` | Hub :9287（`src/memory_hub/config.py`） | 非 development/test 时强制账号认证（无 token → 401） |
+| `DASHBOARD_ENVIRONMENT` | Dashboard BFF :9288（`backend/dashboard_backend/config.py`，前缀 `DASHBOARD_`） | 非 development/test 时强制登录；否则无 token 回退 dev admin，前端**不弹登录页** |
+| `MEMORY_HUB_ENV` | 仅 skill 层标记，代码不读 | `release`/`dev` 区分机器角色 |
+
+Hub 与 Dashboard 是两个独立进程、各读各的 env 前缀。改 `ENVIRONMENT=release` 只约束 Hub 数据面；
+面板登录必须单独设 `DASHBOARD_ENVIRONMENT=release`。
+
+### 认证三模式与 token 类型
+
+`authenticate_principal` 依次尝试：账号 token（`mhu_` 前缀）→ legacy 共享 key → dev 自报（无 Authorization，仅 development/test）。
+
+| token 类型 | 来源 | 权限 |
+|---|---|---|
+| `agent` | `admin create-token` | 数据面写（sessions/memories/files）+ 检索 |
+| `session` | 口令登录 `/auth/login` | 数据面只读 + 账号管理（`require_admin_session` 要求 session 型） |
+
+agent token 调 `/v1/admin/*` 一律 403；账号管理走 CLI 或浏览器登录的 session token。
+
+### 账号 bootstrap 与历史数据接管
+
+`create_account` 在 username 命中既有历史 user_id（sessions/memories 有数据）时抛
+`ADOPTION_CONFIRM_REQUIRED`（409），除非传 `adopt_existing=True`。bootstrap 管理员（默认 `sunlaibing`）
+语义是初始 admin 接管全部历史资源，必须 `adopt_existing=True`，否则 gunicorn worker 启动即崩。
+
+```bash
+.venv/bin/python -m memory_hub.cli admin bootstrap                        # 建初始 admin（主 user_id = username，adopt 全部历史）
+.venv/bin/python -m memory_hub.cli admin bind-user-id <u> <历史user_id> --yes  # 额外历史 user_id 绑定（接管其数据）
+.venv/bin/python -m memory_hub.cli admin reconcile-ownership              # 回填 project 所有权
+.venv/bin/python -m memory_hub.cli admin create-token <u> --label pi-cli  # 发 agent token（明文只打印一次）
+```
+
+`reconcile_ownership`：project 的唯一 user_id 已绑定某账号 → 自动认领该账号；混杂/无主 →
+`needs_review`（普通账号禁写，admin 面板 Projects 页签或 CLI transfer 裁定）。幂等，已认领的 project 跳过。
+
+### 凭据放 `~/.env`（不入库）
+
+`src/memory_hub/config.py` 读 `env_file=(".env", "~/.env")`。凭据（`MEMORY_HUB_BOOTSTRAP_ADMIN_PASSWORD`、
+`MEMORY_HUB_API_KEY` 等）只写 `~/.env`；项目 `.env` 无 secret 可入 git。
 
 ## 启动
 

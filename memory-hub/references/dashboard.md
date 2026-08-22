@@ -13,3 +13,7 @@ Dashboard 开发在本机源码副本 `D:/Github/memory-hub` 进行，NAS `/shar
 <memory category="troubleshooting">
 新版 FastAPI 的 `include_router` 会包成嵌套的 `_IncludedRouter`，在测试里遍历 `app.routes` 做 openapi 协议一致性校验时必须递归展开，否则路由漏检导致误报。升级 FastAPI 后协议校验测试突然失败先查这里。
 </memory>
+
+<memory category="common-patterns">
+Hub（:9287）与 Dashboard BFF（:9288）是两个独立进程、各读各的 env：Hub 读 `ENVIRONMENT`，Dashboard BFF 读 `DASHBOARD_` 前缀（`DASHBOARD_ENVIRONMENT` / `DASHBOARD_API_KEY` / `DASHBOARD_HUB_API_KEY`）。面板登录覆盖层（LoginView）只在收到 401 时弹出：前端 `api.overview()` 或 `/auth/me` 返回 401 → 抛 AuthError → `store.authRequired=true` → 显示 LoginView。`DASHBOARD_ENVIRONMENT` 为 development/test 且未设 `DASHBOARD_API_KEY` 时，BFF 对无 token 请求回退 dev admin（200），登录页永不弹出、账号管理请求也因无 token 被 Hub 拒 401。设 `DASHBOARD_ENVIRONMENT=release` 即强制登录（账号口令 → hub `/auth/login` 发 session token），前端无需重构建。
+</memory>
