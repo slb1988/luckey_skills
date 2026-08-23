@@ -125,13 +125,18 @@ fi
 # --- Step B5: 启动服务 ---
 echo ""
 echo "[后端 5/5] 启动服务..."
-source ./venv/bin/activate
 
-# ---- AI Review 专用 P4 账号（本脚本位于 p4 工作区之外，p4 sync 不会覆盖此处的修改） ----
-# 服务器: 192.168.2.236:1666 | 账号: AutoServer | 密码: 见下方 AI_REVIEW_P4PASSWD
-# AI_REVIEW_P4PORT 未显式设置时，回落 prod 配置 P4PORT = 192.168.2.236:1666
-export AI_REVIEW_P4USER="AutoServer"
-export AI_REVIEW_P4PASSWD="zsjcX_kgi2uB6Sp9za_A"
+# ---- 系统环境变量（来源：/etc/environment，PAM 登录时载入；此处显式 source 兜底） ----
+# JWT_SECRET / LDAP_BIND_DN / LDAP_BIND_PASSWORD / AI_REVIEW_P4USER / AI_REVIEW_P4PASSWD
+# 均存于系统级 /etc/environment，不再在本脚本硬编码（避免密钥裸露在部署脚本）。
+# 每次启动都 source（幂等）：PAM 已载入则重复赋值无害，未载入（cron/非登录 shell）也能取到。
+# 轮换凭据时只改 /etc/environment 即可。
+# ⚠️ 必须先于 venv activate：/etc/environment 里的 PATH= 会覆盖当前 PATH，若在其后
+#    source 会丢掉 venv 的 bin → 系统 python3 缺 flask_migrate。
+[ -f /etc/environment ] && set -a && . /etc/environment && set +a
+
+# 激活 venv（放在 /etc/environment 之后，其 activate 会在现有 PATH 前追加 venv/bin）
+source ./venv/bin/activate
 
 nohup python3 manage.py runserver --host 0.0.0.0 --port 5000 >> flask_$(echo $$).log 2>&1 &
 NEW_PID=$!
