@@ -92,7 +92,15 @@ Windows 写入注册表 `HKCU\Environment` 并广播 `WM_SETTINGCHANGE`；POSIX 
 /usr/bin/python3 "$SKILL_DIR/scripts/install_hooks.py" check --agents auto
 ```
 
-check 会逐项比对 Pi 扩展的 **EXTENSION_VERSION**：已安装副本的版本号与模板
+check 的复检项除 hook 安装副本外还包括：
+
+- **auth（2026-08 起）**：探测服务端是否强制认证（匿名请求 `/v1/projects` 返 401 即为生产模式）。
+  强制认证时校验 `MEMORY_HUB_API_KEY`：进程环境缺失会回退解析 `~/.profile`/`~/.zprofile`
+  （Windows 读注册表）区分「完全没配」与「已持久化但本进程未加载」，探测身份也按同一回退链解析
+  （避免占位用户被 scope 拦截误判 token 无效）；两者皆无 → check 失败并按平台给出持久化指引；
+  已配置还会实测 token 是否被服务端接受（401 → 失败提醒重新生成）。服务端不可达时 auth 项降级为
+  warning 不影响总结果。
+- **Pi 扩展 EXTENSION_VERSION**：已安装副本的版本号与模板
 （`assets/pi-memory-hub.ts`）不一致时报 `extension version X is outdated (managed Y); rerun install`，
 重新执行 install 即可重新发布。修改模板后必须递增模板里的版本号，否则 check 无法感知升级。
 
@@ -131,7 +139,10 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # 可用环境变量指定全局用户身份
 # （install_hooks.py install 会把它持久化到用户级环境变量，全局生效）：
 # MEMORY_HUB_CLIENT_USER_ID=internal-user-id
-# MEMORY_HUB_API_KEY=...          # 生产必填
+# MEMORY_HUB_API_KEY=...          # 生产必填（mhu_ agent token，面板 http://10.77.77.6:9288/ 生成）；
+#                                  # 可手工写进 profile 标记块，或 install 时传 --api-key；
+#                                  # install 会自动沿用进程环境/profile 里已有的 key（升级重装不丢）；
+#                                  # install_hooks.py check 的 auth 项会校验它是否设置且被服务端接受
 # MEMORY_HOOK_TIMEOUT_SECONDS=8
 # MEMORY_HOOK_STATE_DIR=~/.local/state/memory-hub-hook
 # MEMORY_HOOK_DEBUG=1             # 调试失败原因

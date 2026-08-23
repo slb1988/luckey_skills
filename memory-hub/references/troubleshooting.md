@@ -43,6 +43,21 @@ recall/capture 全红），且 check 因「副本与模板一致」误报 ok。*
 outdated 后重跑 install 即修复。排查「关窗提示有进程未结束」是否 hook 残留时，按命令行列 python.exe 分辨：
 本机常驻 python 通常是 UnrealMCP 和 pytest，与 memory-hook 无关；memory_hook.py 是逐事件短进程，正常不常驻。
 
+### 全员上传 401：服务端切生产模式后 hook 静默积压（无报错、无丢失）
+
+服务端切到多用户账号体系（生产模式强制 `mhu_` token，2026-08-22 实例）后，未配 `MEMORY_HUB_API_KEY`
+的机器所有上传返回 `401 UNAUTHENTICATED: MEMORY_HUB_API_KEY is required outside development`，但
+**hook 完全不报错**——capture 照常落本地 spool，job 持续 queued 积压（实测积 13 个，codex 5 + pi 8，
+零丢失）。表面症状只是「session 好像没被上传」。诊断：对比最后一次成功上传与首个 401 的时间点即可
+定位服务端切换窗口。修复：① 网页端生成 `mhu_` token，先用它调 `GET /v1/projects` 验证 200；② 把
+`export MEMORY_HUB_API_KEY=mhu_...` 追加进 `~/.profile`/`~/.zprofile` 已有的 memory-hub identity
+标记块（当时 install 只持久化 USER_ID），并按凭据约定同步 `~/.env`
+（chmod 600）；③ `memory_hook.py flush` 一次清空全部积压。注意已在运行的 agent 进程环境里没有新
+变量，重启前 capture 仍 401 落 spool（不丢），重启 agent/终端后再补一次 flush 兜底。
+2026-08-23 起两处闭环：`install_hooks.py check` 的 `auth` 项自动检出此状态（未配 key + 服务端
+强制认证 → check 失败并按平台给出持久化指引）；install 会沿用 profile/注册表已有的 key（或
+`--api-key` 传入）一并持久化，升级重装不再静默抹掉 key。
+
 ### Spool 积压 job 持续 `SCOPE_FORBIDDEN` 不自愈
 
 Spool job 在 capture 时固化 `user_id`（这是设计，防止补传到错误用户）。副作用：身份配置变更（如 install 写入新的 `MEMORY_HUB_CLIENT_USER_ID`）之前积压的 queued job 仍带旧身份，flush 时持续报 `SCOPE_FORBIDDEN` 且不会自愈（实测一次积压 11 个）。看到 spool 反复 403 时直接清理这些旧 job，不要当作服务端权限配置问题排查。

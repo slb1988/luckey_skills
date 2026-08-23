@@ -692,6 +692,12 @@ def persist_env_posix(values: Dict[str, str], home: Path) -> List[str]:
     targets = [home / ".profile"]
     if sys.platform == "darwin":
         targets.append(home / ".zprofile")
+    # Bash 登录环境若存在 ~/.bash_profile 且不 source ~/.profile，只写 .profile 永远不生效；
+    # 已存在就纳入 targets（含块则更新、无块则追加），不新建 rc 文件
+    bash_profile = home / ".bash_profile"
+    if bash_profile.exists() and bash_profile not in targets:
+        targets.append(bash_profile)
+    contains_secret = "MEMORY_HUB_API_KEY" in values
     written = []
     for target in targets:
         content = target.read_text(encoding="utf-8") if target.exists() else ""
@@ -702,7 +708,13 @@ def persist_env_posix(values: Dict[str, str], home: Path) -> List[str]:
         else:
             updated = block + "\n"
         if updated != content:
+            # 含 bearer token 时先收紧既有文件权限再写入，消除 0644 暴露窗口
+            if contains_secret and target.exists():
+                os.chmod(target, 0o600)
             target.write_text(updated, encoding="utf-8")
+        # 标记块含 bearer token 时强制 0600（新建文件靠 umask，这里兜底），避免本机其他账号读取
+        if contains_secret:
+            os.chmod(target, 0o600)
         written.append(str(target))
     return written
 
@@ -736,6 +748,278 @@ def identity_status() -> Dict[str, Any]:
     return {
         "user_id": user_id,
         "source": "environment" if user_id else "missing",
+    }
+
+
+def _read_persisted_env_var(home: Path, name: str) -> Optional[str]:
+    """从用户级持久化位置读环境变量（POSIX: ~/.profile / ~/.zprofile；Windows: 注册表）。
+
+    check 只读进程环境变量会漏掉「已持久化但本进程未加载」的情况
+    （与 identity 的 source=missing 同一坑），所以回退解析持久化位置。
+    """
+    if os.name == "nt":
+        try:
+            import winreg
+
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_QUERY_VALUE
+            ) as key:
+                value, _ = winreg.QueryValueEx(key, name)
+            return str(value) if value else None
+        except (OSError, FileNotFoundError):
+            return None
+    export_pattern = re.compile(
+        r"^\s*export\s+" + re.escape(name) + r"\s*=\s*(.+?)\s*$", re.MULTILINE
+    )
+    block_pattern = re.compile(
+        re.escape(PROFILE_BLOCK_BEGIN) + "(.*?)" + re.escape(PROFILE_BLOCK_END), re.DOTALL
+    )
+
+    def unquote(raw: str) -> str:
+        try:
+            return shlex.split(raw)[0]
+        except (ValueError, IndexError):
+            return raw.strip("'\"")
+
+    filenames = (".profile", ".zprofile", ".bash_profile")
+    # 第一优先：托管标记块内的赋值。install 把同一块同步写进所有 targets，块间天然一致，
+    # 按 targets 顺序取首个含块文件即可（避免跨 shell 启动文件「最后赋值」语义随 shell 而异）
+    for filename in filenames:
+        try:
+            content = (home / filename).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        blocks = block_pattern.findall(content)
+        if not blocks:
+            continue
+        for match in export_pattern.finditer(blocks[-1]):
+            return unquote(match.group(1))
+    # 兜底：块外手工 export，同一文件内取最后一次赋值，文件间按优先级顺序取首个命中
+    for filename in filenames:
+        try:
+            content = (home / filename).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        value: Optional[str] = None
+        for match in export_pattern.finditer(content):
+            value = unquote(match.group(1))
+        if value is not None:
+            return value
+    return None
+
+
+# 与 memory_hook.load_team_current_member 的 normalize_identifier 判定对齐：
+# 含非法字符或超长即拒绝并回退 client-profile，不拿未清洗的值去探测
+TEAM_USER_ID_RE = re.compile(r"^[A-Za-z0-9._:\-]{1,128}$")
+
+
+def _team_user_id(cwd: Path) -> Optional[str]:
+    """从 cwd 向上查找最近的 .team/settings.local.json，读 currentMember。
+
+    与 memory_hook 的用户解析优先级一致：env 之后、client-profile.json 之前。
+    """
+    current = cwd.resolve()
+    while True:
+        candidate = current / ".team" / "settings.local.json"
+        try:
+            data = json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            data = None
+        if isinstance(data, dict):
+            current_member = data.get("currentMember")
+            if isinstance(current_member, str):
+                member = current_member.strip()
+                if TEAM_USER_ID_RE.match(member):
+                    return member
+        if current.parent == current:
+            return None
+        current = current.parent
+
+
+def _check_user_id(home: Path, cwd: Path) -> str:
+    """check 探测用的用户身份：环境 → 持久化 profile → .team → client-profile.json。
+
+    生产模式下 Hub 按 token 绑定账号 + scope 授权；用占位用户探测会被 403
+    误判为 token 无效，所以必须按 hook 同一优先级解析真实用户。
+    """
+    user_id = os.environ.get("MEMORY_HUB_CLIENT_USER_ID") or os.environ.get(
+        "MEMORY_HUB_USER_ID"
+    )
+    if user_id:
+        return user_id
+    persisted = _read_persisted_env_var(home, "MEMORY_HUB_CLIENT_USER_ID")
+    if persisted:
+        return persisted
+    team = _team_user_id(cwd)
+    if team:
+        return team
+    try:
+        profile = json.loads(
+            (alias_state_dir(home) / "client-profile.json").read_text(encoding="utf-8")
+        )
+        user_id = profile.get("user_id")
+        if isinstance(user_id, str) and user_id:
+            return user_id
+    except (OSError, json.JSONDecodeError):
+        pass
+    return "memory-hub-check"
+
+
+def _hub_probe(
+    hub_url: str, path: str, api_key: Optional[str], user_id: str
+) -> Tuple[Optional[int], Optional[str]]:
+    """GET <hub><path>，返回 (HTTP status, error)。网络层失败时 status 为 None。"""
+    url = hub_url.rstrip("/")
+    headers = {
+        "X-Agent-Id": os.environ.get("MEMORY_HUB_AGENT_ID", "memory-hub-install-hooks"),
+        "X-Project-Id": "memory-hub",
+        "X-User-Id": user_id,
+    }
+    if api_key:
+        headers["Authorization"] = "Bearer " + api_key
+    request = urllib.request.Request(url + path, headers=headers)
+    try:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(request, timeout=5) as response:
+            return response.status, None
+    except urllib.error.HTTPError as error:
+        return error.code, None
+    except (OSError, urllib.error.URLError) as error:
+        return None, str(error)
+
+
+def auth_status(home: Path, cwd: Path) -> Dict[str, Any]:
+    """check 用：MEMORY_HUB_API_KEY 是否设置且被服务端接受。
+
+    服务端 ENVIRONMENT 非 development/test 时数据面强制认证（mhu_ agent token）；
+    key 缺失时 hook capture 仍会落本地 spool（不丢数据），但上传全部 401 积压。
+    开发模式下匿名可访问，但已配置的过期 key 同样会让 hook 请求 401（dev 自报仅在
+    无 Authorization 头时生效），所以只要配了 key 就实测验证。
+    """
+    env_key = os.environ.get("MEMORY_HUB_API_KEY")
+    persisted_key = None if env_key else _read_persisted_env_var(home, "MEMORY_HUB_API_KEY")
+    key = env_key or persisted_key
+    source = "environment" if env_key else ("profile" if persisted_key else "missing")
+    user_id = _check_user_id(home, cwd)
+    # Hub 地址同样可能是持久化在 profile 里的（进程未加载新 profile 时 env 缺失）
+    hub_url = (
+        os.environ.get("MEMORY_HUB_URL")
+        or _read_persisted_env_var(home, "MEMORY_HUB_URL")
+        or "http://10.77.77.6:9287"
+    )
+    anonymous_status, probe_error = _hub_probe(hub_url, "/v1/projects", None, user_id)
+    if anonymous_status is None:
+        warnings = [
+            "Memory Hub unreachable (%s); cannot verify the auth requirement" % probe_error
+        ]
+        if not env_key:
+            warnings.append("MEMORY_HUB_API_KEY is not set in this process")
+        return {
+            "ok": True,
+            "required": None,
+            "token_source": source,
+            "warnings": warnings,
+        }
+    required: Optional[bool]
+    if anonymous_status == 401:
+        required = True
+    elif 200 <= anonymous_status < 300:
+        required = False
+    else:
+        # 403/404/429/5xx 等都不能证明「不需要认证」（可能是代理/服务暂时异常），按未知处理
+        required = None
+    if not key:
+        if required is False:
+            return {
+                "ok": True,
+                "required": False,
+                "token_source": source,
+                "note": "server does not require auth (development/test mode)",
+            }
+        if required is None:
+            return {
+                "ok": True,
+                "required": None,
+                "token_source": source,
+                "warnings": [
+                    "anonymous probe returned HTTP %s; cannot confirm whether auth is required, "
+                    "and MEMORY_HUB_API_KEY is not set — if the server is in production mode "
+                    "every upload will fail with HTTP 401" % anonymous_status
+                ],
+            }
+        if os.name == "nt":
+            remedy = (
+                "persist it for the current user in PowerShell: "
+                "[Environment]::SetEnvironmentVariable('MEMORY_HUB_API_KEY', '<token>', 'User')"
+            )
+        else:
+            remedy = (
+                "append 'export MEMORY_HUB_API_KEY=<token>' to ~/.profile "
+                "(and ~/.zprofile on macOS)"
+            )
+        return {
+            "ok": False,
+            "required": True,
+            "token_source": "missing",
+            "errors": [
+                "MEMORY_HUB_API_KEY is not set, but the server requires authentication; "
+                "captures still queue locally but every upload fails with HTTP 401. "
+                "Generate an agent token (mhu_...) from the dashboard "
+                "(http://10.77.77.6:9288/), then " + remedy + ", "
+                "restart the agents and run memory_hook.py flush"
+            ],
+        }
+    authed_status, auth_error = _hub_probe(hub_url, "/v1/projects", key, user_id)
+    if authed_status == 200:
+        result: Dict[str, Any] = {
+            "ok": True,
+            "required": required,
+            "token_source": source,
+            "token_accepted": True,
+        }
+        if source == "profile":
+            result["warnings"] = [
+                "token is persisted in the shell profile but missing from this process env; "
+                "restart running agents so their hooks pick it up"
+            ]
+        return result
+    if authed_status == 401:
+        note = "" if required is not False else (
+            " (the server allows anonymous access, but hooks always send the configured "
+            "Authorization header, and an invalid token is rejected before dev fallback)"
+        )
+        return {
+            "ok": False,
+            "required": required,
+            "token_source": source,
+            "token_accepted": False,
+            "errors": [
+                "MEMORY_HUB_API_KEY (source: %s) was rejected by the server (HTTP 401)%s; "
+                "regenerate an agent token from the dashboard and update the persisted value"
+                % (source, note)
+            ],
+        }
+    if authed_status == 403:
+        return {
+            "ok": False,
+            "required": required,
+            "token_source": source,
+            "token_accepted": False,
+            "errors": [
+                "MEMORY_HUB_API_KEY authenticated but the server forbids user '%s' (HTTP 403); "
+                "the token is likely bound to a different account — regenerate it for this user"
+                % user_id
+            ],
+        }
+    # 429/5xx 等暂时性错误不能判定 token 失效，降级为 warning
+    return {
+        "ok": True,
+        "required": required,
+        "token_source": source,
+        "warnings": [
+            "could not verify the token (status=%s, error=%s); treating as unverifiable"
+            % (authed_status, auth_error)
+        ],
     }
 
 
@@ -834,6 +1118,24 @@ def main() -> int:
         result = run(args.action, agents, args.home, args.codex_bin, args.cwd)
         if args.action == "install":
             identity = resolve_identity(args)
+            # API key 一并持久化：进程环境 > 沿用 profile/注册表已有 > 交互式隐藏输入。
+            # 不提供 --api-key argv 参数（会留 shell history 与进程列表）；
+            # persist_env_* 整体重建标记块，不携带会在升级重装时静默抹掉 key。
+            api_key = os.environ.get("MEMORY_HUB_API_KEY") or _read_persisted_env_var(
+                args.home, "MEMORY_HUB_API_KEY"
+            )
+            if not api_key and sys.stdin.isatty():
+                import getpass
+
+                try:
+                    entered = getpass.getpass(
+                        "Memory Hub agent token (mhu_..., empty to skip): "
+                    )
+                except (EOFError, OSError):
+                    entered = ""
+                api_key = entered.strip() or None
+            if api_key:
+                identity["MEMORY_HUB_API_KEY"] = api_key
             result["identity"] = persist_identity(identity, args.home)
             result["project_aliases"] = install_project_aliases(args.home)
             project_id, project_meta = resolve_machine_project(args, args.home)
@@ -852,7 +1154,10 @@ def main() -> int:
             result["identity"] = identity_status()
             result["project_aliases"] = check_project_aliases(args.home)
             result["project"] = check_machine_project(args.home)
+            result["auth"] = auth_status(args.home, args.cwd)
         if not result["project_aliases"].get("ok"):
+            result["ok"] = False
+        if not result.get("auth", {}).get("ok", True):
             result["ok"] = False
         result["service"] = health_check()
         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
