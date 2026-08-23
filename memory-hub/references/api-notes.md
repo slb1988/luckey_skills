@@ -69,6 +69,9 @@
 ```bash
 HUB_URL=http://10.77.77.6:9287
 # 请求头：X-User-Id / X-Agent-Id / X-Project-Id（生产另需 Bearer token；写操作另需 Idempotency-Key）
+# 2026-08-22 起 Hub(:9287) 与 dashboard(:9288) 都强制 Bearer MEMORY_HUB_API_KEY（enabled outside development），
+# 缺失返回 UNAUTHENTICATED；dashboard 报 “requires DASHBOARD_API_KEY” 但用的是同一把 key 值。
+# upload_sessions.py 拉 inventory 会自动带 Bearer（传 --api-key 或设置 MEMORY_HUB_API_KEY）。
 
 # 0) 列出已知 project（检索前先确认该用哪个 project scope；返回含 agent_ids 可核对归档归属）
 curl -sS "$HUB_URL/v1/projects" -H "X-User-Id: $USER_ID" -H "X-Agent-Id: $AGENT_ID" -H "X-Project-Id: $PROJECT_ID"

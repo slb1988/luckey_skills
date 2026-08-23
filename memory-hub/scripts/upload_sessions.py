@@ -1189,16 +1189,23 @@ def upload_session_dual(
     )
 
 
-def fetch_session_inventory(dashboard_url: str) -> Dict[str, Dict[str, Any]]:
+def fetch_session_inventory(
+    dashboard_url: str, api_key: Optional[str] = None
+) -> Dict[str, Dict[str, Any]]:
     """从 dashboard（直读 hub SQLite 的只读 BFF）拉全量 session 清单：
     session_id -> {project_id, agent_id, status}。backfill 用它匹配两段式/三段式
-    存量并取得真实归属 project/agent（避免探测式 404/403）。"""
+    存量并取得真实归属 project/agent（避免探测式 404/403）。新版 dashboard
+    启用鉴权（DASHBOARD_API_KEY/MEMORY_HUB_API_KEY 同一套），必须带 Bearer。"""
     inventory: Dict[str, Dict[str, Any]] = {}
     offset = 0
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    headers = {}
+    if api_key:
+        headers["Authorization"] = "Bearer " + api_key
     while True:
         request = urllib.request.Request(
-            "%s/api/v1/sessions?limit=500&offset=%d" % (dashboard_url.rstrip("/"), offset)
+            "%s/api/v1/sessions?limit=500&offset=%d" % (dashboard_url.rstrip("/"), offset),
+            headers=headers,
         )
         with opener.open(request, timeout=30) as response:
             payload = json.loads(response.read().decode("utf-8"))
@@ -1381,7 +1388,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             r":9287(/|$)", r":9288\1", args.hub_url
         )
         try:
-            inventory = fetch_session_inventory(dashboard_url)
+            inventory = fetch_session_inventory(dashboard_url, args.api_key)
             print("inventory: %d sessions on hub (from %s)" % (len(inventory), dashboard_url))
         except Exception as error:
             print("error: cannot fetch session inventory: %s" % error, file=sys.stderr)
