@@ -29,6 +29,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from session_messages import (
+    extract_role_text,
+    extract_session_pairs,
+)
+
 
 IDENTIFIER_RE = re.compile(r"[^A-Za-z0-9._:-]+")
 FENCED_CODE_RE = re.compile(
@@ -174,33 +179,6 @@ def compact_text(value: str, limit: int) -> str:
 def sanitize_message_text(value: str) -> str:
     """Keep Markdown prose while dropping fenced source-code payloads."""
     return FENCED_CODE_RE.sub("\n", value).strip()[:MAX_MESSAGE_CHARS]
-
-
-def flatten_text(value: Any) -> str:
-    if isinstance(value, str):
-        return value
-    if isinstance(value, list):
-        # Block-structured content (claude/pi): keep only text blocks; skip
-        # tool_result/tool_use/thinking blocks that would pollute titles.
-        if any(isinstance(item, dict) and isinstance(item.get("type"), str) for item in value):
-            return " ".join(
-                part for part in (flatten_block(item) for item in value) if part
-            )
-        return " ".join(part for part in (flatten_text(item) for item in value) if part)
-    if not isinstance(value, dict):
-        return ""
-    for key in ("text", "message", "content"):
-        if key in value:
-            text = flatten_text(value[key])
-            if text:
-                return text
-    return ""
-
-
-def flatten_block(item: Any) -> str:
-    if isinstance(item, dict) and isinstance(item.get("type"), str) and item["type"] != "text":
-        return ""
-    return flatten_text(item)
 
 
 def is_noise_user_text(text: str) -> bool:
@@ -478,12 +456,12 @@ def load_session_texts(job: sqlite3.Row) -> Tuple[List[str], str, str, str]:
         payload = _read_gzip_payload(Path(full_path))
         events = (payload or {}).get("events")
         if isinstance(events, list):
-            for event in events:
-                if not isinstance(event, dict):
-                    continue
-                extracted = extract_role_text(event)
-                if extracted:
-                    pairs.append(extracted)
+            pairs.extend(
+                extract_session_pairs(
+                    [event for event in events if isinstance(event, dict)],
+                    source=job["source"],
+                )
+            )
     if not pairs:
         snapshot_path = job["snapshot_path"]
         if snapshot_path and Path(snapshot_path).is_file():
@@ -503,33 +481,6 @@ def load_session_texts(job: sqlite3.Row) -> Tuple[List[str], str, str, str]:
     last_assistant = job["last_assistant"] or ""
     user_texts = [compact_text(last_user, 300)] if last_user else []
     return user_texts, last_user, last_user, last_assistant
-
-
-def extract_role_text(record: Dict[str, Any]) -> Optional[Tuple[str, str]]:
-    record_type = record.get("type")
-    message = record.get("message")
-    if record_type in ("user", "assistant") and isinstance(message, dict):
-        text = flatten_text(message.get("content"))
-        return (record_type, text) if text else None
-    if record_type == "message" and isinstance(message, dict):
-        role = message.get("role")
-        if role in ("user", "assistant"):
-            text = flatten_text(message.get("content"))
-            return (role, text) if text else None
-    payload = record.get("payload")
-    if isinstance(payload, dict):
-        payload_type = payload.get("type")
-        if payload_type == "user_message":
-            text = flatten_text(payload.get("message") or payload.get("content"))
-            return ("user", text) if text else None
-        role = payload.get("role")
-        if role in ("user", "assistant"):
-            text = flatten_text(payload.get("content"))
-            return (role, text) if text else None
-        if payload_type in ("agent_message", "assistant_message"):
-            text = flatten_text(payload.get("message") or payload.get("content"))
-            return ("assistant", text) if text else None
-    return None
 
 
 def transcript_tail_interrupted(transcript_path: Path) -> bool:
@@ -895,10 +846,7 @@ def build_snapshot(
     recent_messages = deque(maxlen=MAX_RECENT_MESSAGES)
     if events is None:
         events = read_transcript_events(transcript_path)
-    for event in events:
-        extracted = extract_role_text(event)
-        if not extracted:
-            continue
+    for extracted in extract_session_pairs(events, source=source):
         role, raw_text = extracted
         text = sanitize_message_text(raw_text)
         if text:

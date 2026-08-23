@@ -48,6 +48,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from session_messages import extract_session_pairs
+
 MAX_RECENT_MESSAGES = 10
 
 IDENTIFIER_RE = re.compile(r"[^A-Za-z0-9._:-]+")
@@ -84,33 +86,6 @@ def compact_text(value: str, limit: int) -> str:
 
 def sanitize_message_text(value: str) -> str:
     return FENCED_CODE_RE.sub("\n", value).strip()[:MAX_MESSAGE_CHARS]
-
-
-def flatten_text(value: Any) -> str:
-    if isinstance(value, str):
-        return value
-    if isinstance(value, list):
-        # Block-structured content (claude/pi): keep only text blocks; skip
-        # tool_result/tool_use/thinking blocks that would pollute titles.
-        if any(isinstance(item, dict) and isinstance(item.get("type"), str) for item in value):
-            return " ".join(
-                part for part in (flatten_block(item) for item in value) if part
-            )
-        return " ".join(part for part in (flatten_text(item) for item in value) if part)
-    if not isinstance(value, dict):
-        return ""
-    for key in ("text", "message", "content"):
-        if key in value:
-            text = flatten_text(value[key])
-            if text:
-                return text
-    return ""
-
-
-def flatten_block(item: Any) -> str:
-    if isinstance(item, dict) and isinstance(item.get("type"), str) and item["type"] != "text":
-        return ""
-    return flatten_text(item)
 
 
 def is_noise_user_text(text: str) -> bool:
@@ -597,35 +572,31 @@ def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[Sess
                     codex_session_id = str(
                         payload.get("id") or payload.get("session_id") or ""
                     )
-            extracted = extract_role_text(record)
-            if not extracted:
-                continue
-            role, raw_text = extracted
-            text = sanitize_message_text(raw_text)
-            if not text:
-                continue
-            if role == "user":
-                # 剥掉 pi skill 注入包装，否则用户目标被 SKILL.md 模板污染。
-                text = strip_skill_wrapper(text)
-                if not text:
-                    continue
-            recent_messages.append({"role": role, "content": text})
-            if role == "user":
-                # 首个/最近用户目标都只取非噪声消息（「hi」「继续」之类不算目标）；
-                # 全是噪声时退而求其次取字面首/末条，保证用户目标不为空。
-                if not is_noise_user_text(text):
-                    if not first_user:
-                        first_user = text
-                    last_user = text
-                if len(user_texts) < 30:
-                    user_texts.append(compact_text(text, 300))
-            else:
-                last_assistant = text
-
     source = forced_source or detect_source(path, head_records)
     if not source:
         print("  [skip] cannot detect agent source: %s" % path)
         return None
+    for role, raw_text in extract_session_pairs(events, source=source):
+        text = sanitize_message_text(raw_text)
+        if not text:
+            continue
+        if role == "user":
+            # 剥掉 pi skill 注入包装，否则用户目标被 SKILL.md 模板污染。
+            text = strip_skill_wrapper(text)
+            if not text:
+                continue
+        recent_messages.append({"role": role, "content": text})
+        if role == "user":
+            # 首个/最近用户目标都只取非噪声消息（「hi」「继续」之类不算目标）；
+            # 全是噪声时退而求其次取字面首/末条，保证用户目标不为空。
+            if not is_noise_user_text(text):
+                if not first_user:
+                    first_user = text
+                last_user = text
+            if len(user_texts) < 30:
+                user_texts.append(compact_text(text, 300))
+        else:
+            last_assistant = text
     if source == "codex" and codex_session_id:
         source_session_id = codex_session_id
     else:
@@ -665,33 +636,6 @@ def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[Sess
         recent_messages=list(recent_messages),
         events=events,
     )
-
-
-def extract_role_text(record: Dict[str, Any]) -> Optional[Tuple[str, str]]:
-    record_type = record.get("type")
-    message = record.get("message")
-    if record_type in ("user", "assistant") and isinstance(message, dict):
-        text = flatten_text(message.get("content"))
-        return (record_type, text) if text else None
-    if record_type == "message" and isinstance(message, dict):
-        role = message.get("role")
-        if role in ("user", "assistant"):
-            text = flatten_text(message.get("content"))
-            return (role, text) if text else None
-    payload = record.get("payload")
-    if isinstance(payload, dict):
-        payload_type = payload.get("type")
-        if payload_type == "user_message":
-            text = flatten_text(payload.get("message") or payload.get("content"))
-            return ("user", text) if text else None
-        role = payload.get("role")
-        if role in ("user", "assistant"):
-            text = flatten_text(payload.get("content"))
-            return (role, text) if text else None
-        if payload_type in ("agent_message", "assistant_message"):
-            text = flatten_text(payload.get("message") or payload.get("content"))
-            return ("assistant", text) if text else None
-    return None
 
 
 def collect_files(paths: List[str]) -> List[Path]:

@@ -77,3 +77,29 @@ Spool job 在 capture 时固化 `user_id`（这是设计，防止补传到错误
 ### Codex 新格式 session（首行 session_meta）解析
 
 Codex 新格式 session 文件首行是 `session_meta` 记录，cwd 与 session uuid 只存在于该行的 payload 内、无法从文件路径推出。旧版 `upload_sessions.py` 不识别该格式时 cwd 全部丢失——实测 238 个 codex session 会全部落入兜底 project 且 session id 退化为文件名；已修补 `scan_session_file` 支持（dry-run 238/238 解析成功）。批量归档不熟悉的来源前，先 `--dry-run` 核对 cwd 解析率和 session id 形态（应为 `{source}:{project}:{uuid}` 三段式）再实际上传。
+
+### Codex Desktop 新消息事件导致摘要全是「未提取到文本」
+
+Codex Desktop rollout JSONL 可能同时保存 `response_item/message` 与
+`event_msg/item_completed`。可见消息的权威事件是后者的 `UserMessage` / `AgentMessage`；
+`response_item` 还可能带 developer、recommended plugins、AGENTS 等注入上下文，且文本块
+类型使用 `input_text` / `output_text`。逐行混合解析会重复消息或把注入内容误当用户目标。
+
+`scripts/session_messages.py` 是 live hook 与 `upload_sessions.py` 的共享解析器：新版 Codex
+优先 `item_completed`，且 AgentMessage 只归档 `phase=final_answer`（旧格式无 phase 时兼容
+保留），从而排除 commentary 进度更新；旧版优先 `user_message` / `agent_message`，最后才
+回退 `response_item`。同一 resumed rollout 中新旧权威事件族会按事件位置合并，再逐条消耗
+邻近且内容相同的 `response_item` 镜像；未匹配的 response item 才作为回退消息保留，避免
+格式切换或重复短 prompt 时丢失较早轮次、错配镜像或重复整段消息。Desktop UI 注入的
+`<user_action>`、`<turn_aborted>`、压缩交接摘要等协议记录也会排除；镜像匹配会先剥离
+附件 `<image>` 包装，避免带截图的用户轮次重复。文本块兼容 `text` / `Text` /
+`input_text` / `output_text`。排障时用
+真实 rollout 文件统计 `extract_session_pairs(..., source="codex")` 的 role 数量，不要只看
+Hub 已生成的占位摘要。
+
+### 入库审核显示 `LLM /v1/messages returned HTTP 400`
+
+审核 LLM 走 Anthropic Messages API。Hub 默认显式发送 `thinking: {type: disabled}`，适配
+默认开启推理的 Kimi/DeepSeek 兼容网关；上游非 2xx 响应正文会经过长度限制与凭据脱敏后
+进入审核理由。若仍为 400，优先根据详情核对 `REVIEW_LLM_MODEL` 是否为网关实际加载的
+模型 ID，其次核对 `REVIEW_LLM_BASE_URL` 是否为不含重复 `/v1` 的 Anthropic base URL。
