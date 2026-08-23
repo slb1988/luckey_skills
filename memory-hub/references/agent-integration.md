@@ -62,6 +62,10 @@ SKILL_DIR="<本 SKILL.md 所在目录的绝对路径>"
 
 必须将占位符替换为加载本 Skill 时获得的实际目录，不得相对当前工作目录猜测。`auto` 配置本机检测到的
 Claude Code、Codex、Pi；用户明确要求全部安装时改用 `--agents all`。不得手工拼装 Hook JSON。
+install 同时会把进程环境里的 `MEMORY_HUB_API_KEY` 一并持久化，所以生产环境应先 export key 再跑 install。
+
+> 全新机器无法自助生成 token：dashboard 的 `POST /api/v1/auth/tokens` 本身也要求
+> `DASHBOARD_API_KEY`，首次接入必须有人在面板 UI 手工生成 agent token（mhu_...）。
 
 **install 建议指定本机 project（`--project`）**：它写入 state dir 的 `project-aliases.local.json`
 （机器级字典映射 `{"aliases":{"*":"<id>"}}`，不进 git、不随 skill 模板扩散），本机所有
@@ -140,9 +144,10 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # （install_hooks.py install 会把它持久化到用户级环境变量，全局生效）：
 # MEMORY_HUB_CLIENT_USER_ID=internal-user-id
 # MEMORY_HUB_API_KEY=...          # 生产必填（mhu_ agent token，面板 http://10.77.77.6:9288/ 生成）；
-#                                  # 可手工写进 profile 标记块，或 install 时传 --api-key；
-#                                  # install 会自动沿用进程环境/profile 里已有的 key（升级重装不丢）；
-#                                  # install_hooks.py check 的 auth 项会校验它是否设置且被服务端接受
+#                                  # 可手工写进 profile 标记块；install 没有 --api-key 参数
+#                                  # （install_hooks.py 全部参数只有 --agents/--home/--codex-bin/--cwd/
+#                                  # --user-id/--project），而是自动沿用进程环境/profile 里已有的 key
+#                                  # 并持久化（升级重装不丢）；check 的 auth 项会校验它是否设置且被服务端接受
 # MEMORY_HOOK_TIMEOUT_SECONDS=8
 # MEMORY_HOOK_STATE_DIR=~/.local/state/memory-hub-hook
 # MEMORY_HOOK_DEBUG=1             # 调试失败原因
