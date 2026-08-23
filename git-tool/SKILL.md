@@ -122,6 +122,7 @@ git -C <parent> commit -m "chore: inline <name>, drop submodule link"
 两个注意点：
 - **入库前先扫密钥**：外部仓库内容从未按本仓库标准审过，重点看 `.env*` / `*.example` / 配置里的 `sk-` `key=`（本次三个 skill 的 `.env.example` 均为占位符，安全）。
 - inline 保留上游原始目录结构，skill 本体可能不在顶层——如 `diagram-design` 的 SKILL.md 实际在 `diagram-design/skills/diagram-design/` 下。
+- **下游旧克隆 pull 这个改动会报 untracked 冲突**，需要 deinit + 删目录后重新 merge，处理流程见 [troubleshooting](references/troubleshooting.md)。
 
 ---
 
@@ -129,9 +130,9 @@ git -C <parent> commit -m "chore: inline <name>, drop submodule link"
 
 skill 文档与脚本示例路径写的是 `.claude/skills/...`，但**本机实际的仓库根是 `/home/dev/.pi/skills`**。两者不一致，直接照抄文档路径会失败。
 
-- 仓库根：`/home/dev/.pi/skills`（不是 `.claude/skills`）
-- 脚本实际位置：`/home/dev/.pi/skills/git-tool/git-tool-update.sh` / `git-tool-commit.sh`
-- 脚本内部用 `git rev-parse --show-toplevel` 自动定位 ROOT，所以在仓库根目录内任意位置执行都能工作；但**文档里的 `bash .claude/skills/...` 命令必须替换为 `.pi/skills/...`**
+- 仓库根：`/home/dev/.pi/skills`（不是 `.claude/skills`）；本机（ubuntu 服务器）为 `/home/ubuntu/.pi/skills`，`/home/dev` 是另一台机器
+- 脚本实际位置：`<仓库根>/git-tool/git-tool-update.sh` / `git-tool-commit.sh`
+- 脚本内部用 `git rev-parse --show-toplevel` 以 **cwd** 定位 ROOT：在仓库内任意位置执行都能工作，但**从仓库外运行会 exit 128 静默失败**（见 [troubleshooting](references/troubleshooting.md)）；文档里的 `bash .claude/skills/...` 命令必须替换为 `.pi/skills/...`
 - 该仓库自身现仅含 1 个 submodule：`axton-obsidian-visual-skills`（`diagram-design`/`frontend-slides`/`huashu-design` 已于 2026-08 转为普通文件 inline 入库，见上文「nested submodule 转普通文件」）
 
 **脚本自带了保留本地修改的能力**（`git-tool-update.sh` 自动 stash→pull→恢复 stash），所以即使仓库有未提交改动，也可以放心执行 update，改动会被暂存保护后还原。
