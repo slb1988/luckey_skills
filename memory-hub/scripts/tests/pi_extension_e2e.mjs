@@ -177,7 +177,22 @@ try {
 		await waitFor(() => traceEntries("catchup_scan").length === 1, "catchup scan");
 		assert.equal(traceEntries("catchup_scan")[0].scanned, 0);
 		assert.equal(hookCalls("capture").length, 0, "session_start must not capture without markers");
-		assert.equal(hookCalls("flush").length, 0);
+		// 无 marker 也冲刷一次 spool 积压（评审 P2）；busyOnce 模式下首轮 busy+重试
+		await waitFor(
+			() => traceEntries("flush_done").some((entry) => entry.outcome === "completed"),
+			"startup flush",
+			10000,
+		);
+		const startupFlushes = busyOnce ? 2 : 1;
+		assert.equal(hookCalls("flush").length, startupFlushes, "session_start must drain the spool once");
+		if (busyOnce) {
+			assert.ok(
+				traceEntries("flush_done").some((entry) => entry.outcome === "busy"),
+				"busy outcome must be traced before the retry",
+			);
+		}
+		const completedFlushes = () =>
+			traceEntries("flush_done").filter((entry) => entry.outcome === "completed").length;
 
 		// agent_end → enqueue 立即触发并 await 完成（handler 返回即 durable）
 		await handlers.get("agent_end")({}, ctx);
@@ -189,7 +204,11 @@ try {
 		assert.equal(traceEntries("marker_write").length, 1, "write-ahead marker must be traced");
 		assert.equal(traceEntries("marker_delete").length, 1, "confirmed durable marker must be deleted");
 		assert.equal(traceEntries("flush_schedule").length, 1);
-		assert.equal(hookCalls("flush").length, 0, "flush must stay debounced");
+		assert.equal(
+			hookCalls("flush").length,
+			startupFlushes,
+			"agent_end enqueue must not flush synchronously beyond the startup drain",
+		);
 
 		// 新 prompt 取消挂起 flush；取消后期满不再触发
 		await handlers.get("before_agent_start")({ prompt: "more work", systemPrompt: "sys" }, ctx);
@@ -198,27 +217,19 @@ try {
 			"before_agent_start must cancel the pending flush",
 		);
 		await sleep(delayMs * 2);
-		assert.equal(hookCalls("flush").length, 0, "canceled flush must not fire");
+		assert.equal(hookCalls("flush").length, startupFlushes, "canceled flush must not fire");
 
-		// 下一次 agent_end 重新排程 → 空闲到期后恰好一次 flush。
+		// 下一次 agent_end 重新排程 → 空闲到期后恰好再一次 flush。
 		// 权威信号是 flush_done 落盘（扩展在子进程 close 后才写 trace）；
 		// 等 hook-log 会抢跑——fake 在 stdin end 时就写日志，close 之前。
-		// busyOnce 模式：首次 flush 报 busy，扩展应有界重试至 completed（评审 P2）。
 		await handlers.get("agent_end")({}, ctx);
 		assert.equal(hookCalls("capture").length, 2);
 		await waitFor(
-			() => traceEntries("flush_done").some((entry) => entry.outcome === "completed"),
+			() => completedFlushes() === 2,
 			"idle flush done",
 			10000,
 		);
-		const expectedFlushes = busyOnce ? 2 : 1;
-		assert.equal(hookCalls("flush").length, expectedFlushes);
-		if (busyOnce) {
-			assert.ok(
-				traceEntries("flush_done").some((entry) => entry.outcome === "busy"),
-				"busy outcome must be traced before the retry",
-			);
-		}
+		assert.equal(hookCalls("flush").length, startupFlushes + 1);
 
 		// agent_end 后立即 shutdown：timer 取消，最终 capture 带 flush（非 --no-flush）
 		await handlers.get("agent_end")({}, ctx);
@@ -235,7 +246,7 @@ try {
 		assert.equal(traceEntries("final_capture").length, 1);
 		assert.equal(traceEntries("final_capture")[0].outcome, "enqueued");
 		await sleep(delayMs * 2);
-		assert.equal(hookCalls("flush").length, expectedFlushes, "canceled shutdown timer must not fire later");
+		assert.equal(hookCalls("flush").length, startupFlushes + 1, "canceled shutdown timer must not fire later");
 
 		console.log(
 			JSON.stringify({

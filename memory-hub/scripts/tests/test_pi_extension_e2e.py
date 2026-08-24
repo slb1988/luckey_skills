@@ -98,8 +98,8 @@ class PiExtensionE2ETest(unittest.TestCase):
             # 3 次 agent_end enqueue + 1 次 shutdown 最终 capture
             self.assertEqual(summary["captures"], 4)
             self.assertEqual(summary["enqueues"], 3)
-            # 仅空闲到期那一次 flush；prompt/shutdown 各取消一次
-            self.assertEqual(summary["flushes"], 1)
+            # 启动冲刷 1 次 + 空闲到期 1 次；prompt/shutdown 各取消一次
+            self.assertEqual(summary["flushes"], 2)
             self.assertEqual(summary["cancels"], 2)
             self.assertEqual(summary["markerDeletes"], 3)
 
@@ -128,7 +128,8 @@ class PiExtensionE2ETest(unittest.TestCase):
             summary = self.run_driver(Path(directory), {"FLUSH_BUSY_ONCE": "1"})
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "main-busy")
-            self.assertEqual(summary["flushes"], 2)
+            # 启动冲刷 busy+重试 2 次 + 空闲到期 1 次
+            self.assertEqual(summary["flushes"], 3)
             self.assertEqual(summary["captures"], 4)
 
 

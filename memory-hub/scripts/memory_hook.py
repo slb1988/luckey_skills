@@ -83,12 +83,13 @@ PROJECT_LOCAL_FILENAME = "project-aliases.local.json"
 
 
 def default_state_dir() -> Path:
-    return Path(
-        os.environ.get(
-            "MEMORY_HOOK_STATE_DIR",
-            str(Path.home() / ".local" / "state" / "memory-hub-hook"),
-        )
-    ).expanduser()
+    # 默认值惰性求值：os.environ.get(key, default) 会先无条件求值 default，
+    # patch.dict(clear=True) 清光环境变量的场景下（Windows 无 pwd 兜底）
+    # Path.home() 直接 RuntimeError——即使 MEMORY_HOOK_STATE_DIR 已设置。
+    override = os.environ.get("MEMORY_HOOK_STATE_DIR")
+    if override:
+        return Path(override).expanduser()
+    return Path(str(Path.home() / ".local" / "state" / "memory-hub-hook")).expanduser()
 
 
 def parse_alias_map(raw: Any) -> Dict[str, str]:

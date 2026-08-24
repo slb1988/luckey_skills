@@ -65,6 +65,22 @@ function clip(value: string): string {
 		: value;
 }
 
+// 扩展发起的 flush 用更大批次：默认 100 是给 hook 同步路径的延迟预算，
+// catch-up / 启动冲刷可能需要排出更多积压。
+const extensionFlushLimit = 500;
+
+// spawn 的工作目录必须存在：marker 记录的 cwd 可能已被删除/改名（清理过的
+// worktree），直接作 spawn cwd 会 ENOENT、hook 根本起不来（评审 P2）。
+// payload 里的 cwd 保持原值（归档 project 归属靠它），这里只保证进程能启动。
+function safeSpawnCwd(cwd: string): string {
+	try {
+		if (existsSync(cwd)) return cwd;
+	} catch {
+		// fallthrough
+	}
+	return homedir();
+}
+
 function trace(kind: string, data: Record<string, unknown>): void {
 	try {
 		mkdirSync(dirname(traceFile), { recursive: true });
@@ -273,7 +289,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			const result = await runHub(
 				["capture", "--source", "pi", "--no-flush", "--json"],
 				capturePayload(target),
-				target.cwd,
+				safeSpawnCwd(target.cwd),
 				enqueueTimeoutMs(),
 				false,
 			);
@@ -322,8 +338,14 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			let busyRetries = 0;
 			let currentTrigger = trigger;
 			for (;;) {
-				flushAgain = false;
-				const result = await runHub(["flush"], undefined, lastCwd, flushTimeoutMs);
+				// 注意：busy 重试不得清 flushAgain（评审 P2）——折叠请求只在
+				// 一次非 busy 尝试完成后才被消费。
+				const result = await runHub(
+					["flush", "--limit", String(extensionFlushLimit)],
+					undefined,
+					lastCwd,
+					flushTimeoutMs,
+				);
 				const parsed = lastJsonLine(result.stdout);
 				const flush = parsed?.flush as Record<string, unknown> | undefined;
 				const busy = flush?.busy === true;
@@ -337,13 +359,19 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 					failed: flush?.failed,
 					recovered: flush?.recovered,
 				});
-				if (busy && busyRetries < 3) {
-					busyRetries++;
-					await new Promise((resolve) => setTimeout(resolve, 1000));
-					continue;
+				if (busy) {
+					if (busyRetries < 3) {
+						busyRetries++;
+						await new Promise((resolve) => setTimeout(resolve, 1000));
+						continue;
+					}
+					// 另一进程持续持锁：委托一次防抖重试（折叠请求随之保留），不死等。
+					scheduleFlush(`${currentTrigger}_after_busy`);
+					break;
 				}
+				busyRetries = 0;
 				if (flushAgain) {
-					// 在途期间又有 flush 请求：补跑一次覆盖其后入队的 job
+					flushAgain = false;
 					currentTrigger = `${currentTrigger}_coalesced`;
 					continue;
 				}
@@ -383,6 +411,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 	// 扫描不设数量上限（固定前缀会让后面的 marker 永久饥饿，评审 P2）：
 	// 按 mtime 升序处理，保留的 marker 触戳到队尾轮换；总成本由时间预算约束。
 	async function catchupPending(): Promise<void> {
+		// 先让出事件循环：session_start handler 调用即返回，扫描不阻塞启动（评审 P2）
+		await new Promise<void>((resolve) => setImmediate(resolve));
 		interface ScannedMarker {
 			name: string;
 			raw: string;
@@ -391,6 +421,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		const started = Date.now();
 		const markers: ScannedMarker[] = [];
 		let quarantined = 0;
+		let deferredScan = 0;
 		try {
 			mkdirSync(pendingDir, { recursive: true });
 			const names = readdirSync(pendingDir)
@@ -403,7 +434,17 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 					}
 				})
 				.sort((a, b) => a.mtime - b.mtime);
-			for (const { name } of names) {
+			// 分批读入并周期让出事件循环；扫描本身也受时间预算约束，超预算的
+			// 遗留到下一轮（未触戳的保持旧 mtime 排在前面，不会饥饿）。
+			for (let index = 0; index < names.length; index++) {
+				if (Date.now() - started > catchupBudgetMs) {
+					deferredScan = names.length - index;
+					break;
+				}
+				if (index > 0 && index % 100 === 0) {
+					await new Promise<void>((resolve) => setImmediate(resolve));
+				}
+				const { name } = names[index];
 				const raw = readFileSync(join(pendingDir, name), "utf8");
 				try {
 					const parsed = JSON.parse(raw) as Partial<PendingMarker>;
@@ -425,8 +466,13 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			trace("catchup_scan", { error: String(error) });
 			return;
 		}
-		trace("catchup_scan", { scanned: markers.length, quarantined });
-		if (markers.length === 0) return;
+		trace("catchup_scan", { scanned: markers.length, quarantined, deferred_scan: deferredScan });
+		if (markers.length === 0) {
+			// 无 marker 也要冲刷一次：spool 里可能有上次遗留的 queued job
+			//（catch-up 确认数超过单次 flush 上限、上次 flush 失败残留等，评审 P2）。
+			await runFlush("session_start");
+			return;
+		}
 		let confirmed = 0;
 		let kept = 0;
 		let deferred = 0;
@@ -510,7 +556,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		const result = await runHub(
 			["capture", "--source", "pi", "--json"],
 			capturePayload(target),
-			target.cwd,
+			safeSpawnCwd(target.cwd),
 			flushTimeoutMs,
 		);
 		const parsed = lastJsonLine(result.stdout);
