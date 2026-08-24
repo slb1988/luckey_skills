@@ -235,15 +235,24 @@ def check_pi_extension(path: Path) -> Dict[str, Any]:
         for event in ("before_agent_start", "agent_end", "session_shutdown"):
             if 'pi.on("%s"' % event not in content:
                 errors.append("missing %s handler" % event)
-        # agent_end 必须 AFK 防抖上传（空闲计时，新 prompt 取消），不得逐轮立即归档
+        # v5 契约：agent_end 立即 enqueue-only（write-ahead marker 先落盘，
+        # capture --no-flush --json），flush 才走 AFK 防抖（空闲计时、新 prompt
+        # 取消、计时器不拖住退出）；session_start catch-up 补传遗留 marker。
         for marker in (
+            "pi-pending-enqueues",
+            "writeMarker",
+            '"--no-flush"',
             "setTimeout",
             ".unref()",
             "MEMORY_HOOK_PI_CAPTURE_DELAY_MS",
-            "cancelPendingCapture",
+            "cancelPendingFlush",
+            "catchupPending",
         ):
             if marker not in content:
-                errors.append("agent_end capture must be idle-debounced: missing %s" % marker)
+                errors.append(
+                    "pi durable-enqueue/idle-debounced-flush contract broken: missing %s"
+                    % marker
+                )
     return {
         "ok": not errors,
         "path": str(path),

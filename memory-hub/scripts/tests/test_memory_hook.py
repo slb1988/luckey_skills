@@ -686,7 +686,7 @@ class MemoryHookTest(unittest.TestCase):
             self.assertEqual(store.queued(10), [])
             self.assertEqual(
                 flush_pending(store, config, 10),
-                {"busy": False, "completed": 0, "failed": 0},
+                {"busy": False, "completed": 0, "failed": 0, "recovered": 0},
             )
             with store.connect() as connection:
                 row = connection.execute("SELECT * FROM jobs").fetchone()
@@ -1070,6 +1070,409 @@ class MemoryHookTest(unittest.TestCase):
             claimed = StateStore(reloaded).queued(10)
             self.assertEqual(len(claimed), 1)
             self.assertEqual(claimed[0]["user_id"], "jane-123")
+
+
+    def test_capture_no_flush_json_strict_contract(self):
+        # --no-flush --json：只入队不触网（hub 不可达也秒回 0），stdout 恒为一行
+        # 机器可读结果；同内容重复 capture → already_present。
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "user", "message": {"content": "remember"}})
+                + "\n",
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",  # 不可达：若误 flush 会慢/失败
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            args = SimpleNamespace(
+                user_id=None, source="pi", flush_limit=10, verbose=False,
+                no_flush=True, json=True,
+            )
+            hook = {
+                "hook_event_name": "SessionEnd",
+                "session_id": "session-1",
+                "transcript_path": str(transcript),
+                "cwd": str(root),
+            }
+            stdin = io.StringIO(json.dumps(hook))
+            stdout = io.StringIO()
+            with patch("sys.stdin", stdin), patch("sys.stdout", stdout):
+                self.assertEqual(command_capture(args, config, store), 0)
+            first = json.loads(stdout.getvalue())
+            self.assertEqual(first["result"], "enqueued")
+            self.assertTrue(first["job_id"])
+            self.assertTrue(first["sha256"])
+            self.assertNotIn("flush", first)
+            self.assertEqual(store.status()["counts"], {"queued": 1})
+
+            stdin.seek(0)
+            stdout = io.StringIO()
+            with patch("sys.stdin", stdin), patch("sys.stdout", stdout):
+                self.assertEqual(command_capture(args, config, store), 0)
+            second = json.loads(stdout.getvalue())
+            self.assertEqual(second["result"], "already_present")
+            self.assertEqual(store.status()["counts"], {"queued": 1})
+
+            # 异常契约：enqueue 抛错 → exit 1 + result=error（不再静默 exit 0）。
+            def boom(*_args, **_kwargs):
+                raise RuntimeError("disk full")
+
+            transcript.write_text(
+                transcript.read_text(encoding="utf-8")
+                + json.dumps({"type": "user", "message": {"content": "more"}}) + "\n",
+                encoding="utf-8",
+            )
+            stdin.seek(0)
+            stdout = io.StringIO()
+            with patch("sys.stdin", stdin), patch("sys.stdout", stdout), patch.object(
+                store, "enqueue", boom
+            ):
+                self.assertEqual(command_capture(args, config, store), 1)
+            self.assertEqual(json.loads(stdout.getvalue())["result"], "error")
+
+    def test_capture_json_reports_skip_reasons(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            args = SimpleNamespace(
+                user_id=None, source="pi", flush_limit=10, verbose=False,
+                no_flush=True, json=True,
+            )
+
+            def run(hook):
+                stdout = io.StringIO()
+                with patch("sys.stdin", io.StringIO(json.dumps(hook))), patch(
+                    "sys.stdout", stdout
+                ):
+                    code = command_capture(args, config, store)
+                return code, json.loads(stdout.getvalue())
+
+            code, payload = run({"session_id": "s", "cwd": str(root)})
+            self.assertEqual((code, payload["result"]), (0, "skipped_no_fields"))
+            code, payload = run(
+                {
+                    "session_id": "s",
+                    "transcript_path": str(root / "missing.jsonl"),
+                    "cwd": str(root),
+                }
+            )
+            self.assertEqual((code, payload["result"]), (0, "skipped_missing_file"))
+            extraction = root / "extraction.jsonl"
+            extraction.write_text(
+                json.dumps(
+                    {
+                        "type": "user",
+                        "message": {
+                            "content": "You are the Skill extraction sub-agent. go"
+                        },
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            code, payload = run(
+                {
+                    "session_id": "s",
+                    "transcript_path": str(extraction),
+                    "cwd": str(root),
+                }
+            )
+            self.assertEqual((code, payload["result"]), (0, "skipped_extraction"))
+            self.assertEqual(store.status()["counts"], {})
+
+    def test_concurrent_enqueue_lock_prevents_reverse_supersede(self):
+        # 并发回归（评审 C2）：A 持锁读到 v1 后停在构建阶段，transcript 长到 v2，
+        # B 再 capture。有锁：B 等 A 完成后读到 v2 → 最终 queued 是 v2；
+        # 无锁：A 后提交会把 B 的 v2 反向 supersede 并删对象（应失败）。
+        import threading
+        import time as _time
+
+        import memory_hook
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "user", "message": {"content": "turn-1"}}) + "\n",
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            args = SimpleNamespace(
+                user_id=None, source="pi", flush_limit=0, verbose=False,
+                no_flush=True, json=False,
+            )
+            hook = {
+                "hook_event_name": "SessionEnd",
+                "session_id": "s-1",
+                "transcript_path": str(transcript),
+                "cwd": str(root),
+            }
+            original_build = memory_hook.build_full_package
+            first_entered = threading.Event()
+            release_first = threading.Event()
+            stalled: list = []
+
+            def stalling_build(*f_args, **f_kwargs):
+                if not stalled:
+                    stalled.append(True)
+                    first_entered.set()
+                    release_first.wait(10)
+                return original_build(*f_args, **f_kwargs)
+
+            def capture():
+                with patch("sys.stdin", io.StringIO(json.dumps(hook))):
+                    command_capture(args, config, store)
+
+            with patch.object(memory_hook, "build_full_package", stalling_build):
+                thread_a = threading.Thread(target=capture)
+                thread_a.start()
+                self.assertTrue(first_entered.wait(5))
+                transcript.write_text(
+                    transcript.read_text(encoding="utf-8")
+                    + json.dumps({"type": "user", "message": {"content": "turn-2"}})
+                    + "\n",
+                    encoding="utf-8",
+                )
+                thread_b = threading.Thread(target=capture)
+                thread_b.start()
+                _time.sleep(0.5)  # B 应阻塞在 enqueue 锁上
+                release_first.set()
+                thread_a.join(10)
+                thread_b.join(10)
+            self.assertFalse(thread_a.is_alive())
+            self.assertFalse(thread_b.is_alive())
+            rows = store.queued(10)
+            self.assertEqual(len(rows), 1)
+            with gzip.open(rows[0]["full_path"], "rt", encoding="utf-8") as stored:
+                events = json.load(stored)["events"]
+            self.assertEqual(
+                len(events), 2, "最终 queued 必须是较新的 v2 快照（含 turn-2）"
+            )
+
+    def test_flush_claim_preserves_uploading_objects_under_concurrent_enqueue(self):
+        # 评审 M4：uploading 的 job 在上传期间不得被并发 enqueue 的 supersede 删对象。
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "user", "message": {"content": "turn-1"}}) + "\n",
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            store.enqueue(self.profile(), "pi", "s-1", str(root), transcript)
+            claimed = store.claim_for_upload(10)
+            self.assertEqual(len(claimed), 1)
+            snapshot_path = claimed[0]["snapshot_path"]
+            full_path = claimed[0]["full_path"]
+            # 上传进行中，同 session 新快照入队：supersede 只碰 queued
+            transcript.write_text(
+                transcript.read_text(encoding="utf-8")
+                + json.dumps({"type": "user", "message": {"content": "turn-2"}})
+                + "\n",
+                encoding="utf-8",
+            )
+            store.enqueue(self.profile(), "pi", "s-1", str(root), transcript)
+            self.assertTrue(Path(snapshot_path).is_file())
+            self.assertTrue(Path(full_path).is_file())
+            self.assertEqual(
+                store.status()["counts"], {"queued": 1, "uploading": 1}
+            )
+            store.complete(
+                claimed[0]["job_id"], {"version": 1, "memory_id": "m-1"}
+            )
+            self.assertEqual(
+                store.status()["counts"], {"completed": 1, "queued": 1}
+            )
+            self.assertFalse(Path(snapshot_path).exists())
+
+    def test_stale_uploading_recovers_and_stale_complete_cannot_resurrect(self):
+        # 崩溃回收：uploading 超租约 → queued 并可被重新认领；
+        # 回收后被 supersede 的行不得被陈旧写者的 complete 复活。
+        import time as _time
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "user", "message": {"content": "turn-1"}}) + "\n",
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            store.enqueue(self.profile(), "pi", "s-1", str(root), transcript)
+            job = store.queued(10)[0]
+            claimed = store.claim_for_upload(10)
+            self.assertEqual([row["job_id"] for row in claimed], [job["job_id"]])
+            # 模拟持锁进程崩溃：updated_at 拨到租约之前
+            with store.connect() as connection:
+                connection.execute(
+                    "UPDATE jobs SET updated_at=? WHERE job_id=?",
+                    (_time.time() - 3600, job["job_id"]),
+                )
+            reclaimed = store.claim_for_upload(10)
+            self.assertEqual([row["job_id"] for row in reclaimed], [job["job_id"]])
+            # 复活防护：回收为 queued 后被新快照 supersede → complete 不再生效
+            with store.connect() as connection:
+                connection.execute(
+                    "UPDATE jobs SET state='queued' WHERE job_id=?", (job["job_id"],)
+                )
+            transcript.write_text(
+                transcript.read_text(encoding="utf-8")
+                + json.dumps({"type": "user", "message": {"content": "turn-2"}})
+                + "\n",
+                encoding="utf-8",
+            )
+            store.enqueue(self.profile(), "pi", "s-1", str(root), transcript)
+            store.complete(job["job_id"], {"version": 9, "memory_id": "m-x"})
+            with store.connect() as connection:
+                row = connection.execute(
+                    "SELECT state, remote_version FROM jobs WHERE job_id=?",
+                    (job["job_id"],),
+                ).fetchone()
+            self.assertEqual(row["state"], "superseded")
+            self.assertIsNone(row["remote_version"])
+
+    def test_fail_returns_job_to_queued_for_retry(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "user", "message": {"content": "turn-1"}}) + "\n",
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            store.enqueue(self.profile(), "pi", "s-1", str(root), transcript)
+            job = store.claim_for_upload(10)[0]
+            store.fail(job["job_id"], Exception("boom"))
+            self.assertEqual(store.status()["counts"], {"queued": 1})
+            self.assertEqual(store.queued(10)[0]["attempts"], 1)
+
+    def test_flush_recovers_fresh_claims_from_crashed_flush(self):
+        # 评审修复：flush 进程刚认领（updated_at 很新）就崩溃，租约回收等 10 分钟；
+        # flush.lock 在手即证明无其他 flush 存活 → 全量回收 uploading 后重新认领。
+        import memory_hook
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "user", "message": {"content": "turn"}}) + "\n",
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            store.enqueue(self.profile(), "pi", "s-1", str(root), transcript)
+            store.enqueue(self.profile(), "pi", "s-2", str(root), transcript)
+            # 模拟崩溃：认领后进程死亡，updated_at 新鲜（租约回收不会碰）
+            claimed = store.claim_for_upload(10)
+            self.assertEqual(len(claimed), 2)
+            self.assertEqual(store.status()["counts"], {"uploading": 2})
+            attempts = []
+
+            def boom(_client, job):
+                attempts.append(job["job_id"])
+                raise RuntimeError("hub still down")
+
+            with patch.object(memory_hook.HubClient, "upload_job", boom):
+                result = flush_pending(store, config, 10)
+            # 回收 2 个；重新认领后第 1 个上传失败即 break，未处理的归还 queued
+            self.assertEqual(result["recovered"], 2)
+            self.assertEqual(len(attempts), 1)
+            self.assertEqual(store.status()["counts"], {"queued": 2})
+
+    def test_flush_releases_unvisited_claims_on_failure(self):
+        # 批量认领后首个上传失败即 break：未处理的认领必须归还 queued，
+        # 不得留在 uploading 吃满整个租约（对后续 flush / supersede 不可见）。
+        import memory_hook
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "user", "message": {"content": "turn"}}) + "\n",
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            store.enqueue(self.profile(), "pi", "s-1", str(root), transcript)
+            store.enqueue(self.profile(), "pi", "s-2", str(root), transcript)
+
+            def boom(_client, _job):
+                raise RuntimeError("hub down")
+
+            with patch.object(memory_hook.HubClient, "upload_job", boom):
+                result = flush_pending(store, config, 10)
+            self.assertEqual(result["failed"], 1)
+            self.assertEqual(store.status()["counts"], {"queued": 2})
 
 
 if __name__ == "__main__":

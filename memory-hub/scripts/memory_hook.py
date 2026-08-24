@@ -541,6 +541,50 @@ def transcript_is_extraction_subsession(transcript_path: Path) -> bool:
     return False
 
 
+# enqueue 跨进程互斥锁超时（秒）：持锁方完成「读 transcript → 构建对象 → 入队」
+# 全程，正常是亚秒级；超时兜底防持锁进程僵死。
+ENQUEUE_LOCK_TIMEOUT_SECONDS = 60.0
+# flush 认领租约（秒）：uploading 超过租约未 complete/fail 视为进程崩溃，回收为 queued。
+UPLOAD_CLAIM_LEASE_SECONDS = 600.0
+
+
+def acquire_enqueue_lock(
+    state_dir: Path,
+    user_id: str,
+    source: str,
+    source_session_id: str,
+    timeout: float = ENQUEUE_LOCK_TIMEOUT_SECONDS,
+):
+    """同 (user, source, session) 的 enqueue 跨进程互斥锁，返回已加锁的文件句柄。
+
+    调用方必须持锁完成「读 transcript → 构建 snapshot/full → INSERT/supersede」全程，
+    用毕 close 句柄即释放。否则两个并发 enqueue 可能出现：旧快照进程读得早但压缩慢、
+    后提交 INSERT，把新快照 job 反向标 superseded 并删除其对象——真实尾部丢失。
+    """
+    key = hashlib.sha1(
+        "\0".join((user_id, source, source_session_id)).encode("utf-8")
+    ).hexdigest()[:24]
+    locks_dir = state_dir / "locks"
+    locks_dir.mkdir(parents=True, exist_ok=True)
+    handle = (locks_dir / ("enqueue-%s.lock" % key)).open("a+b")
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            if fcntl is not None:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            else:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            return handle
+        except (BlockingIOError, OSError):
+            if time.monotonic() >= deadline:
+                handle.close()
+                raise TimeoutError(
+                    "enqueue lock timeout for session %s" % source_session_id
+                )
+            time.sleep(0.1)
+
+
 @dataclass(frozen=True)
 class UserProfile:
     user_id: str
@@ -1097,6 +1141,58 @@ class StateStore:
             "message_count": snapshot.message_count,
         }
 
+    def recover_abandoned_uploads(self) -> int:
+        """把全部 uploading 归还 queued。只能在持有 flush.lock 时调用：
+
+        锁在手 ⇒ 没有其他 flush 进程存活（文件锁随进程死亡释放）⇒ 任何 uploading
+        都是崩溃遗留。时间租约（claim_for_upload 内）管不了「刚认领就崩溃」的
+        新鲜 uploading——updated_at 很新，要等满租约；锁内全量回收覆盖该窗口。
+        """
+        with self.connect() as connection:
+            cursor = connection.execute(
+                "UPDATE jobs SET state='queued', updated_at=? WHERE state='uploading'",
+                (time.time(),),
+            )
+            return cursor.rowcount
+
+    def claim_for_upload(
+        self, limit: int, lease_seconds: float = UPLOAD_CLAIM_LEASE_SECONDS
+    ) -> List[sqlite3.Row]:
+        """原子认领 queued → uploading 并返回认领到的行（flush 专用）。
+
+        认领与租约回收在同一事务：先把超租约的 uploading（进程崩溃遗留）恢复为
+        queued，再认领本批。enqueue 的 supersede 只触碰 state='queued' 的行，
+        因此被认领 job 的对象文件在上传期间不会被并发 enqueue 删除；
+        complete/fail 带 state='uploading' 条件，回收后又被 supersede 的行不会
+        被陈旧写者复活为 completed。
+        """
+        now = time.time()
+        with self.connect() as connection:
+            connection.execute(
+                "UPDATE jobs SET state='queued', updated_at=? "
+                "WHERE state='uploading' AND updated_at < ?",
+                (now, now - lease_seconds),
+            )
+            rows = connection.execute(
+                "SELECT job_id FROM jobs WHERE state='queued' AND user_id <> ? "
+                "ORDER BY created_at LIMIT ?",
+                (UNCONFIGURED_USER_ID, limit),
+            ).fetchall()
+            job_ids = [row["job_id"] for row in rows]
+            if not job_ids:
+                return []
+            placeholders = ",".join("?" for _ in job_ids)
+            connection.execute(
+                "UPDATE jobs SET state='uploading', updated_at=? "
+                "WHERE job_id IN (%s) AND state='queued'" % placeholders,
+                [now, *job_ids],
+            )
+            return connection.execute(
+                "SELECT * FROM jobs WHERE job_id IN (%s) AND state='uploading'"
+                % placeholders,
+                job_ids,
+            ).fetchall()
+
     def queued(self, limit: int) -> List[sqlite3.Row]:
         with self.connect() as connection:
             return connection.execute(
@@ -1145,17 +1241,40 @@ class StateStore:
             Path(duplicate_path).unlink(missing_ok=True)
         return assigned
 
+    def release_claims(self, job_ids: List[int]) -> int:
+        """把未处理的认领归还 queued（flush 中途失败 break 时用）。
+
+        批量 claim 后若首个上传失败就 break，留在 uploading 的 job 对后续 flush 和
+        supersede 都不可见、要等整个租约过期——必须显式归还。带状态条件，
+        已 complete/fail 的行不受影响。
+        """
+        ids = list(job_ids)
+        if not ids:
+            return 0
+        placeholders = ",".join("?" for _ in ids)
+        with self.connect() as connection:
+            cursor = connection.execute(
+                "UPDATE jobs SET state='queued', updated_at=? "
+                "WHERE state='uploading' AND job_id IN (%s)" % placeholders,
+                [time.time(), *ids],
+            )
+            return cursor.rowcount
+
     def complete(self, job_id: int, result: Dict[str, Any]) -> None:
+        paths: List[str] = []
         with self.connect() as connection:
             row = connection.execute(
-                "SELECT snapshot_path, full_path FROM jobs WHERE job_id = ?", (job_id,)
+                "SELECT state, snapshot_path, full_path FROM jobs WHERE job_id = ?",
+                (job_id,),
             ).fetchone()
-            connection.execute(
+            # 带状态条件：崩溃回收/并发 supersede 后行可能已不是 uploading，
+            # 陈旧写者的 complete 不得把它复活为 completed。
+            cursor = connection.execute(
                 """
                 UPDATE jobs
                 SET state = 'completed', snapshot_path = NULL, full_path = NULL,
                     last_error = NULL, remote_version = ?, memory_id = ?, updated_at = ?
-                WHERE job_id = ?
+                WHERE job_id = ? AND state = 'uploading'
                 """,
                 (
                     result.get("version"),
@@ -1164,17 +1283,24 @@ class StateStore:
                     job_id,
                 ),
             )
-        if row:
-            for column in ("snapshot_path", "full_path"):
-                if row[column]:
-                    Path(row[column]).unlink(missing_ok=True)
+            if cursor.rowcount == 1 and row:
+                paths = [
+                    row[column]
+                    for column in ("snapshot_path", "full_path")
+                    if row[column]
+                ]
+        for path in paths:
+            Path(path).unlink(missing_ok=True)
 
     def fail(self, job_id: int, error: Exception) -> None:
+        # 上传失败即归还 queued（等下次 flush 重试），而不是留在 uploading 等租约。
         with self.connect() as connection:
             connection.execute(
                 """
-                UPDATE jobs SET attempts = attempts + 1, last_error = ?, updated_at = ?
-                WHERE job_id = ?
+                UPDATE jobs
+                SET state = 'queued', attempts = attempts + 1,
+                    last_error = ?, updated_at = ?
+                WHERE job_id = ? AND state = 'uploading'
                 """,
                 (compact_text(str(error), 2000), time.time(), job_id),
             )
@@ -1550,11 +1676,17 @@ def flush_pending(store: StateStore, config: Config, limit: int) -> Dict[str, An
                 lock_file.seek(0)
                 msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
         except (BlockingIOError, OSError):
-            return {"busy": True, "completed": 0, "failed": 0}
+            return {"busy": True, "completed": 0, "failed": 0, "recovered": 0}
+        # 锁在手 ⇒ 无其他 flush 存活 ⇒ 任何 uploading 都是崩溃遗留，立即回收
+        # （含刚认领就崩溃、updated_at 还很新的那批，租约要等 10 分钟）。
+        recovered = store.recover_abandoned_uploads()
         client = HubClient(config)
         completed = 0
         failed = 0
-        for job in store.queued(limit):
+        # 原子认领 queued → uploading：上传期间 enqueue 的 supersede 碰不到这些行，
+        # 对象文件不会在上传中途被删。
+        claimed = store.claim_for_upload(limit)
+        for index, job in enumerate(claimed):
             try:
                 result = client.upload_job(job)
                 store.complete(job["job_id"], result)
@@ -1562,8 +1694,15 @@ def flush_pending(store: StateStore, config: Config, limit: int) -> Dict[str, An
             except Exception as error:
                 store.fail(job["job_id"], error)
                 failed += 1
+                # 未处理的认领归还 queued，不得留在 uploading 吃满整个租约
+                store.release_claims(job["job_id"] for job in claimed[index + 1 :])
                 break
-        return {"busy": False, "completed": completed, "failed": failed}
+        return {
+            "busy": False,
+            "completed": completed,
+            "failed": failed,
+            "recovered": recovered,
+        }
     finally:
         lock_file.close()
 
@@ -1718,9 +1857,26 @@ def format_context(
 
 
 def command_capture(args: argparse.Namespace, config: Config, store: StateStore) -> int:
+    # --json 严格契约（pi 扩展 v5 起依赖）：stdout 恒输出一行
+    # {"result": "enqueued"|"already_present"|"skipped_<reason>"|"error", ...}，
+    # 未预期异常非零退出——exit 0 不再被当作「已入队」的充分证据。
+    # 不带 --json 的旧调用（claude/codex hook）行为完全不变：静默 fail-open。
+    strict_json = bool(getattr(args, "json", False))
+    no_flush = bool(getattr(args, "no_flush", False))
+    started = time.monotonic()
+
+    def emit(payload: Dict[str, Any], code: int = 0) -> int:
+        if strict_json:
+            payload = {
+                "duration_ms": int((time.monotonic() - started) * 1000),
+                **payload,
+            }
+            print(json.dumps(payload, ensure_ascii=False))
+        return code
+
     # opt-out：auto-skill extraction 子 session 等场景置 MEMORY_HUB_SKIP_CAPTURE=1
     if os.environ.get(SKIP_CAPTURE_ENV) == "1":
-        return 0
+        return emit({"result": "skipped_capture_env"})
     hook = read_hook_input()
     profile = request_user_profile(
         config,
@@ -1732,51 +1888,68 @@ def command_capture(args: argparse.Namespace, config: Config, store: StateStore)
     transcript = hook.get("transcript_path")
     source_session_id = hook.get("session_id")
     if not isinstance(transcript, str) or not isinstance(source_session_id, str):
-        return 0
+        return emit({"result": "skipped_no_fields"})
     transcript_path = Path(transcript).expanduser()
     if not transcript_path.is_file():
-        return 0
+        return emit({"result": "skipped_missing_file"})
     # env 标记的兜底：按首条 user 消息签名识别 extraction 子 session
     if transcript_is_extraction_subsession(transcript_path):
-        return 0
+        return emit({"result": "skipped_extraction"})
     # Esc 中断触发的 Stop：transcript 尾部是中断标记 → 不入队不上传。
     # 仅 Stop 跳过；SessionEnd 始终归档最终快照（幂等）。
     # pi 扩展 capture 固定传 hook_event_name=SessionEnd，不受此分支影响。
     if hook.get("hook_event_name") == "Stop" and transcript_tail_interrupted(transcript_path):
-        return 0
+        return emit({"result": "skipped_interrupted"})
     cwd = str(hook.get("cwd") or os.getcwd())
     # 归档 project 按工作根目录名分类（如 memory-hub / maindev / obsidianvault）。
     project_id = project_id_for_cwd(cwd, config.archive_project_id)
     try:
-        if not profile_is_ready(profile):
+        ready = profile_is_ready(profile)
+        target_profile = profile if ready else UserProfile(UNCONFIGURED_USER_ID)
+        assert target_profile is not None
+        # 同 session 跨进程互斥：持锁后才读 transcript/构建/入队，
+        # 防并发 enqueue 逆序 supersede（旧快照后提交淘汰新快照）。
+        lock = acquire_enqueue_lock(
+            config.state_dir, target_profile.user_id, args.source, source_session_id
+        )
+        try:
             queued = store.enqueue(
-                UserProfile(UNCONFIGURED_USER_ID),
+                target_profile,
                 args.source,
                 source_session_id,
                 cwd,
                 transcript_path,
                 project_id,
             )
+        finally:
+            lock.close()
+        payload: Dict[str, Any] = {
+            "result": "enqueued" if queued["inserted"] else "already_present",
+            "job_id": queued["job_id"],
+            "job_state": queued["state"],
+            "sha256": queued["sha256"],
+            "session_id": queued["session_id"],
+            "transcript_path": str(transcript_path),
+            "transcript_bytes": transcript_path.stat().st_size,
+        }
+        if not ready:
+            # 未配置身份：入队为 unconfigured 即 durable，flush 由 configure 时触发。
+            payload["unconfigured"] = True
+            if strict_json:
+                return emit(payload)
             if args.verbose:
-                print(
-                    json.dumps(
-                        {"setup_required": True, "queued": queued}, ensure_ascii=False
-                    )
-                )
+                print(json.dumps({"setup_required": True, "queued": queued}, ensure_ascii=False))
             return 0
-        assert profile is not None
-        queued = store.enqueue(
-            profile,
-            args.source,
-            source_session_id,
-            cwd,
-            transcript_path,
-            project_id,
-        )
-        flushed = flush_pending(store, config, args.flush_limit)
+        if not no_flush:
+            payload["flush"] = flush_pending(store, config, args.flush_limit)
+        if strict_json:
+            return emit(payload)
         if args.verbose:
-            print(json.dumps({"queued": queued, "flush": flushed}, ensure_ascii=False))
+            print(json.dumps({"queued": queued, "flush": payload.get("flush")}, ensure_ascii=False))
+        return 0
     except Exception as error:
+        if strict_json:
+            return emit({"result": "error", "error": compact_text(str(error), 500)}, 1)
         if os.environ.get("MEMORY_HOOK_DEBUG") == "1":
             print("memory hook capture: %s" % error, file=sys.stderr)
     return 0
@@ -1888,6 +2061,9 @@ def build_parser() -> argparse.ArgumentParser:
     capture.add_argument("--summary")
     capture.add_argument("--flush-limit", type=int, default=10)
     capture.add_argument("--verbose", action="store_true")
+    # --no-flush：只入队不上传（pi 扩展回合级持久化）；--json：严格机器可读契约。
+    capture.add_argument("--no-flush", action="store_true")
+    capture.add_argument("--json", action="store_true")
     search = commands.add_parser("search")
     search.add_argument("query")
     search.add_argument("--source", choices=("claude", "codex", "pi"))

@@ -60,7 +60,7 @@ class InstallHooksTest(unittest.TestCase):
         self.assertEqual(hooks["Stop"]["timeout"], 120)
         self.assertEqual(hooks["SessionEnd"]["timeout"], 3)
 
-    def test_pi_install_debounces_agent_end_upload_and_is_idempotent(self):
+    def test_pi_install_durable_enqueue_and_debounced_flush_and_is_idempotent(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / ".pi" / "agent" / "extensions" / "memory-hub.ts"
             self.assertTrue(install_pi_extension(path))
@@ -69,11 +69,17 @@ class InstallHooksTest(unittest.TestCase):
             self.assertIn('pi.on("agent_end"', content)
             self.assertIn('pi.on("session_shutdown"', content)
             self.assertNotIn("--flush-limit", content)
-            # agent_end 不再逐轮立即上传：空闲延时计时 + 新 prompt 取消 + 计时器不拖住退出
+            # v5：agent_end 立即 enqueue-only（write-ahead marker + --no-flush 严格契约），
+            # flush 走空闲延时计时 + 新 prompt 取消 + 计时器不拖住退出；
+            # session_start catch-up 补传遗留 marker。
+            self.assertIn("pi-pending-enqueues", content)
+            self.assertIn("writeMarker", content)
+            self.assertIn('"--no-flush"', content)
             self.assertIn("setTimeout", content)
             self.assertIn(".unref()", content)
             self.assertIn("MEMORY_HOOK_PI_CAPTURE_DELAY_MS", content)
-            self.assertIn("cancelPendingCapture", content)
+            self.assertIn("cancelPendingFlush", content)
+            self.assertIn("catchupPending", content)
             self.assertFalse(install_pi_extension(path))
 
     def test_pi_check_rejects_extension_without_idle_debounce(self):
@@ -135,6 +141,26 @@ class InstallHooksTest(unittest.TestCase):
             self.assertIsNone(pid2)
             self.assertEqual(meta2["source"], "none")
             self.assertIn("suggestion", meta2)
+
+    def test_pi_check_rejects_extension_without_durable_enqueue(self):
+        # 模拟有人把 v5 退回纯防抖：去掉 write-ahead marker 与 --no-flush 立即入队
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / ".pi" / "agent" / "extensions" / "memory-hub.ts"
+            install_pi_extension(path)
+            content = path.read_text(encoding="utf-8")
+            degraded = content.replace("writeMarker", "noteMarker").replace(
+                '"--no-flush"', '"--defer"'
+            )
+            path.write_text(degraded, encoding="utf-8")
+            errors = check_pi_extension(path)["errors"]
+            self.assertTrue(
+                any("writeMarker" in error for error in errors),
+                errors,
+            )
+            self.assertTrue(
+                any("--no-flush" in error for error in errors),
+                errors,
+            )
 
 
 if __name__ == "__main__":

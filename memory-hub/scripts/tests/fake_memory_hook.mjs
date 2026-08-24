@@ -2,15 +2,69 @@
 // Spawned as `node fake_memory_hook.mjs <args...>` (the extension's `python` is
 // rendered as process.execPath). Records every invocation as a JSON line in
 // HOOK_LOG so the driver can assert call ordering/counts.
-import { appendFileSync } from "node:fs";
+// v5 起扩展依赖严格 JSON 契约：capture --json 必须回一行 {"result": ...}，
+// flush 必须回 {"flush": {...}}，否则扩展侧 outcome 判为 error。
+// 忠实模拟脚本的早退分支：transcript 不存在 → skipped_missing_file；
+// 首条消息是 extraction 签名 → skipped_extraction。
+// FLUSH_BUSY_ONCE=1：首次 flush 报 busy（跨进程计数文件），之后正常——
+// 驱动扩展的 busy 有界重试路径。FAKE_DELAY_MS：capture 响应延时（毫秒），
+// 用于制造 catch-up 与活体 agent_end 的并发窗口（marker 代际竞态测试）。
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 
 let stdin = "";
 process.stdin.on("data", (chunk) => {
 	stdin += chunk;
 });
 process.stdin.on("end", () => {
+	const delay = Number(process.env.FAKE_DELAY_MS || 0);
+	if (delay > 0) {
+		setTimeout(respond, delay);
+	} else {
+		respond();
+	}
+});
+
+function respond() {
+	const args = process.argv.slice(2);
 	appendFileSync(
 		process.env.HOOK_LOG,
-		JSON.stringify({ argv: process.argv.slice(2), stdin }) + "\n",
+		JSON.stringify({ argv: args, stdin }) + "\n",
 	);
-});
+	if (args[0] === "capture" && args.includes("--json")) {
+		let result = "enqueued";
+		try {
+			const hookPayload = JSON.parse(stdin);
+			const transcript = hookPayload.transcript_path;
+			if (!transcript || !existsSync(transcript)) {
+				result = "skipped_missing_file";
+			} else {
+				const firstLine = readFileSync(transcript, "utf8").split("\n")[0] ?? "";
+				if (firstLine.includes("You are the Skill extraction sub-agent.")) {
+					result = "skipped_extraction";
+				}
+			}
+		} catch {
+			// 解析失败按正常入队处理
+		}
+		const payload = { result, job_id: 1, sha256: "abc123", session_id: "s", transcript_bytes: 42 };
+		if (!args.includes("--no-flush")) {
+			payload.flush = { busy: false, completed: 1, failed: 0, recovered: 0 };
+		}
+		console.log(JSON.stringify(payload));
+	} else if (args[0] === "flush") {
+		let busy = false;
+		if (process.env.FLUSH_BUSY_ONCE === "1") {
+			const stateFile = process.env.HOOK_LOG + ".busy";
+			if (!existsSync(stateFile)) {
+				writeFileSync(stateFile, "1");
+				busy = true;
+			}
+		}
+		console.log(
+			JSON.stringify({
+				flush: { busy, completed: busy ? 0 : 1, failed: 0, recovered: 0 },
+				status: {},
+			}),
+		);
+	}
+}

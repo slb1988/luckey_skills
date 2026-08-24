@@ -119,11 +119,19 @@ Claude/Codex 用 `memory_hook.py search` CLI；行为契约写在 vault `AGENTS.
 （2026-08-20 起，原 SessionStart/UserPromptSubmit/before_agent_start 的自动 recall 已全部移除）。
 
 Pi 扩展带 EXTENSION_VERSION（模板在 `assets/pi-memory-hub.ts`，改模板必须递增版本号）；check 报
-`extension version X is outdated` 时重新 install 发布即可。v4 起 agent_end 改为 AFK 防抖上传：
-空闲 `MEMORY_HOOK_PI_CAPTURE_DELAY_MS` 毫秒（默认 5 分钟，置 0 恢复逐轮立即上传）后才 capture，
-新 prompt 取消重计，session_shutdown 立即归档兜底；防抖行为有 Node e2e 值守
-（`scripts/tests/test_pi_extension_e2e.py`，需 node，无 node 机器跳过）。留痕有两个文件，分析检索质量先查它们：
-- `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`——Pi 扩展侧视角（session_start / search / capture_schedule / capture_cancel / capture，含 exit_code）；
+`extension version X is outdated` 时重新 install 发布即可。**v5 起改为回合级持久化（enqueue/flush 拆分）**：
+agent_end ① 原子写 write-ahead marker（`pi-pending-enqueues/<sessionId>.json`）→ ② **await**
+`capture --no-flush --json`（enqueue 进本地 spool 即 durable，不依赖内存计时器）→ ③ 确认
+durable 才删 marker → ④ 排程防抖 flush（`MEMORY_HOOK_PI_CAPTURE_DELAY_MS` 默认 5 分钟，
+before_agent_start 取消，hub 版本只在 flush 时产生、无 churn）。session_shutdown 收敛在途
+enqueue 后做最终 capture；session_start 有界 catch-up 补传遗留 marker（进程被杀的尾部）。
+v4 是纯 AFK 防抖（agent_end 只排程计时器，到期才 capture）——防抖窗口内进程被杀即丢尾部。
+行为有 Node e2e 值守（`scripts/tests/test_pi_extension_e2e.py`，需 node，无 node 机器跳过）。
+留痕有两个文件，分析检索质量先查它们：
+- `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`——Pi 扩展侧视角
+  （v5 事件名互斥：marker_write/marker_delete/marker_quarantine、enqueue_done（含 outcome/
+  job_id/sha256/transcript_bytes）、flush_schedule/flush_cancel/flush_done（outcome=completed/
+  busy/failed）、catchup_scan/catchup_done、final_capture、session_start、search）；
 - 同目录 `hook-trace.jsonl`——脚本侧 ground truth（memory_hook.py 的 search，三端 agent 共用，
   含完整输出、query、project_id、facts_count），claude/codex 无 pi-trace 时只能查这个。
 

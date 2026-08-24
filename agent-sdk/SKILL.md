@@ -54,7 +54,9 @@ pyauto-computer service install                              # 一条 OS 自启�
 ```
 
 在库实例：winbuilder3-maindev（端口 9100，workroot=MainDev 仓库根）、nas@QNAP NAS453Dmini
-（端口 9100，跨网段经 10.77.77.4 访问平台，接入要点见 pyauto-computer 参考「跨网段/受限网络接入」）。
+（端口 9100，跨网段经 10.77.77.4 访问平台，接入要点见 pyauto-computer 参考「跨网段/受限网络接入」）、
+本机（admin Windows 工作机）两台：sunlaibing（端口 9100，workroot=`C:\Users\admin`）、sun_maindev
+（端口 9101，workroot=`D:\MainDev`，9100 已被 sunlaibing 占用故自动分到 9101）。
 平台默认地址 192.168.2.13 不可达的机器：装 CLI 要 sed 替换脚本内嵌 IP，且
 `PYAUTO_PLATFORM_URL` 必须写进 shell profile 长期生效（agent 子命令不读 computer.json）。
 > 详细参考（目录语义/端口段/自启模型/A2A 手测报文）：[pyauto-computer](references/pyauto-computer.md)

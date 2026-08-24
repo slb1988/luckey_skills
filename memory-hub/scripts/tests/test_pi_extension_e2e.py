@@ -1,5 +1,10 @@
-"""Rendered pi-memory-hub.ts 的行为级 e2e：真实 Node 进程加载扩展、mock ExtensionAPI，
-验证 agent_end 的 AFK 防抖上传（延时触发、新 prompt 取消、session_shutdown 立即归档）。
+"""Rendered pi-memory-hub.ts 的行为级 e2e：真实 Node 进程加载扩展、mock ExtensionAPI。
+
+v5 语义覆盖：
+- 主流程：agent_end 立即 enqueue-only（write-ahead marker）、flush AFK 防抖、
+  before_agent_start 取消 flush、session_shutdown 收敛后最终 capture。
+- catch-up：session_start 扫描遗留 pending marker，补传 + 隔离损坏 marker +
+  恰好一次 flush。
 
 需要 node（>=22.6，原生 type stripping）可执行；没有 node 的机器跳过。
 """
@@ -52,44 +57,79 @@ def render_extension_for_test(directory: Path) -> Path:
 
 @unittest.skipUnless(NODE, "node executable is required for the pi extension e2e")
 class PiExtensionE2ETest(unittest.TestCase):
-    def test_agent_end_capture_is_debounced_until_idle(self):
+    def run_driver(self, workdir: Path, extra_env=None) -> dict:
+        extension = render_extension_for_test(workdir)
+        state_dir = workdir / "state"
+        state_dir.mkdir()
+        hook_log = workdir / "hook-log.jsonl"
+        env = os.environ.copy()
+        env["MEMORY_HOOK_PI_CAPTURE_DELAY_MS"] = "300"
+        env["MEMORY_HOOK_STATE_DIR"] = str(state_dir)
+        env["HOOK_LOG"] = str(hook_log)
+        if extra_env:
+            env.update(extra_env)
+        result = subprocess.run(
+            [
+                NODE,
+                str(DRIVER),
+                str(extension),
+                str(workdir / "transcript.jsonl"),
+                str(hook_log),
+            ],
+            cwd=str(workdir),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            "e2e driver failed:\nstdout: %s\nstderr: %s"
+            % (result.stdout, result.stderr),
+        )
+        return json.loads(result.stdout.strip().splitlines()[-1])
+
+    def test_agent_end_enqueues_durably_and_flush_is_debounced(self):
         with tempfile.TemporaryDirectory() as directory:
-            workdir = Path(directory)
-            extension = render_extension_for_test(workdir)
-            state_dir = workdir / "state"
-            state_dir.mkdir()
-            hook_log = workdir / "hook-log.jsonl"
-            env = os.environ.copy()
-            env["MEMORY_HOOK_PI_CAPTURE_DELAY_MS"] = "300"
-            env["MEMORY_HOOK_STATE_DIR"] = str(state_dir)
-            env["HOOK_LOG"] = str(hook_log)
-            result = subprocess.run(
-                [
-                    NODE,
-                    str(DRIVER),
-                    str(extension),
-                    str(workdir / "transcript.jsonl"),
-                    str(hook_log),
-                ],
-                cwd=str(workdir),
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            self.assertEqual(
-                result.returncode,
-                0,
-                "e2e driver failed:\nstdout: %s\nstderr: %s"
-                % (result.stdout, result.stderr),
-            )
-            summary = json.loads(result.stdout.strip().splitlines()[-1])
+            summary = self.run_driver(Path(directory))
             self.assertTrue(summary["ok"])
-            # 2 次 idle 定时触发 + 1 次 shutdown 立即归档；中途 prompt/shutdown 各取消一次。
-            # v4 起 before_agent_start 不再自动 recall，只负责取消挂起的归档。
-            self.assertEqual(summary["captures"], 3)
-            self.assertEqual(summary["recalls"], 0)
+            self.assertEqual(summary["mode"], "main")
+            # 3 次 agent_end enqueue + 1 次 shutdown 最终 capture
+            self.assertEqual(summary["captures"], 4)
+            self.assertEqual(summary["enqueues"], 3)
+            # 仅空闲到期那一次 flush；prompt/shutdown 各取消一次
+            self.assertEqual(summary["flushes"], 1)
             self.assertEqual(summary["cancels"], 2)
+            self.assertEqual(summary["markerDeletes"], 3)
+
+    def test_session_start_catches_up_leftover_markers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(Path(directory), {"CATCHUP_MARKER": "1"})
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "catchup")
+            # old（成功）/ missing（transcript 缺失，marker 保留）/ extract（终态删除）
+            self.assertEqual(summary["captures"], 3)
+            self.assertEqual(summary["flushes"], 1)
+
+    def test_catchup_does_not_delete_newer_live_marker(self):
+        # 评审 P1：catch-up 与活体 agent_end 并发时，只能删自己读过的那代 marker。
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(
+                Path(directory), {"GENRACE": "1", "FAKE_DELAY_MS": "500"}
+            )
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "genrace")
+            self.assertEqual(summary["captures"], 2)
+
+    def test_flush_busy_is_retried_until_completed(self):
+        # 另一进程持 flush.lock（busy）时 flush 请求不得丢弃：有界重试至完成。
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(Path(directory), {"FLUSH_BUSY_ONCE": "1"})
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "main-busy")
+            self.assertEqual(summary["flushes"], 2)
+            self.assertEqual(summary["captures"], 4)
 
 
 if __name__ == "__main__":

@@ -14,9 +14,30 @@ Graphiti 语义检索噪音底线高：乱查（大小写无关）也会返回"�
 
 ## Hook 与 Pi 扩展
 
-### v4 AFK 防抖的 capture 丢失窗口
+### v4 AFK 防抖的 capture 丢失窗口（v5 已修复）
 
-v4 AFK 防抖有已确认的丢失窗口（2026-08-21 实测定性）：agent_end 后扩展只写 `capture_schedule`，若进程在防抖计时器到期前被杀——直接关终端**不会触发** `session_shutdown` 兜底——最后一段内容永不 capture。识别特征：pi-trace 末尾是孤立的 `capture_schedule` 且无后续 `capture`。另一观测盲区：capture 链路在 hook 脚本侧完全没有 trace（`trace_event` 只包 search），出现「capture exit 0 但 spool 无 job、objects 无快照、Hub 404」时无法事后定位根因，只能靠 spool × objects × Hub API 三方交叉排除。
+v4 AFK 防抖的丢失窗口（2026-08-21 实测定性，**v5 已修复**）：v4 中 agent_end 后扩展只写
+`capture_schedule`，进程在防抖到期前被杀（直接关终端不触发 `session_shutdown`）则尾部永不
+capture。v5 改为 agent_end 立即 enqueue-only 落 spool + write-ahead marker，丢失窗口压到
+「marker 落盘前的进程内微秒级」。v5 遗留观测注意：enqueue 链路在脚本侧仍无 hook-trace
+（`trace_event` 只包 search），但扩展侧 pi-trace 的 enqueue_done 带 hook 返回的严格契约
+（result/job_id/sha256），排障先看 enqueue_done.outcome 再去 spool 交叉核对。
+
+### v5 设计定版依据（2026-08-23 codex 独立评审）
+
+v5 设计定版依据（2026-08-23 codex 独立评审，报告 `.claude/plans/Pi归档启动补传.review.md`，
+原计划 2C/7M 被打回重写）：① **fire-and-forget 的 enqueue 没有持久化边界**（评审 C1）——
+handler 在子进程落盘前返回等于没保证，故 agent_end 必须 await（有上限超时，超时不杀子进程、
+marker 留下次 catch-up）；② **spool supersede 按 INSERT 先后而非 transcript 新旧**（评审 C2，
+既有缺陷）——并发 enqueue 会让旧快照后提交反向淘汰新快照，故 memory_hook.py 新增
+per-session enqueue 文件锁（`locks/enqueue-*.lock`，持锁后才读 transcript）；③ **flush 与
+enqueue 有对象删除竞态**（既有缺陷）——flush 先原子认领 queued→uploading（10 分钟租约，
+崩溃回收），supersede 只碰 queued，complete/fail 带状态条件防陈旧写者复活；④ 恢复记录用
+**pending-enqueue marker**（write-ahead，只代表「这次 enqueue 未确认」），不做 open-session
+登记——pi transcript 是 lazy 落盘，session_start 时文件可能不存在，登记会被多开窗口误删。
+capture 新增 `--no-flush`（只入队）与 `--json`（严格机器可读契约，异常非零退出；不带 --json
+的旧调用行为不变）。测试三层：python 单测（含 barrier 强制逆序的并发回归）+ Node e2e +
+真实脚本冒烟。实施计划：`.claude/plans/Pi归档启动补传.md`。
 
 ### 「hook 是否生效」必须分两层验证
 
