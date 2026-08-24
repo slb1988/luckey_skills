@@ -31,3 +31,4 @@ description: Pi agent（pi，@earendil-works 的 coding agent）使用与排障�
 - 扩展加载失败，先 `pi -ne`（无扩展启动）确认是扩展问题还是 pi 本身问题。
 - 报错细节看 `~/.pi/agent/pi-debug.log`。
 - 扩展冲突 / 插件卸载 / 配置问题 → 读 [references/troubleshooting.md](references/troubleshooting.md)。
+- auto-server 上更新 `.pi/skills` 必须先 `cd /home/dev/.pi/skills`：更新脚本按 cwd 定位仓库根，在 `/home/dev` 下运行会静默失败（exit 128，无输出）。

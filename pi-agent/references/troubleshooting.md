@@ -83,4 +83,29 @@ pi 从以下位置加载扩展，**项目级优先于全局**：
 
 ---
 
+## 5. auto-server 更新 `.pi/skills`：脚本按 cwd 定位仓库根
+
+**症状**
+
+在 auto-server（dev@auto-server）上执行 `.pi/skills` 更新脚本时无任何输出、静默失败，exit code 128。
+
+**原因**
+
+更新脚本用**当前工作目录**定位 git 仓库根。当时 cwd 是 `/home/dev`（不是 git 仓库），脚本内的 git 命令直接失败，且错误未被打印，表现为「什么都没发生」。
+
+**解决**
+
+先进入仓库目录再执行：
+
+```bash
+ssh dev@auto-server
+cd /home/dev/.pi/skills && <更新脚本>
+```
+
+**注意**：该仓库带 submodule `axton-obsidian-visual-skills`，更新后主库可能只剩 submodule 指针变更需要提交；两边都已是最新时无需提交。
+
+**通用结论**：任何「按 cwd 找仓库根」的脚本，静默失败先查 cwd 是否在仓库内。
+
+---
+
 > 扩展**开发**细节（扩展布局、hook API、注册 provider、多机共享原则）见项目内 `.pi/extensions/SKILL.md`（pi-extensions 技能）。
