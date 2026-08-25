@@ -54,9 +54,12 @@ NOISE_USER_TEXTS = {
 }
 UNCONFIGURED_USER_ID = "unconfigured"
 LEGACY_DEFAULT_USER_ID = "sun"
-# 客户端 capture opt-out：置 "1" 时 capture 直接返回，不入队、不发任何请求。
-# 用于 auto-skill extraction 子 session 等明确不想归档的场景；env 在 hook 进程
-# spawn 时从 agent 进程继承，过滤发生在入队前，服务器零开销。
+# 客户端 capture opt-out：置 "1" 且 transcript 签名确认是 extraction 子 session
+# 时 capture 直接返回，不入队、不发任何请求。用于 auto-skill extraction 子
+# session 等明确不想归档的场景；env 在 hook 进程 spawn 时从 agent 进程继承。
+# 注意：仅凭变量不再跳过（2026-08-25 起）——该变量是进程级共享状态，auto-skill
+# 在整个子 session 运行期间持有，同进程主 session 的 hook 也会继承到，必须配合
+# transcript 签名判定才不会误杀主 session。
 SKIP_CAPTURE_ENV = "MEMORY_HUB_SKIP_CAPTURE"
 # 兜底签名：auto-skill extraction 子 session 的首条 user 消息一定以此开头
 # （对应 .pi/extensions/auto-skill/lib/extractPrompt.ts 首行，改该行需同步此处）。
@@ -674,6 +677,47 @@ def load_team_current_member(cwd: str) -> Optional[str]:
     return None
 
 
+def read_persisted_env_var(name: str) -> Optional[str]:
+    """进程环境缺失时，回退读取用户级持久化位置的环境变量。
+
+    与 install_hooks.py 的持久化方式对齐：Windows 读 HKCU\\Environment 注册表，
+    POSIX 解析 ~/.profile / ~/.zprofile / ~/.bash_profile 里的 export 赋值
+    （同一文件取最后一次赋值，文件间按顺序取首个命中）。
+
+    背景：install 把 MEMORY_HUB_API_KEY / MEMORY_HUB_CLIENT_USER_ID 持久化到
+    用户级位置，但运行中的 agent（及其父进程 Orca/终端）可能是在持久化之前
+    启动的，进程环境里没有——hook 是逐事件短进程，每次 spawn 重新执行本函数，
+    因此无需重启 agent 即可自愈上传 401（2026-08-25 实例）。
+    """
+    if os.name == "nt":
+        try:
+            import winreg
+
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_QUERY_VALUE
+            ) as key:
+                value, _ = winreg.QueryValueEx(key, name)
+            return str(value) if value else None
+        except (OSError, FileNotFoundError):
+            return None
+    export_pattern = re.compile(
+        r"^\s*export\s+" + re.escape(name) + r"\s*=\s*(.+?)\s*$", re.MULTILINE
+    )
+    home = Path.home()
+    for filename in (".profile", ".zprofile", ".bash_profile"):
+        try:
+            content = (home / filename).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        value: Optional[str] = None
+        for match in export_pattern.finditer(content):
+            raw = match.group(1).strip()
+            value = raw.strip("'\"") if raw else None
+        if value:
+            return value
+    return None
+
+
 @dataclass
 class Config:
     hub_url: str
@@ -760,7 +804,10 @@ class Config:
             archive_project_id=os.environ.get(
                 "MEMORY_HUB_ARCHIVE_PROJECT_ID", "agent-history"
             ),
-            api_key=os.environ.get("MEMORY_HUB_API_KEY") or None,
+            # 进程环境优先；缺失时回退用户级持久化位置（install 写入注册表/profile），
+            # 让持久化之前启动的 agent 无需重启即可恢复上传（401 自愈）。
+            api_key=os.environ.get("MEMORY_HUB_API_KEY")
+            or read_persisted_env_var("MEMORY_HUB_API_KEY"),
             timeout_seconds=float(os.environ.get("MEMORY_HOOK_TIMEOUT_SECONDS", "8")),
             state_dir=state_dir,
             display_name=compact_text(
@@ -1875,9 +1922,6 @@ def command_capture(args: argparse.Namespace, config: Config, store: StateStore)
             print(json.dumps(payload, ensure_ascii=False))
         return code
 
-    # opt-out：auto-skill extraction 子 session 等场景置 MEMORY_HUB_SKIP_CAPTURE=1
-    if os.environ.get(SKIP_CAPTURE_ENV) == "1":
-        return emit({"result": "skipped_capture_env"})
     hook = read_hook_input()
     profile = request_user_profile(
         config,
@@ -1893,8 +1937,15 @@ def command_capture(args: argparse.Namespace, config: Config, store: StateStore)
     transcript_path = Path(transcript).expanduser()
     if not transcript_path.is_file():
         return emit({"result": "skipped_missing_file"})
-    # env 标记的兜底：按首条 user 消息签名识别 extraction 子 session
-    if transcript_is_extraction_subsession(transcript_path):
+    extraction = transcript_is_extraction_subsession(transcript_path)
+    # SKIP_CAPTURE_ENV 是进程级共享状态：auto-skill 在整个 extraction 子 session
+    # 运行期间持有它，同进程主 session spawn 的 hook 也会继承到（2026-08-25 曾因此
+    # 误杀 ObsidianVault 全部主 session 归档）。仅凭变量不足为据——必须 transcript
+    # 签名也确认是 extraction 子 session 才跳过；不匹配说明是被污染的主 session，
+    # 照常归档。
+    if os.environ.get(SKIP_CAPTURE_ENV) == "1" and extraction:
+        return emit({"result": "skipped_capture_env"})
+    if extraction:
         return emit({"result": "skipped_extraction"})
     # Esc 中断触发的 Stop：transcript 尾部是中断标记 → 不入队不上传。
     # 仅 Stop 跳过；SessionEnd 始终归档最终快照（幂等）。

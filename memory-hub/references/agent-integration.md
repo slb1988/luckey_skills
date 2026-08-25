@@ -190,8 +190,13 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HUB_TITLE_LLM_TIMEOUT=15
 # MEMORY_HUB_PROJECT_ALIASES=sununity=unity2018,foo=bar   # project 名归并，内置默认 sununity=unity2018
 #   ↑ 优先级低于 install 部署的别名 JSON（见下），仅作无安装环境的 fallback
-# MEMORY_HUB_SKIP_CAPTURE=1     # capture 完全跳过（不入队不发请求）；auto-skill extraction
-#                               # 子 session 等明确不归档的场景由扩展自行设置，见 memory_hook.py
+# MEMORY_HUB_SKIP_CAPTURE=1     # extraction 子 session 专用 opt-out：变量为 "1" 且
+#                               # transcript 首条 user 消息命中 extraction 签名时才跳过
+#                               # （2026-08-25 起必须双重命中——变量是进程级共享状态，
+#                               # auto-skill 在子 session 运行期间持有，同进程主 session
+#                               # 的 hook 也会继承，仅凭变量曾误杀主 session 归档）
+# MEMORY_HUB_API_KEY 回退：进程环境缺失时 memory_hook.py 自动读用户级持久化位置
+# （Windows 注册表 / ~/.profile 系列），持久化之前启动的 agent 无需重启即可 401 自愈
 ```
 
 Project 别名定版文件：skill 仓库 `assets/project-aliases.json` 是版本化模板（进 git），
