@@ -21,3 +21,13 @@ UE 构建报 `A conflicting instance of Global\UnrealBuildTool_Mutex_<hash> is a
 - `Engine/Build/Build.version`（depot rev#15 @121188 后未变）的 mtime 被工作区重拉刷新也会造成 `Build.version is newer` 型全量（#179 的引擎侧原因），属一次性遗留。
 
 背景机制备忘：链为 Task_Sync_CyanCook_Depot（P4SyncWorkspace.py 脚本 sync）→ Task_Unshelve（revert+unshelve，不 sync）→ TaskBuildUELinux，两链共用工作区 `DefaultAgent_MainDev`。注意两个同名文件：脚本 marker 曾是 `<workspace>/Saved/Build.version`；UBT 追踪的是 `Engine/Build/Build.version`。
+
+## Task_AiReview 评审结果恒为陈旧 verdict（2026-08-25，已修复）
+
+现象：result.json 报 `pi review unavailable: no parseable JSON in pi output`，tail 是 pi 模型歧义错误——但同构建的 pi_out.txt 里其实是完整有效的评审 JSON。排查路径：build 日志（pi exit 0、跑了 2m23s）→ artifacts 里的 pi_out.txt（有效）→ 发版本脚本逻辑。
+
+两个独立问题：
+1. **陈旧 result.json 复用 bug（根因）**：`AiReviewResultPublish.py` 的复用分支（本意服务 unshelve=0 空跑路径）只要 workspace 里存在上次评审留下的 result.json 就跳过 pi_out.txt 解析，换个时间戳原样转发。于是 14080（裸 `kimi-k3` 歧义失败）的 error 结果被 14192/14216 连续转发。修复（CL 126212，rev#2）：复用仅限 `unshelve_cl == "0"`；pi_out.txt 缺失时合成 error 结果，杜绝陈旧结果外泄。kts 侧（CL 1259）评审步骤开头加 `rm -f Saved/ai_review/result.json` 双保险。
+2. **pi 模型歧义（首次失败的来源）**：agent 上多 provider 都有 kimi-k3（anthropic/opencode-go 已认证），裸名报 `Model "kimi-k3" is ambiguous across providers`。修复：`env.PI_MODEL` 用 `anthropic/kimi-k3`（provider 前缀）。探测 agent pi 环境的方法：临时给 TaskPrintP4Ignore 挂诊断步骤（`pi --version`、`pi --list-models kimi`、`pi auth print-api-key --provider X` 探测认证、打完即撤）；**单独触发带 `%reverse.dep.*.DefaultAgent|.*%` 参数的任务会 "no compatible agents"——必须经 Flow 触发或在 trigger 里显式传参**（reverse.dep 由 Flow 顶层定义提供）。
+
+其他：pi 评审步骤已改 session 落盘（`--session-dir Saved/ai_review/sessions --session-id review-<buildId>`，随 artifactRules 发布）；用户本地 pending CL 126136 修复了 Collect 脚本拉编译日志的 406（/snapshot-dependencies 子资源端点在 TC 2026.1 上 406，须用 builds 资源 fields 形式）。
