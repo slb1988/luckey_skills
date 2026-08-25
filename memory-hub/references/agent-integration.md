@@ -67,6 +67,35 @@ install 同时会把进程环境里的 `MEMORY_HUB_API_KEY` 一并持久化，�
 > 全新机器无法自助生成 token：dashboard 的 `POST /api/v1/auth/tokens` 本身也要求
 > `DASHBOARD_API_KEY`，首次接入必须有人在面板 UI 手工生成 agent token（mhu_...）。
 
+### Windows pty 下 install 永久阻塞（2026-08 实测）
+
+install 有两处交互输入，都以 `sys.stdin.isatty()` 为门：
+
+1. 未给 `--project` 且本机无映射：`sys.stdin.readline()` 询问本机 project——**空行 = 接受建议值并落盘**
+   `{"*": "<建议值>"}`（meta 记 `source: "prompt"`）。自动化里空 readline 会静默写入用户没选过的
+   catch-all 映射。
+2. API key 既不在进程环境也不在持久化位置：`getpass.getpass()` 隐藏输入 token。
+
+agent 的 pty shell（pi bash tool 等）里两个坑叠加会卡死 install：pty 下 `isatty()` 恒 True，
+`< /dev/null` 重定向不改变它；且 Windows 的 getpass 实现是 `win_getpass`（msvcrt 直读控制台），
+**完全无视 stdin 重定向**，没人敲键盘就永远阻塞（install 自身无超时）。
+
+非交互正确姿势：
+
+- 首选：显式 `--project <id>` + 预先把 `MEMORY_HUB_API_KEY` 持久化（或写进进程环境）——两个
+  prompt 分支都不会进入；
+- 备选：monkeypatch 包住 main——
+  ```bash
+  python -c "import getpass,sys; getpass.getpass=lambda prompt='':''; \
+    sys.argv=['install_hooks.py','install','--agents','auto','--user-id','<id>']; \
+    sys.path.insert(0, r'<SKILL_DIR>\scripts'); import install_hooks; raise SystemExit(install_hooks.main())"
+  ```
+- 已卡住时定位：`python -X faulthandler` 并在调 main 前
+  `faulthandler.dump_traceback_later(25, exit=True)`，栈直接指到阻塞行。
+
+误落盘的本机映射在 state dir `project-aliases.local.json`，删文件即恢复 cwd 派生归属；它与用户身份
+（`MEMORY_HUB_CLIENT_USER_ID` / `client-profile.json`）是两套独立配置，删映射不影响身份。
+
 **install 建议指定本机 project（`--project`）**：它写入 state dir 的 `project-aliases.local.json`
 （机器级字典映射 `{"aliases":{"*":"<id>"}}`，不进 git、不随 skill 模板扩散），本机所有
 capture/search/批量归档默认都落该 project，与其他机器的项目完全隔离。映射里 `"*"` 是 catch-all，
@@ -103,7 +132,8 @@ check 的复检项除 hook 安装副本外还包括：
   （Windows 读注册表）区分「完全没配」与「已持久化但本进程未加载」，探测身份也按同一回退链解析
   （避免占位用户被 scope 拦截误判 token 无效）；两者皆无 → check 失败并按平台给出持久化指引；
   已配置还会实测 token 是否被服务端接受（401 → 失败提醒重新生成）。服务端不可达时 auth 项降级为
-  warning 不影响总结果。
+  warning 不影响总结果。补配 key 后，认证失败期积压的 queued job 用 `memory_hook.py flush --limit 100`
+  重放（重复跑到 queued=0）；job 入队时已固化 user/project，事后改本机映射不回写已入队 job。
 - **Pi 扩展 EXTENSION_VERSION**：已安装副本的版本号与模板
 （`assets/pi-memory-hub.ts`）不一致时报 `extension version X is outdated (managed Y); rerun install`，
 重新执行 install 即可重新发布。修改模板后必须递增模板里的版本号，否则 check 无法感知升级。
