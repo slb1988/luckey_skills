@@ -215,6 +215,8 @@ python3 "$SKILL_DIR/scripts/upload_sessions.py" --project-id unity2018 --dry-run
 - **不要在对话中回显 `.env` 全文**（虽然当前无 secret，但生产会加 API key）。
 - **venv 曾是从 macOS 拷来的坏环境**，在 NAS 上需要重建（见 [deploy.md](references/deploy.md)）。
 - **本机跑脚本用 `python3`，不是 `/usr/bin/python3`**（NAS 上无此路径），见 [agent-integration.md](references/agent-integration.md)。
+- **`enqueue_done outcome=skipped_capture_env` = 快照根本没进 spool**（write-ahead marker 直接删，不是上传失败，补传也不会捞到）：memory-hub 扩展自身的 `skipCapture` 是**加载时缓存**的，但 spawn 出的 hook 子进程继承的是**当前**进程环境——任何扩展把 `MEMORY_HUB_SKIP_CAPTURE=1` 挂在共享 `process.env` 上，窗口期内所有 capture 都被整段跳过。实测污染源：auto-skill 扩展在 extraction 子 session 的分钟级 `await prompt()` 期间持有了这个变量（已修复收窄到 createAgentSession/dispose 两个毫秒级窗口）；现象特征是「同机其他项目正常 enqueued、某项目连续 skipped_capture_env」。hook 侧另有 transcript 首消息签名检测（`skipped_extraction`）兜底，所以收窄窗口是防误判不是防泄漏。
+- **capture/flush 只读进程环境的 `MEMORY_HUB_API_KEY`，注册表回退只有 check 有**：所以 check 报 `token_accepted: true` 不代表运行中的 agent 能上传——key 持久化进注册表**之前**被 Orca/终端拉起的进程环境里没有它，全部 401，必须重启 agent（及其父级 Orca/终端）才继承。spool 的 flush 是 **FIFO 队头阻塞**：队头 job 持续 401 重试会饿死后面 attempts=0 的 job。应急恢复：用注册表里的 key 临时注入当前 shell 环境，手动跑一次 `memory_hook.py flush` 清积压，再重启 agent。
 
 Hub 投递 Graphiti 前会过一道内容清洗层 `strip_archival_boilerplate()`（service.py）：按模式剥掉归档摘要开头的元数据套话，只留知识正文进入抽取。当前覆盖三种前缀：`xx 会话归档，工作目录：…。`（legacy）、`xx 会话「标题」，工作目录：…。`、`xx 会话「标题」（日期，工作目录：…）。`。新前缀出现时在此加模式即可对存量内容生效——它作用于投递时刻而非写入时刻，改模式不需要回写 SQLite。
 
