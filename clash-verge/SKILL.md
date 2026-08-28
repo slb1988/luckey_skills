@@ -67,6 +67,17 @@ intercom.io  intercomcdn.com
 
 **建议给 OpenAI 建独立 select 分组，不要直接指主代理分组**：OpenAI 封香港 IP，主分组一旦被切到香港节点就全灭；独立分组可以固定到美国/日本节点，不受日常切换影响。
 
+## Global 模式的两个铁律
+
+用户常年 Global 模式时必须记住：
+
+1. **Global 模式忽略所有 rules**——包括 profile 里自带的 `IP-CIDR,10.0.0.0/8,DIRECT`。所有流量进 GLOBAL 分组。想让某个网段「任何模式下都不走代理」，加规则没用，要用网络层的方案：
+   - **TUN 流量**：配置 `tun.route-exclude-address`（如 `10.77.77.0/24`），该网段不进 TUN 网卡，与模式无关。写到全局 `Merge.yaml` 里持久化（对订阅更新和切 profile 都免疫）。
+   - **显式走 mixed 端口的流量**（如 Codex CLI 的 HTTP_PROXY 环境变量）：Global 模式下核心层面无解，只能在应用侧设置 `NO_PROXY`（列具体 IP 最保险，CIDR 写法各语言库支持不一）。
+2. **TUN 路由改动热重载不生效**：`PUT /configs` 重载后配置里能看到 route-exclude-address，但 Windows 路由表不重建，必须 `POST /restart` 重启核心（API 见下）。注意重启会断现有连接几秒。
+
+补充排查技巧：TUN 的 auto-route 会给全网段（含内网段）挂 metric 0 的路由树，**同前缀下 metric 0 会赢过本机已连接的物理路由**——所以「明明是直连内网段却被代理」先看路由表（Windows: `route print -4 | findstr <网段>`）。
+
 ## mihomo 控制 API 速查
 
 连接方式（管道/socket/TCP）见对应系统的 references。认证头：`Authorization: Bearer <secret>`（secret 在运行时配置里，Verge 常见默认值是 `set-your-secret`）。
@@ -75,6 +86,8 @@ intercom.io  intercomcdn.com
 - `GET /proxies/<分组名>` — 响应里 `now` 字段是当前选中节点，`all` 是候选列表
 - `PUT /proxies/<分组名>`，body `{"name":"<节点名>"}` — 切换节点
 - `GET /proxies/<节点名>/delay?timeout=5000&url=https%3A%2F%2Fwww.gstatic.com%2Fgenerate_204` — 测活
+- `PUT /configs?force=true`，body `{"path":""}` — 热重载当前配置（不含 TUN 路由重建）
+- `POST /restart`，body `{"path":""}` — 重启核心进程（TUN 改动后必须）
 - **中文分组名/节点名必须 URL 编码**
 
 排查脚本模板放在 [scripts/](scripts/) 下，按系统选用，别每次重写。

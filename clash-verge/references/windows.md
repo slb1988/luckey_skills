@@ -58,4 +58,32 @@ curl -x http://127.0.0.1:7897 -s http://ipinfo.io/json
 
 # 详细握手过程（区分 CONNECT 失败 vs TLS 挂起）
 curl -x http://127.0.0.1:7897 -v -o NUL --connect-timeout 12 https://<目标域名>
+
+# 内网网段是否被 TUN 劫持（TUN 路由 metric 0 会赢过物理路由）
+route print -4 | findstr "<网段前緺>"
+
+# 本机有哪些网卡/地址（确认内网段是不是本机直连）
+powershell -Command "Get-NetIPAddress -AddressFamily IPv4 | Format-Table IPAddress, InterfaceAlias"
+```
+
+## 配置持久化：全局 Merge.yaml
+
+应用数据目录下 `profiles\Merge.yaml` 是「全局扩展配置」，对所有 profile 生效、订阅更新不丢。加任意顶层字段（如 `tun:`）会合入最终配置。改完后：
+
+1. 同步改一份到运行时 `clash-verge.yaml`（保证立即生效）
+2. 调管道 API `POST /restart` 重启核心（TUN 改动热重载不重建路由表）
+
+实测过的全局 TUN 排除内网段配置（写在 Merge.yaml）：
+
+```yaml
+tun:
+  enable: true
+  stack: gvisor
+  auto-route: true
+  strict-route: false
+  auto-detect-interface: true
+  route-exclude-address:
+    - <内网段/24>
+  dns-hijack:
+    - any:53
 ```
