@@ -7,7 +7,7 @@
 | 文件/目录 | 作用 |
 |---|---|
 | `profiles\<id>.yaml` | 订阅 profile。**订阅更新会覆盖**，临时改动先备份 `.bak`，长期方案用 Merge |
-| `profiles.yaml` | profile 列表 + 各分组选择缓存（UI 上选的节点持久化在这里） |
+| `profiles.yaml` | profile 列表：`current:` 指向活动 profile；每个订阅可绑定 merge/script/rules/proxies/groups 五个辅助文件（UI 右键「编辑规则/代理/组」生成的那些无名文件），还有各分组选择缓存 |
 | `verge.yaml` | Verge 设置：端口覆盖、TUN（`enable_tun_mode`）、系统代理开关。端口以这里为准 |
 | `clash-verge.yaml` | **合并后的运行时配置，核心实际加载它**，排查看这份 |
 | `logs\` | 核心日志 |

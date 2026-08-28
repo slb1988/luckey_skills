@@ -12,6 +12,7 @@ description: Clash Verge Rev（mihomo 内核）代理客户端的使用、排障
 3. **端口以 Verge 设置为准，不以 profile yaml 为准**。Verge 会覆盖 profile 里的 `port`/`mixed-port`；默认 mixed 端口 7897。看到 yaml 里写 7890 但实际监听 7897 是正常现象，不是配置错误。
 4. **核心实际加载的是合并生成的运行时配置**（应用数据目录下的 `clash-verge.yaml`），排查时看它而不是看订阅 profile。
 5. **控制 API 走本机 IPC，不一定有 TCP 端口**。以运行时配置里的 `external-controller` / `external-controller-pipe` / `external-controller-unix` / `secret` 字段为准。
+6. **运行模式（Rule/Global）是运行时状态**。profile yaml 里的 `mode:` 只是初始值，GUI 切换只改运行时；排查时以 `GET /configs` 返回的 mode 为准，不要看 yaml 猜。
 
 ## 系统相关细节
 
@@ -76,7 +77,7 @@ intercom.io  intercomcdn.com
    - **显式走 mixed 端口的流量**（如 Codex CLI 的 HTTP_PROXY 环境变量）：Global 模式下核心层面无解，只能在应用侧设置 `NO_PROXY`（列具体 IP 最保险，CIDR 写法各语言库支持不一）。
 2. **TUN 路由改动热重载不生效**：`PUT /configs` 重载后配置里能看到 route-exclude-address，但 Windows 路由表不重建，必须 `POST /restart` 重启核心（API 见下）。注意重启会断现有连接几秒。
 
-补充排查技巧：TUN 的 auto-route 会给全网段（含内网段）挂 metric 0 的路由树，**同前缀下 metric 0 会赢过本机已连接的物理路由**——所以「明明是直连内网段却被代理」先看路由表（Windows: `route print -4 | findstr <网段>`）。
+补充排查技巧：TUN 的 auto-route 不是两条 /1 了事，而是按排除范围**二分出整棵 CIDR 路由树**（排除的网段在树上留「洞」），路由全挂 metric 0——**同前缀下 metric 0 会赢过本机已连接的物理路由**。所以「明明是直连内网段却被代理」先看路由表（Windows: `route print -4 | findstr <网段>`），看到这种二分树模式就是 TUN 劫的。
 
 ## mihomo 控制 API 速查
 
