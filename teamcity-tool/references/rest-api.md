@@ -92,6 +92,33 @@ curl -s -X POST "http://192.168.2.13:8111/app/rest/buildTypes/id:<BT_ID>/paramet
   -d '{"name":"PARAM_NAME","value":"value"}'
 ```
 
+## Users, groups and permissions
+
+### Inspect auth settings (guest login, modules)
+```bash
+curl -s "http://192.168.2.13:8111/app/rest/server/authSettings" \
+  -H "Accept: application/json" -H "Authorization: Bearer $TOKEN"
+```
+`allowGuest:false` = guest login disabled; `perProjectPermissions:true` = per-project roles enabled.
+
+### List groups and a group's roles
+```bash
+curl -s "http://192.168.2.13:8111/app/rest/userGroups" \
+  -H "Accept: application/json" -H "Authorization: Bearer $TOKEN"
+curl -s "http://192.168.2.13:8111/app/rest/userGroups/key:<GROUP_KEY>/roles" \
+  -H "Accept: application/json" -H "Authorization: Bearer $TOKEN"
+```
+Known groups on auto-server: `ADMIN`, `ADVANCED_USER`, `ALL_USERS_GROUP` (contains every user), `COMMON_USER` (查看+运行), `CREATE` (修改创建).
+
+### Grant a role to a group (e.g. make project visible to all users)
+```bash
+curl -s -X POST "http://192.168.2.13:8111/app/rest/userGroups/key:ALL_USERS_GROUP/roles" \
+  -H "Content-Type: application/xml" -H "Accept: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '<role roleId="PROJECT_VIEWER" scope="p:<PROJECT_ID>"/>'
+```
+Role ids: `PROJECT_VIEWER`, `PROJECT_DEVELOPER`, `PROJECT_ADMIN`, `AGENT_MANAGER`, `SYSTEM_ADMIN`. Scope `g` = global, `p:<PROJECT_ID>` = per project.
+
 ## Build queue management
 
 ### Cancel a queued or running build
