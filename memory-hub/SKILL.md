@@ -59,6 +59,7 @@ outbox 重试与错误、最近更新的 session 列表、Graphiti episode 探�
 
 | 主题 | 文件 |
 |------|------|
+| 全链路总览（拓扑 / 写入 / 检索 / 观测 / 隐患） | [references/system-overview.md](references/system-overview.md) |
 | 部署 / 启动 / 重启 / 备份 / 排障 | [references/deploy.md](references/deploy.md) |
 | 排障与调试（检索 0 命中 / hook 生效验证 / spool / 测试平台坑 / Codex session 格式） | [references/troubleshooting.md](references/troubleshooting.md) |
 | 观测面板（dashboard）开发/部署备忘 | [references/dashboard.md](references/dashboard.md) |
