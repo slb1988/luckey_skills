@@ -135,6 +135,10 @@ echo "[后端 5/5] 启动服务..."
 #    source 会丢掉 venv 的 bin → 系统 python3 缺 flask_migrate。
 [ -f /etc/environment ] && set -a && . /etc/environment && set +a
 
+# lark-cli 安装在 npm-global，Flask 进程需要能在 PATH 中找到它
+# （/etc/environment 的 PATH 不含 npm-global，必须在 source 之后追加）
+export PATH="$HOME/.npm-global/bin:$PATH"
+
 # 激活 venv（放在 /etc/environment 之后，其 activate 会在现有 PATH 前追加 venv/bin）
 source ./venv/bin/activate
 
