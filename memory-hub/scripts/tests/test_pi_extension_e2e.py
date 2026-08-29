@@ -141,6 +141,10 @@ class PiExtensionE2ETest(unittest.TestCase):
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "main")
 
+    def test_project_bootstrap_default_timeout_is_two_minutes(self):
+        template = PI_TEMPLATE.read_text(encoding="utf-8")
+        self.assertIn("const defaultBootstrapTimeoutMs = 120 * 1000;", template)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -117,7 +117,7 @@ Memory 索引状态与错误码表见 [api-notes](references/api-notes.md)。
 
 Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`（仅标准库），本地 spool + 失败自动补传。
 检索以 agent 按需发起为主：Pi v6 额外在每个 session 首轮按 cwd/project 自动预热一次精炼项目背景
-（limit=6、最多 5000 字符、默认 4 秒超时，失败后本 session 不重试），后续深挖用 `memory_search`；
+（limit=6、最多 5000 字符、默认 120 秒超时，失败后本 session 不重试），后续深挖用 `memory_search`；
 Claude/Codex 用 `memory_hook.py search` CLI。行为契约写在 vault `AGENTS.md`「Memory Hub 按需检索」一节。
 
 Pi 扩展带 EXTENSION_VERSION（模板在 `assets/pi-memory-hub.ts`，改模板必须递增版本号）；check 报

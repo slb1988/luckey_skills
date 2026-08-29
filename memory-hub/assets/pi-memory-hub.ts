@@ -8,7 +8,7 @@ import { basename, dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
-const EXTENSION_VERSION = "6";
+const EXTENSION_VERSION = "7";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -28,7 +28,7 @@ const defaultFlushDelayMs = 5 * 60 * 1000;
 const defaultEnqueueTimeoutMs = 10 * 1000;
 const flushTimeoutMs = 120 * 1000;
 const catchupBudgetMs = 30 * 1000;
-const defaultBootstrapTimeoutMs = 4 * 1000;
+const defaultBootstrapTimeoutMs = 120 * 1000;
 const bootstrapLimit = 6;
 const bootstrapMaxChars = 5000;
 const bootstrapTopics =

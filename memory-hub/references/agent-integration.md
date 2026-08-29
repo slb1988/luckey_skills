@@ -116,7 +116,7 @@ Windows 写入注册表 `HKCU\Environment` 并广播 `WM_SETTINGCHANGE`；POSIX 
 - Stop 每轮直接执行 `capture`，不得带 `--flush-limit 0`；SessionEnd 再提交最终幂等快照。
 - Codex 必须通过 app-server `hooks/list` 确认 2 个 handlers 均为 `trusted`，且没有 Memory Hub 相关 warning/error。
 - Pi 全局扩展必须包含 `before_agent_start`、`agent_end`、`session_shutdown`；`before_agent_start` 在每个
-  session 的首轮按 cwd/project 阻塞执行一次精炼背景检索（默认 limit=6、最多 5000 字符、4 秒超时），
+  session 的首轮按 cwd/project 阻塞执行一次精炼背景检索（默认 limit=6、最多 5000 字符、120 秒超时），
   然后取消挂起归档。无结果、报错或超时均 fail-open，且本 session 后续 prompt 不重试；`agent_end`
   走 AFK 防抖上传（默认空闲 5 分钟才归档，新 prompt 取消重计），`session_shutdown` 立即归档。
 - 安装器返回的各 agent `ok=true`。服务健康检查失败可保留 durable spool，但必须明确报告"已安装、尚未端到端验证"，不得宣称上传链路正常。
@@ -186,7 +186,7 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HOOK_DEBUG=1             # 调试失败原因
 # MEMORY_HOOK_PI_CAPTURE_DELAY_MS=300000  # Pi agent_end AFK 防抖归档延时；默认 5 分钟，置 0 逐轮立即上传
 # MEMORY_HOOK_PI_BOOTSTRAP_RECALL=0        # 可选：关闭 Pi 每 session 首轮 project 背景预热
-# MEMORY_HOOK_PI_BOOTSTRAP_TIMEOUT_MS=4000 # 首轮预热超时；失败后当前 session 不重试
+# MEMORY_HOOK_PI_BOOTSTRAP_TIMEOUT_MS=120000 # 首轮预热超时；失败后当前 session 不重试
 # 会话标题 / 低价值过滤（内网 vLLM，hook 与 upload_sessions.py 共用，默认关）：
 # MEMORY_HUB_TITLE_LLM=1          # 默认 0 关闭；置 1 开启，关闭时退化为启发式标题且不做低价值过滤
 # MEMORY_HUB_TITLE_LLM_BASE_URL=http://192.168.2.76:8000/v1
