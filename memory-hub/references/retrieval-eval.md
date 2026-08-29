@@ -19,6 +19,9 @@ release 只做明确授权的运维。
 4. 对关键失败逐条做“存错/取错”诊断（见下一节）。
 5. 用真实 Pi 做成对测试：首次 bootstrap-only 与仅开放一次 `memory_search`；记录 session id、
    cwd/project、query、工具耗时、注入字符数、模型 token/成本、答案与人工评级。
+   **每一回合开始前先轮转 trace**：`python scripts/rotate_pi_trace.py`（需要脚本侧视角时加
+   `--include-hook-trace`），把旧的 pi-trace.jsonl 移到 state dir 的 `trace-backups/`，
+   保证当轮 trace 只含本轮事件，逐 case 分析不被历史记录污染。
 6. 先过小项目 answer-level 验收，再扩大 golden/project；指标退化时停止全量发布。
 
 ## 存错还是取错
