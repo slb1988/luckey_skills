@@ -150,4 +150,40 @@ cd /home/dev/.pi/skills && <更新脚本>
 
 ---
 
+## 7. Skill 名称冲突告警：`.agents/skills` 扫描把命令模板当成 skill
+
+**症状**
+
+pi 启动时报 `Skill conflicts`：
+
+```
+"commands" collision:
+  ✓ auto (project) .../.agents/skills/diagram-design/commands/export-diagram.md
+  ✗ .../commands/import-drawio.md (skipped)  ...
+```
+
+**原因**
+
+pi 对 `.agents/skills/`（含 cwd 及祖先目录）的扫描规则与 `.pi/skills` 不同：**分组目录里任何带 `description` frontmatter 的嵌套 .md 都会被当作 skill**（见 `dist/core/package-manager.js` 的 `collectSkillEntries`，mode="agents" 时 `dir !== root` 的 .md 全收）。名字回落到父目录名 → `diagram-design/commands/*.md` 全部叫 "commands"、prompts/ 全部叫 "prompts" → 同名冲突，第一个胜出，其余 skipped，还污染系统提示里的 skills 列表。
+
+本仓库踩坑点：`diagram-design` 是 vendored 的多 harness 仓库，**根目录没有 SKILL.md**（真身在 `skills/diagram-design/SKILL.md`），扫描器不会在它的根目录停住，于是递归撞上 Claude Code 斜杠命令模板 `commands/*.md` / `prompts/*.md`（它们必须带 `description` frontmatter）。根目录有 SKILL.md 的 skill（如 frontend-slides）不受影响——扫到 SKILL.md 就停止递归。
+
+**解决**
+
+pi 的资源扫描器**尊重 `.gitignore` / `.ignore` / `.fdignore`**（`addIgnoreRules`，每层目录累积规则）。在 skills 仓库根放 `.ignore`：
+
+```
+diagram-design/commands/
+diagram-design/prompts/
+```
+
+已落地：`.claude/skills/.ignore`（luckey_skills 仓库，commit c12813b）。用 `.ignore` 而非 `.gitignore`：git 不读它，语义上只是「扫描器忽略」，且不动 vendored 树，上游更新不冲突；对其他 harness（Codex 等）无影响。
+
+**排查技巧**
+
+- 复现/验证扫描结果：用 pi 自带 `node_modules/ignore` 写个复刻 `collectSkillEntries` 的小脚本跑 `.agents/skills`，对比加 `.ignore` 前后（本次验证：9 个 bogus skill → 0，59 个真 skill 全保留）。
+- 判断某 skill 发现来源：看冲突报告里的路径前缀——`.agents/skills/...` 走 agents 分组规则；settings `skills[]` 数组路径只递归收 SKILL.md，嵌套 .md 不会误收。
+
+---
+
 > 扩展**开发**细节（扩展布局、hook API、注册 provider、多机共享原则）见项目内 `.pi/extensions/SKILL.md`（pi-extensions 技能）。
