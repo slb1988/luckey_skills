@@ -1455,6 +1455,11 @@ class HubClient:
             raise HubError("HTTP %s: %s" % (error.code, compact_text(detail, 1000)))
         except urllib.error.URLError as error:
             raise HubError(str(error.reason))
+        except OSError as error:
+            # http.client 会把对端 RST（WinError 10054 / ECONNRESET）以裸 OSError
+            # 抛出（典型场景：服务端在客户端仍在发送大 body 时提前返回错误并关闭
+            # 连接）。统一包成 HubError，调用方（如 full 上传降级、重试）才能兜底。
+            raise HubError(str(error))
         if not payload:
             return {}
         try:
@@ -1584,6 +1589,7 @@ class HubClient:
                         size_bytes=int(job["full_size_bytes"]),
                         sha256=job["full_sha256"],
                         object_name="%s/%s" % (job["source"], Path(job["transcript_path"]).name),
+                        retry_salt=str(job["attempts"]),
                     )
                 except HubError as error:
                     if os.environ.get("MEMORY_HOOK_DEBUG") == "1":
@@ -1601,6 +1607,7 @@ class HubClient:
             path=snapshot_path,
             size_bytes=int(job["size_bytes"]),
             sha256=job["sha256"],
+            retry_salt=str(job["attempts"]),
         )
         base_version = int(session["latest_version"]) if session else None
         version_request: Dict[str, Any] = {
@@ -1645,6 +1652,7 @@ class HubClient:
         size_bytes: int,
         sha256: str,
         object_name: Optional[str] = None,
+        retry_salt: str = "",
     ) -> str:
         """上传一个 session 相关文件（gzip，幂等键含内容 sha），返回 file_id。"""
         request_body: Dict[str, Any] = {
@@ -1657,41 +1665,66 @@ class HubClient:
         }
         if object_name is not None:
             request_body["object_name"] = object_name
-        upload = self.request(
-            "POST",
-            "/v1/files/uploads",
-            project_id,
-            user_id,
-            idempotency_key=idempotency_key,
-            agent_id=agent_id,
-            json_body=request_body,
-        )
-        upload_id = upload["upload_id"]
-        file_id = upload["file_id"]
-        file_status = self.request(
-            "GET", "/v1/files/%s" % file_id, project_id, user_id, agent_id=agent_id
-        )
-        if file_status.get("status") != "available":
-            content = path.read_bytes()
-            self.request(
-                "PUT",
-                "/v1/files/uploads/%s/content" % upload_id,
-                project_id,
-                user_id,
-                body=content,
-                content_type="application/gzip",
-                agent_id=agent_id,
+        # 服务端按幂等键原样重放首次响应：若上次上传会话已过期（TTL 10 分钟），
+        # 重放拿回的是同一个失效 upload_id，PUT 必然失败（410/404；大 body 还会
+        # 因服务端提前关连接被 RST 成 WinError 10054），且每次重试结果相同——
+        # 一次瞬时网络错误会因此固化成永久卡死（FIFO 队头阻塞，实测 job 1210
+        # 卡 106 次）。检测到过期的 file 或 PUT/complete 失败时，换全新幂等键
+        # 重建上传会话自愈；retry_salt 保证跨 flush 运行的重建键不重复。
+        last_error: Optional[Exception] = None
+        for attempt in range(3):
+            key = (
+                idempotency_key
+                if attempt == 0
+                else "%s:reinit-%s-%d" % (idempotency_key, retry_salt, attempt)
             )
-            completed = self.request(
+            upload = self.request(
                 "POST",
-                "/v1/files/uploads/%s/complete" % upload_id,
+                "/v1/files/uploads",
                 project_id,
                 user_id,
+                idempotency_key=key,
                 agent_id=agent_id,
+                json_body=request_body,
             )
-            if completed.get("status") != "available":
-                raise HubError("uploaded file did not become available")
-        return file_id
+            upload_id = upload["upload_id"]
+            file_id = upload["file_id"]
+            file_status = self.request(
+                "GET", "/v1/files/%s" % file_id, project_id, user_id, agent_id=agent_id
+            )
+            status = file_status.get("status")
+            if status == "available":
+                return file_id
+            if status == "expired":
+                # 上传会话已过期/被清理，直接重建，不要往失效 URL PUT。
+                continue
+            try:
+                content = path.read_bytes()
+                self.request(
+                    "PUT",
+                    "/v1/files/uploads/%s/content" % upload_id,
+                    project_id,
+                    user_id,
+                    body=content,
+                    content_type="application/gzip",
+                    agent_id=agent_id,
+                )
+                completed = self.request(
+                    "POST",
+                    "/v1/files/uploads/%s/complete" % upload_id,
+                    project_id,
+                    user_id,
+                    agent_id=agent_id,
+                )
+                if completed.get("status") != "available":
+                    raise HubError("uploaded file did not become available")
+                return file_id
+            except HubError as error:
+                last_error = error
+                continue
+        if last_error is not None:
+            raise last_error
+        raise HubError("upload failed: file stuck in expired state")
 
     def search(
         self, query: str, project_id: str, limit: int, user_id: str
