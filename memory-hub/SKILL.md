@@ -65,6 +65,7 @@ outbox 重试与错误、最近更新的 session 列表、Graphiti episode 探�
 | 观测面板（dashboard）开发/部署备忘 | [references/dashboard.md](references/dashboard.md) |
 | API 参考（端点总览、写入流程、索引状态、错误码）与实测备忘（Idempotency-Key、字段约束、常用 curl） | [references/api-notes.md](references/api-notes.md) |
 | 已知 project 一览与检索 scope 选择 | [references/projects.md](references/projects.md) |
+| 误归档 session 定点清理 runbook（足迹表结构 / named 对象共享坑 / 删除顺序） | [references/cleanup-misscoped-sessions.md](references/cleanup-misscoped-sessions.md) |
 | Hook 安装 / 身份配置 / 环境变量 | [references/agent-integration.md](references/agent-integration.md) |
 | outbox 确认机制 / 大批量 retry 判读（graphiti 排队 vs 确认失效） | [memory-center/references/ingest-performance.md](../../memory-center/references/ingest-performance.md) |
 | 项目完整使用手册（写入/检索示例） | `docs/USAGE.md` |
@@ -208,6 +209,7 @@ python3 "$SKILL_DIR/scripts/upload_sessions.py" --project-id unity2018 --dry-run
 
 ## 关键坑位
 
+- **删 session 对象文件时 named 对象可能物理共享**：归档快照是 sha 寻址（`objects/<2hex>/<sha>.json.gz`），但完整 session 文件是**文件名寻址**（`objects/named/<source>/<原始文件名>.json.gz`）——同一 jsonl 重传到别的 project 会撞同一个 storage_key，后上传者覆盖物理文件。只按 sha256 判孤儿会误删正确副本的文件；必须同时按 storage_key 反查 files 表。完整清理流程见 references/cleanup-misscoped-sessions.md。
 - **搜索空结果先怀疑 project scope 错了**：记忆按 `project:{project_id}` 隔离，用错 `X-Project-Id` 必然 0 命中（这是设计行为，不是 bug）。先 `GET /v1/projects` 或查 [references/projects.md](references/projects.md) 换 project 重试。
 - **`.env` 用相对路径**（`./data/...`），必须从项目目录启动，否则 data 会写到别处。
 - **本项目没有 Neo4j 凭证**，也不需要。若 agent 拿着 Neo4j URI/密码说"连不上 memory"，先确认它走的是 Memory Hub 而不是直连 Neo4j。
