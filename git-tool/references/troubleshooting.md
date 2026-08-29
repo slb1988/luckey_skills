@@ -21,4 +21,4 @@
   git submodule update --init --recursive
   ```
   若 update 脚本已 auto-stash，merge 成功后记得 `git stash pop`。
-- **`git-tool-update.sh` 以 cwd 定位仓库根**：脚本用 `git rev-parse --show-toplevel` 取 ROOT，从仓库外（如 `$HOME`）执行会以 exit 128 静默失败、无任何输出。必须先 `cd` 进仓库目录再运行脚本。
+- **脚本定位仓库根的多级 fallback（2026-08 起）**：早期版本仅用 `git rev-parse --show-toplevel` 以 cwd 定位，从仓库外执行会 exit 128 静默失败。现已改为三级探测：cwd 仓库 → 脚本自身所在仓库（脚本固定位于 `<repo>/git-tool/` 内）→ 候选路径 `./skills`、`~/.pi/skills`、`~/.claude/skills`。任意目录下执行均可；全部失败才报错并列出已尝试位置。

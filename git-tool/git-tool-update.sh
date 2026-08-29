@@ -1,11 +1,27 @@
 #!/bin/bash
 # git-tool-update.sh — sync main repo + all submodules in one shot
-# Usage: bash .claude/skills/git-tool/git-tool-update.sh
+# Usage: bash <skills_repo>/git-tool/git-tool-update.sh   (任意目录下执行均可)
 set -euo pipefail
 
-ROOT="$(cd "$(git rev-parse --show-toplevel 2>/dev/null)" && pwd)" || {
-  echo "[ERROR] not in a git repo"; exit 1
+# ---- 定位仓库根（多级 fallback，适配多机环境）----
+# 1. cwd 在某个 git 仓库内 → 用之（优先当前目录）
+# 2. 脚本自身所在仓库（脚本固定位于 <repo>/git-tool/ 内，最可靠）
+# 3. 常见候选路径：./skills、~/.pi/skills、~/.claude/skills
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT=""
+if TOP="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  ROOT="$TOP"
+elif TOP="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"; then
+  ROOT="$TOP"
+else
+  for cand in "$PWD/skills" "$HOME/.pi/skills" "$HOME/.claude/skills"; do
+    if git -C "$cand" rev-parse --git-dir >/dev/null 2>&1; then ROOT="$cand"; break; fi
+  done
+fi
+[[ -n "$ROOT" ]] || {
+  echo "[ERROR] skills repo not found (tried: cwd, script dir, ./skills, ~/.pi/skills, ~/.claude/skills)"; exit 1
 }
+ROOT="$(cd "$ROOT" && pwd)"
 cd "$ROOT"
 REPO="$(git rev-parse --short HEAD 2>/dev/null)"
 BRANCH="$(git branch --show-current 2>/dev/null)" || BRANCH="main"

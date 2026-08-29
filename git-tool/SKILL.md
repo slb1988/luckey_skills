@@ -126,13 +126,18 @@ git -C <parent> commit -m "chore: inline <name>, drop submodule link"
 
 ---
 
-## 仓库位置（重要）
+## 仓库位置（多机环境，重要）
 
-**仓库根统一写 `~/.pi/skills`，不要写死具体机器路径**（`/home/dev/...`、`/home/ubuntu/...`、QNAP 的 `/share/...` 都是同一仓库在不同机器上的不同挂载点，文档里出现具体绝对路径会在其他机器上误导）。
+这个 skill 在多台机器上执行，仓库根路径因环境而异（`~/.pi/skills`、`~/.claude/skills`、QNAP 的 `/share/.../homes/<user>/.pi/skills` 等都是同一仓库的不同克隆/挂载点）。**文档和命令里不要写死绝对路径，统一用 `~/.pi/skills` 指代，实际执行时依赖脚本自动定位。**
 
-- 仓库根：`~/.pi/skills`（早期文档里的 `.claude/skills` 为旧路径，一律按 `~/.pi/skills` 理解）
-- 脚本位置：`~/.pi/skills/git-tool/git-tool-update.sh` / `git-tool-commit.sh`
-- 脚本内部用 `git rev-parse --show-toplevel` 以 **cwd** 定位 ROOT：**必须先 `cd` 进仓库再执行**，在仓库内任意位置均可；从仓库外运行会 exit 128 静默失败（见 [troubleshooting](references/troubleshooting.md)）
+脚本定位仓库根的优先级（`git-tool-update.sh` / `git-tool-commit.sh` 内置）：
+
+1. **cwd 所在的 git 仓库** —— 优先当前目录，在任意仓库内执行即作用于该仓库
+2. **脚本自身所在仓库** —— 脚本固定位于 `<repo>/git-tool/` 内，通过 `git -C "$(dirname $0)" rev-parse --show-toplevel` 反查，最可靠，从任意目录（含仓库外）执行都能命中
+3. **常见候选路径** —— `./skills` → `~/.pi/skills` → `~/.claude/skills`，取第一个存在的 git 仓库
+
+全部失败才报错退出（会列出已尝试的位置）。因此**不再有「必须从仓库内执行」的限制**。
+
 - 该仓库自身现仅含 1 个 submodule：`axton-obsidian-visual-skills`（`diagram-design`/`frontend-slides`/`huashu-design` 已于 2026-08 转为普通文件 inline 入库，见上文「nested submodule 转普通文件」）
 
 **脚本自带了保留本地修改的能力**（`git-tool-update.sh` 自动 stash→pull→恢复 stash），所以即使仓库有未提交改动，也可以放心执行 update，改动会被暂存保护后还原。
@@ -144,9 +149,11 @@ git -C <parent> commit -m "chore: inline <name>, drop submodule link"
 推荐用脚本替代手动交互流程，避免浪费 token：
 
 ```bash
-cd ~/.pi/skills && bash git-tool/git-tool-update.sh   # 更新
-cd ~/.pi/skills && bash git-tool/git-tool-commit.sh   # 提交所有有改动的 submodule
+bash ~/.pi/skills/git-tool/git-tool-update.sh   # 更新（任意目录下执行均可，脚本自动定位仓库）
+bash ~/.pi/skills/git-tool/git-tool-commit.sh   # 提交所有有改动的 submodule
 ```
+
+路径按本机实际环境替换（`~/.claude/skills/...` 等），找不到时 agent 应按上文的定位优先级自行探测。
 
 ### git-tool-update.sh
 
