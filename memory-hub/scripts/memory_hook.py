@@ -322,10 +322,12 @@ def llm_classify_session(user_texts: List[str], last_assistant: str) -> Optional
         "你是编程助手会话的归档助手。下面是整个会话的全部用户消息（条数过多时为首尾抽样），"
         "请据此判断这个会话是否有归档价值，并给出主题标题。\n"
         "没有归档价值的会话：只是打招呼、闲聊、测试模型是否可用（如只说了 hi/hello）、"
-        "没有任何实际任务或技术内容；以及纯例行运维操作——如 git-tool update/sync/commit 仓库同步、"
-        "skill 更新提交、memory-hub check/install 等 hook 安装检查、批量上传 session 归档等机械性维护，"
-        "只有命令执行结果、没有可复用的技术内容。注意：运维会话中如果包含真实的故障排查、bug 修复或"
-        "技术决策（如发现并修复了某个问题），仍有归档价值。\n"
+        "没有任何实际任务或技术内容；以及纯执行类例行运维——如 git-tool update/sync/commit 仓库同步、"
+        "任意项目的部署/发布/构建上传（前后端 build、产物 dist 同步到服务器、服务重启）、"
+        "skill 更新提交、memory-hub check/install 等 hook 安装检查、批量上传 session 归档等"
+        "按既定流程执行、只有命令执行结果、没有可复用技术内容的机械性维护。"
+        "注意：运维会话中如果包含真实的故障排查、bug 修复或技术决策（如发现并修复了某个问题），"
+        "仍有归档价值。\n"
         "只输出 JSON：{\"meaningful\": true或false, \"title\": \"不超过20字的主题标题，meaningful为false时给空字符串\"}\n\n"
         "整个会话的用户消息：\n" + "\n".join(lines)
     )
