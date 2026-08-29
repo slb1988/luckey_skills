@@ -111,10 +111,10 @@ Windows 写入注册表 `HKCU\Environment` 并广播 `WM_SETTINGCHANGE`；POSIX 
 
 安装成功必须同时满足：
 
-- Claude Code/Codex 各有且仅有 2 个 Memory Hub handlers：Stop、SessionEnd（v4 起移除了
-  SessionStart/UserPromptSubmit 的自动 recall，检索改为 agent 按需发起）。
+- Claude Code/Codex 各有且仅有 3 个 Memory Hub handlers：UserPromptSubmit（首轮自动召回，
+  `recall` 子命令，2026-08-29 恢复：每 session 一次、fail-open、恒 exit 0）、Stop、SessionEnd。
 - Stop 每轮直接执行 `capture`，不得带 `--flush-limit 0`；SessionEnd 再提交最终幂等快照。
-- Codex 必须通过 app-server `hooks/list` 确认 2 个 handlers 均为 `trusted`，且没有 Memory Hub 相关 warning/error。
+- Codex 必须通过 app-server `hooks/list` 确认 3 个 handlers 均为 `trusted`，且没有 Memory Hub 相关 warning/error。
 - Pi 全局扩展必须包含 `before_agent_start`、`agent_end`、`session_shutdown`；`before_agent_start` 在每个
   session 的首轮按 cwd/project 阻塞执行一次精炼背景检索（默认 limit=6、最多 5000 字符、120 秒超时），
   然后取消挂起归档。无结果、报错或超时均 fail-open，且本 session 后续 prompt 不重试；`agent_end`

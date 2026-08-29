@@ -25,7 +25,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -60,6 +60,15 @@ LEGACY_DEFAULT_USER_ID = "sun"
 # 注意：仅凭变量不再跳过（2026-08-25 起）——该变量是进程级共享状态，auto-skill
 # 在整个子 session 运行期间持有，同进程主 session 的 hook 也会继承到，必须配合
 # transcript 签名判定才不会误杀主 session。
+# Claude/Codex 首轮自动召回（UserPromptSubmit hook → recall 子命令）的禁用开关。
+# 与 Pi 的 MEMORY_HOOK_PI_BOOTSTRAP_RECALL=0 语义对齐：置 "0" 时当轮不召回。
+RECALL_DISABLE_ENV = "MEMORY_HOOK_RECALL"
+# 首轮召回标记目录：每个 session 只查一次（含失败/空结果），避免 hub 故障时
+# 每个 prompt 都叠加检索延迟。按 mtime 超期 GC。
+RECALL_MARKER_DIRNAME = "recall-markers"
+RECALL_MARKER_MAX_AGE_SECONDS = 14 * 24 * 3600
+# prompt 太短时退回的通用项目背景 query（与 Pi 扩展 bootstrapTopics 保持一致）。
+RECALL_FALLBACK_TOPICS = "项目概况、核心架构、历史决策、当前进展、未完成事项、开发约定和重要注意事项"
 SKIP_CAPTURE_ENV = "MEMORY_HUB_SKIP_CAPTURE"
 # 兜底签名：auto-skill extraction 子 session 的首条 user 消息一定以此开头
 # （对应 .pi/extensions/auto-skill/lib/extractPrompt.ts 首行，改该行需同步此处）。
@@ -1816,9 +1825,20 @@ def flush_pending(store: StateStore, config: Config, limit: int) -> Dict[str, An
 
 
 def read_hook_input() -> Dict[str, Any]:
+    # hook payload 是 UTF-8 JSON（含中文 prompt）；Windows 上 sys.stdin 默认按
+    # 本地代码页（GBK/cp1252）解码会炸，必须显式走 buffer 按 UTF-8 读。
+    # 测试里 sys.stdin 被 patch 成 io.StringIO（无 .buffer），两种都兼容。
     try:
-        value = json.load(sys.stdin)
-    except (json.JSONDecodeError, UnicodeDecodeError):
+        stream = sys.stdin
+        data = (
+            stream.buffer.read()
+            if hasattr(stream, "buffer")
+            else stream.read()
+        )
+        if isinstance(data, bytes):
+            data = data.decode("utf-8")
+        value = json.loads(data)
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
         return {}
     return value if isinstance(value, dict) else {}
 
@@ -2148,6 +2168,117 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
         return 1
 
 
+def _recall_marker_path(config: Config, source: str, session_id: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9_.:-]", "_", session_id)[:128]
+    return config.state_dir / RECALL_MARKER_DIRNAME / ("%s-%s" % (source, safe))
+
+
+def _gc_recall_markers(config: Config) -> None:
+    """超期召回标记 GC（best-effort）：mtime 超过 14 天的删除，防目录无限增长。"""
+    marker_dir = config.state_dir / RECALL_MARKER_DIRNAME
+    try:
+        cutoff = time.time() - RECALL_MARKER_MAX_AGE_SECONDS
+        for entry in marker_dir.iterdir():
+            try:
+                if entry.is_file() and entry.stat().st_mtime < cutoff:
+                    entry.unlink()
+            except OSError:
+                continue
+    except OSError:
+        pass
+
+
+def command_recall(args: argparse.Namespace, config: Config) -> int:
+    """Claude/Codex UserPromptSubmit hook：每个 session 的首个用户 prompt 做一次
+    首轮召回（project hint + prompt 作为 query），检索结果经 stdout 注入上下文。
+
+    与 Pi 扩展 before_agent_start bootstrap 同语义：先登记 attempted（marker 落盘）
+    再查询——超时/空结果/服务故障都不在后续 prompt 重试。恒 exit 0（fail-open）：
+    非零退出会阻塞用户的 prompt 提交，故障只能静默（stderr 留痕 + trace）。
+    """
+    started = time.monotonic()
+    hook: Dict[str, Any] = {}
+    outcome = "error"
+    output = ""
+    query = ""
+    project_id = ""
+    try:
+        hook = read_hook_input()
+        session_id = hook.get("session_id")
+        if os.environ.get(RECALL_DISABLE_ENV) == "0":
+            outcome = "disabled"
+            return 0
+        if not isinstance(session_id, str) or not session_id:
+            outcome = "skipped_no_fields"
+            return 0
+        cwd = str(hook.get("cwd") or os.getcwd())
+        prompt = hook.get("prompt")
+        profile = request_user_profile(
+            config,
+            hook,
+            getattr(args, "user_id", None),
+            getattr(args, "display_name", None),
+            getattr(args, "summary", None),
+        )
+        if not profile_is_ready(profile):
+            outcome = "unconfigured"
+            return 0
+        assert profile is not None
+        marker = _recall_marker_path(config, args.source, session_id)
+        try:
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            # O_EXCL 原子登记 attempted：已存在 = 本 session 已查过（含失败），不再重试。
+            fd = os.open(str(marker), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+        except FileExistsError:
+            outcome = "duplicate"
+            return 0
+        _gc_recall_markers(config)
+        project_id = project_id_for_cwd(cwd, config.archive_project_id)
+        hint = Path(cwd).name or "当前项目"
+        focused = re.sub(r"\s+", " ", prompt if isinstance(prompt, str) else "").strip()[:1200]
+        query = (
+            "%s %s" % (hint, focused)
+            if len(focused) >= 4
+            else "%s %s" % (hint, RECALL_FALLBACK_TOPICS)
+        )
+        client = HubClient(
+            replace(config, timeout_seconds=args.timeout_seconds)
+        )
+        facts = client.search(query, project_id, args.limit, profile.user_id)
+        recalled = format_context(facts, args.max_chars)
+        if recalled:
+            output = (
+                "# Memory Hub：当前 project 的历史背景（自动首轮预热）\n"
+                "以下是历史检索结果，仅作为背景；若与当前代码或用户指令冲突，以当前事实为准。\n\n"
+                + recalled
+            )
+            print(output)
+        outcome = "injected" if recalled else "empty"
+        return 0
+    except Exception as error:
+        print("memory hook recall: %s" % error, file=sys.stderr)
+        return 0
+    finally:
+        trace_event(
+            config,
+            "recall",
+            {
+                "source": getattr(args, "source", None),
+                "cwd": str(hook.get("cwd") or "") if hook else "",
+                "session_id": hook.get("session_id") if hook else None,
+                "project_id": project_id,
+                "query": query,
+                "limit": getattr(args, "limit", None),
+                "max_chars": getattr(args, "max_chars", None),
+                "outcome": outcome,
+                "duration_ms": int((time.monotonic() - started) * 1000),
+                "output_chars": len(output),
+                "output": output,
+            },
+        )
+
+
 def command_configure(args: argparse.Namespace, config: Config) -> int:
     raw_user_id = args.user_id.strip()
     user_id = normalize_identifier(raw_user_id, UNCONFIGURED_USER_ID)
@@ -2218,6 +2349,15 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--limit", type=int, default=10)
     search.add_argument("--max-chars", type=int, default=8000)
     search.add_argument("--json", action="store_true")
+    recall = commands.add_parser("recall")
+    recall.add_argument("--source", required=True, choices=("claude", "codex"))
+    recall.add_argument("--user-id")
+    recall.add_argument("--display-name")
+    recall.add_argument("--summary")
+    recall.add_argument("--limit", type=int, default=6)
+    recall.add_argument("--max-chars", type=int, default=4000)
+    # 与 Pi 首轮 bootstrap 的 120s 故障上限对齐（正常响应是百毫秒级）。
+    recall.add_argument("--timeout-seconds", type=float, default=120)
     flush = commands.add_parser("flush")
     flush.add_argument("--limit", type=int, default=100)
     configure = commands.add_parser("configure")
@@ -2240,6 +2380,8 @@ def main() -> int:
         return command_capture(args, config, StateStore(config))
     if args.command == "search":
         return command_search(args, config)
+    if args.command == "recall":
+        return command_recall(args, config)
     if args.command == "flush":
         store = StateStore(config)
         result = flush_pending(store, config, args.limit)

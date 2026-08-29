@@ -121,11 +121,15 @@ Memory 索引状态与错误码表见 [api-notes](references/api-notes.md)。
 ## Agent 自动记忆集成
 
 Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`（仅标准库），本地 spool + 失败自动补传。
-检索以 agent 按需发起为主：Pi v9 在每个 session 首轮用 cwd/project + 首个用户 prompt 做一次
-focused recall（limit=6、默认最多 4000 字符、120 秒故障上限，失败后本 session 不重试），后续深挖用
-`memory_search`；首次预算可用 `MEMORY_HOOK_PI_BOOTSTRAP_LIMIT` 与
-`MEMORY_HOOK_PI_BOOTSTRAP_MAX_CHARS` 调整，避免每个 session 固定注入大段历史；
-Claude/Codex 用 `memory_hook.py search` CLI。行为契约写在 vault `AGENTS.md`「Memory Hub 按需检索」一节。
+**三端都有首轮自动召回**（2026-08-29 起）：Pi 走扩展 `before_agent_start`；Claude/Codex 走
+`UserPromptSubmit` hook → `memory_hook.py recall --source <agent>`。同一语义：首个用户 prompt +
+project hint 做一次 focused recall（limit=6、默认最多 4000 字符、120 秒故障上限），**每个 session
+只查一次**——recall 用 `recall-markers/` 落盘标记（含失败/空结果），Pi 用进程内集合；超时/空结果/
+服务故障都不在后续 prompt 重试。结果经 stdout 注入上下文；`MEMORY_HOOK_RECALL=0` 关闭
+Claude/Codex 侧，Pi 侧用 `MEMORY_HOOK_PI_BOOTSTRAP_RECALL=0`。后续深挖用 `memory_search`（Pi）/
+`memory_hook.py search` CLI（Claude/Codex）；首次预算可用 `MEMORY_HOOK_PI_BOOTSTRAP_LIMIT` 与
+`MEMORY_HOOK_PI_BOOTSTRAP_MAX_CHARS` 调整（Pi），避免每个 session 固定注入大段历史。
+行为契约写在 vault `AGENTS.md`「Memory Hub 按需检索」一节。
 
 Pi 扩展带 EXTENSION_VERSION（模板在 `assets/pi-memory-hub.ts`，改模板必须递增版本号）；check 报
 `extension version X is outdated` 时重新 install 发布即可。**v5 起改为回合级持久化（enqueue/flush 拆分）**：

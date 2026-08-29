@@ -20,11 +20,13 @@ from memory_hook import (
     classify_snapshot,
     command_capture,
     command_configure,
+    command_recall,
     flush_pending,
     format_context,
     head_tail_sample,
     load_session_texts,
     project_id_for_cwd,
+    read_hook_input,
     request_user_profile,
     save_client_profile,
     session_user_texts,
@@ -446,6 +448,173 @@ class MemoryHookTest(unittest.TestCase):
                 [{"fact": "legacy exact fact"}],
             )
             self.assertEqual(paths, ["/v1/memories/search-v2", "/v1/memories/search"])
+
+    def _recall_args(self, source="claude"):
+        return SimpleNamespace(
+            source=source,
+            user_id=None,
+            display_name=None,
+            summary=None,
+            limit=6,
+            max_chars=4000,
+            timeout_seconds=120,
+        )
+
+    @staticmethod
+    def _recall_payload(root, session_id="sess-1", prompt="怎么配置 recall 钩子"):
+        return json.dumps(
+            {
+                "session_id": session_id,
+                "cwd": str(root),
+                "prompt": prompt,
+                "hook_event_name": "UserPromptSubmit",
+            }
+        )
+
+    def test_read_hook_input_decodes_utf8_bytes_with_chinese(self):
+        # 真实 hook 经管道写入 UTF-8 字节；Windows 上 sys.stdin 默认本地代码页，
+        # 中文 prompt 必须按 UTF-8 显式解码，否则 read_hook_input 返回 {}。
+        payload = json.dumps(
+            {"session_id": "s-utf8", "cwd": "D:/x", "prompt": "显式关闭 thinking"}
+        ).encode("utf-8")
+
+        class FakeStdin:
+            def __init__(self, data):
+                self.buffer = io.BytesIO(data)
+
+        with patch("sys.stdin", FakeStdin(payload)):
+            hook = read_hook_input()
+        self.assertEqual(hook.get("prompt"), "显式关闭 thinking")
+
+    def test_recall_injects_on_first_prompt_and_dedupes_session(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=root / "state",
+            )
+            fact = {
+                "source_type": "memory_document",
+                "summary": "recall 配置方法",
+                "text": "在 UserPromptSubmit 挂 recall 子命令。",
+                "provenance": [
+                    {"project_id": "memory-hub", "session_id": "s1", "memory_id": "m1"}
+                ],
+            }
+            calls = []
+
+            def fake_search(self_client, query, project_id, limit, user_id):
+                calls.append((query, project_id, limit, user_id))
+                return [fact]
+
+            with patch.object(HubClient, "search", fake_search):
+                stdout = io.StringIO()
+                with patch("sys.stdin", io.StringIO(self._recall_payload(root))), patch(
+                    "sys.stdout", stdout
+                ):
+                    self.assertEqual(command_recall(self._recall_args(), config), 0)
+                first = stdout.getvalue()
+                self.assertIn("自动首轮预热", first)
+                self.assertIn("recall 配置方法", first)
+                self.assertEqual(len(calls), 1)
+                query, project_id, limit, user_id = calls[0]
+                self.assertIn(root.name, query)
+                self.assertIn("怎么配置 recall 钩子", query)
+                self.assertEqual(limit, 6)
+                self.assertEqual(user_id, "user-a")
+                # 同 session 第二个 prompt：不再查询、不再注入。
+                stdout2 = io.StringIO()
+                with patch("sys.stdin", io.StringIO(self._recall_payload(root))), patch(
+                    "sys.stdout", stdout2
+                ):
+                    self.assertEqual(command_recall(self._recall_args(), config), 0)
+                self.assertEqual(stdout2.getvalue(), "")
+                self.assertEqual(len(calls), 1)
+
+    def test_recall_disabled_env_skips_before_marker(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=root / "state",
+            )
+            stdout = io.StringIO()
+            with patch.dict(os.environ, {"MEMORY_HOOK_RECALL": "0"}), patch(
+                "sys.stdin", io.StringIO(self._recall_payload(root))
+            ), patch("sys.stdout", stdout):
+                self.assertEqual(command_recall(self._recall_args(), config), 0)
+            self.assertEqual(stdout.getvalue(), "")
+            # disabled 不登记 marker：恢复后首个 prompt 仍会召回。
+            self.assertFalse((root / "state" / "recall-markers").exists())
+
+    def test_recall_hub_error_fails_open_silently(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=root / "state",
+            )
+
+            def failing_search(self_client, query, project_id, limit, user_id):
+                raise HubError("HTTP 503: GRAPHITI_UNAVAILABLE")
+
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with patch.object(HubClient, "search", failing_search), patch(
+                "sys.stdin", io.StringIO(self._recall_payload(root))
+            ), patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+                # 恒 exit 0：非零会阻塞 UserPromptSubmit。
+                self.assertEqual(command_recall(self._recall_args(), config), 0)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn("GRAPHITI_UNAVAILABLE", stderr.getvalue())
+            # 失败也登记 marker，同 session 后续 prompt 不重试。
+            markers = list((root / "state" / "recall-markers").iterdir())
+            self.assertEqual(len(markers), 1)
+
+    def test_recall_short_prompt_falls_back_to_topics(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=root / "state",
+            )
+            calls = []
+
+            def fake_search(self_client, query, project_id, limit, user_id):
+                calls.append(query)
+                return []
+
+            with patch.object(HubClient, "search", fake_search):
+                stdout = io.StringIO()
+                with patch(
+                    "sys.stdin",
+                    io.StringIO(self._recall_payload(root, session_id="sess-2", prompt="hi")),
+                ), patch("sys.stdout", stdout):
+                    self.assertEqual(command_recall(self._recall_args(), config), 0)
+                self.assertEqual(stdout.getvalue(), "")  # 空结果不注入
+                self.assertEqual(len(calls), 1)
+                self.assertIn("项目概况", calls[0])
+                self.assertIn(root.name, calls[0])
 
     def test_format_context_exposes_structured_provenance_with_bounded_text(self):
         output = format_context(

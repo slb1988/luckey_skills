@@ -53,6 +53,13 @@ def desired_hooks(agent: str) -> Dict[str, Dict[str, Any]]:
         raise ValueError("unsupported JSON hook agent: %s" % agent)
     session_end_timeout = 3 if agent == "codex" else 120
     hooks: Dict[str, Dict[str, Any]] = {
+        # 首轮召回：UserPromptSubmit 拿首个 prompt 做 focused recall，stdout 注入上下文。
+        # once-per-session 与 fail-open 由 recall 子命令内部保证（marker + 恒 exit 0）。
+        "UserPromptSubmit": {
+            "type": "command",
+            "command": python_command("recall", "--source", agent),
+            "timeout": 130,
+        },
         "Stop": {
             "type": "command",
             "command": python_command("capture", "--source", agent),
@@ -391,10 +398,10 @@ def verify_or_trust_codex(
     with CodexAppServer(executable, codex_home) as server:
         listed = server.request("hooks/list", {"cwds": [str(cwd.resolve())]})
         hooks = codex_memory_hooks(listed, hooks_path)
-        if len(hooks) != 2:
-            raise InstallError("Codex expected 2 Memory Hub hooks, found %d" % len(hooks))
+        if len(hooks) != 3:
+            raise InstallError("Codex expected 3 Memory Hub hooks, found %d" % len(hooks))
         events = {hook.get("eventName") for hook in hooks}
-        expected_events = {"stop", "sessionEnd"}
+        expected_events = {"stop", "sessionEnd", "userPromptSubmit"}
         if events != expected_events:
             raise InstallError("Codex Memory Hub event set is incomplete: %s" % sorted(events))
         pending = [hook for hook in hooks if hook.get("trustStatus") != "trusted"]

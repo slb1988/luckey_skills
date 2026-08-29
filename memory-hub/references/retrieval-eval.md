@@ -4,7 +4,9 @@
 
 评价的是“历史记忆是否帮助 agent 正确回答”，不只看 search 是否返回非空。默认只读：
 不写 production memory，不 reingest/reindex/delete，不改生产 `.env`，不部署或重启服务。
-评估 session 设置 `MEMORY_HUB_SKIP_CAPTURE=1`，避免测试问答回灌为新记忆。
+评估 session 设置 `MEMORY_HUB_SKIP_CAPTURE=1`，避免测试问答回灌为新记忆；同时设置
+`MEMORY_HUB_RECALL=0`（Claude/Codex）/ `MEMORY_HOOK_PI_BOOTSTRAP_RECALL=0`（Pi），
+避免首轮自动预热的注入干扰评估变量。
 
 评估仓库：`D:\Github\memory-hub`；黄金集在 `tests/eval/`，报告输出到 gitignored 的
 `data/retrieval-eval/`。首次进入先确认 `.env` 的 `MEMORY_HUB_ENV`：dev 才运行开发/评估；

@@ -60,6 +60,15 @@ class InstallHooksTest(unittest.TestCase):
         self.assertEqual(hooks["Stop"]["timeout"], 120)
         self.assertEqual(hooks["SessionEnd"]["timeout"], 3)
 
+    def test_recall_hook_wired_for_claude_and_codex(self):
+        for agent in ("claude", "codex"):
+            hooks = desired_hooks(agent)
+            recall = hooks["UserPromptSubmit"]
+            self.assertIn("recall", recall["command"])
+            self.assertIn("--source %s" % agent, recall["command"])
+            # hook 超时必须高于 recall 内部的 120s 故障上限。
+            self.assertGreaterEqual(recall["timeout"], 121)
+
     def test_pi_install_durable_enqueue_and_debounced_flush_and_is_idempotent(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / ".pi" / "agent" / "extensions" / "memory-hub.ts"
