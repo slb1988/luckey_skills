@@ -4,11 +4,11 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
-const EXTENSION_VERSION = "5";
+const EXTENSION_VERSION = "6";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -28,6 +28,11 @@ const defaultFlushDelayMs = 5 * 60 * 1000;
 const defaultEnqueueTimeoutMs = 10 * 1000;
 const flushTimeoutMs = 120 * 1000;
 const catchupBudgetMs = 30 * 1000;
+const defaultBootstrapTimeoutMs = 4 * 1000;
+const bootstrapLimit = 6;
+const bootstrapMaxChars = 5000;
+const bootstrapTopics =
+	"项目概况、核心架构、历史决策、当前进展、未完成事项、开发约定和重要注意事项";
 
 function flushDelayMs(): number {
 	const raw = process.env.MEMORY_HOOK_PI_CAPTURE_DELAY_MS;
@@ -42,6 +47,14 @@ function enqueueTimeoutMs(): number {
 	if (!raw) return defaultEnqueueTimeoutMs;
 	const parsed = Number(raw);
 	if (!Number.isFinite(parsed) || parsed <= 0) return defaultEnqueueTimeoutMs;
+	return Math.trunc(parsed);
+}
+
+function bootstrapTimeoutMs(): number {
+	const raw = process.env.MEMORY_HOOK_PI_BOOTSTRAP_TIMEOUT_MS;
+	if (!raw) return defaultBootstrapTimeoutMs;
+	const parsed = Number(raw);
+	if (!Number.isFinite(parsed) || parsed <= 0) return defaultBootstrapTimeoutMs;
 	return Math.trunc(parsed);
 }
 
@@ -262,6 +275,9 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 	let catchupRunning = false;
 	let lastCwd = process.cwd();
 	const inFlightEnqueues = new Set<Promise<string>>();
+	// 每个 session 最多做一次首轮项目预热。用 session id 而非单个 boolean，
+	// 兼容同一 Pi 进程内 /new、session switch；切回已访问 session 不重复检索。
+	const bootstrappedSessions = new Set<string>();
 
 	function captureTarget(ctx: ExtensionContext, trigger: string): CaptureTarget | null {
 		const sessionId = ctx.sessionManager.getSessionId();
@@ -520,10 +536,74 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		}
 	});
 
-	pi.on("before_agent_start", async (_event, _ctx) => {
+	pi.on("before_agent_start", async (event, ctx) => {
 		// 用户回到键盘、会话继续生长：取消挂起的 flush，等下一轮空闲再计时。
 		// enqueue/marker 在 agent_end 已完成，无需也不应撤销。
 		cancelPendingFlush("prompt");
+
+		const sessionId = ctx.sessionManager.getSessionId();
+		if (bootstrappedSessions.has(sessionId)) return;
+		// 先登记 attempted：超时/空结果/服务故障都不在后续 prompt 重试，避免持续
+		// 增加首 token 延迟。手工深挖仍可使用 memory_search 工具。
+		bootstrappedSessions.add(sessionId);
+		if (process.env.MEMORY_HOOK_PI_BOOTSTRAP_RECALL === "0") {
+			trace("project_bootstrap", {
+				session_id: sessionId,
+				cwd: ctx.cwd,
+				outcome: "disabled",
+			});
+			return;
+		}
+		const projectHint = basename(ctx.cwd) || "当前项目";
+		const query = `${projectHint} ${bootstrapTopics}`;
+
+		const result = await runHub(
+			[
+				"search",
+				query,
+				"--source",
+				"pi",
+				"--limit",
+				String(bootstrapLimit),
+				"--max-chars",
+				String(bootstrapMaxChars),
+			],
+			undefined,
+			safeSpawnCwd(ctx.cwd),
+			bootstrapTimeoutMs(),
+		);
+		const recalled = result.code === 0 ? result.stdout.trim() : "";
+		const outcome = recalled
+			? "injected"
+			: result.code === 124
+				? "timeout"
+				: result.code === 0
+					? "empty"
+					: "error";
+		trace("project_bootstrap", {
+			session_id: sessionId,
+			cwd: ctx.cwd,
+			query,
+			limit: bootstrapLimit,
+			max_chars: bootstrapMaxChars,
+			outcome,
+			exit_code: result.code,
+			duration_ms: result.durationMs,
+			result_chars: recalled.length,
+		});
+		if (!recalled) return;
+
+		const injection = [
+			"# Memory Hub：当前 project 的历史背景（自动首轮预热）",
+			"以下是历史检索结果，仅作为背景；若与当前代码或用户指令冲突，以当前事实为准。",
+			"",
+			recalled,
+		].join("\n");
+		return {
+			systemPrompt: event.systemPrompt
+				? event.systemPrompt + "\n\n" + injection
+				: injection,
+		};
 	});
 
 	pi.on("agent_end", async (_event, ctx) => {

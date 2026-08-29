@@ -194,6 +194,39 @@ try {
 		const completedFlushes = () =>
 			traceEntries("flush_done").filter((entry) => entry.outcome === "completed").length;
 
+		// 首轮 prompt 阻塞一次 project bootstrap 并注入 system prompt；后续 prompt
+		// 不重复检索。超时/失败时同样只尝试一次并 fail-open。
+		const firstStart = await handlers.get("before_agent_start")(
+			{ prompt: "start work", systemPrompt: "base-system" },
+			ctx,
+		);
+		const bootstrapTimedOut = process.env.FAKE_SEARCH_DELAY_MS !== undefined;
+		if (bootstrapTimedOut) {
+			assert.equal(firstStart, undefined, "bootstrap timeout must continue without injection");
+			assert.equal(traceEntries("project_bootstrap")[0].outcome, "timeout");
+			assert.equal(hookCalls("search").length, 0, "timed-out child is killed before fake logs");
+		} else {
+			assert.match(firstStart.systemPrompt, /^base-system\n\n# Memory Hub/);
+			assert.match(firstStart.systemPrompt, /严格测试驱动/);
+			assert.equal(traceEntries("project_bootstrap")[0].outcome, "injected");
+			assert.equal(hookCalls("search").length, 1, "first prompt must search project memory once");
+			assert.match(
+				hookCalls("search")[0].argv[1],
+				new RegExp(process.cwd().split(/[\\/]/).at(-1)),
+				"bootstrap query must include the cwd project hint",
+			);
+		}
+		const secondStart = await handlers.get("before_agent_start")(
+			{ prompt: "continue", systemPrompt: "base-system" },
+			ctx,
+		);
+		assert.equal(secondStart, undefined);
+		assert.equal(
+			traceEntries("project_bootstrap").length,
+			1,
+			"later prompts must not repeat bootstrap search",
+		);
+
 		// agent_end → enqueue 立即触发并 await 完成（handler 返回即 durable）
 		await handlers.get("agent_end")({}, ctx);
 		const firstCapture = hookCalls("capture");

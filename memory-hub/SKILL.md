@@ -116,9 +116,9 @@ Memory 索引状态与错误码表见 [api-notes](references/api-notes.md)。
 ## Agent 自动记忆集成
 
 Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`（仅标准库），本地 spool + 失败自动补传。
-hook 只负责归档（capture），**不再自动召回注入**：检索由 agent 按需发起——Pi 用 `memory_search` 工具，
-Claude/Codex 用 `memory_hook.py search` CLI；行为契约写在 vault `AGENTS.md`「Memory Hub 按需检索」一节
-（2026-08-20 起，原 SessionStart/UserPromptSubmit/before_agent_start 的自动 recall 已全部移除）。
+检索以 agent 按需发起为主：Pi v6 额外在每个 session 首轮按 cwd/project 自动预热一次精炼项目背景
+（limit=6、最多 5000 字符、默认 4 秒超时，失败后本 session 不重试），后续深挖用 `memory_search`；
+Claude/Codex 用 `memory_hook.py search` CLI。行为契约写在 vault `AGENTS.md`「Memory Hub 按需检索」一节。
 
 Pi 扩展带 EXTENSION_VERSION（模板在 `assets/pi-memory-hub.ts`，改模板必须递增版本号）；check 报
 `extension version X is outdated` 时重新 install 发布即可。**v5 起改为回合级持久化（enqueue/flush 拆分）**：
@@ -133,13 +133,13 @@ v4 是纯 AFK 防抖（agent_end 只排程计时器，到期才 capture）——
 - `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`——Pi 扩展侧视角
   （v5 事件名互斥：marker_write/marker_delete/marker_quarantine、enqueue_done（含 outcome/
   job_id/sha256/transcript_bytes）、flush_schedule/flush_cancel/flush_done（outcome=completed/
-  busy/failed）、catchup_scan/catchup_done、final_capture、session_start、search）；
+  busy/failed）、catchup_scan/catchup_done、final_capture、session_start、project_bootstrap、search）；
 - 同目录 `hook-trace.jsonl`——脚本侧 ground truth（memory_hook.py 的 search，三端 agent 共用，
   含完整输出、query、project_id、facts_count），claude/codex 无 pi-trace 时只能查这个。
 
 search 输出不包含用户身份与概要（2026-08-20 起，format_context 已移除）：多身份场景下静态
 概要是先验知识、会影响模型判断；user_id 仅用于服务端检索 scoping，不作为文本输出。检索无结果时不输出任何内容。
-原自动 recall 注入已随 pi 扩展 v4 / hooks 精简移除，此约束现在只约束按需 search 的输出。
+该约束同时适用于 Pi 首轮 `project_bootstrap` 与按需 search 的输出。
 
 升级版本号的判定规则（2026-08 定版）：**被 hook 直接按路径引用的 script 改动不需要升版本号**
 ——Claude/Codex settings 和 Pi 扩展都是直接 spawn 仓库里的 `scripts/memory_hook.py`，repo pull 后逻辑即生效。

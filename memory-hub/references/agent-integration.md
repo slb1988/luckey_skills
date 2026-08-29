@@ -115,8 +115,10 @@ Windows 写入注册表 `HKCU\Environment` 并广播 `WM_SETTINGCHANGE`；POSIX 
   SessionStart/UserPromptSubmit 的自动 recall，检索改为 agent 按需发起）。
 - Stop 每轮直接执行 `capture`，不得带 `--flush-limit 0`；SessionEnd 再提交最终幂等快照。
 - Codex 必须通过 app-server `hooks/list` 确认 2 个 handlers 均为 `trusted`，且没有 Memory Hub 相关 warning/error。
-- Pi 全局扩展必须包含 `before_agent_start`、`agent_end`、`session_shutdown`；`before_agent_start` 只负责
-  取消挂起归档（不再 recall），`agent_end` 走 AFK 防抖上传（默认空闲 5 分钟才归档，新 prompt 取消重计），`session_shutdown` 立即归档。
+- Pi 全局扩展必须包含 `before_agent_start`、`agent_end`、`session_shutdown`；`before_agent_start` 在每个
+  session 的首轮按 cwd/project 阻塞执行一次精炼背景检索（默认 limit=6、最多 5000 字符、4 秒超时），
+  然后取消挂起归档。无结果、报错或超时均 fail-open，且本 session 后续 prompt 不重试；`agent_end`
+  走 AFK 防抖上传（默认空闲 5 分钟才归档，新 prompt 取消重计），`session_shutdown` 立即归档。
 - 安装器返回的各 agent `ok=true`。服务健康检查失败可保留 durable spool，但必须明确报告"已安装、尚未端到端验证"，不得宣称上传链路正常。
 
 安装或升级后执行只读复检：
@@ -146,6 +148,7 @@ Pi 扩展（v2 起）把每次与 Memory Hub 的交互追加为 JSONL，写到
 | kind | 时机 | 关键字段 |
 |---|---|---|
 | `session_start` | 会话开始 | session_id、cwd |
+| `project_bootstrap` | session 首轮项目背景预热 | query、limit、outcome、exit_code、duration_ms、result_chars |
 | `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、result（结果全文） |
 | `capture_schedule` | agent_end 排程 AFK 延时归档 | trigger、delay_ms |
 | `capture_cancel` | 新 prompt / reschedule / shutdown 取消挂起归档 | reason、trigger |
@@ -182,6 +185,8 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HOOK_STATE_DIR=~/.local/state/memory-hub-hook
 # MEMORY_HOOK_DEBUG=1             # 调试失败原因
 # MEMORY_HOOK_PI_CAPTURE_DELAY_MS=300000  # Pi agent_end AFK 防抖归档延时；默认 5 分钟，置 0 逐轮立即上传
+# MEMORY_HOOK_PI_BOOTSTRAP_RECALL=0        # 可选：关闭 Pi 每 session 首轮 project 背景预热
+# MEMORY_HOOK_PI_BOOTSTRAP_TIMEOUT_MS=4000 # 首轮预热超时；失败后当前 session 不重试
 # 会话标题 / 低价值过滤（内网 vLLM，hook 与 upload_sessions.py 共用，默认关）：
 # MEMORY_HUB_TITLE_LLM=1          # 默认 0 关闭；置 1 开启，关闭时退化为启发式标题且不做低价值过滤
 # MEMORY_HUB_TITLE_LLM_BASE_URL=http://192.168.2.76:8000/v1
@@ -236,9 +241,10 @@ APP=/Users/sun/Documents/ObsidianVault/.claude/skills/memory-hub/scripts/memory_
 /usr/bin/python3 "$APP" flush --limit 100
 ```
 
-检索全部由 agent 按需发起（2026-08-20 起）：Pi 用 `memory_search` 工具，Claude/Codex 用上面的
-`search` CLI；行为契约（何时检索、query 怎么写、scope 怎么切）写在 vault `AGENTS.md`「Memory Hub 按需检索」。
-hooks 不再在任何事件自动召回注入。Stop/agent_end 将当前最新完整快照写入
+检索以按需发起为主：Pi 额外在每个 session 首轮自动预热一次当前 project 的概况、架构、历史决策、
+进展、待办与约定，后续深挖仍用 `memory_search`；Claude/Codex 用上面的 `search` CLI 按需检索。
+行为契约（何时检索、query 怎么写、scope 怎么切）写在 vault `AGENTS.md`「Memory Hub 按需检索」。
+Stop/agent_end 将当前最新完整快照写入
 本地 spool 并立即尝试上传；SessionEnd/session_shutdown 再上传最终幂等快照。服务器不可用时保留 queued job，
 下一次 capture 或手工 flush 自动补传。
 

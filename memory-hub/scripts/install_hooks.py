@@ -247,6 +247,8 @@ def check_pi_extension(path: Path) -> Dict[str, Any]:
             "MEMORY_HOOK_PI_CAPTURE_DELAY_MS",
             "cancelPendingFlush",
             "catchupPending",
+            "project_bootstrap",
+            "MEMORY_HOOK_PI_BOOTSTRAP_TIMEOUT_MS",
         ):
             if marker not in content:
                 errors.append(

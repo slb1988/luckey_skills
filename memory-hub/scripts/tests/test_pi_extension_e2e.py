@@ -64,6 +64,7 @@ class PiExtensionE2ETest(unittest.TestCase):
         hook_log = workdir / "hook-log.jsonl"
         env = os.environ.copy()
         env["MEMORY_HOOK_PI_CAPTURE_DELAY_MS"] = "300"
+        env["MEMORY_HOOK_PI_BOOTSTRAP_TIMEOUT_MS"] = "200"
         env["MEMORY_HOOK_STATE_DIR"] = str(state_dir)
         env["HOOK_LOG"] = str(hook_log)
         if extra_env:
@@ -131,6 +132,14 @@ class PiExtensionE2ETest(unittest.TestCase):
             # 启动冲刷 busy+重试 2 次 + 空闲到期 1 次
             self.assertEqual(summary["flushes"], 3)
             self.assertEqual(summary["captures"], 4)
+
+    def test_project_bootstrap_timeout_fails_open_without_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(
+                Path(directory), {"FAKE_SEARCH_DELAY_MS": "500"}
+            )
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "main")
 
 
 if __name__ == "__main__":

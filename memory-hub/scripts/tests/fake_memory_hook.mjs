@@ -26,6 +26,15 @@ process.stdin.on("end", () => {
 
 function respond() {
 	const args = process.argv.slice(2);
+	const searchDelay = args[0] === "search" ? Number(process.env.FAKE_SEARCH_DELAY_MS || 0) : 0;
+	if (searchDelay > 0) {
+		setTimeout(() => respondNow(args), searchDelay);
+		return;
+	}
+	respondNow(args);
+}
+
+function respondNow(args) {
 	appendFileSync(
 		process.env.HOOK_LOG,
 		JSON.stringify({ argv: args, stdin }) + "\n",
@@ -51,6 +60,8 @@ function respond() {
 			payload.flush = { busy: false, completed: 1, failed: 0, recovered: 0 };
 		}
 		console.log(JSON.stringify(payload));
+	} else if (args[0] === "search") {
+		console.log("[project:fixture]\n- 项目使用严格测试驱动；先跑小规模验证再全量修改。");
 	} else if (args[0] === "flush") {
 		let busy = false;
 		if (process.env.FLUSH_BUSY_ONCE === "1") {
