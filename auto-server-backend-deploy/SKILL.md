@@ -140,6 +140,26 @@ fi
 
 ## 常见陷阱
 
+### 陷阱 0：飞书 AI 助手找不到 pi（PATH 被 /etc/environment 覆盖）
+
+**现象**：飞书机器人报 pi 启动失败，`.logs/feishu.log` 里有 `{"stage": "pi_failed", "error": "pi 启动失败: [Errno 2] No such file or directory: 'pi'"}`。
+
+**根因**：deploy.sh source `/etc/environment` 时其 `PATH=` 会整体覆盖当前 PATH，脚本只补回了 npm-global，没补 pnpm（pi 装在 `$HOME/.local/share/pnpm/`）→ 后端进程 fork 子进程时找不到 `pi`。
+
+**已修复（2026-08-29，三保险）**：
+1. `/etc/environment` 的 `PATH=` 已直接包含 `/home/dev/.local/share/pnpm` 和 `/home/dev/.npm-global/bin`（根治，备份在 `/etc/environment.bak.20260829`）
+2. `auto-server-deploy/scripts/deploy.sh` 在 source /etc/environment 后追加 `export PATH="$HOME/.local/share/pnpm:$PATH"` 和 `export FEISHU_ASSISTANT_PI_BIN=$HOME/.local/share/pnpm/pi`（冗余保险）
+3. `/etc/environment` 里写入了 `FEISHU_ASSISTANT_PI_BIN=/home/dev/.local/share/pnpm/pi`（绝对路径兜底，deploy.sh 每次 source 自动带上）
+
+**排查命令**：
+```bash
+PID=$(pgrep -f "manage.py runserver" | head -1)
+tr '\0' '\n' < /proc/$PID/environ | grep -E '^(PATH|FEISHU_ASSISTANT_PI_BIN)='
+grep '"pi_failed"' /data/py_automation/backend/.logs/feishu.log | tail -3
+```
+
+⚠️ 仓库里的 `/data/py_automation/backend/start.sh` 未修（只加了 npm-global），手动 `./start.sh` 启动仍会踩坑——但 `/etc/environment` 的绝对路径兜底对 start.sh 不生效（它不 source /etc/environment），建议后续把仓库 start.sh 也补上同样两行。
+
 ### 陷阱 1：不需要 SSH
 
 `auto-server` 解析到 `127.0.1.1`，pi 本身就运行在这台机器上。直接使用 `bash` 工具执行本地命令，**不要尝试 SSH**（`ssh dev@auto-server` 会因密钥问题失败）。

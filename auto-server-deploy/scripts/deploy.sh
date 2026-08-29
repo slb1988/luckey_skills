@@ -139,6 +139,12 @@ echo "[后端 5/5] 启动服务..."
 # （/etc/environment 的 PATH 不含 npm-global，必须在 source 之后追加）
 export PATH="$HOME/.npm-global/bin:$PATH"
 
+# pi (coding agent) 安装在 pnpm 全局目录，飞书 AI 助手通过它 fork 子进程
+# （/etc/environment 的 PATH 不含 pnpm，必须在 source 之后追加；
+#   同时用 FEISHU_ASSISTANT_PI_BIN 绝对路径兜底，防 PATH 漂移）
+export PATH="$HOME/.local/share/pnpm:$PATH"
+export FEISHU_ASSISTANT_PI_BIN="${FEISHU_ASSISTANT_PI_BIN:-$HOME/.local/share/pnpm/pi}"
+
 # 激活 venv（放在 /etc/environment 之后，其 activate 会在现有 PATH 前追加 venv/bin）
 source ./venv/bin/activate
 
