@@ -1,0 +1,8 @@
+# pi agent 资源扫描排除（pi 读取 .gitignore/.ignore/.fdignore 作为扫描忽略规则）。
+# diagram-design 仓库的 commands/ 与 prompts/ 是 Claude Code 斜杠命令/提示词模板，
+# 不是 Agent Skills。pi 扫描 .agents/skills 时会把「分组目录里带 description
+# frontmatter 的嵌套 .md」当作 skill，名字回落到父目录名，导致启动时出现
+# "commands"/"prompts" 名称冲突告警（同名只保留第一个，其余 skipped）。
+# 这两个目录下没有 SKILL.md，排除后不影响任何真实 skill 的加载。
+diagram-design/commands/
+diagram-design/prompts/
