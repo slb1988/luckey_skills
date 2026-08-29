@@ -8,7 +8,7 @@ import { basename, dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
-const EXTENSION_VERSION = "7";
+const EXTENSION_VERSION = "8";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -29,8 +29,9 @@ const defaultEnqueueTimeoutMs = 10 * 1000;
 const flushTimeoutMs = 120 * 1000;
 const catchupBudgetMs = 30 * 1000;
 const defaultBootstrapTimeoutMs = 120 * 1000;
+const searchTimeoutMs = 120 * 1000;
 const bootstrapLimit = 6;
-const bootstrapMaxChars = 5000;
+const bootstrapMaxChars = 6500;
 const bootstrapTopics =
 	"项目概况、核心架构、历史决策、当前进展、未完成事项、开发约定和重要注意事项";
 
@@ -555,7 +556,12 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			return;
 		}
 		const projectHint = basename(ctx.cwd) || "当前项目";
-		const query = `${projectHint} ${bootstrapTopics}`;
+		const focusedPrompt = String(event.prompt ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
+		// 首轮应回答用户正在问的问题；只有 prompt 太短时才退回通用项目背景。
+		// 一次查询同时带 project hint，服务端仍按当前 project 硬隔离。
+		const query = focusedPrompt.length >= 4
+			? `${projectHint} ${focusedPrompt}`
+			: `${projectHint} ${bootstrapTopics}`;
 
 		const result = await runHub(
 			[
@@ -676,7 +682,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				["search", params.query, "--limit", String(limit)],
 				undefined,
 				ctx.cwd,
-				15000,
+				searchTimeoutMs,
 			);
 			const text = result.code === 0 && result.stdout.trim()
 				? result.stdout.trim()

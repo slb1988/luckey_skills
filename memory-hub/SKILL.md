@@ -1,6 +1,6 @@
 ---
 name: memory-hub
-description: Memory Hub（agent 中心记忆网关）使用与运维指南。覆盖 HTTP API 写入/检索、session 不可变版本、scope/group_id、幂等与错误码，以及为 Claude Code、Codex、Pi 自动安装、检查、召回、持久化和补传 hooks。当用户提到 memory-hub、memory hub、记忆网关、agent 记忆、session 归档/版本、记忆检索/写入、服务排障，或在 Memory Hub 语境输入 install、安装、配置、检查、补传 Agent hooks 时触发。注意与 memory-center 区分：memory-center 覆盖后端 Graphiti/Neo4j，memory-hub 覆盖面向 Agent 的 HTTP 网关。
+description: Memory Hub（agent 中心记忆网关）使用与运维指南。覆盖 HTTP API 写入/检索、检索 eval、session 不可变版本、scope/group_id、幂等与错误码，以及为 Claude Code、Codex、Pi 自动安装、检查、召回、持久化和补传 hooks。当用户提到 memory-hub、memory hub、记忆网关、agent 记忆、memory eval/记忆评估/检索评估、session 归档/版本、记忆检索/写入、服务排障，或在 Memory Hub 语境输入 install、安装、配置、检查、补传 Agent hooks 时触发。注意与 memory-center 区分：memory-center 覆盖后端 Graphiti/Neo4j，memory-hub 覆盖面向 Agent 的 HTTP 网关。
 ---
 
 # Memory Hub（Agent 中心记忆网关）
@@ -67,12 +67,17 @@ outbox 重试与错误、最近更新的 session 列表、Graphiti episode 探�
 | 已知 project 一览与检索 scope 选择 | [references/projects.md](references/projects.md) |
 | 误归档 session 定点清理 runbook（足迹表结构 / named 对象共享坑 / 删除顺序） | [references/cleanup-misscoped-sessions.md](references/cleanup-misscoped-sessions.md) |
 | Hook 安装 / 身份配置 / 环境变量 | [references/agent-integration.md](references/agent-integration.md) |
+| 检索 eval（黄金集、真实 Pi case、存错/取错诊断、指标与门禁） | [references/retrieval-eval.md](references/retrieval-eval.md) |
 | outbox 确认机制 / 大批量 retry 判读（graphiti 排队 vs 确认失效） | [memory-center/references/ingest-performance.md](../../memory-center/references/ingest-performance.md) |
 | 项目完整使用手册（写入/检索示例） | `docs/USAGE.md` |
 | HTTP/MCP 接口契约 | `docs/API_CONTRACT.md` |
 | 当前实现说明（模块、状态机、已实现/未实现） | `docs/IMPLEMENTATION.md` |
 
 > 运维类问题（启动、重启、日志、venv 重建、备份）先读 [deploy.md](references/deploy.md)。
+
+用户在 Memory Hub 语境提到 `eval`、记忆评估或检索效果验证时，立即按
+[references/retrieval-eval.md](references/retrieval-eval.md) 执行；先做只读 baseline 和
+“存错还是取错”分层，不把非空结果等同于有效召回。
 
 ## 身份请求头
 
@@ -221,6 +226,10 @@ python3 "$SKILL_DIR/scripts/upload_sessions.py" --project-id unity2018 --dry-run
 - **`enqueue_done outcome=skipped_capture_env` = 快照根本没进 spool**（write-ahead marker 直接删，不是上传失败，补传也不会捞到）：memory-hub 扩展自身的 `skipCapture` 是**加载时缓存**的，但 spawn 出的 hook 子进程继承的是**当前**进程环境——任何扩展把 `MEMORY_HUB_SKIP_CAPTURE=1` 挂在共享 `process.env` 上，窗口期内所有 capture 都被整段跳过。实测污染源：auto-skill 扩展在 extraction 子 session 的分钟级 `await prompt()` 期间持有了这个变量（已修复收窄到 createAgentSession/dispose 两个毫秒级窗口）；现象特征是「同机其他项目正常 enqueued、某项目连续 skipped_capture_env」。hook 侧另有 transcript 首消息签名检测（`skipped_extraction`）兜底，所以收窄窗口是防误判不是防泄漏。
 - **幂等重放拿回过期 upload = FIFO 永久队头阻塞**（2026-08-29 实例，job 1210 卡 106 次、28 个 job 饿一天）：initiate 上传的幂等键是确定性的，服务端按 key 原样重放首次响应，上传会话 TTL 10 分钟过期后重试拿到的仍是同一个失效 upload_id；PUT 失效 URL 时服务端不读 body 直接 404/410 并关连接，大 body 客户端收到的是 WinError 10054（连接重置）而非 404，被误判为瞬时网络错误无限重试。特征：flush 永远 `failed:1`、`last_error=WinError 10054`、queued 堆积但 search 完全正常（GET 不受影响）。排查路径：spool.sqlite3 jobs 表查队头 last_error → curl 复现 GET/POST 正常 → 跟到 PUT expired upload。修复：`_upload_file` 检测 file status `expired` / PUT|complete 失败后换全新幂等键重建上传会话（至多 3 轮，retry_salt=job.attempts），`request()` 把裸 OSError 包成 HubError 让 full 上传降级生效。服务端待修：`initiate_upload` 幂等重放应检查 upload 是否过期、过期则新建而非原样返回。
 - **capture/flush 只读进程环境的 `MEMORY_HUB_API_KEY`，注册表回退只有 check 有**：所以 check 报 `token_accepted: true` 不代表运行中的 agent 能上传——key 持久化进注册表**之前**被 Orca/终端拉起的进程环境里没有它，全部 401，必须重启 agent（及其父级 Orca/终端）才继承。spool 的 flush 是 **FIFO 队头阻塞**：队头 job 持续 401 重试会饿死后面 attempts=0 的 job。应急恢复：用注册表里的 key 临时注入当前 shell 环境，手动跑一次 `memory_hook.py flush` 清积压，再重启 agent。
+
+<memory category="troubleshooting">
+**session 归错 project（如 admin_sun_depot_7184/MainDev/ObsidianVault 全落 `project:sun`）先查本机 catch-all**：state dir `project-aliases.local.json` 里 `{"aliases":{"*":"<id>"},"source":"flag"}` 是某次 `install_hooks.py install --project <id>` 写入的整机 catch-all，文件 mtime 即误操作时间。共享模板 `assets/project-aliases.json` 只有子目录/特定目录条目（backend/frontend→admin_sun_depot_7184、sununity→unity2018），**没有顶层目录自映射**；解析是 `aliases.get(name, aliases.get("*", name))`，未列名 cwd 全部落 `*`（2026-08-28 实测复现）。`--project` catch-all 只适合专用单项目机器（NAS→nas），多项目工作站用了会吞掉所有未显式列名的项目——要么删 `*`，要么在 local JSON 补显式自映射（显式条目优先于 `*`）。排查路径：直接调 memory_hook.py 的别名解析实测各 cwd → spool.sqlite3 jobs 表按 local JSON mtime 分界统计错归 job。hub 上已错传的 session 不可变，按正确 project 补传只产生新版本，旧污染仍留在错 group。另注意：`.team/<member>/` 个人记忆若把错误配置记成「已固定，禁止重复确认」会固化错误，修复配置时需同步更正该条目。
+</memory>
 
 Hub 投递 Graphiti 前会过一道内容清洗层 `strip_archival_boilerplate()`（service.py）：按模式剥掉归档摘要开头的元数据套话，只留知识正文进入抽取。当前覆盖三种前缀：`xx 会话归档，工作目录：…。`（legacy）、`xx 会话「标题」，工作目录：…。`、`xx 会话「标题」（日期，工作目录：…）。`。新前缀出现时在此加模式即可对存量内容生效——它作用于投递时刻而非写入时刻，改模式不需要回写 SQLite。
 

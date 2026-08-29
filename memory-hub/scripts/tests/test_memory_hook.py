@@ -12,6 +12,7 @@ from unittest.mock import patch
 from memory_hook import (
     Config,
     HubClient,
+    HubError,
     StateStore,
     UNCONFIGURED_USER_ID,
     UserProfile,
@@ -20,6 +21,7 @@ from memory_hook import (
     command_capture,
     command_configure,
     flush_pending,
+    format_context,
     head_tail_sample,
     load_session_texts,
     project_id_for_cwd,
@@ -369,7 +371,7 @@ class MemoryHookTest(unittest.TestCase):
             self.assertEqual(len({row["snapshot_path"] for row in rows}), 2)
 
     def test_search_and_memory_write_carry_request_user(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
             root = Path(directory)
             transcript = root / "session.jsonl"
             transcript.write_text(
@@ -399,8 +401,8 @@ class MemoryHookTest(unittest.TestCase):
 
             def fake_request(method, path, project_id, user_id, **kwargs):
                 calls.append((method, path, project_id, user_id, kwargs))
-                if path == "/v1/memories/search":
-                    return {"facts": []}
+                if path == "/v1/memories/search-v2":
+                    return {"results": []}
                 return {"memory_id": "memory-1", "status": "pending"}
 
             client.request = fake_request
@@ -410,11 +412,64 @@ class MemoryHookTest(unittest.TestCase):
             search_call = calls[0]
             # user_id 通过位置参数传入并体现在 X-User-Id 头，不再放在请求体。
             self.assertEqual(search_call[3], "user-b")
+            self.assertEqual(search_call[1], "/v1/memories/search-v2")
+            self.assertEqual(search_call[4]["json_body"]["schema_version"], "memory-search/2")
             self.assertNotIn("user_id", search_call[4]["json_body"])
             memory_call = calls[1]
             self.assertEqual(memory_call[3], "user-b")
             self.assertEqual(memory_call[4]["json_body"]["scope_type"], "project")
             self.assertNotIn("user_id", memory_call[4]["json_body"])
+
+    def test_search_falls_back_to_v1_during_server_rollout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=Path(directory),
+            )
+            client = HubClient(config)
+            paths = []
+
+            def fake_request(method, path, project_id, user_id, **kwargs):
+                paths.append(path)
+                if path == "/v1/memories/search-v2":
+                    raise HubError("HTTP 503: GRAPHITI_UNAVAILABLE")
+                return {"facts": [{"fact": "legacy exact fact"}]}
+
+            client.request = fake_request
+            self.assertEqual(
+                client.search("query", "project-a", 5, "user-a"),
+                [{"fact": "legacy exact fact"}],
+            )
+            self.assertEqual(paths, ["/v1/memories/search-v2", "/v1/memories/search"])
+
+    def test_format_context_exposes_structured_provenance_with_bounded_text(self):
+        output = format_context(
+            [
+                {
+                    "source_type": "memory_document",
+                    "summary": "DT 静态网格同步",
+                    "text": "删除 10 条，最终 214 行。",
+                    "provenance": [
+                        {
+                            "project_id": "maindev",
+                            "session_id": "pi:maindev:session-a",
+                            "memory_id": "memory-a",
+                        }
+                    ],
+                }
+            ],
+            2000,
+        )
+        self.assertIn("source=memory_document", output)
+        self.assertIn("project=maindev", output)
+        self.assertIn("session=pi:maindev:session-a", output)
+        self.assertIn("摘要：DT 静态网格同步", output)
+        self.assertIn("删除 10 条，最终 214 行", output)
 
     def test_strip_skill_wrapper_recovers_real_user_text(self):
         wrapped = (

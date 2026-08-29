@@ -215,6 +215,12 @@ try {
 				new RegExp(process.cwd().split(/[\\/]/).at(-1)),
 				"bootstrap query must include the cwd project hint",
 			);
+			assert.match(
+				hookCalls("search")[0].argv[1],
+				/start work/,
+				"bootstrap query must include the first user prompt",
+			);
+			assert.ok(hookCalls("search")[0].argv.includes("6"), "bootstrap must keep a small result budget");
 		}
 		const secondStart = await handlers.get("before_agent_start")(
 			{ prompt: "continue", systemPrompt: "base-system" },
