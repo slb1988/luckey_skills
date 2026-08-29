@@ -8,7 +8,7 @@ import { basename, dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
-const EXTENSION_VERSION = "8";
+const EXTENSION_VERSION = "9";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -30,8 +30,8 @@ const flushTimeoutMs = 120 * 1000;
 const catchupBudgetMs = 30 * 1000;
 const defaultBootstrapTimeoutMs = 120 * 1000;
 const searchTimeoutMs = 120 * 1000;
-const bootstrapLimit = 6;
-const bootstrapMaxChars = 6500;
+const defaultBootstrapLimit = 6;
+const defaultBootstrapMaxChars = 4000;
 const bootstrapTopics =
 	"项目概况、核心架构、历史决策、当前进展、未完成事项、开发约定和重要注意事项";
 
@@ -57,6 +57,18 @@ function bootstrapTimeoutMs(): number {
 	const parsed = Number(raw);
 	if (!Number.isFinite(parsed) || parsed <= 0) return defaultBootstrapTimeoutMs;
 	return Math.trunc(parsed);
+}
+
+function bootstrapLimit(): number {
+	const parsed = Number(process.env.MEMORY_HOOK_PI_BOOTSTRAP_LIMIT ?? defaultBootstrapLimit);
+	if (!Number.isFinite(parsed)) return defaultBootstrapLimit;
+	return Math.max(1, Math.min(20, Math.trunc(parsed)));
+}
+
+function bootstrapMaxChars(): number {
+	const parsed = Number(process.env.MEMORY_HOOK_PI_BOOTSTRAP_MAX_CHARS ?? defaultBootstrapMaxChars);
+	if (!Number.isFinite(parsed)) return defaultBootstrapMaxChars;
+	return Math.max(1000, Math.min(20000, Math.trunc(parsed)));
 }
 
 const stateDir =
@@ -562,6 +574,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		const query = focusedPrompt.length >= 4
 			? `${projectHint} ${focusedPrompt}`
 			: `${projectHint} ${bootstrapTopics}`;
+		const limit = bootstrapLimit();
+		const maxChars = bootstrapMaxChars();
 
 		const result = await runHub(
 			[
@@ -570,9 +584,9 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				"--source",
 				"pi",
 				"--limit",
-				String(bootstrapLimit),
+				String(limit),
 				"--max-chars",
-				String(bootstrapMaxChars),
+				String(maxChars),
 			],
 			undefined,
 			safeSpawnCwd(ctx.cwd),
@@ -590,8 +604,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			session_id: sessionId,
 			cwd: ctx.cwd,
 			query,
-			limit: bootstrapLimit,
-			max_chars: bootstrapMaxChars,
+			limit,
+			max_chars: maxChars,
 			outcome,
 			exit_code: result.code,
 			duration_ms: result.durationMs,

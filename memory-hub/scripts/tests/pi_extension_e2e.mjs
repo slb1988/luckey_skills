@@ -221,6 +221,7 @@ try {
 				"bootstrap query must include the first user prompt",
 			);
 			assert.ok(hookCalls("search")[0].argv.includes("6"), "bootstrap must keep a small result budget");
+			assert.ok(hookCalls("search")[0].argv.includes("4000"), "bootstrap must cap injected characters");
 		}
 		const secondStart = await handlers.get("before_agent_start")(
 			{ prompt: "continue", systemPrompt: "base-system" },

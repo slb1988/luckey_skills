@@ -121,8 +121,10 @@ Memory 索引状态与错误码表见 [api-notes](references/api-notes.md)。
 ## Agent 自动记忆集成
 
 Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`（仅标准库），本地 spool + 失败自动补传。
-检索以 agent 按需发起为主：Pi v6 额外在每个 session 首轮按 cwd/project 自动预热一次精炼项目背景
-（limit=6、最多 5000 字符、默认 120 秒超时，失败后本 session 不重试），后续深挖用 `memory_search`；
+检索以 agent 按需发起为主：Pi v9 在每个 session 首轮用 cwd/project + 首个用户 prompt 做一次
+focused recall（limit=6、默认最多 4000 字符、120 秒故障上限，失败后本 session 不重试），后续深挖用
+`memory_search`；首次预算可用 `MEMORY_HOOK_PI_BOOTSTRAP_LIMIT` 与
+`MEMORY_HOOK_PI_BOOTSTRAP_MAX_CHARS` 调整，避免每个 session 固定注入大段历史；
 Claude/Codex 用 `memory_hook.py search` CLI。行为契约写在 vault `AGENTS.md`「Memory Hub 按需检索」一节。
 
 Pi 扩展带 EXTENSION_VERSION（模板在 `assets/pi-memory-hub.ts`，改模板必须递增版本号）；check 报
