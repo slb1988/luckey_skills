@@ -83,6 +83,29 @@ outdated 后重跑 install 即修复。排查「关窗提示有进程未结束�
 
 Spool job 在 capture 时固化 `user_id`（这是设计，防止补传到错误用户）。副作用：身份配置变更（如 install 写入新的 `MEMORY_HUB_CLIENT_USER_ID`）之前积压的 queued job 仍带旧身份，flush 时持续报 `SCOPE_FORBIDDEN` 且不会自愈（实测一次积压 11 个）。看到 spool 反复 403 时直接清理这些旧 job，不要当作服务端权限配置问题排查。
 
+### 上传 401 积压与 spool FIFO 队头阻塞
+
+spool 的 flush 是 **FIFO 队头阻塞**：队头 job 持续失败重试会饿死后面 attempts=0 的 job（401、网络错误同理）。
+2026-08-22 实例：key 持久化进注册表**之前**被 Orca/终端拉起的 agent 进程环境里没有 `MEMORY_HUB_API_KEY`，
+capture/flush 全部 401 落 spool 堆积，而当时只有 check 有注册表回退（报 `token_accepted: true`）——两层结果
+不一致曾造成误判。2026-08-25 起 `memory_hook.py` 的 `read_persisted_env_var` 会在进程环境缺失时回退读
+注册表/profile，新 spawn 的 hook 进程 401 自愈、无需重启 agent；但**已积压的 queued job 不会自动清**——
+修好 key 后仍需手动 `memory_hook.py flush --limit 100`（重复跑到 queued=0）排空。
+
+### `enqueue_done outcome=skipped_capture_env` = 快照根本没进 spool（skipCapture 环境污染）
+
+`enqueue_done outcome=skipped_capture_env` 表示快照根本没进 spool（write-ahead marker 直接删，不是上传失败，补传也不会捞到）：memory-hub 扩展自身的 `skipCapture` 是**加载时缓存**的，但 spawn 出的 hook 子进程继承的是**当前**进程环境——任何扩展把 `MEMORY_HUB_SKIP_CAPTURE=1` 挂在共享 `process.env` 上，窗口期内所有 capture 都被整段跳过。实测污染源：auto-skill 扩展在 extraction 子 session 的分钟级 `await prompt()` 期间持有了这个变量（已修复收窄到 createAgentSession/dispose 两个毫秒级窗口）；现象特征是「同机其他项目正常 enqueued、某项目连续 skipped_capture_env」。hook 侧另有 transcript 首消息签名检测（`skipped_extraction`）兜底，所以收窄窗口是防误判不是防泄漏。
+
+### 幂等重放拿回过期 upload = FIFO 永久队头阻塞
+
+（2026-08-29 实例，job 1210 卡 106 次、28 个 job 饿一天）：initiate 上传的幂等键是确定性的，服务端按 key 原样重放首次响应，上传会话 TTL 10 分钟过期后重试拿到的仍是同一个失效 upload_id；PUT 失效 URL 时服务端不读 body 直接 404/410 并关连接，大 body 客户端收到的是 WinError 10054（连接重置）而非 404，被误判为瞬时网络错误无限重试。特征：flush 永远 `failed:1`、`last_error=WinError 10054`、queued 堆积但 search 完全正常（GET 不受影响）。排查路径：spool.sqlite3 jobs 表查队头 last_error → curl 复现 GET/POST 正常 → 跟到 PUT expired upload。修复：`_upload_file` 检测 file status `expired` / PUT|complete 失败后换全新幂等键重建上传会话（至多 3 轮，retry_salt=job.attempts），`request()` 把裸 OSError 包成 HubError 让 full 上传降级生效。服务端待修：`initiate_upload` 幂等重放应检查 upload 是否过期、过期则新建而非原样返回。
+
+### session 归错 project（全落某个 catch-all）先查本机映射
+
+<memory category="troubleshooting">
+**session 归错 project（如 admin_sun_depot_7184/MainDev/ObsidianVault 全落 `project:sun`）先查本机 catch-all**：state dir `project-aliases.local.json` 里 `{"aliases":{"*":"<id>"}}` 是 `install_hooks.py install --project <id>` 写入的整机 catch-all；2026-08 之前的旧版还可能因 agent 伪终端空输入，把主机名建议值以 `source: "prompt"` 静默写入；旧版还有第三条写入路径（local JSON「老是被修改」的机制）：`main()` 只要 `resolve_machine_project()` 返回 project_id——含 `source=existing` 仅仅读到已有配置——就调 `install_machine_project()` 把文件重写一遍，每次普通 install（skill 更新、agent 重装）都重断言错误 catch-all 并刷新 `updated_at`。`atomic_write` 每次覆盖前生成 `.memory-hub.bak`，state dir 里残留的多个含 catch-all 的 bak（updated_at 相隔几十秒 = 连续两次 install 的痕迹）不会被读取，可直接删。共享模板 `assets/project-aliases.json` 只有子目录/特定目录条目（backend/frontend→admin_sun_depot_7184、sununity→unity2018），**没有顶层目录自映射**；解析是 `aliases.get(name, aliases.get("*", name))`，未列名 cwd 全部落 `*`（2026-08-28 实测复现）。`--project` catch-all 只适合专用单项目机器（NAS→nas），多项目工作站用了会吞掉所有未显式列名的项目——应删 `*`，按需保留具体目录映射（显式条目优先于 `*`）。修复定版 commit `22c6589`（2026-08-30）：交互 prompt 路径整个删除，新 `apply_machine_project()` 只在显式 `--project`（`source=flag`）时写文件，已有配置只报告不重写；回归测试在 `scripts/tests/test_install_hooks.py`。排查路径：直接调 memory_hook.py 的别名解析实测各 cwd → spool.sqlite3 jobs 表按 local JSON mtime 分界统计错归 job。hub 上已错传的 session 不可变，按正确 project 补传只产生新版本，旧污染仍留在错 group。另注意：`.team/<member>/` 个人记忆若把错误配置记成「已固定，禁止重复确认」会固化错误，修复配置时需同步更正该条目。
+</memory>
+
 ## 测试
 
 ### Windows 本机 pytest 稳定 13 个失败（平台性问题）
@@ -117,6 +140,20 @@ Codex Desktop rollout JSONL 可能同时保存 `response_item/message` 与
 `input_text` / `output_text`。排障时用
 真实 rollout 文件统计 `extract_session_pairs(..., source="codex")` 的 role 数量，不要只看
 Hub 已生成的占位摘要。
+
+## 服务端（Hub 侧）
+
+### POST /v1/feedback 曾会把目标 memory 判死（hotfix e081453 已修复）
+
+<memory category="troubleshooting">
+**POST /v1/feedback 会把目标 memory 判死（5a9366f 引入的 worker 缺陷，hotfix 前不要对需要保留检索的记忆发任何 feedback）**：`record_feedback()`（service.py:2662）落 `memory_feedback` 行后还发 outbox 事件（aggregate_id=memory_id），但 `OutboxDispatcher.dispatch_one()`（workers/outbox.py:49）只认 `graphiti.*` 事件，对 `memory_feedback` 抛 non-retryable GraphitiError；`_fail()`（outbox.py:304-311）terminal 失败时**不区分事件类型**、无条件 `UPDATE memories SET status='failed', error_code='GRAPHITI_PERMANENT_ERROR' WHERE memory_id=aggregate_id`。FTS 候选要求 `status='indexed'`（retrieval.py:97），所以一条 `relevant` feedback 就足以让目标记忆对**所有用户**从检索消失（比被禁的 `rejected` 破坏力更大；`rejected` 只抑制提交者本人但无回收站端点、不可逆）。**已定版修复 hotfix e081453（2026-08-30 部署验证）**：outbox 为 `memory_feedback` 加本地处理器（`_complete_local` 直接结算、不投 Graphiti，实测事件 70ms 内 completed、attempt_count=0），`_fail()` 的 memories 回写已限定 graphiti 类事件；post-fix smoke（relevant feedback → 200 accepted=true，等 10s 让 worker 跑一轮）后 memory 保持 `indexed` 且 `updated_at` 不被触碰——这是 hotfix 生效的直接证据。数据修复（恢复 `01a043eb` indexed、清 failed outbox、清 smoke feedback 行）已执行完毕，episode 在 Graphiti 完好无需 reingest。取证要点：`_fail()` 会改写 memory 行 `updated_at`，而修复 SQL `UPDATE status` 不触碰——`updated_at` 定格的是 bug 点火时刻，可据此区分故障时间与修复时间。另：本次 runbook 曾发生两个会话并发执行同一修复流程撞车（修复语句被抢先跑掉、影响行数与预期全不符）——授权写操作执行前先留只读基线、逐条核对影响行数，与预期不符立即停止报告，不要扩大范围。另两个验收事实：feedback 要求 `X-User-Id` 与 API key 绑定账号一致（release 服务器绑定账号是 `sunlaibing`，不是 `slb1988`）；search-v2 fusion 里 `fallback=graph_disabled / graph_candidates=0` 是既有状态（Graphiti 图检索未启用），不是回归信号。
+</memory>
+
+### 入库审核（triage）报 "unparseable llm response" = 上游 LLM 间歇性非法 JSON
+
+<memory category="troubleshooting">
+**入库 session 审核（triage）报 "unparseable llm response" 的根因是上游 kimi-k3 间歇性输出非法 JSON，不是解析代码/prompt/截断问题**（2026-08-30 重放失败快照实证，约 1/3 概率）：中文字符串值漏加引号（真实返回形如 `{"decision": "approve", "rationale": 记录了…}`），`json.JSONDecoder().raw_decode` 抛 `Expecting value`，`_parse_triage_response` 兜底落 `uncertain` + rationale "unparseable llm response"。temperature=0 压不住。重放已排除的假设（排查时别先怀疑这些）：HTTP 全 200、`stop_reason=end_turn`、输出仅 ~150 tokens（远低于 2048 上限）、content 结构 `[thinking, text]` 正常。两个结构性缺口：① **解析失败完全静默**——日志无任何输出、原始 LLM 返回不落盘，只能重放快照取证；② attempts 打满上限 3 后记录留 pending 不再自动重试，需人工重置 attempts 或 dashboard approve（当日 3 条误伤：hsbg-companion ×1、obsidianvault ×2，重放显示内容本身均会判 approve）。triage LLM 配置：kimi-k3 @ 10.77.77.4:8600（Anthropic 协议）。修复方向（截至 2026-08-30 未动代码，待决策）：解析失败时正则兜底抽 `"decision"\s*:\s*"(\w+)"` 与 rationale 段 / 追加「只输出严格 JSON」重试一次 / 失败时把原始返回截断写日志。
+</memory>
 
 ### 入库审核显示 `LLM /v1/messages returned HTTP 400`
 

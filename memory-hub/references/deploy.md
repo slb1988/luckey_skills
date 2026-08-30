@@ -347,6 +347,12 @@ done
 验证：旧身份在三张表零残留、users 表只剩新 id、Neo4j `user:*` 分组只剩新组、
 以新 user 调 `/v1/memories/search` 能命中原 user scope 记忆。
 
+## 内容清洗与图谱重建（维护操作）
+
+Hub 投递 Graphiti 前会过一道内容清洗层 `strip_archival_boilerplate()`（service.py）：按模式剥掉归档摘要开头的元数据套话，只留知识正文进入抽取。当前覆盖三种前缀：`xx 会话归档，工作目录：…。`（legacy）、`xx 会话「标题」，工作目录：…。`、`xx 会话「标题」（日期，工作目录：…）。`。新前缀出现时在此加模式即可对存量内容生效——它作用于投递时刻而非写入时刻，改模式不需要回写 SQLite。
+
+重建某 group 的图谱映射用服务端仓库 `scripts/reingest_group.py <group> [--noise-only] [--dry-run|--yes]`：删 episode（remove_episode 级联删派生边和独占实体）后把 SQLite 原记忆重入 outbox，episode uuid == memory_id 溯源不变。`--noise-only` 经 cypher-ro 反查命中噪声实体的 episode 定点重建（大 group 必用）。只处理 Hub 有记录的 episode，Graphiti 独有的只报告不删；级联删除会漏孤儿实体，重建后需按模式补一次终扫。事故全文：memory-center `incidents/2026-08-20-entity-extraction-noise.md`。
+
 ## 观测面板（dashboard）部署
 
 面板是独立服务（`backend/` + `frontend/dist/`），与主服务分离部署。`frontend/dist` **已不纳入 git 追踪**（自 commit 2c3b935），NAS 上有 node v22（`~/.local/bin/node`），需在 NAS 本地构建。

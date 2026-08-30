@@ -17,6 +17,23 @@ job 永久保留为 `queued`；后续 Stop、SessionEnd、agent_end 或手工 fl
 Markdown fenced code 不上传；Markdown 标题、列表、链接和解释正文保留。Spool 每个 job 固化
 `user_id`，所以稍后 flush 时不会因进程环境变化而补传到错误用户。
 
+## 首轮自动召回（recall / bootstrap）
+
+**三端都有首轮自动召回**（2026-08-29 起）：Pi 走扩展 `before_agent_start`；Claude/Codex 走
+`UserPromptSubmit` hook → `memory_hook.py recall --source <agent>`。同一语义：首个用户 prompt +
+project hint 做一次 focused recall（limit=6、默认最多 4000 字符、120 秒故障上限），**每个 session
+只查一次**——recall 用 `recall-markers/` 落盘标记（含失败/空结果），Pi v12 用
+`pi-bootstrap-done/` 持久标记（进程内集合仅作同进程快路径）；超时/空结果/
+服务故障都不在后续 prompt 重试。结果经 stdout 注入上下文；`MEMORY_HOOK_RECALL=0` 关闭
+Claude/Codex 侧，Pi 侧用 `MEMORY_HOOK_PI_BOOTSTRAP_RECALL=0`。后续深挖用 `memory_search`（Pi）/
+`memory_hook.py search` CLI（Claude/Codex）；首次预算可用 `MEMORY_HOOK_PI_BOOTSTRAP_LIMIT` 与
+`MEMORY_HOOK_PI_BOOTSTRAP_MAX_CHARS` 调整（Pi），避免每个 session 固定注入大段历史。
+行为契约写在 vault `AGENTS.md`「Memory Hub 按需检索」一节。
+
+search 输出不包含用户身份与概要（2026-08-20 起，format_context 已移除）：多身份场景下静态
+概要是先验知识、会影响模型判断；user_id 仅用于服务端检索 scoping，不作为文本输出。检索无结果时不输出任何内容。
+该约束同时适用于 Pi 首轮 `project_bootstrap` 与按需 search 的输出。
+
 ## 首次用户身份配置
 
 Hook 客户端没有内置固定用户，也不得用 `agent_id` 代替用户身份。身份在 install 时通过
@@ -142,36 +159,72 @@ check 的复检项除 hook 安装副本外还包括：
 （`assets/pi-memory-hub.ts`）不一致时报 `extension version X is outdated (managed Y); rerun install`，
 重新执行 install 即可重新发布。修改模板后必须递增模板里的版本号，否则 check 无法感知升级。
 
-## Pi 扩展全链路留痕
+## Pi 扩展机制与全链路留痕
 
-Pi 扩展（v2 起）把每次与 Memory Hub 的交互追加为 JSONL，写到
-`${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`，供离线分析检索质量：
+Pi 扩展带 EXTENSION_VERSION（模板在 `assets/pi-memory-hub.ts`，改模板必须递增版本号）；check 报
+`extension version X is outdated` 时重新 install 发布即可。**v5 起改为回合级持久化（enqueue/flush 拆分）**：
+agent_end ① 原子写 write-ahead marker（`pi-pending-enqueues/<sessionId>.json`）→ ② **await**
+`capture --no-flush --json`（enqueue 进本地 spool 即 durable，不依赖内存计时器）→ ③ 确认
+durable 才删 marker → ④ 排程防抖 flush（`MEMORY_HOOK_PI_CAPTURE_DELAY_MS` 默认 5 分钟，
+before_agent_start 取消，hub 版本只在 flush 时产生、无 churn）。session_shutdown 收敛在途
+enqueue 后做最终 capture；session_start 有界 catch-up 补传遗留 marker（进程被杀的尾部）。
+v4 是纯 AFK 防抖（agent_end 只排程计时器，到期才 capture）——防抖窗口内进程被杀即丢尾部
+（v4→v5 的设计定版依据与丢失窗口分析见 [troubleshooting.md](troubleshooting.md)）。
+行为有 Node e2e 值守（`scripts/tests/test_pi_extension_e2e.py`，需 node，无 node 机器跳过）。
+
+**v12 起交互式 Pi 的首轮评分默认开启**：结构化检索完成后，`before_agent_start` 逐条 `await`
+用户 0-3 分评分，全部候选完成前 agent 不会启动；无“跳过”选项，0 分候选本轮不注入。
+显式 `MEMORY_HOOK_PI_BOOTSTRAP_SCORE=0` 才关闭；print/headless 无 UI 时不阻塞并记录
+`unrated_no_ui`。评分写 `pi-recall-scores.jsonl`，每个 session 的 query、首 prompt、候选全文/
+摘要/ID/评分及最终注入上下文写 `pi-recall-reviews.jsonl`，用于后续批量复盘；2/3 分和 0 分仍分别
+fire-and-forget 上报 relevant/irrelevant feedback。评分门禁与跨进程 session 去重都有 Node e2e 值守。
+
+分析检索质量优先查以下留痕文件：
+
+- `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`——Pi 扩展侧视角，
+  每次与 Memory Hub 的交互追加为 JSONL。当前事件名（v5+ 互斥）：
 
 | kind | 时机 | 关键字段 |
 |---|---|---|
 | `session_start` | 会话开始 | session_id、cwd |
-| `project_bootstrap` | session 首轮项目背景预热 | query、limit、outcome（rated/unrated_no_ui/empty/error/timeout）、exit_code、duration_ms、result_chars、rating_required、has_ui |
-| `project_bootstrap_skip` | 已有持久完成标记，恢复旧 session 不重复回溯 | session_id、outcome=already_completed |
-| `recall_score` / `recall_score_wait` | 评分完成统计 / 用户取消评分后继续等待 | total、scored、dropped、kept / rank、outcome |
+| `project_bootstrap` | session 首轮项目背景预热（v12） | query、limit、outcome（rated/unrated_no_ui/empty/error/timeout）、exit_code、duration_ms、result_chars、rating_required、has_ui |
+| `project_bootstrap_skip` | 已有持久完成标记，恢复旧 session 不重复回溯（v12） | session_id、outcome=already_completed |
+| `recall_score` / `recall_score_wait` | 评分完成统计 / 用户取消评分后继续等待（v12） | total、scored、dropped、kept / rank、outcome |
 | `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、result（结果全文） |
-| `capture_schedule` | agent_end 排程 AFK 延时归档 | trigger、delay_ms |
-| `capture_cancel` | 新 prompt / reschedule / shutdown 取消挂起归档 | reason、trigger |
-| `capture` | 空闲延时（agent_end_idle）/ session_shutdown 归档 | trigger、exit_code、duration_ms、skipped（no_transcript/reentrant） |
+| `marker_write` / `marker_delete` / `marker_quarantine` | write-ahead marker 生命周期（v5） | sessionId 等 |
+| `enqueue_done` | `capture --no-flush` 入队完成（v5） | outcome、job_id、sha256、transcript_bytes |
+| `flush_schedule` / `flush_cancel` / `flush_done` | 防抖 flush 排程 / 取消 / 完成（v5） | outcome=completed/busy/failed |
+| `catchup_scan` / `catchup_done` | session_start 有界 catch-up 补传遗留 marker（v5） | — |
+| `final_capture` | session_shutdown 收敛在途 enqueue 后的最终 capture（v5） | — |
 
-Pi 扩展 v4 起 agent_end 不再逐轮立即上传：等会话空闲
-`MEMORY_HOOK_PI_CAPTURE_DELAY_MS` 毫秒（默认 5 分钟，置 0 恢复逐轮立即上传）后才 capture；
-计时器 unref，不拖住进程退出，提前退出由 session_shutdown 立即归档兜底。
+  v4 及更早的事件名（`capture_schedule`/`capture_cancel`/`capture`）已随 v5 废弃，只会在老 trace 里出现。
+- 同目录 `hook-trace.jsonl`——脚本侧 ground truth（memory_hook.py 的 search，三端 agent 共用，
+  含完整输出、query、project_id、facts_count），claude/codex 无 pi-trace 时只能查这个。
+- 同目录 `pi-recall-reviews.jsonl` / `pi-recall-scores.jsonl`——v12 起的 session 级完整首轮回溯包与
+  候选级真实用户标注；集体 review 时先按 `session_id` 与 Pi transcript 关联。
 
-v12 另写 `${STATE_DIR}/pi-recall-reviews.jsonl`（每个 session 一行：首 prompt、query、候选全文/
-摘要/ID/评分、最终注入上下文）和 `pi-recall-scores.jsonl`（每个已评分候选一行），用于按
-session_id 与 Pi transcript 联合复盘。完成状态写 `pi-bootstrap-done/<sessionId>.json`，保证 Pi
-重启/恢复 session 后不会把后续 prompt 误当首轮再次召回。
+每轮检索测试/分析前用 `python3 scripts/rotate_pi_trace.py`（可加 `--include-hook-trace`）把旧
+trace 轮转到 `trace-backups/`，保证当轮数据干净；扩展按事件 append 写 trace、无持久句柄，
+会话运行中轮转也安全。
 
 单字段超 20k 字符截断；写日志失败不阻断 agent。Claude/Codex 端的留痕在 spool
 （`memory_hook.py status` 可查 job 状态），不在此文件。
 
 安装器仅替换命令路径包含 `memory-hub/scripts/memory_hook.py` 的 handlers，保留其他 Hook，并在修改配置前生成
 `*.memory-hub.bak` 备份。运行中的 Agent 可能缓存配置；完成后提示重启对应 Agent 或执行其 reload 命令。
+
+## 版本号升级判定规则（2026-08 定版）
+
+**被 hook 直接按路径引用的 script 改动不需要升版本号**——Claude/Codex settings 和 Pi 扩展都是直接
+spawn 仓库里的 `scripts/memory_hook.py`，repo pull 后逻辑即生效。
+**只有「安装副本」类产物才必须升版本号**：① Pi 扩展模板 `assets/pi-memory-hub.ts`（安装时渲染拷贝到
+`~/.pi/agent/extensions/`，改模板必须递增 EXTENSION_VERSION 并重跑 install）；② 别名定版
+`assets/project-aliases.json`（递增 version 并重跑 install 部署到 state dir）。判断依据：产物是否被
+install 复制/渲染到仓库外；复制出去的就必须让 check 能感知版本差。
+
+## Pi 扩展 e2e 测试铁律
+
+`test_pi_extension_e2e.py`（Node 驱动 .mjs + fake hook .mjs）可行的前提是 **Node ≥24 原生 type-stripping 直接跑渲染后的 TS 扩展**，无构建步骤。写这类驱动/断言的铁律：capture 完成的权威信号是 **pi-trace.jsonl 落盘**，不是 hub 子进程退出、也不是 fake hook 日志——fake hook 在 stdin `end` 时写日志，而扩展在子进程 `close` 事件后才写 trace，两者之间存在窗口期；按错误信号等待会导致断言失败点逐次漂移（实测同一用例失败位置随机）。驱动失败时保留/打印 tmpdir 现场 artifact 再清理，否则竞态无法事后诊断。
 
 ## 环境变量
 
@@ -201,7 +254,8 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
                                            # scores/reviews JSONL 持久化并 fire-and-forget 上报 feedback；
                                            # print/headless 无 UI 不阻塞，记录 outcome=unrated_no_ui
 # 会话标题 / 低价值过滤（内网 vLLM，hook 与 upload_sessions.py 共用，默认关）：
-# MEMORY_HUB_TITLE_LLM=1          # 默认 0 关闭；置 1 开启，关闭时退化为启发式标题且不做低价值过滤
+# MEMORY_HUB_TITLE_LLM=1          # 默认 0 关闭；置 1 开启，关闭时退化为启发式标题
+#                                  # （启发式低价值过滤始终生效，见「会话标题与低价值过滤判定」）
 # MEMORY_HUB_TITLE_LLM_BASE_URL=http://192.168.2.76:8000/v1
 # MEMORY_HUB_TITLE_LLM_MODEL=qwen3-30b
 # MEMORY_HUB_TITLE_LLM_API_KEY=vllm
@@ -242,6 +296,12 @@ User ID 解析优先级为命令行 `--user-id`、hook 输入的 `user_id`、
 （输出 `identity_source` 与 `default_user_id`）。命令行或 hook 输入覆盖默认用户时，还必须同时提供该用户的显示名称和概要
 （命令行用 `--display-name` / `--summary`，hook 输入用 `user_display_name` / `user_summary`），否则视为
 未完成身份配置。多用户调用方应在每次 hook 输入中显式提供这三项；Hub 进程本身不得配置固定用户。
+
+## 会话标题与低价值过滤判定
+
+`MEMORY_HUB_TITLE_LLM` 代码默认 `0`（关闭时用启发式标题、不走 LLM 判定），置 `1` 才走内网 vLLM（要开启的机器自行设该环境变量，不改代码默认值）。注意「关闭」只关掉 LLM 判定，**启发式低价值过滤始终生效**（`heuristic_meaningful`）：当一个会话的**全部** user 消息都是噪声时判低价值不上传——`is_noise_user_text` 把以 `<`/`/` 开头的消息（pi 的 skill 注入包装、slash 命令）和纯寒暄都视为噪声，且作用于**未剥 skill 包装的原始文本**，所以一个只有 skill 调用、没有任何口语化追问的会话（典型：单次 `git-tool update & commit`）即使 LLM 关闭也会被过滤（2026-08-22 实测）。低价值判定标准含**纯执行类例行运维**（git-tool update/sync/commit、任意项目的部署/发布/构建上传（前后端 build、dist 同步、服务重启）、skill 更新提交、memory-hub check/install、批量上传归档等按既定流程执行、只有命令执行结果的会话）——这类会话不上传；但运维中含真实故障排查/bug 修复/技术决策的仍有价值（2026-08-20 用户要求加入；2026-08-29 放宽到任意项目的部署发布类，prompt 见 memory_hook.py 与 upload_sessions.py 的 llm_classify_session，两处保持同步）。
+
+**判定材料必须是整个会话，用户目标必须保留**（2026-08-21 用户定版，曾因此误过滤）：① LLM 分类与标题的输入是整会话的非噪声用户消息（`session_user_texts`，条数 >8 时 `head_tail_sample` 首尾各 4 抽样），绝不能只喂窗口尾部——否则实质会话会被结尾的「commit」误杀（当日 job 125/149 实例）；② 归档摘要 distilled 为三段式「首个用户目标/最近用户目标/会话结果」，目标取**首个非噪声用户消息**且先剥 `<skill>...</skill>` 注入包装（`strip_skill_wrapper`——pi 用户消息常是整份 SKILL.md + 末尾一句真实问题，不剥会把目标污染成模板文本），空目标兜底链 first→last→title；③ live hook 上传时经 `load_session_texts` 从 spool full 包重取全量事件提取文本，不依赖 job 行的尾部快照列。
 
 ## 独立应用命令
 
