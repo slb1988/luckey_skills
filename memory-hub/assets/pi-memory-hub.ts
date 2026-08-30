@@ -14,7 +14,10 @@ import { Type } from "typebox";
 //   judgments 的真实用户标注来源。无 UI（pi -p / a2a 子进程）自动跳过评分。
 // v11：评分后 fire-and-forget 上报 POST /v1/feedback（0→irrelevant、2/3→relevant、
 //   1/跳过不上报）；服务端幂等 upsert，本地 scores JSONL 仍是持久真源。
-const EXTENSION_VERSION = "11";
+// v12：交互式 Pi 默认开启首轮评分门禁（显式设 0 才关闭），移除“跳过评分”，
+//   before_agent_start 必须等所有候选打完 0-3 分才返回；持久化 session 完成标记，
+//   避免 Pi 重启/恢复旧 session 后重复回溯；另落完整 review JSONL 供实战复盘。
+const EXTENSION_VERSION = "12";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -82,6 +85,7 @@ const stateDir =
 // write-ahead marker 目录：一个 marker 只代表「该 session 有一次 enqueue 尚未确认
 // durable」，不登记所有 open session（避开 pi transcript lazy 落盘的冲突）。
 const pendingDir = join(stateDir, "pi-pending-enqueues");
+const bootstrapDoneDir = join(stateDir, "pi-bootstrap-done");
 
 // 全链路留痕：每次与 Memory Hub 的交互追加一条 JSONL 到
 // ${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl。
@@ -97,11 +101,15 @@ function clip(value: string): string {
 		: value;
 }
 
-// ---- v10 调试评分模式辅助 ----
+// ---- v10/v12 首轮评分与复盘辅助 ----
 const scoresFile = join(stateDir, "pi-recall-scores.jsonl");
+const reviewsFile = join(stateDir, "pi-recall-reviews.jsonl");
+const bootstrapMigrationSentinel = join(bootstrapDoneDir, ".v12-trace-migrated");
 
-function bootstrapScoreDebug(): boolean {
-	return process.env.MEMORY_HOOK_PI_BOOTSTRAP_SCORE === "1";
+function bootstrapScoreEnabled(): boolean {
+	// v12 起交互式 session 默认必须评分；保留显式 opt-out 方便临时排障。
+	// 不能依赖安装后才写入的用户环境变量：已经启动的 Pi 父进程不会继承它。
+	return process.env.MEMORY_HOOK_PI_BOOTSTRAP_SCORE !== "0";
 }
 
 function clipText(value: string, max: number): string {
@@ -142,6 +150,79 @@ function appendScores(records: Record<string, unknown>[]): void {
 		appendFileSync(scoresFile, records.map((record) => JSON.stringify(record)).join("\n") + "\n", "utf8");
 	} catch {
 		// 留痕失败不阻断 agent
+	}
+}
+
+function appendReview(record: Record<string, unknown>): void {
+	try {
+		mkdirSync(dirname(reviewsFile), { recursive: true });
+		appendFileSync(reviewsFile, JSON.stringify(record) + "\n", "utf8");
+	} catch {
+		// 复盘留痕失败不阻断 agent
+	}
+}
+
+function safeSessionFileName(sessionId: string): string {
+	return sessionId.replace(/[^A-Za-z0-9._-]/g, "_");
+}
+
+function bootstrapDonePath(sessionId: string): string {
+	return join(bootstrapDoneDir, safeSessionFileName(sessionId) + ".json");
+}
+
+function hasCompletedBootstrap(sessionId: string): boolean {
+	try {
+		return existsSync(bootstrapDonePath(sessionId));
+	} catch {
+		return false;
+	}
+}
+
+function markBootstrapDone(sessionId: string, data: Record<string, unknown>): void {
+	try {
+		mkdirSync(bootstrapDoneDir, { recursive: true });
+		const target = bootstrapDonePath(sessionId);
+		const temp = join(bootstrapDoneDir, `.${safeSessionFileName(sessionId)}.${process.pid}.${Date.now()}.tmp`);
+		writeFileSync(temp, JSON.stringify({
+			session_id: sessionId,
+			completed_at: new Date().toISOString(),
+			ext_version: EXTENSION_VERSION,
+			...data,
+		}) + "\n", "utf8");
+		renameSync(temp, target);
+	} catch {
+		// marker 失败时仍由进程内 Set 防重复；留 trace 供排查
+		trace("bootstrap_marker_error", { session_id: sessionId });
+	}
+}
+
+function migrateBootstrapTraceOnce(): void {
+	try {
+		if (existsSync(bootstrapMigrationSentinel)) return;
+		mkdirSync(bootstrapDoneDir, { recursive: true });
+		const sessionIds = new Set<string>();
+		if (existsSync(traceFile)) {
+			for (const line of readFileSync(traceFile, "utf8").split("\n")) {
+				if (!line || !line.includes('"kind":"project_bootstrap"')) continue;
+				try {
+					const entry = JSON.parse(line) as Record<string, unknown>;
+					if (entry.kind === "project_bootstrap" && typeof entry.session_id === "string") {
+						sessionIds.add(entry.session_id);
+					}
+				} catch {
+					// 损坏 trace 行不影响其他 session 迁移
+				}
+			}
+		}
+		for (const sessionId of sessionIds) {
+			if (!hasCompletedBootstrap(sessionId)) {
+				markBootstrapDone(sessionId, { outcome: "migrated_from_trace" });
+			}
+		}
+		writeFileSync(bootstrapMigrationSentinel, new Date().toISOString() + "\n", "utf8");
+		trace("bootstrap_marker_migration", { sessions: sessionIds.size });
+	} catch (error) {
+		trace("bootstrap_marker_migration", { outcome: "error", error: clipText(String(error), 500) });
 	}
 }
 
@@ -377,6 +458,9 @@ function lastJsonLine(stdout: string): Record<string, unknown> | null {
 }
 
 export default function memoryHubExtension(pi: ExtensionAPI) {
+	// v12 首次加载只扫描一次旧 trace 并批量补 marker；之后每个 session 仅做 O(1)
+	// 文件存在检查，避免 trace 随实战增长后拖慢首轮。
+	migrateBootstrapTraceOnce();
 	// capture opt-out（auto-skill extraction 子 session 等）：不写 marker、不
 	// enqueue、不排程 flush、不 catch-up；memory_search 检索不受影响。
 	const skipCapture = process.env.MEMORY_HUB_SKIP_CAPTURE === "1";
@@ -660,6 +744,15 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 
 		const sessionId = ctx.sessionManager.getSessionId();
 		if (bootstrappedSessions.has(sessionId)) return;
+		if (hasCompletedBootstrap(sessionId)) {
+			bootstrappedSessions.add(sessionId);
+			trace("project_bootstrap_skip", {
+				session_id: sessionId,
+				cwd: ctx.cwd,
+				outcome: "already_completed",
+			});
+			return;
+		}
 		// 先登记 attempted：超时/空结果/服务故障都不在后续 prompt 重试，避免持续
 		// 增加首 token 延迟。手工深挖仍可使用 memory_search 工具。
 		bootstrappedSessions.add(sessionId);
@@ -669,6 +762,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				cwd: ctx.cwd,
 				outcome: "disabled",
 			});
+			markBootstrapDone(sessionId, { cwd: ctx.cwd, outcome: "disabled" });
 			return;
 		}
 		const projectHint = basename(ctx.cwd) || "当前项目";
@@ -681,12 +775,13 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		const limit = bootstrapLimit();
 		const maxChars = bootstrapMaxChars();
 
-		const scoreDebug = bootstrapScoreDebug();
+		const scoreEnabled = bootstrapScoreEnabled();
 		let recalled = "";
 		let outcome: string;
 		let exitCode: number;
 		let durationMs: number;
-		if (scoreDebug) {
+		const reviewCandidates: Record<string, unknown>[] = [];
+		if (scoreEnabled) {
 			const jsonResult = await runHub(
 				[
 					"search",
@@ -710,7 +805,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				? (parsed as { facts: unknown[] }).facts
 				: [];
 			outcome = factsRaw.length
-				? "scored"
+				? ctx.hasUI ? "rated" : "unrated_no_ui"
 				: jsonResult.code === 124
 					? "timeout"
 					: jsonResult.code === 0
@@ -726,27 +821,59 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 					let score: number | null = null;
 					if (ctx.hasUI) {
 						const summary = typeof fact.summary === "string" ? fact.summary.trim() : "";
-						try {
-							ctx.ui.setWidget("memory-hub-score", [
-								`Memory Hub 调试评分 ${index + 1}/${factsRaw.length}`,
-								summary ? `摘要：${clipText(summary, 240)}` : "",
-								clipText(factTextOf(fact), 800),
-							].filter((line) => line.length > 0));
-						} catch {
-							// widget 渲染失败不影响评分
+						while (score === null) {
+							try {
+								ctx.ui.setWidget("memory-hub-score", [
+									`Memory Hub 首轮记忆评分 ${index + 1}/${factsRaw.length}（完成前 agent 不会继续）`,
+									summary ? `摘要：${clipText(summary, 240)}` : "",
+									clipText(factTextOf(fact), 800),
+								].filter((line) => line.length > 0));
+							} catch {
+								// widget 渲染失败不影响评分
+							}
+							let choice: string | undefined;
+							try {
+								choice = await ctx.ui.select(
+									`记忆 ${index + 1}/${factsRaw.length}：对当前问题有多大帮助？（必须评分）`,
+									[
+										"3 - 完整答案（可直接据此作答）",
+										"2 - 重要支撑（单独不完整）",
+										"1 - 沾边但帮助有限",
+										"0 - 无关/噪声（本轮剔除）",
+									],
+								);
+							} catch (error) {
+								trace("recall_score_wait", {
+									session_id: sessionId,
+									rank: index + 1,
+									outcome: "ui_error_retry",
+									error: clipText(String(error), 500),
+								});
+								await new Promise((resolve) => setTimeout(resolve, 250));
+								continue;
+							}
+							if (choice && /^[0-3]/.test(choice)) {
+								score = Number(choice.charAt(0));
+							} else {
+								trace("recall_score_wait", {
+									session_id: sessionId,
+									rank: index + 1,
+									outcome: "dismissed_retry",
+								});
+							}
 						}
-						const choice = await ctx.ui.select(
-							`记忆 ${index + 1}/${factsRaw.length}：对刚才的问题有多大帮助？`,
-							[
-								"跳过（不打分，照常注入）",
-								"3 - 完整答案（可直接据此作答）",
-								"2 - 重要支撑（单独不完整）",
-								"1 - 沾边但帮助有限",
-								"0 - 无关/噪声（本轮剔除）",
-							],
-						);
-						if (choice && /^[0-3]/.test(choice)) score = Number(choice.charAt(0));
 					}
+					const factText = clipText(factTextOf(fact), 1600);
+					const factSummary = clipText(typeof fact.summary === "string" ? fact.summary.trim() : "", 500);
+					reviewCandidates.push({
+						rank: index + 1,
+						memory_id: memoryIdOf(fact),
+						result_id: typeof fact.result_id === "string" ? fact.result_id : null,
+						source_type: typeof fact.source_type === "string" ? fact.source_type : null,
+						score,
+						summary: factSummary,
+						text: factText,
+					});
 					if (score !== null) {
 						scoredCount += 1;
 						records.push({
@@ -758,7 +885,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 							memory_id: memoryIdOf(fact),
 							source_type: typeof fact.source_type === "string" ? fact.source_type : null,
 							score,
-							summary: clipText(typeof fact.summary === "string" ? fact.summary.trim() : "", 300),
+							summary: factSummary,
+							text: factText,
 						});
 					}
 					if (score === 0) {
@@ -803,7 +931,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				});
 				recalled = formatFactsDebug(kept, maxChars);
 				if (dropped > 0 && recalled) {
-					recalled = `（调试评分：用户已将 ${dropped} 条判为无关并从本轮剔除）\n` + recalled;
+					recalled = `（首轮评分：用户已将 ${dropped} 条判为无关并从本轮剔除）\n` + recalled;
 				}
 			}
 		} else {
@@ -843,8 +971,29 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			exit_code: exitCode,
 			duration_ms: durationMs,
 			result_chars: recalled.length,
-			score_debug: scoreDebug,
+			score_enabled: scoreEnabled,
+			rating_required: scoreEnabled && ctx.hasUI,
+			has_ui: ctx.hasUI,
 		});
+		if (scoreEnabled) {
+			appendReview({
+				ts: new Date().toISOString(),
+				ext_version: EXTENSION_VERSION,
+				session_id: sessionId,
+				session_file: ctx.sessionManager.getSessionFile(),
+				cwd: ctx.cwd,
+				prompt: focusedPrompt,
+				query,
+				outcome,
+				exit_code: exitCode,
+				duration_ms: durationMs,
+				has_ui: ctx.hasUI,
+				rating_required: scoreEnabled && ctx.hasUI,
+				candidates: reviewCandidates,
+				injected_context: clipText(recalled, 8000),
+			});
+		}
+		markBootstrapDone(sessionId, { cwd: ctx.cwd, outcome });
 		if (!recalled) return;
 
 		const injection = [

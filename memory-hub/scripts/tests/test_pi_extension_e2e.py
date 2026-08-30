@@ -145,6 +145,20 @@ class PiExtensionE2ETest(unittest.TestCase):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
         self.assertIn("const defaultBootstrapTimeoutMs = 120 * 1000;", template)
 
+    def test_project_bootstrap_rating_gate_blocks_until_every_candidate_is_scored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(Path(directory), {"SCORE_GATE": "1"})
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "score-gate")
+
+    def test_project_bootstrap_rating_is_default_on_and_only_explicit_zero_disables_it(self):
+        template = PI_TEMPLATE.read_text(encoding="utf-8")
+        self.assertIn(
+            'return process.env.MEMORY_HOOK_PI_BOOTSTRAP_SCORE !== "0";',
+            template,
+        )
+        self.assertNotIn('"跳过（不打分，照常注入）"', template)
+
 
 if __name__ == "__main__":
     unittest.main()

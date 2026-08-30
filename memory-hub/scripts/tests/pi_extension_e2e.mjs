@@ -28,6 +28,7 @@ const pendingDir = join(stateDir, "pi-pending-enqueues");
 const traceFile = join(stateDir, "pi-trace.jsonl");
 const catchupMode = process.env.CATCHUP_MARKER === "1";
 const busyOnce = process.env.FLUSH_BUSY_ONCE === "1";
+const scoreGateMode = process.env.SCORE_GATE === "1";
 
 writeFileSync(transcriptPath, JSON.stringify({ type: "message", role: "user", text: "hello" }) + "\n");
 
@@ -39,8 +40,18 @@ const pi = {
 	registerTool() {},
 };
 
+const selectCalls = [];
+const selectResolvers = [];
 const ctx = {
 	cwd: process.cwd(),
+	hasUI: scoreGateMode,
+	ui: {
+		setWidget() {},
+		select(title, options) {
+			selectCalls.push({ title, options });
+			return new Promise((resolveChoice) => selectResolvers.push(resolveChoice));
+		},
+	},
 	sessionManager: {
 		getSessionId: () => "sess-e2e",
 		getSessionFile: () => transcriptPath,
@@ -196,10 +207,41 @@ try {
 
 		// 首轮 prompt 阻塞一次 project bootstrap 并注入 system prompt；后续 prompt
 		// 不重复检索。超时/失败时同样只尝试一次并 fail-open。
-		const firstStart = await handlers.get("before_agent_start")(
-			{ prompt: "start work", systemPrompt: "base-system" },
-			ctx,
-		);
+		let firstStart;
+		if (scoreGateMode) {
+			let settled = false;
+			const startPromise = handlers.get("before_agent_start")(
+				{ prompt: "start work", systemPrompt: "base-system" },
+				ctx,
+			).finally(() => {
+				settled = true;
+			});
+			await waitFor(() => selectCalls.length === 1, "first rating prompt");
+			await sleep(50);
+			assert.equal(settled, false, "agent must remain blocked before the first rating");
+			assert.equal(selectCalls[0].options.length, 4, "rating prompt must not offer a skip choice");
+			assert.ok(selectCalls[0].options.every((option) => /^[0-3]/.test(option)));
+			selectResolvers.shift()("3 - 完整答案（可直接据此作答）");
+			await waitFor(() => selectCalls.length === 2, "second rating prompt");
+			await sleep(50);
+			assert.equal(settled, false, "agent must remain blocked until every candidate is rated");
+			selectResolvers.shift()("0 - 无关/噪声（本轮剔除）");
+			firstStart = await startPromise;
+			assert.equal(settled, true);
+			const scores = readJsonl(join(stateDir, "pi-recall-scores.jsonl"));
+			assert.deepEqual(scores.map((entry) => entry.score), [3, 0]);
+			assert.ok(scores.every((entry) => typeof entry.text === "string" && entry.text.length > 0));
+			const reviews = readJsonl(join(stateDir, "pi-recall-reviews.jsonl"));
+			assert.equal(reviews.length, 1);
+			assert.equal(reviews[0].rating_required, true);
+			assert.equal(reviews[0].candidates.length, 2);
+			assert.doesNotMatch(reviews[0].injected_context, /昨天午饭/);
+		} else {
+			firstStart = await handlers.get("before_agent_start")(
+				{ prompt: "start work", systemPrompt: "base-system" },
+				ctx,
+			);
+		}
 		const bootstrapTimedOut = process.env.FAKE_SEARCH_DELAY_MS !== undefined;
 		if (bootstrapTimedOut) {
 			assert.equal(firstStart, undefined, "bootstrap timeout must continue without injection");
@@ -208,7 +250,10 @@ try {
 		} else {
 			assert.match(firstStart.systemPrompt, /^base-system\n\n# Memory Hub/);
 			assert.match(firstStart.systemPrompt, /严格测试驱动/);
-			assert.equal(traceEntries("project_bootstrap")[0].outcome, "injected");
+			assert.equal(
+				traceEntries("project_bootstrap")[0].outcome,
+				scoreGateMode ? "rated" : "unrated_no_ui",
+			);
 			assert.equal(hookCalls("search").length, 1, "first prompt must search project memory once");
 			assert.match(
 				hookCalls("search")[0].argv[1],
@@ -233,6 +278,26 @@ try {
 			1,
 			"later prompts must not repeat bootstrap search",
 		);
+		assert.ok(existsSync(join(stateDir, "pi-bootstrap-done", "sess-e2e.json")));
+		// 模拟 Pi 进程重启/恢复同一 session：新扩展实例的内存 Set 为空，仍必须靠
+		// durable done marker 跳过，不得再次检索或弹评分。
+		const resumedHandlers = new Map();
+		mod.default({
+			on(event, fn) {
+				resumedHandlers.set(event, fn);
+			},
+			registerTool() {},
+		});
+		const searchesBeforeResume = hookCalls("search").length;
+		const selectsBeforeResume = selectCalls.length;
+		const resumedStart = await resumedHandlers.get("before_agent_start")(
+			{ prompt: "resume after restart", systemPrompt: "base-system" },
+			ctx,
+		);
+		assert.equal(resumedStart, undefined);
+		assert.equal(hookCalls("search").length, searchesBeforeResume);
+		assert.equal(selectCalls.length, selectsBeforeResume);
+		assert.ok(traceEntries("project_bootstrap_skip").some((entry) => entry.outcome === "already_completed"));
 
 		// agent_end → enqueue 立即触发并 await 完成（handler 返回即 durable）
 		await handlers.get("agent_end")({}, ctx);
@@ -291,7 +356,7 @@ try {
 		console.log(
 			JSON.stringify({
 				ok: true,
-				mode: busyOnce ? "main-busy" : "main",
+				mode: scoreGateMode ? "score-gate" : busyOnce ? "main-busy" : "main",
 				captures: hookCalls("capture").length,
 				flushes: hookCalls("flush").length,
 				enqueues: traceEntries("enqueue_done").length,

@@ -150,7 +150,9 @@ Pi 扩展（v2 起）把每次与 Memory Hub 的交互追加为 JSONL，写到
 | kind | 时机 | 关键字段 |
 |---|---|---|
 | `session_start` | 会话开始 | session_id、cwd |
-| `project_bootstrap` | session 首轮项目背景预热 | query、limit、outcome、exit_code、duration_ms、result_chars |
+| `project_bootstrap` | session 首轮项目背景预热 | query、limit、outcome（rated/unrated_no_ui/empty/error/timeout）、exit_code、duration_ms、result_chars、rating_required、has_ui |
+| `project_bootstrap_skip` | 已有持久完成标记，恢复旧 session 不重复回溯 | session_id、outcome=already_completed |
+| `recall_score` / `recall_score_wait` | 评分完成统计 / 用户取消评分后继续等待 | total、scored、dropped、kept / rank、outcome |
 | `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、result（结果全文） |
 | `capture_schedule` | agent_end 排程 AFK 延时归档 | trigger、delay_ms |
 | `capture_cancel` | 新 prompt / reschedule / shutdown 取消挂起归档 | reason、trigger |
@@ -159,6 +161,11 @@ Pi 扩展（v2 起）把每次与 Memory Hub 的交互追加为 JSONL，写到
 Pi 扩展 v4 起 agent_end 不再逐轮立即上传：等会话空闲
 `MEMORY_HOOK_PI_CAPTURE_DELAY_MS` 毫秒（默认 5 分钟，置 0 恢复逐轮立即上传）后才 capture；
 计时器 unref，不拖住进程退出，提前退出由 session_shutdown 立即归档兜底。
+
+v12 另写 `${STATE_DIR}/pi-recall-reviews.jsonl`（每个 session 一行：首 prompt、query、候选全文/
+摘要/ID/评分、最终注入上下文）和 `pi-recall-scores.jsonl`（每个已评分候选一行），用于按
+session_id 与 Pi transcript 联合复盘。完成状态写 `pi-bootstrap-done/<sessionId>.json`，保证 Pi
+重启/恢复 session 后不会把后续 prompt 误当首轮再次召回。
 
 单字段超 20k 字符截断；写日志失败不阻断 agent。Claude/Codex 端的留痕在 spool
 （`memory_hook.py status` 可查 job 状态），不在此文件。
@@ -189,9 +196,10 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HOOK_PI_CAPTURE_DELAY_MS=300000  # Pi agent_end AFK 防抖归档延时；默认 5 分钟，置 0 逐轮立即上传
 # MEMORY_HOOK_PI_BOOTSTRAP_RECALL=0        # 可选：关闭 Pi 每 session 首轮 project 背景预热
 # MEMORY_HOOK_PI_BOOTSTRAP_TIMEOUT_MS=120000 # 首轮预热超时；失败后当前 session 不重试
-# MEMORY_HOOK_PI_BOOTSTRAP_SCORE=1         # 调试评分：首轮预热逐条暂停打分（0-3），判 0 本轮剔除，
-                                           # 分数落 <STATE_DIR>/pi-recall-scores.jsonl 并 fire-and-forget
-                                           # 上报 POST /v1/feedback（0→irrelevant、2/3→relevant）；无 UI 自动跳过
+# MEMORY_HOOK_PI_BOOTSTRAP_SCORE=0         # 可选：关闭交互式 Pi 默认开启的首轮强制评分门禁。
+                                           # 默认逐条暂停打 0-3 分，全部完成前 agent 不启动；判 0 本轮剔除。
+                                           # scores/reviews JSONL 持久化并 fire-and-forget 上报 feedback；
+                                           # print/headless 无 UI 不阻塞，记录 outcome=unrated_no_ui
 # 会话标题 / 低价值过滤（内网 vLLM，hook 与 upload_sessions.py 共用，默认关）：
 # MEMORY_HUB_TITLE_LLM=1          # 默认 0 关闭；置 1 开启，关闭时退化为启发式标题且不做低价值过滤
 # MEMORY_HUB_TITLE_LLM_BASE_URL=http://192.168.2.76:8000/v1

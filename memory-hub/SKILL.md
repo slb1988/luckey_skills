@@ -134,7 +134,8 @@ Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`（仅
 **三端都有首轮自动召回**（2026-08-29 起）：Pi 走扩展 `before_agent_start`；Claude/Codex 走
 `UserPromptSubmit` hook → `memory_hook.py recall --source <agent>`。同一语义：首个用户 prompt +
 project hint 做一次 focused recall（limit=6、默认最多 4000 字符、120 秒故障上限），**每个 session
-只查一次**——recall 用 `recall-markers/` 落盘标记（含失败/空结果），Pi 用进程内集合；超时/空结果/
+只查一次**——recall 用 `recall-markers/` 落盘标记（含失败/空结果），Pi v12 用
+`pi-bootstrap-done/` 持久标记（进程内集合仅作同进程快路径）；超时/空结果/
 服务故障都不在后续 prompt 重试。结果经 stdout 注入上下文；`MEMORY_HOOK_RECALL=0` 关闭
 Claude/Codex 侧，Pi 侧用 `MEMORY_HOOK_PI_BOOTSTRAP_RECALL=0`。后续深挖用 `memory_search`（Pi）/
 `memory_hook.py search` CLI（Claude/Codex）；首次预算可用 `MEMORY_HOOK_PI_BOOTSTRAP_LIMIT` 与
@@ -150,13 +151,22 @@ before_agent_start 取消，hub 版本只在 flush 时产生、无 churn）。se
 enqueue 后做最终 capture；session_start 有界 catch-up 补传遗留 marker（进程被杀的尾部）。
 v4 是纯 AFK 防抖（agent_end 只排程计时器，到期才 capture）——防抖窗口内进程被杀即丢尾部。
 行为有 Node e2e 值守（`scripts/tests/test_pi_extension_e2e.py`，需 node，无 node 机器跳过）。
-留痕有两个文件，分析检索质量先查它们：
+**v12 起交互式 Pi 的首轮评分默认开启**：结构化检索完成后，`before_agent_start` 逐条 `await`
+用户 0-3 分评分，全部候选完成前 agent 不会启动；无“跳过”选项，0 分候选本轮不注入。
+显式 `MEMORY_HOOK_PI_BOOTSTRAP_SCORE=0` 才关闭；print/headless 无 UI 时不阻塞并记录
+`unrated_no_ui`。评分写 `pi-recall-scores.jsonl`，每个 session 的 query、首 prompt、候选全文/
+摘要/ID/评分及最终注入上下文写 `pi-recall-reviews.jsonl`，用于后续批量复盘；2/3 分和 0 分仍分别
+fire-and-forget 上报 relevant/irrelevant feedback。评分门禁与跨进程 session 去重都有 Node e2e 值守。
+
+分析检索质量优先查以下文件：
 - `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`——Pi 扩展侧视角
   （v5 事件名互斥：marker_write/marker_delete/marker_quarantine、enqueue_done（含 outcome/
   job_id/sha256/transcript_bytes）、flush_schedule/flush_cancel/flush_done（outcome=completed/
   busy/failed）、catchup_scan/catchup_done、final_capture、session_start、project_bootstrap、search）；
 - 同目录 `hook-trace.jsonl`——脚本侧 ground truth（memory_hook.py 的 search，三端 agent 共用，
   含完整输出、query、project_id、facts_count），claude/codex 无 pi-trace 时只能查这个。
+- 同目录 `pi-recall-reviews.jsonl` / `pi-recall-scores.jsonl`——v12 起的 session 级完整首轮回溯包与
+  候选级真实用户标注；集体 review 时先按 `session_id` 与 Pi transcript 关联。
 每轮检索测试/分析前用 `python3 scripts/rotate_pi_trace.py`（可加 `--include-hook-trace`）把旧
 trace 轮转到 `trace-backups/`，保证当轮数据干净；扩展按事件 append 写 trace、无持久句柄，
 会话运行中轮转也安全。
@@ -249,6 +259,10 @@ python3 "$SKILL_DIR/scripts/upload_sessions.py" --project-id unity2018 --dry-run
 
 <memory category="troubleshooting">
 **session 归错 project（如 admin_sun_depot_7184/MainDev/ObsidianVault 全落 `project:sun`）先查本机 catch-all**：state dir `project-aliases.local.json` 里 `{"aliases":{"*":"<id>"}}` 是 `install_hooks.py install --project <id>` 写入的整机 catch-all；2026-08 之前的旧版还可能因 agent 伪终端空输入，把主机名建议值以 `source: "prompt"` 静默写入；旧版还有第三条写入路径（local JSON「老是被修改」的机制）：`main()` 只要 `resolve_machine_project()` 返回 project_id——含 `source=existing` 仅仅读到已有配置——就调 `install_machine_project()` 把文件重写一遍，每次普通 install（skill 更新、agent 重装）都重断言错误 catch-all 并刷新 `updated_at`。`atomic_write` 每次覆盖前生成 `.memory-hub.bak`，state dir 里残留的多个含 catch-all 的 bak（updated_at 相隔几十秒 = 连续两次 install 的痕迹）不会被读取，可直接删。共享模板 `assets/project-aliases.json` 只有子目录/特定目录条目（backend/frontend→admin_sun_depot_7184、sununity→unity2018），**没有顶层目录自映射**；解析是 `aliases.get(name, aliases.get("*", name))`，未列名 cwd 全部落 `*`（2026-08-28 实测复现）。`--project` catch-all 只适合专用单项目机器（NAS→nas），多项目工作站用了会吞掉所有未显式列名的项目——应删 `*`，按需保留具体目录映射（显式条目优先于 `*`）。修复定版 commit `22c6589`（2026-08-30）：交互 prompt 路径整个删除，新 `apply_machine_project()` 只在显式 `--project`（`source=flag`）时写文件，已有配置只报告不重写；回归测试在 `scripts/tests/test_install_hooks.py`。排查路径：直接调 memory_hook.py 的别名解析实测各 cwd → spool.sqlite3 jobs 表按 local JSON mtime 分界统计错归 job。hub 上已错传的 session 不可变，按正确 project 补传只产生新版本，旧污染仍留在错 group。另注意：`.team/<member>/` 个人记忆若把错误配置记成「已固定，禁止重复确认」会固化错误，修复配置时需同步更正该条目。
+</memory>
+
+<memory category="troubleshooting">
+**入库 session 审核（triage）报 "unparseable llm response" 的根因是上游 kimi-k3 间歇性输出非法 JSON，不是解析代码/prompt/截断问题**（2026-08-30 重放失败快照实证，约 1/3 概率）：中文字符串值漏加引号（真实返回形如 `{"decision": "approve", "rationale": 记录了…}`），`json.JSONDecoder().raw_decode` 抛 `Expecting value`，`_parse_triage_response` 兜底落 `uncertain` + rationale "unparseable llm response"。temperature=0 压不住。重放已排除的假设（排查时别先怀疑这些）：HTTP 全 200、`stop_reason=end_turn`、输出仅 ~150 tokens（远低于 2048 上限）、content 结构 `[thinking, text]` 正常。两个结构性缺口：① **解析失败完全静默**——日志无任何输出、原始 LLM 返回不落盘，只能重放快照取证；② attempts 打满上限 3 后记录留 pending 不再自动重试，需人工重置 attempts 或 dashboard approve（当日 3 条误伤：hsbg-companion ×1、obsidianvault ×2，重放显示内容本身均会判 approve）。triage LLM 配置：kimi-k3 @ 10.77.77.4:8600（Anthropic 协议）。修复方向（截至 2026-08-30 未动代码，待决策）：解析失败时正则兜底抽 `"decision"\s*:\s*"(\w+)"` 与 rationale 段 / 追加「只输出严格 JSON」重试一次 / 失败时把原始返回截断写日志。
 </memory>
 
 Hub 投递 Graphiti 前会过一道内容清洗层 `strip_archival_boilerplate()`（service.py）：按模式剥掉归档摘要开头的元数据套话，只留知识正文进入抽取。当前覆盖三种前缀：`xx 会话归档，工作目录：…。`（legacy）、`xx 会话「标题」，工作目录：…。`、`xx 会话「标题」（日期，工作目录：…）。`。新前缀出现时在此加模式即可对存量内容生效——它作用于投递时刻而非写入时刻，改模式不需要回写 SQLite。

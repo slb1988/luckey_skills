@@ -61,7 +61,27 @@ function respondNow(args) {
 		}
 		console.log(JSON.stringify(payload));
 	} else if (args[0] === "search") {
-		console.log("[project:fixture]\n- 项目使用严格测试驱动；先跑小规模验证再全量修改。");
+		if (args.includes("--json")) {
+			console.log(JSON.stringify({
+				project_id: "fixture",
+				facts: [
+					{
+						result_id: "memory-useful",
+						source_type: "memory_document",
+						summary: "项目验证约定",
+						text: "项目使用严格测试驱动；先跑小规模验证再全量修改。",
+					},
+					{
+						result_id: "memory-noise",
+						source_type: "memory_document",
+						summary: "无关生活记录",
+						text: "昨天午饭吃了面。",
+					},
+				],
+			}));
+		} else {
+			console.log("[project:fixture]\n- 项目使用严格测试驱动；先跑小规模验证再全量修改。");
+		}
 	} else if (args[0] === "flush") {
 		let busy = false;
 		if (process.env.FLUSH_BUSY_ONCE === "1") {
