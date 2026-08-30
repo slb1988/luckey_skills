@@ -1,6 +1,6 @@
 ---
 name: qnap-nas
-description: QNAP NAS 综合运维工具。当用户提到 QNAP 命令行、NAS 工具、HybridMount/CacheMount 挂载云存储、HBS3/HybridBackup 备份同步、NAS 磁盘管理、缓存策略、云网关 CLI、云备份 CLI、NAS 上的命令行工具、远程挂载管理、文件型云网关 时触发。即使用户只是说"HybridMount 命令行"、"HBS3 CLI"、"hbs3-rr3c"、"CacheMount 怎么用"、"NAS 上怎么看缓存" 也应触发。
+description: QNAP NAS 综合运维工具。当用户提到 QNAP 命令行、NAS 工具、HybridMount/CacheMount 挂载云存储、HBS3/HybridBackup 备份同步、NAS 磁盘管理、缓存策略、云网关 CLI、云备份 CLI、NAS 上的命令行工具、远程挂载管理、文件型云网关、天翼云盘/189网盘同步 时触发。即使用户只是说"HybridMount 命令行"、"HBS3 CLI"、"hbs3-rr3c"、"CacheMount 怎么用"、"NAS 上怎么看缓存"、"天翼云盘备份到 NAS" 也应触发。
 ---
 
 # QNAP NAS 综合运维
@@ -373,6 +373,27 @@ $SQLITE $DB "SELECT json_extract(value, '$.name'), json_extract(value, '$.enable
 | `rr2/bin/cli/` | Python 脚本 | job_config, verify, check_md5, server 等管理工具 |
 | `rsyncRR.sh` | 根目录 | 实时 rsync 脚本 |
 | `CloudConnector3/` | 根目录 | 三方云连接器 + 任务数据库 |
+
+## 天翼云盘（189）同步方案
+
+天翼云盘**无官方 Linux/QNAP 客户端**（只有 Win/Mac/手机），NAS 上只能走第三方工具：
+
+| 方案 | 形态 | 适用场景 | 备注 |
+|------|------|----------|------|
+| **OpenList** | Docker | 网盘挂载 + WebDAV + 云间互拷 | **首选**；AList 2025 被收购后的社区 fork，原生 189CloudPC 驱动 |
+| **cloudpan189-go** | 单二进制 CLI | NAS 本地 → 天翼单向备份 | 最轻量，自带 backup/sync 命令配 cron 即可；项目维护慢，天翼接口变动有失效风险 |
+| **CloudDrive2** | Docker/QPKG | 网盘挂成本地盘再 rsync | 闭源免费版功能受限；FUSE 挂载跑大批量备份稳定性一般 |
+
+推荐架构：
+
+- **NAS → 天翼备份**：OpenList 挂天翼开 WebDAV，`rclone sync /share/xxx webdav:/backup` + cron（断点续传/增量比对/校验比裸脚本可靠）；轻量替代是 cloudpan189-go `backup` + cron
+- **云到云**（别的网盘/分享链接 → 天翼，不经本地落盘）：OpenList 双挂源盘和天翼后用后台「复制任务」服务器端互拷；或两边开 WebDAV 用 rclone 搬
+
+坑位：
+
+- 天翼分**个人云**和**家庭云**，driver 配置选错会登录失败或看不到文件
+- 非会员大流量上传限速，首次大批量备份建议夜间跑
+- cookie/token 有有效期，OpenList 掉线要重新登录；长期无人值守场景需留意凭证刷新
 
 ## 其他已安装的 QPKG 应用
 
