@@ -12,7 +12,9 @@ import { Type } from "typebox";
 //   search --json 拉结构化结果，逐条 ctx.ui.select 暂停等用户打 0-3 分，
 //   判 0 的记忆本轮从注入剔除；分数落 pi-recall-scores.jsonl，作为 eval
 //   judgments 的真实用户标注来源。无 UI（pi -p / a2a 子进程）自动跳过评分。
-const EXTENSION_VERSION = "10";
+// v11：评分后 fire-and-forget 上报 POST /v1/feedback（0→irrelevant、2/3→relevant、
+//   1/跳过不上报）；服务端幂等 upsert，本地 scores JSONL 仍是持久真源。
+const EXTENSION_VERSION = "11";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -168,6 +170,29 @@ function formatFactsDebug(facts: Record<string, unknown>[], maxChars: number): s
 		result += "\n\n" + block;
 	}
 	return result;
+}
+
+function scoreToFeedbackType(score: number): string | null {
+	if (score === 0) return "irrelevant";
+	if (score >= 2) return "relevant";
+	return null; // 1 分（沾边）：中性信号，不上报
+}
+
+// fire-and-forget：detached + unref，pi 退出不等子进程；失败静默（只留 trace）。
+function fireAndForget(args: string[], cwd: string): void {
+	try {
+		const child = spawn(python, [memoryHook, ...args], {
+			cwd,
+			env: process.env,
+			stdio: "ignore",
+			detached: true,
+			windowsHide: true,
+		});
+		child.unref();
+		trace("feedback_dispatch", { memory_id: args[args.indexOf("--memory-id") + 1], type: args[args.indexOf("--type") + 1] });
+	} catch {
+		// 上报失败不阻断
+	}
 }
 
 // 扩展发起的 flush 用更大批次：默认 100 是给 hook 同步路径的延迟预算，
@@ -748,6 +773,26 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 					// 清理失败不影响主流程
 				}
 				appendScores(records);
+				// v11：同步上报 hub feedback（服务端幂等 upsert；本地 JSONL 仍是真源）。
+				for (const record of records) {
+					const feedbackType = scoreToFeedbackType(record.score as number);
+					const memoryId = record.memory_id;
+					if (!feedbackType || !memoryId) continue;
+					fireAndForget(
+						[
+							"feedback",
+							"--memory-id",
+							String(memoryId),
+							"--type",
+							feedbackType,
+							"--session-id",
+							sessionId,
+							"--source",
+							"pi",
+						],
+						safeSpawnCwd(ctx.cwd),
+					);
+				}
 				trace("recall_score", {
 					session_id: sessionId,
 					cwd: ctx.cwd,

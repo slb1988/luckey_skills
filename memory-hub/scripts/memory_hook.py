@@ -1782,6 +1782,32 @@ class HubClient:
         facts = result.get("facts", [])
         return facts if isinstance(facts, list) else []
 
+    def feedback(
+        self,
+        memory_id: str,
+        feedback_type: str,
+        project_id: str,
+        user_id: str,
+        session_id: Optional[str] = None,
+        note: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        body: Dict[str, Any] = {
+            "schema_version": "memory-feedback/1",
+            "memory_id": memory_id,
+            "feedback_type": feedback_type,
+        }
+        if session_id:
+            body["session_id"] = session_id
+        if note:
+            body["note"] = note
+        return self.request(
+            "POST",
+            "/v1/feedback",
+            project_id,
+            user_id,
+            json_body=body,
+        )
+
 
 def flush_pending(store: StateStore, config: Config, limit: int) -> Dict[str, Any]:
     lock_file = store.flush_lock_path.open("a+b")
@@ -2119,6 +2145,37 @@ def command_capture(args: argparse.Namespace, config: Config, store: StateStore)
     return 0
 
 
+def command_feedback(args: argparse.Namespace, config: Config) -> int:
+    try:
+        profile = request_user_profile(config, explicit_user_id=args.user_id)
+        if not profile_is_ready(profile):
+            print(setup_reminder(config, profile), file=sys.stderr)
+            return 2
+        assert profile is not None
+        project_id = args.project or project_id_for_cwd(
+            os.getcwd(), config.archive_project_id
+        )
+        result = HubClient(config).feedback(
+            args.memory_id,
+            args.feedback_type,
+            project_id,
+            profile.user_id,
+            session_id=args.session_id,
+            note=args.note,
+        )
+        print(json.dumps(result, ensure_ascii=False))
+        return 0
+    except Exception as error:
+        # fire-and-forget 调用方不看退出码；保留非零便于手工排障。
+        print(
+            json.dumps(
+                {"accepted": False, "error": compact_text(str(error), 300)},
+                ensure_ascii=False,
+            )
+        )
+        return 1
+
+
 def command_search(args: argparse.Namespace, config: Config) -> int:
     try:
         profile = request_user_profile(
@@ -2349,6 +2406,19 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--limit", type=int, default=10)
     search.add_argument("--max-chars", type=int, default=8000)
     search.add_argument("--json", action="store_true")
+    feedback = commands.add_parser("feedback")
+    feedback.add_argument("--memory-id", required=True)
+    feedback.add_argument(
+        "--type",
+        dest="feedback_type",
+        required=True,
+        choices=("relevant", "irrelevant", "used", "rejected"),
+    )
+    feedback.add_argument("--session-id")
+    feedback.add_argument("--note")
+    feedback.add_argument("--project")
+    feedback.add_argument("--source", choices=("claude", "codex", "pi"))
+    feedback.add_argument("--user-id")
     recall = commands.add_parser("recall")
     recall.add_argument("--source", required=True, choices=("claude", "codex"))
     recall.add_argument("--user-id")
@@ -2380,6 +2450,8 @@ def main() -> int:
         return command_capture(args, config, StateStore(config))
     if args.command == "search":
         return command_search(args, config)
+    if args.command == "feedback":
+        return command_feedback(args, config)
     if args.command == "recall":
         return command_recall(args, config)
     if args.command == "flush":

@@ -189,6 +189,9 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HOOK_PI_CAPTURE_DELAY_MS=300000  # Pi agent_end AFK 防抖归档延时；默认 5 分钟，置 0 逐轮立即上传
 # MEMORY_HOOK_PI_BOOTSTRAP_RECALL=0        # 可选：关闭 Pi 每 session 首轮 project 背景预热
 # MEMORY_HOOK_PI_BOOTSTRAP_TIMEOUT_MS=120000 # 首轮预热超时；失败后当前 session 不重试
+# MEMORY_HOOK_PI_BOOTSTRAP_SCORE=1         # 调试评分：首轮预热逐条暂停打分（0-3），判 0 本轮剔除，
+                                           # 分数落 <STATE_DIR>/pi-recall-scores.jsonl 并 fire-and-forget
+                                           # 上报 POST /v1/feedback（0→irrelevant、2/3→relevant）；无 UI 自动跳过
 # 会话标题 / 低价值过滤（内网 vLLM，hook 与 upload_sessions.py 共用，默认关）：
 # MEMORY_HUB_TITLE_LLM=1          # 默认 0 关闭；置 1 开启，关闭时退化为启发式标题且不做低价值过滤
 # MEMORY_HUB_TITLE_LLM_BASE_URL=http://192.168.2.76:8000/v1
