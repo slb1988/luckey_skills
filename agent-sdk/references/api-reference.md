@@ -105,6 +105,7 @@ card 发布在 `<public_url>/.well-known/agent-card.json`（v1.0 拼写，注意
 | 端点 | 返回 |
 |---|---|
 | `GET /agent_platform/a2a/agents` | `result.data[]`：全部 agent（id/name/agent_type/status/url/busy） |
+| `GET /agent_platform/a2a/agents/mentions` | `result[]`：**按当前用户权限过滤**的可派发 agent（id/name/agent_type/description/status/tags）。pi @ 补全与 `a2a_send` 的 agent 发现数据源——「我能调度谁」查这个，不是 `/agents` |
 | `GET /agent_platform/a2a/dispatches/<id>` | `result`：`state`（`working`/`completed`/`failed`）+ `result_text`/`error` + `remote_task_id` |
 
 - **派发创建响应**：`POST /dispatch` 返回 `{"dispatches":[{"dispatch_id":N,"agent_id":...,"agent_name":...}]}`。
