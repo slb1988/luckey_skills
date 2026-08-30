@@ -155,6 +155,12 @@ Hub 已生成的占位摘要。
 **入库 session 审核（triage）报 "unparseable llm response" 的根因是上游 kimi-k3 间歇性输出非法 JSON，不是解析代码/prompt/截断问题**（2026-08-30 重放失败快照实证，约 1/3 概率）：中文字符串值漏加引号（真实返回形如 `{"decision": "approve", "rationale": 记录了…}`），`json.JSONDecoder().raw_decode` 抛 `Expecting value`，`_parse_triage_response` 兜底落 `uncertain` + rationale "unparseable llm response"。temperature=0 压不住。重放已排除的假设（排查时别先怀疑这些）：HTTP 全 200、`stop_reason=end_turn`、输出仅 ~150 tokens（远低于 2048 上限）、content 结构 `[thinking, text]` 正常。两个结构性缺口：① **解析失败完全静默**——日志无任何输出、原始 LLM 返回不落盘，只能重放快照取证；② attempts 打满上限 3 后记录留 pending 不再自动重试，需人工重置 attempts 或 dashboard approve（当日 3 条误伤：hsbg-companion ×1、obsidianvault ×2，重放显示内容本身均会判 approve）。triage LLM 配置：kimi-k3 @ 10.77.77.4:8600（Anthropic 协议）。修复方向（截至 2026-08-30 未动代码，待决策）：解析失败时正则兜底抽 `"decision"\s*:\s*"(\w+)"` 与 rationale 段 / 追加「只输出严格 JSON」重试一次 / 失败时把原始返回截断写日志。
 </memory>
 
+### 审核 LLM ReadTimeout（`extraction preview failed` 反复出现）= 推理模型耗时紧贴默认 60s 超时
+
+<memory category="troubleshooting">
+**审核 LLM ReadTimeout（`extraction preview failed` warning 反复出现）的根因是 kimi-k3 推理模型耗时紧贴 60s 默认 read 超时，不是网络问题**（2026-08-30 修复实证）：症状为 ReviewWorker 给关卡 2 `preview_pending` 行生成抽取预览时 `httpx.ReadTimeout`（llm.py complete ← service.py generate_pending_previews），失败行 `preview_attempts+1`，累计 3 次（review_triage_max_attempts）后滞留 `preview_pending` 不再自动重试。排障铁律：**小 ping 请求快（~1s HTTP 200）不能暴露问题**——kimi-k3 响应含 thinking block，真实预览请求（输入取库里最长 distilled_content ~2.8k 字符、max_tokens=2048）实测 33.8s，已达 60s 默认超时（`review_llm_timeout_seconds`，env 键 `REVIEW_LLM_TIMEOUT_SECONDS`）的 56%，负载波动即超时。修复：`.env` 加 `REVIEW_LLM_TIMEOUT_SECONDS=180`（5 倍余量，不换模型——triage/preview 共用 kimi-k3 是既定配置）+ stop_all/start_all 重启；纯配置改动不需要跑 pytest，改后用 `Settings().review_llm_timeout_seconds` 验证加载生效。验收看三点：日志 10 分钟零 ReadTimeout、worker 日志 POST /v1/messages 连续 HTTP 200（间隔 ~30s 即单次耗时）、`extraction_reviews` 有新行从 preview_pending 正常转入 `review`。积压清理：滞留行重置 `UPDATE extraction_reviews SET preview_attempts=0 WHERE status='preview_pending' AND preview_attempts>=3` 让 worker 重试。
+</memory>
+
 ### 入库审核显示 `LLM /v1/messages returned HTTP 400`
 
 审核 LLM 走 Anthropic Messages API。Hub 默认显式发送 `thinking: {type: disabled}`，适配
