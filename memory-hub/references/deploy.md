@@ -100,6 +100,7 @@ OUTBOX_MAX_BACKOFF_SECONDS=300
 
 要点：
 - 所有 `./data` 路径是**相对路径**，必须从项目目录启动。
+- 不要在对话中回显 `.env` 全文（当前无 secret，但生产会加 API key）。
 - Memory Hub **不接受** `NEO4J_URI`、Neo4j 用户名/密码；它只通过 Graphiti HTTP 访问后端。
 - 非 development/test 环境强制账号认证（`mhu_` token）；`MEMORY_HUB_API_KEY` 仅为 legacy 共享 key（`legacy_api_key_enabled=true` 才可用，账号体系上线后弃用）。
 
