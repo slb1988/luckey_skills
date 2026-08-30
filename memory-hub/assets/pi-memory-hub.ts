@@ -17,7 +17,9 @@ import { Type } from "typebox";
 // v12：交互式 Pi 默认开启首轮评分门禁（显式设 0 才关闭），移除“跳过评分”，
 //   before_agent_start 必须等所有候选打完 0-3 分才返回；持久化 session 完成标记，
 //   避免 Pi 重启/恢复旧 session 后重复回溯；另落完整 review JSONL 供实战复盘。
-const EXTENSION_VERSION = "12";
+// v13：评分 widget 与 select 标题同步展示首问摘要，让用户能对照“问题—记忆”判断相关性；
+//   select 标题也保留问题，避免只支持选择框、不渲染 widget 的前端丢失判断依据。
+const EXTENSION_VERSION = "13";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -767,6 +769,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		}
 		const projectHint = basename(ctx.cwd) || "当前项目";
 		const focusedPrompt = String(event.prompt ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
+		const ratingQuestion = clipText(focusedPrompt || `${projectHint} 项目背景`, 360);
 		// 首轮应回答用户正在问的问题；只有 prompt 太短时才退回通用项目背景。
 		// 一次查询同时带 project hint，服务端仍按当前 project 硬隔离。
 		const query = focusedPrompt.length >= 4
@@ -825,6 +828,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 							try {
 								ctx.ui.setWidget("memory-hub-score", [
 									`Memory Hub 首轮记忆评分 ${index + 1}/${factsRaw.length}（完成前 agent 不会继续）`,
+									`问题：${ratingQuestion}`,
+									`候选记忆 ${index + 1}/${factsRaw.length}：`,
 									summary ? `摘要：${clipText(summary, 240)}` : "",
 									clipText(factTextOf(fact), 800),
 								].filter((line) => line.length > 0));
@@ -834,7 +839,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 							let choice: string | undefined;
 							try {
 								choice = await ctx.ui.select(
-									`记忆 ${index + 1}/${factsRaw.length}：对当前问题有多大帮助？（必须评分）`,
+									`问题：${ratingQuestion}\n记忆 ${index + 1}/${factsRaw.length}：这条记忆有多大帮助？（必须评分）`,
 									[
 										"3 - 完整答案（可直接据此作答）",
 										"2 - 重要支撑（单独不完整）",

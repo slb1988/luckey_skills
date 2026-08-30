@@ -42,11 +42,14 @@ const pi = {
 
 const selectCalls = [];
 const selectResolvers = [];
+const widgetCalls = [];
 const ctx = {
 	cwd: process.cwd(),
 	hasUI: scoreGateMode,
 	ui: {
-		setWidget() {},
+		setWidget(key, lines) {
+			widgetCalls.push({ key, lines });
+		},
 		select(title, options) {
 			selectCalls.push({ title, options });
 			return new Promise((resolveChoice) => selectResolvers.push(resolveChoice));
@@ -211,7 +214,7 @@ try {
 		if (scoreGateMode) {
 			let settled = false;
 			const startPromise = handlers.get("before_agent_start")(
-				{ prompt: "start work", systemPrompt: "base-system" },
+				{ prompt: "start work with exact question", systemPrompt: "base-system" },
 				ctx,
 			).finally(() => {
 				settled = true;
@@ -221,6 +224,16 @@ try {
 			assert.equal(settled, false, "agent must remain blocked before the first rating");
 			assert.equal(selectCalls[0].options.length, 4, "rating prompt must not offer a skip choice");
 			assert.ok(selectCalls[0].options.every((option) => /^[0-3]/.test(option)));
+			assert.match(selectCalls[0].title, /问题：start work with exact question/);
+			assert.match(selectCalls[0].title, /记忆 1\/2/);
+			assert.ok(
+				widgetCalls.some(({ key, lines }) =>
+					key === "memory-hub-score"
+					&& Array.isArray(lines)
+					&& lines.some((line) => line === "问题：start work with exact question"),
+				),
+				"rating widget must show the first user question",
+			);
 			selectResolvers.shift()("3 - 完整答案（可直接据此作答）");
 			await waitFor(() => selectCalls.length === 2, "second rating prompt");
 			await sleep(50);
@@ -262,7 +275,7 @@ try {
 			);
 			assert.match(
 				hookCalls("search")[0].argv[1],
-				/start work/,
+				/start work(?: with exact question)?/,
 				"bootstrap query must include the first user prompt",
 			);
 			assert.ok(hookCalls("search")[0].argv.includes("6"), "bootstrap must keep a small result budget");

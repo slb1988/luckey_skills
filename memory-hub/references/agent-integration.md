@@ -179,6 +179,10 @@ v4 是纯 AFK 防抖（agent_end 只排程计时器，到期才 capture）——
 摘要/ID/评分及最终注入上下文写 `pi-recall-reviews.jsonl`，用于后续批量复盘；2/3 分和 0 分仍分别
 fire-and-forget 上报 relevant/irrelevant feedback。评分门禁与跨进程 session 去重都有 Node e2e 值守。
 
+**v13 起评分 widget 与 `ctx.ui.select` 标题都会同步显示首个用户问题摘要**，用户可直接对照
+“问题—候选记忆”判断相关性。不要只依赖 widget：部分 Pi 前端可能不渲染它，选择框自身必须
+包含问题摘要与候选序号。问题最多显示 360 字符，只增加本地 UI 文本，不增加检索 token 或 LLM 成本。
+
 分析检索质量优先查以下留痕文件：
 
 - `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`——Pi 扩展侧视角，
