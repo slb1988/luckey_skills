@@ -2,8 +2,10 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from install_hooks import (
+    apply_machine_project,
     check_json_hooks,
     check_machine_project,
     check_pi_extension,
@@ -150,6 +152,74 @@ class InstallHooksTest(unittest.TestCase):
             self.assertIsNone(pid2)
             self.assertEqual(meta2["source"], "none")
             self.assertIn("suggestion", meta2)
+
+    def test_resolve_machine_project_never_prompts_or_creates_catch_all(self):
+        from types import SimpleNamespace
+
+        class InteractiveStdin:
+            def isatty(self):
+                return True
+
+            def readline(self):
+                raise AssertionError("project resolution must not read stdin")
+
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            with patch("install_hooks.sys.stdin", InteractiveStdin()):
+                project_id, meta = resolve_machine_project(
+                    SimpleNamespace(project=None), home
+                )
+
+            self.assertIsNone(project_id)
+            self.assertEqual(meta["source"], "none")
+            self.assertFalse(check_machine_project(home)["set"])
+
+    def test_existing_machine_project_is_reported_without_rewrite(self):
+        from types import SimpleNamespace
+
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            install_machine_project("nas", home, {"source": "flag"})
+            local_file = (
+                home
+                / ".local"
+                / "state"
+                / "memory-hub-hook"
+                / "project-aliases.local.json"
+            )
+            before = local_file.read_bytes()
+
+            result = apply_machine_project(SimpleNamespace(project=None), home)
+
+            self.assertEqual(result["project_id"], "nas")
+            self.assertFalse(result["changed"])
+            self.assertEqual(local_file.read_bytes(), before)
+
+    def test_existing_specific_aliases_are_reported_without_catch_all(self):
+        from types import SimpleNamespace
+
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            local_file = (
+                home
+                / ".local"
+                / "state"
+                / "memory-hub-hook"
+                / "project-aliases.local.json"
+            )
+            local_file.parent.mkdir(parents=True)
+            local_file.write_text(
+                json.dumps({"aliases": {"maindev": "maindev"}}), encoding="utf-8"
+            )
+            before = local_file.read_bytes()
+
+            result = apply_machine_project(SimpleNamespace(project=None), home)
+
+            self.assertTrue(result["set"])
+            self.assertEqual(result["aliases"], {"maindev": "maindev"})
+            self.assertIsNone(result["project_id"])
+            self.assertFalse(result["changed"])
+            self.assertEqual(local_file.read_bytes(), before)
 
     def test_pi_check_rejects_extension_without_durable_enqueue(self):
         # 模拟有人把 v5 退回纯防抖：去掉 write-ahead marker 与 --no-flush 立即入队

@@ -67,23 +67,24 @@ install 同时会把进程环境里的 `MEMORY_HUB_API_KEY` 一并持久化，�
 > 全新机器无法自助生成 token：dashboard 的 `POST /api/v1/auth/tokens` 本身也要求
 > `DASHBOARD_API_KEY`，首次接入必须有人在面板 UI 手工生成 agent token（mhu_...）。
 
-### Windows pty 下 install 永久阻塞（2026-08 实测）
+### Windows pty 下 install 的历史交互坑（2026-08 实测，project prompt 已移除）
 
-install 有两处交互输入，都以 `sys.stdin.isatty()` 为门：
+旧版 install 有两处交互输入：
 
-1. 未给 `--project` 且本机无映射：`sys.stdin.readline()` 询问本机 project——**空行 = 接受建议值并落盘**
-   `{"*": "<建议值>"}`（meta 记 `source: "prompt"`）。自动化里空 readline 会静默写入用户没选过的
-   catch-all 映射。
+1. 未给 `--project` 且本机无映射时，曾用 `sys.stdin.readline()` 询问本机 project；agent 的伪终端可能
+   把空输入当成确认，按主机名建议值静默写入 `{"*": "<建议值>"}`。该分支现已删除：**只有显式
+   `--project` 才能新建或修改 catch-all**；普通 install 只报告并保留已有映射，无映射时只输出建议，
+   不读 stdin、不落盘。
 2. API key 既不在进程环境也不在持久化位置：`getpass.getpass()` 隐藏输入 token。
 
-agent 的 pty shell（pi bash tool 等）里两个坑叠加会卡死 install：pty 下 `isatty()` 恒 True，
-`< /dev/null` 重定向不改变它；且 Windows 的 getpass 实现是 `win_getpass`（msvcrt 直读控制台），
-**完全无视 stdin 重定向**，没人敲键盘就永远阻塞（install 自身无超时）。
+agent 的 pty shell（pi bash tool 等）里仍需注意 API key prompt：Windows 的 getpass 实现是
+`win_getpass`（msvcrt 直读控制台），**完全无视 stdin 重定向**，没人敲键盘就会一直阻塞
+（install 自身无超时）。
 
 非交互正确姿势：
 
-- 首选：显式 `--project <id>` + 预先把 `MEMORY_HUB_API_KEY` 持久化（或写进进程环境）——两个
-  prompt 分支都不会进入；
+- 首选：预先把 `MEMORY_HUB_API_KEY` 持久化（或写进进程环境）；仅在确定整台机器只服务一个
+  project 时才显式加 `--project <id>`；
 - 备选：monkeypatch 包住 main——
   ```bash
   python -c "import getpass,sys; getpass.getpass=lambda prompt='':''; \
@@ -96,11 +97,12 @@ agent 的 pty shell（pi bash tool 等）里两个坑叠加会卡死 install：p
 误落盘的本机映射在 state dir `project-aliases.local.json`，删文件即恢复 cwd 派生归属；它与用户身份
 （`MEMORY_HUB_CLIENT_USER_ID` / `client-profile.json`）是两套独立配置，删映射不影响身份。
 
-**install 建议指定本机 project（`--project`）**：它写入 state dir 的 `project-aliases.local.json`
-（机器级字典映射 `{"aliases":{"*":"<id>"}}`，不进 git、不随 skill 模板扩散），本机所有
-capture/search/批量归档默认都落该 project，与其他机器的项目完全隔离。映射里 `"*"` 是 catch-all，
-具体条目（如 `{"memory-hub":"memory-hub"}`）优先于 `*`。未提供时：交互终端会询问（默认建议主机名）；
-非交互只输出建议、不落盘。未设置本机映射时才退回按 cwd 派生（`assets/project-aliases.json` 部署的别名）。
+**只有单一 project 的专用机器才建议指定 `--project`**：它写入 state dir 的
+`project-aliases.local.json`（机器级字典映射 `{"aliases":{"*":"<id>"}}`，不进 git、不随 skill
+模板扩散），本机所有 capture/search/批量归档默认都落该 project。多 workspace 工作站不应设置
+`"*"` catch-all；需要例外时使用具体条目（如 `{"memory-hub":"memory-hub"}`）。未提供 `--project`
+时，install 不再交互询问或自动持久化主机名，只保留已有配置；没有本机映射时按 cwd 派生
+（含 `assets/project-aliases.json` 部署的共享别名）。
 
 **install 必须指定用户身份**：`--user-id` 必填（或已预设 `MEMORY_HUB_CLIENT_USER_ID`）。
 安装器会把它**持久化到用户级环境变量**：

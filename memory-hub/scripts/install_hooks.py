@@ -563,9 +563,10 @@ def suggest_project() -> str:
 def resolve_machine_project(
     args: argparse.Namespace, home: Path
 ) -> Tuple[Optional[str], Dict[str, str]]:
-    """决定本机 project：--project 标志 > 已存在的本机 project > 交互询问/建议。
+    """决定本机 project：只允许显式 --project 新建或修改 catch-all。
 
-    非交互且未设置时不自动落盘猜测值，只回传建议，避免误覆盖其他机器的归属。
+    已有 catch-all 仅报告、不重写；未设置时只回传建议。安装器不能根据主机名或
+    空的交互输入猜测 project，否则多 workspace 工作站会被错误合并到一个 scope。
     """
     if args.project:
         project_id = normalize_project(args.project)
@@ -575,17 +576,7 @@ def resolve_machine_project(
     existing = load_machine_project(home)
     if existing:
         return existing, {"source": "existing"}
-    suggestion = suggest_project()
-    if sys.stdin.isatty():
-        sys.stderr.write("Memory Hub project for this machine [%s]: " % suggestion)
-        sys.stderr.flush()
-        try:
-            line = sys.stdin.readline()
-        except (OSError, ValueError):
-            line = ""
-        project_id = normalize_project(line.strip()) or suggestion
-        return project_id, {"source": "prompt", "suggestion": suggestion}
-    return None, {"source": "none", "suggestion": suggestion}
+    return None, {"source": "none", "suggestion": suggest_project()}
 
 
 def install_machine_project(
@@ -629,6 +620,19 @@ def check_machine_project(home: Path) -> Dict[str, Any]:
         "suggestion": suggest_project(),
         "path": path,
     }
+
+
+def apply_machine_project(args: argparse.Namespace, home: Path) -> Dict[str, Any]:
+    """显式 --project 才写入；普通 install 只报告现有 local 映射。"""
+    project_id, project_meta = resolve_machine_project(args, home)
+    if project_id and project_meta.get("source") == "flag":
+        return install_machine_project(project_id, home, project_meta)
+
+    status = {**check_machine_project(home), "changed": False}
+    if not status.get("set"):
+        status["suggestion"] = project_meta.get("suggestion") or suggest_project()
+        status["hint"] = "set this machine's project with --project <id>"
+    return status
 
 
 def health_check() -> Dict[str, Any]:
@@ -1124,7 +1128,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="本机级 project（机器级字典映射，写入 state dir 的 project-aliases.local.json，"
         "如 --project nas 写为 {\"*\":\"nas\"} catch-all）；"
-        "install 时未提供且本机未设置过会交互询问，非交互则只输出建议不落盘",
+        "只有显式提供本参数才会新建或修改 catch-all；普通 install 只保留现有配置",
     )
     return parser
 
@@ -1156,18 +1160,7 @@ def main() -> int:
                 identity["MEMORY_HUB_API_KEY"] = api_key
             result["identity"] = persist_identity(identity, args.home)
             result["project_aliases"] = install_project_aliases(args.home)
-            project_id, project_meta = resolve_machine_project(args, args.home)
-            if project_id:
-                result["project"] = install_machine_project(
-                    project_id, args.home, project_meta
-                )
-            else:
-                result["project"] = {
-                    "ok": True,
-                    "set": False,
-                    "suggestion": project_meta.get("suggestion"),
-                    "hint": "set this machine's project with --project <id>",
-                }
+            result["project"] = apply_machine_project(args, args.home)
         else:
             result["identity"] = identity_status()
             result["project_aliases"] = check_project_aliases(args.home)

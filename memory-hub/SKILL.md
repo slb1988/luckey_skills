@@ -191,8 +191,9 @@ pi session 文件名 `<ts>_<uuid>.jsonl` 的 uuid 即 session id，两边按 UUI
 模板扩散，其他机器/用户不受影响）。优先级：`--project`/`--project-id` 显式参数 > 本机 local 映射 >
 共享模板（`assets/project-aliases.json` 部署）> cwd 派生兜底；映射里 `"*"` 是 catch-all（如
 `{"*":"nas"}` = 本机全部归 `nas`，具体条目如 `{"memory-hub":"memory-hub"}` 优先于 `*`）。本机映射
-一旦设置，capture/search/批量归档默认按它归 project，与其他机器的项目完全隔离。install 未给
-`--project` 时：交互终端询问（默认建议主机名），非交互只输出建议不落盘。**本机映射只能写系统目录
+一旦设置，capture/search/批量归档默认按它归 project，与其他机器的项目完全隔离。只有显式
+`install --project <id>` 才会新建或修改 catch-all；普通 install 不询问、不根据主机名猜测，只保留
+已有配置。多 workspace 工作站不应设置 `"*"`，而应依赖 cwd 派生或具体目录映射。**本机映射只能写系统目录
 （state dir），绝不允许改 skill 模板 `assets/project-aliases.json` 来映射本机名**（那会污染共享模板、
 影响其他用户）。
 
@@ -237,7 +238,7 @@ python3 "$SKILL_DIR/scripts/upload_sessions.py" --project-id unity2018 --dry-run
 - **capture/flush 只读进程环境的 `MEMORY_HUB_API_KEY`，注册表回退只有 check 有**：所以 check 报 `token_accepted: true` 不代表运行中的 agent 能上传——key 持久化进注册表**之前**被 Orca/终端拉起的进程环境里没有它，全部 401，必须重启 agent（及其父级 Orca/终端）才继承。spool 的 flush 是 **FIFO 队头阻塞**：队头 job 持续 401 重试会饿死后面 attempts=0 的 job。应急恢复：用注册表里的 key 临时注入当前 shell 环境，手动跑一次 `memory_hook.py flush` 清积压，再重启 agent。
 
 <memory category="troubleshooting">
-**session 归错 project（如 admin_sun_depot_7184/MainDev/ObsidianVault 全落 `project:sun`）先查本机 catch-all**：state dir `project-aliases.local.json` 里 `{"aliases":{"*":"<id>"},"source":"flag"}` 是某次 `install_hooks.py install --project <id>` 写入的整机 catch-all，文件 mtime 即误操作时间。共享模板 `assets/project-aliases.json` 只有子目录/特定目录条目（backend/frontend→admin_sun_depot_7184、sununity→unity2018），**没有顶层目录自映射**；解析是 `aliases.get(name, aliases.get("*", name))`，未列名 cwd 全部落 `*`（2026-08-28 实测复现）。`--project` catch-all 只适合专用单项目机器（NAS→nas），多项目工作站用了会吞掉所有未显式列名的项目——要么删 `*`，要么在 local JSON 补显式自映射（显式条目优先于 `*`）。排查路径：直接调 memory_hook.py 的别名解析实测各 cwd → spool.sqlite3 jobs 表按 local JSON mtime 分界统计错归 job。hub 上已错传的 session 不可变，按正确 project 补传只产生新版本，旧污染仍留在错 group。另注意：`.team/<member>/` 个人记忆若把错误配置记成「已固定，禁止重复确认」会固化错误，修复配置时需同步更正该条目。
+**session 归错 project（如 admin_sun_depot_7184/MainDev/ObsidianVault 全落 `project:sun`）先查本机 catch-all**：state dir `project-aliases.local.json` 里 `{"aliases":{"*":"<id>"}}` 是 `install_hooks.py install --project <id>` 写入的整机 catch-all；2026-08 之前的旧版还可能因 agent 伪终端空输入，把主机名建议值以 `source: "prompt"` 静默写入。共享模板 `assets/project-aliases.json` 只有子目录/特定目录条目（backend/frontend→admin_sun_depot_7184、sununity→unity2018），**没有顶层目录自映射**；解析是 `aliases.get(name, aliases.get("*", name))`，未列名 cwd 全部落 `*`（2026-08-28 实测复现）。`--project` catch-all 只适合专用单项目机器（NAS→nas），多项目工作站用了会吞掉所有未显式列名的项目——应删 `*`，按需保留具体目录映射（显式条目优先于 `*`）。新版 installer 已禁止普通 install 交互猜测或重写 catch-all。排查路径：直接调 memory_hook.py 的别名解析实测各 cwd → spool.sqlite3 jobs 表按 local JSON mtime 分界统计错归 job。hub 上已错传的 session 不可变，按正确 project 补传只产生新版本，旧污染仍留在错 group。另注意：`.team/<member>/` 个人记忆若把错误配置记成「已固定，禁止重复确认」会固化错误，修复配置时需同步更正该条目。
 </memory>
 
 Hub 投递 Graphiti 前会过一道内容清洗层 `strip_archival_boilerplate()`（service.py）：按模式剥掉归档摘要开头的元数据套话，只留知识正文进入抽取。当前覆盖三种前缀：`xx 会话归档，工作目录：…。`（legacy）、`xx 会话「标题」，工作目录：…。`、`xx 会话「标题」（日期，工作目录：…）。`。新前缀出现时在此加模式即可对存量内容生效——它作用于投递时刻而非写入时刻，改模式不需要回写 SQLite。
