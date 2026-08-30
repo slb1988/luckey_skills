@@ -183,6 +183,10 @@ fire-and-forget 上报 relevant/irrelevant feedback。评分门禁与跨进程 s
 “问题—候选记忆”判断相关性。不要只依赖 widget：部分 Pi 前端可能不渲染它，选择框自身必须
 包含问题摘要与候选序号。问题最多显示 360 字符，只增加本地 UI 文本，不增加检索 token 或 LLM 成本。
 
+**v14 起 Orca worker 的首问会先提取最后一个 `=== TASK ===` 之后的真实任务，再做 1200 字截断**；
+旧逻辑先截断整段 prompt，8KB 编排说明会把 TASK 完全挤掉，导致 query 与评分界面只显示 Orca
+操作样板。review/trace 增加 `prompt_source=orca_task|user_prompt`，便于后续区分入口质量与排序质量。
+
 分析检索质量优先查以下留痕文件：
 
 - `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`——Pi 扩展侧视角，

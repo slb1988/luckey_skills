@@ -210,11 +210,17 @@ try {
 
 		// 首轮 prompt 阻塞一次 project bootstrap 并注入 system prompt；后续 prompt
 		// 不重复检索。超时/失败时同样只尝试一次并 fail-open。
+		const firstPrompt = [
+			"You are working inside Orca, a multi-agent IDE.",
+			"编排说明 ".repeat(900),
+			"=== TASK ===",
+			"start work with exact question",
+		].join("\n");
 		let firstStart;
 		if (scoreGateMode) {
 			let settled = false;
 			const startPromise = handlers.get("before_agent_start")(
-				{ prompt: "start work with exact question", systemPrompt: "base-system" },
+				{ prompt: firstPrompt, systemPrompt: "base-system" },
 				ctx,
 			).finally(() => {
 				settled = true;
@@ -247,11 +253,13 @@ try {
 			const reviews = readJsonl(join(stateDir, "pi-recall-reviews.jsonl"));
 			assert.equal(reviews.length, 1);
 			assert.equal(reviews[0].rating_required, true);
+			assert.equal(reviews[0].prompt_source, "orca_task");
+			assert.equal(reviews[0].prompt, "start work with exact question");
 			assert.equal(reviews[0].candidates.length, 2);
 			assert.doesNotMatch(reviews[0].injected_context, /昨天午饭/);
 		} else {
 			firstStart = await handlers.get("before_agent_start")(
-				{ prompt: "start work", systemPrompt: "base-system" },
+				{ prompt: firstPrompt, systemPrompt: "base-system" },
 				ctx,
 			);
 		}
@@ -275,9 +283,15 @@ try {
 			);
 			assert.match(
 				hookCalls("search")[0].argv[1],
-				/start work(?: with exact question)?/,
+				/start work with exact question/,
 				"bootstrap query must include the first user prompt",
 			);
+			assert.doesNotMatch(
+				hookCalls("search")[0].argv[1],
+				/Orca|编排说明/,
+				"bootstrap query must exclude the orchestration preamble",
+			);
+			assert.equal(traceEntries("project_bootstrap")[0].prompt_source, "orca_task");
 			assert.ok(hookCalls("search")[0].argv.includes("6"), "bootstrap must keep a small result budget");
 			assert.ok(hookCalls("search")[0].argv.includes("4000"), "bootstrap must cap injected characters");
 		}

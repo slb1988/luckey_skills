@@ -59,6 +59,10 @@ python scripts/eval_retrieval.py --golden tests/eval/golden.maindev.sample.jsonl
 python scripts/eval_retrieval.py --golden tests/eval/golden.admin_sun_depot_7184.canary.jsonl
 ```
 
+runner 默认单请求故障上限为 120 秒，与 Agent 召回一致；这不是性能目标，p95/p99 门禁仍按下文执行。
+报告 run id 含微秒，批量运行多个 golden 即使同秒结束也不会互相覆盖。Pi 真实评分导入 judgment 时
+必须匹配同一 normalized query，禁止把某条 memory 在问题 A 下的评分套到问题 B。
+
 本地 candidate v2：
 
 ```powershell

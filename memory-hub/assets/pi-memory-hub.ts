@@ -19,7 +19,9 @@ import { Type } from "typebox";
 //   避免 Pi 重启/恢复旧 session 后重复回溯；另落完整 review JSONL 供实战复盘。
 // v13：评分 widget 与 select 标题同步展示首问摘要，让用户能对照“问题—记忆”判断相关性；
 //   select 标题也保留问题，避免只支持选择框、不渲染 widget 的前端丢失判断依据。
-const EXTENSION_VERSION = "13";
+// v14：Orca worker 的首个 user prompt 含长编排说明，真实任务位于末尾 `=== TASK ===`；
+//   先提取 TASK 段再做 1200 字截断，避免检索 query 被编排样板占满。
+const EXTENSION_VERSION = "14";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -116,6 +118,18 @@ function bootstrapScoreEnabled(): boolean {
 
 function clipText(value: string, max: number): string {
 	return value.length > max ? value.slice(0, max) : value;
+}
+
+const orcaTaskMarker = "=== TASK ===";
+
+function focusBootstrapPrompt(value: unknown): { text: string; source: "orca_task" | "user_prompt" } {
+	const raw = String(value ?? "");
+	const markerAt = raw.lastIndexOf(orcaTaskMarker);
+	const selected = markerAt >= 0 ? raw.slice(markerAt + orcaTaskMarker.length) : raw;
+	return {
+		text: selected.replace(/\s+/g, " ").trim().slice(0, 1200),
+		source: markerAt >= 0 ? "orca_task" : "user_prompt",
+	};
 }
 
 function factTextOf(fact: unknown): string {
@@ -768,7 +782,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			return;
 		}
 		const projectHint = basename(ctx.cwd) || "当前项目";
-		const focusedPrompt = String(event.prompt ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
+		const promptFocus = focusBootstrapPrompt(event.prompt);
+		const focusedPrompt = promptFocus.text;
 		const ratingQuestion = clipText(focusedPrompt || `${projectHint} 项目背景`, 360);
 		// 首轮应回答用户正在问的问题；只有 prompt 太短时才退回通用项目背景。
 		// 一次查询同时带 project hint，服务端仍按当前 project 硬隔离。
@@ -972,6 +987,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			query,
 			limit,
 			max_chars: maxChars,
+			prompt_source: promptFocus.source,
 			outcome,
 			exit_code: exitCode,
 			duration_ms: durationMs,
@@ -988,6 +1004,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				session_file: ctx.sessionManager.getSessionFile(),
 				cwd: ctx.cwd,
 				prompt: focusedPrompt,
+				prompt_source: promptFocus.source,
 				query,
 				outcome,
 				exit_code: exitCode,
