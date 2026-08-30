@@ -1737,9 +1737,9 @@ class HubClient:
             raise last_error
         raise HubError("upload failed: file stuck in expired state")
 
-    def search(
+    def search_response(
         self, query: str, project_id: str, limit: int, user_id: str
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         try:
             result = self.request(
                 "POST",
@@ -1757,7 +1757,16 @@ class HubClient:
                 },
             )
             results = result.get("results", [])
-            return results if isinstance(results, list) else []
+            retrieval = {
+                key: result.get(key)
+                for key in ("retrieval_id", "query_hash", "policy_version")
+            }
+            if not all(isinstance(value, str) and value for value in retrieval.values()):
+                retrieval = None
+            return {
+                "facts": results if isinstance(results, list) else [],
+                "retrieval": retrieval,
+            }
         except HubError as error:
             # 滚动升级兼容：旧 Hub 没有 v2，或 v2 仍硬依赖不可用的 Graphiti
             # /search-v2 时，继续用 v1；其他错误不掩盖，交给调用方 fail-open。
@@ -1780,7 +1789,13 @@ class HubClient:
             },
         )
         facts = result.get("facts", [])
-        return facts if isinstance(facts, list) else []
+        return {"facts": facts if isinstance(facts, list) else [], "retrieval": None}
+
+    def search(
+        self, query: str, project_id: str, limit: int, user_id: str
+    ) -> List[Dict[str, Any]]:
+        """Compatibility helper for callers that only need result rows."""
+        return self.search_response(query, project_id, limit, user_id)["facts"]
 
     def feedback(
         self,
@@ -1790,22 +1805,62 @@ class HubClient:
         user_id: str,
         session_id: Optional[str] = None,
         note: Optional[str] = None,
+        retrieval_id: Optional[str] = None,
+        query_hash: Optional[str] = None,
+        policy_version: Optional[str] = None,
+        candidate_rank: Optional[int] = None,
+        rating: Optional[int] = None,
     ) -> Dict[str, Any]:
-        body: Dict[str, Any] = {
+        legacy_body: Dict[str, Any] = {
             "schema_version": "memory-feedback/1",
             "memory_id": memory_id,
             "feedback_type": feedback_type,
         }
         if session_id:
-            body["session_id"] = session_id
+            legacy_body["session_id"] = session_id
         if note:
-            body["note"] = note
+            legacy_body["note"] = note
+        retrieval_values = (
+            retrieval_id,
+            query_hash,
+            policy_version,
+            candidate_rank,
+            rating,
+        )
+        if all(value is not None for value in retrieval_values):
+            v2_body: Dict[str, Any] = {
+                "schema_version": "memory-feedback/2",
+                "memory_id": memory_id,
+                "retrieval_id": retrieval_id,
+                "query_hash": query_hash,
+                "policy_version": policy_version,
+                "candidate_rank": candidate_rank,
+                "rating": rating,
+            }
+            if session_id:
+                v2_body["session_id"] = session_id
+            if note:
+                v2_body["note"] = note
+            try:
+                return self.request(
+                    "POST",
+                    "/v1/feedback",
+                    project_id,
+                    user_id,
+                    json_body=v2_body,
+                )
+            except HubError as error:
+                # 滚动升级：旧 Hub 会以 400 拒绝 memory-feedback/2；404 兼容
+                # 尚未提供 feedback route 的更老版本。鉴权/服务错误不得掩盖。
+                detail = str(error)
+                if not (detail.startswith("HTTP 400:") or detail.startswith("HTTP 404:")):
+                    raise
         return self.request(
             "POST",
             "/v1/feedback",
             project_id,
             user_id,
-            json_body=body,
+            json_body=legacy_body,
         )
 
 
@@ -2162,6 +2217,11 @@ def command_feedback(args: argparse.Namespace, config: Config) -> int:
             profile.user_id,
             session_id=args.session_id,
             note=args.note,
+            retrieval_id=args.retrieval_id,
+            query_hash=args.query_hash,
+            policy_version=args.policy_version,
+            candidate_rank=args.candidate_rank,
+            rating=args.rating,
         )
         print(json.dumps(result, ensure_ascii=False))
         return 0
@@ -2192,11 +2252,15 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             os.getcwd(), config.archive_project_id
         )
         started = time.monotonic()
-        facts = HubClient(config).search(
+        response = HubClient(config).search_response(
             args.query, project_id, args.limit, profile.user_id
         )
+        facts = response["facts"]
         if args.json:
-            output = json.dumps({"facts": facts}, ensure_ascii=False)
+            payload = {"facts": facts}
+            if response.get("retrieval") is not None:
+                payload["retrieval"] = response["retrieval"]
+            output = json.dumps(payload, ensure_ascii=False)
             print(output)
         else:
             output = format_context(facts, args.max_chars, profile)
@@ -2213,6 +2277,7 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
                 "query": args.query,
                 "limit": args.limit,
                 "facts_count": len(facts),
+                "retrieval": response.get("retrieval"),
                 "json": bool(args.json),
                 "duration_ms": int((time.monotonic() - started) * 1000),
                 "output_chars": len(output),
@@ -2416,6 +2481,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     feedback.add_argument("--session-id")
     feedback.add_argument("--note")
+    feedback.add_argument("--retrieval-id")
+    feedback.add_argument("--query-hash")
+    feedback.add_argument("--policy-version")
+    feedback.add_argument("--candidate-rank", type=int)
+    feedback.add_argument("--rating", type=int, choices=range(4))
     feedback.add_argument("--project")
     feedback.add_argument("--source", choices=("claude", "codex", "pi"))
     feedback.add_argument("--user-id")

@@ -176,8 +176,8 @@ v4 是纯 AFK 防抖（agent_end 只排程计时器，到期才 capture）——
 用户 0-3 分评分，全部候选完成前 agent 不会启动；无“跳过”选项，0 分候选本轮不注入。
 显式 `MEMORY_HOOK_PI_BOOTSTRAP_SCORE=0` 才关闭；print/headless 无 UI 时不阻塞并记录
 `unrated_no_ui`。评分写 `pi-recall-scores.jsonl`，每个 session 的 query、首 prompt、候选全文/
-摘要/ID/评分及最终注入上下文写 `pi-recall-reviews.jsonl`，用于后续批量复盘；2/3 分和 0 分仍分别
-fire-and-forget 上报 relevant/irrelevant feedback。评分门禁与跨进程 session 去重都有 Node e2e 值守。
+摘要/ID/评分及最终注入上下文写 `pi-recall-reviews.jsonl`，用于后续批量复盘。评分门禁与跨进程
+session 去重都有 Node e2e 值守。
 
 **v13 起评分 widget 与 `ctx.ui.select` 标题都会同步显示首个用户问题摘要**，用户可直接对照
 “问题—候选记忆”判断相关性。不要只依赖 widget：部分 Pi 前端可能不渲染它，选择框自身必须
@@ -186,6 +186,13 @@ fire-and-forget 上报 relevant/irrelevant feedback。评分门禁与跨进程 s
 **v14 起 Orca worker 的首问会先提取最后一个 `=== TASK ===` 之后的真实任务，再做 1200 字截断**；
 旧逻辑先截断整段 prompt，8KB 编排说明会把 TASK 完全挤掉，导致 query 与评分界面只显示 Orca
 操作样板。review/trace 增加 `prompt_source=orca_task|user_prompt`，便于后续区分入口质量与排序质量。
+
+**v15 起 search-v2 会把 Hub 返回的 `retrieval_id/query_hash/policy_version` 透传给 Pi**。玩家完成
+逐候选评分后，扩展把 rank 与原始 0-3 分全部 fire-and-forget 上报 `memory-feedback/2`；包括过去会
+丢失的 1 分中性信号。同一 retrieval 的重提由 Hub 幂等覆盖，不同 query 保持独立样本。滚动升级时，
+旧 Hub 以 400/404 拒绝 v2 后，`memory_hook.py` 自动降级为 feedback/1（0→irrelevant，2/3→relevant，
+1 仍只留本地 JSONL）。retrieval 三元组也写入 score/review/hook trace，便于按 session 与服务端评分
+join。feedback/2 当前只用于离线评估，不直接改变线上排序。
 
 分析检索质量优先查以下留痕文件：
 

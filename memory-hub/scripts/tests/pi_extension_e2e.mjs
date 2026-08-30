@@ -255,8 +255,20 @@ try {
 			assert.equal(reviews[0].rating_required, true);
 			assert.equal(reviews[0].prompt_source, "orca_task");
 			assert.equal(reviews[0].prompt, "start work with exact question");
+			assert.equal(reviews[0].retrieval.retrieval_id, "retrieval-e2e");
 			assert.equal(reviews[0].candidates.length, 2);
 			assert.doesNotMatch(reviews[0].injected_context, /昨天午饭/);
+			await waitFor(() => hookCalls("feedback").length === 2, "retrieval feedback calls");
+			const feedbackCalls = hookCalls("feedback");
+			assert.deepEqual(
+				feedbackCalls.map((entry) => entry.argv[entry.argv.indexOf("--rating") + 1]),
+				["3", "0"],
+			);
+			assert.deepEqual(
+				feedbackCalls.map((entry) => entry.argv[entry.argv.indexOf("--candidate-rank") + 1]),
+				["1", "2"],
+			);
+			assert.ok(feedbackCalls.every((entry) => entry.argv.includes("retrieval-e2e")));
 		} else {
 			firstStart = await handlers.get("before_agent_start")(
 				{ prompt: firstPrompt, systemPrompt: "base-system" },

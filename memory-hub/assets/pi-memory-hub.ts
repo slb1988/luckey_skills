@@ -21,7 +21,7 @@ import { Type } from "typebox";
 //   select 标题也保留问题，避免只支持选择框、不渲染 widget 的前端丢失判断依据。
 // v14：Orca worker 的首个 user prompt 含长编排说明，真实任务位于末尾 `=== TASK ===`；
 //   先提取 TASK 段再做 1200 字截断，避免检索 query 被编排样板占满。
-const EXTENSION_VERSION = "14";
+const EXTENSION_VERSION = "15";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -798,6 +798,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		let outcome: string;
 		let exitCode: number;
 		let durationMs: number;
+		let retrieval: Record<string, unknown> | null = null;
 		const reviewCandidates: Record<string, unknown>[] = [];
 		if (scoreEnabled) {
 			const jsonResult = await runHub(
@@ -822,6 +823,10 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			const factsRaw = parsed && Array.isArray((parsed as { facts?: unknown }).facts)
 				? (parsed as { facts: unknown[] }).facts
 				: [];
+			retrieval = parsed && typeof (parsed as { retrieval?: unknown }).retrieval === "object"
+				&& (parsed as { retrieval?: unknown }).retrieval !== null
+				? (parsed as { retrieval: Record<string, unknown> }).retrieval
+				: null;
 			outcome = factsRaw.length
 				? ctx.hasUI ? "rated" : "unrated_no_ui"
 				: jsonResult.code === 124
@@ -901,6 +906,9 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 							session_id: sessionId,
 							cwd: ctx.cwd,
 							query,
+							retrieval_id: retrieval?.retrieval_id ?? null,
+							query_hash: retrieval?.query_hash ?? null,
+							policy_version: retrieval?.policy_version ?? null,
 							rank: index + 1,
 							memory_id: memoryIdOf(fact),
 							source_type: typeof fact.source_type === "string" ? fact.source_type : null,
@@ -921,23 +929,39 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 					// 清理失败不影响主流程
 				}
 				appendScores(records);
-				// v11：同步上报 hub feedback（服务端幂等 upsert；本地 JSONL 仍是真源）。
+				// v15：有 retrieval metadata 时上报 query-specific 0..3 全量评分；
+				// 旧 Hub/旧 search 响应继续走 memory-feedback/1。
 				for (const record of records) {
 					const feedbackType = scoreToFeedbackType(record.score as number);
 					const memoryId = record.memory_id;
-					if (!feedbackType || !memoryId) continue;
+					if (!memoryId) continue;
+					const hasRetrieval = retrieval
+						&& typeof retrieval.retrieval_id === "string"
+						&& typeof retrieval.query_hash === "string"
+						&& typeof retrieval.policy_version === "string";
+					if (!hasRetrieval && !feedbackType) continue;
+					const feedbackArgs = [
+						"feedback",
+						"--memory-id",
+						String(memoryId),
+						"--type",
+						feedbackType || "relevant",
+						"--session-id",
+						sessionId,
+						"--source",
+						"pi",
+					];
+					if (hasRetrieval) {
+						feedbackArgs.push(
+							"--retrieval-id", String(retrieval.retrieval_id),
+							"--query-hash", String(retrieval.query_hash),
+							"--policy-version", String(retrieval.policy_version),
+							"--candidate-rank", String(record.rank),
+							"--rating", String(record.score),
+						);
+					}
 					fireAndForget(
-						[
-							"feedback",
-							"--memory-id",
-							String(memoryId),
-							"--type",
-							feedbackType,
-							"--session-id",
-							sessionId,
-							"--source",
-							"pi",
-						],
+						feedbackArgs,
 						safeSpawnCwd(ctx.cwd),
 					);
 				}
@@ -1006,6 +1030,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				prompt: focusedPrompt,
 				prompt_source: promptFocus.source,
 				query,
+				retrieval,
 				outcome,
 				exit_code: exitCode,
 				duration_ms: durationMs,

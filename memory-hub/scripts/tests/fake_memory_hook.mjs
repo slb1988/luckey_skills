@@ -64,6 +64,11 @@ function respondNow(args) {
 		if (args.includes("--json")) {
 			console.log(JSON.stringify({
 				project_id: "fixture",
+				retrieval: {
+					retrieval_id: "retrieval-e2e",
+					query_hash: "a".repeat(64),
+					policy_version: "v2-fts-prune25",
+				},
 				facts: [
 					{
 						result_id: "memory-useful",

@@ -449,6 +449,73 @@ class MemoryHookTest(unittest.TestCase):
             )
             self.assertEqual(paths, ["/v1/memories/search-v2", "/v1/memories/search"])
 
+    def test_search_response_exposes_retrieval_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=Path(directory),
+            )
+            client = HubClient(config)
+            client.request = lambda *args, **kwargs: {
+                "results": [{"result_id": "memory-1", "text": "answer"}],
+                "retrieval_id": "retrieval-1",
+                "query_hash": "a" * 64,
+                "policy_version": "v2-fts-prune25",
+            }
+
+            response = client.search_response("query", "project-a", 5, "user-a")
+
+            self.assertEqual(response["facts"][0]["result_id"], "memory-1")
+            self.assertEqual(response["retrieval"]["retrieval_id"], "retrieval-1")
+
+    def test_feedback_v2_falls_back_to_v1_for_old_hub(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=Path(directory),
+            )
+            client = HubClient(config)
+            bodies = []
+
+            def fake_request(method, path, project_id, user_id, **kwargs):
+                body = kwargs["json_body"]
+                bodies.append(body)
+                if body["schema_version"] == "memory-feedback/2":
+                    raise HubError("HTTP 400: unsupported schema")
+                return {"accepted": True, "feedback_id": "feedback-1"}
+
+            client.request = fake_request
+            result = client.feedback(
+                "memory-1",
+                "irrelevant",
+                "project-a",
+                "user-a",
+                session_id="session-1",
+                retrieval_id="retrieval-1",
+                query_hash="a" * 64,
+                policy_version="v2-fts-prune25",
+                candidate_rank=2,
+                rating=0,
+            )
+
+            self.assertTrue(result["accepted"])
+            self.assertEqual(
+                [body["schema_version"] for body in bodies],
+                ["memory-feedback/2", "memory-feedback/1"],
+            )
+            self.assertEqual(bodies[0]["rating"], 0)
+            self.assertEqual(bodies[1]["feedback_type"], "irrelevant")
+
     def _recall_args(self, source="claude"):
         return SimpleNamespace(
             source=source,
