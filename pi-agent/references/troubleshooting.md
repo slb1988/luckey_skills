@@ -186,4 +186,26 @@ diagram-design/prompts/
 
 ---
 
+## 8. dynamic-workflows 编排全部 agent() 秒回 null：tier 模型在 subagent 运行时无法实例化
+
+**症状**
+
+`workflow` 工具创建的 Run 正常启动，但所有 `agent()` 调用在 ~0.1s 内全部返回 `null`——不是任务本身失败，是 subagent 根本没跑起来（真实 eval/部署任务不可能在 0.1s 内完成）。
+
+**原因**
+
+tier 映射（`/workflows-models` 配置）把 tier 解析到 `anthropic/kimi-k3`，该模型在 subagent 进程里实例化失败，报 `undefined.create`，spawn 即崩。主会话能用同一模型不代表 subagent 运行时能加载它。
+
+**排查**
+
+- 不要重跑 workflow 碰运气；直接查该 Run 的 workflow 运行日志，找 spawn 阶段的报错（如 `undefined.create`）。
+- 判别特征：agent() 返回耗时 <1s 且结果为 null ≈ subagent 未启动，而非任务失败。
+
+**解决**
+
+- 应急：放弃 workflow 编排，改为直接顺序执行（已验证可行）。
+- 根治：修 `/workflows-models` 的 tier 映射，把各 tier 指到 subagent 会话能实际实例化的模型，修好后才能再用 workflow fan-out。
+
+---
+
 > 扩展**开发**细节（扩展布局、hook API、注册 provider、多机共享原则）见项目内 `.pi/extensions/SKILL.md`（pi-extensions 技能）。

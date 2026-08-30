@@ -37,3 +37,4 @@ description: Pi agent（pi，@earendil-works 的 coding agent）使用与排障�
 - 扩展冲突 / 插件卸载 / 配置问题 → 读 [references/troubleshooting.md](references/troubleshooting.md)。
 - auto-server 上更新 `.pi/skills` 必须先 `cd /home/dev/.pi/skills`：更新脚本按 cwd 定位仓库根，在 `/home/dev` 下运行会静默失败（exit 128，无输出）。
 - `ws:<name>` 报 unknown workspace / no local binding → 见 [references/troubleshooting.md](references/troubleshooting.md) 第 6 节。
+- `workflow` 编排的 agent() 全部秒回 null（subagent 未启动）→ 见 [references/troubleshooting.md](references/troubleshooting.md) 第 8 节（tier 模型 `undefined.create`）。

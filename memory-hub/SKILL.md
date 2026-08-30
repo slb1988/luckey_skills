@@ -118,6 +118,10 @@ Memory 索引状态与错误码表见 [api-notes](references/api-notes.md)。
 
 检索 curl 见 [api-notes](references/api-notes.md)「常用接口速查」第 1 条。
 
+<memory category="debug-commands">
+**search-v2 部署验收 known-good smoke 向量**（commit 45c96f9「Keep three structured memory candidates」验收实测通过）：`project=maindev, query=SyncStaticMeshAssetMetaDT, limit=10` → 预期 HTTP 200、memory `01a043eb-b994-7ecb-bd36-49aec0e282aa`（source_type=`memory_document`）排第一。fusion 结构化 memory 候选保留口径：候选充足时 pruned 保留 3–5 条；**unpruned 候选不足 3 条时 pruned == unpruned，不会补齐**（该向量实测 unpruned=2 → pruned=2，stats 全 0，属正常行为不是 bug）——验收时不要用「pruned ≥ 3」做无条件断言。
+</memory>
+
 ## Agent 自动记忆集成
 
 Claude Code / Codex / Pi 三端共用独立应用 `scripts/memory_hook.py`（仅标准库），本地 spool + 失败自动补传。
