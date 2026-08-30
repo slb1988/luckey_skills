@@ -1,20 +1,20 @@
 # pyauto_agent API 参考
 
-> 面向实现/调试代理 agent。SDK 源码：`pyauto_agent/{app,executor,registration,workspace_lock}.py`。
-> 当前版本 0.7.0。
+> 面向实现/调试代理 agent。SDK 源码：`pyauto_agent/{app,executor,registration}.py`。
 
 ## 目录
 - [AgentApp](#agentapp)
 - [@app.skill](#appskill)
 - [app.run](#apprun)
 - [消息路由与 handler 契约](#消息路由与-handler-契约)
+- [图片附件回拉与落盘](#图片附件回拉与落盘)
 - [注册 / 心跳 / 注销的 wire 行为](#注册--心跳--注销的-wire-行为)
 - [AgentCard 生成](#agentcard-生成)
 - [TaskState 与结果回传](#taskstate-与结果回传)
 
 ## AgentApp
 
-`AgentApp(name, platform_url, public_url, description="", owner="", version="0.1.0", register_key="", heartbeat_interval=30.0, on_platform_deleted=None, tc_agent_name="", lock_ttl_seconds=1800, lock_acquire_timeout=3600.0, lock_poll_interval=30.0)`
+`AgentApp(name, platform_url, public_url, description="", owner="", version="0.1.0", register_key="", heartbeat_interval=30.0, on_platform_deleted=None)`
 
 | 参数 | 说明 |
 |------|------|
@@ -26,9 +26,7 @@
 | `version` | agent card version 字段。 |
 | `register_key` | 平台配置 `AGENT_PLATFORM_REGISTER_KEY` 时必填且需一致，否则注册 403。 |
 | `heartbeat_interval` | 心跳间隔秒，默认 30。平台 Redis TTL 默认 120s，间隔应 < TTL/2 留裕量。 |
-| `on_platform_deleted` | 平台删除/踢出本 agent 时的回调（410 或 `/_pyauto/shutdown` 触发，0.4.0 起）。**默认直接 `os._exit(0)` 退进程**——被踢即释放名字，重启重新注册即可回归；想只脱离平台不退进程传 `lambda: None`。 |
-| `tc_agent_name` | 本 agent 所在 TeamCity 构建机名（0.5.0 起）。非空启用 workspace 互斥：每任务执行前经平台取该机的 `tc_agent_lock`，执行完自动释放；心跳上报 busy 供平台续租/空占回收。不在构建机上跑的 agent 不要传。 |
-| `lock_ttl_seconds` / `lock_acquire_timeout` / `lock_poll_interval` | workspace 锁参数（锁 TTL / 等锁上限 / 等锁轮询间隔），仅 `tc_agent_name` 非空时生效。 |
+| `on_platform_deleted` | 平台删除/踢出本 agent 时的无参回调，触发途径：心跳/注册收 HTTP 410，或平台主动调 `POST /_pyauto/shutdown`（≥0.4.0，删除即秒杀）。**0.3.0 起默认直接退出进程**（`os._exit(0)`，释放名字，重启即重新注册回归）；要被踢后进程继续跑（只脱离平台、HTTP 服务保留）传自定义回调如 `lambda: None`。0.2.0 的默认行为相反（不退进程）。回调抛异常只记日志。 |
 
 ## @app.skill
 
@@ -68,25 +66,54 @@ handler：
 - 抛异常 → 任务 FAILED，`f"handler error: {e}"` 回传（SDK 已 `logger.exception`）。
 - 建议**自己 try/except** 把预期错误转成给人看的文本返回（如示例的 `[rejected] ...`），而不是抛异常。
 
+## 图片附件回拉与落盘
+
+SDK 0.9.0 起读取 A2A `message.metadata.pyauto_attachments`：
+
+```json
+[{"id":"uuid","name":"foo.png","mime_type":"image/png","size":125952,
+  "content_encoding":"identity"}]
+```
+
+对每项请求
+`GET {platform_url}/agent_platform/a2a/attachments/{id}/content`，携带
+`X-Agent-Token: <注册响应签发的 agent_token>`。客户端固定 `trust_env=False`、超时 60s；
+token 在任务执行时动态读取，因此 AgentApp 在注册完成前构造 ASGI/executor 不会固化空 token，
+且无附件的纯文本任务完全不依赖注册时序。
+
+文件落到 `<cwd>/.pyauto/inbox/<task_id>/<basename>`。文件名会同时按 `/`、`\\` basename
+化并净化 Windows 危险字符/设备名；已有同名文件时依次使用 `_2`、`_3` 后缀，不覆盖。
+成功保存首个附件后，顺带删除 `.pyauto/inbox/` 下 mtime 超过 7 天的旧 task 目录。
+
+handler 签名仍是 `(text: str) -> str`，收到的字符串为原路由 payload 加两个换行及清单：
+
+```text
+【附件 1 个，已保存到本机，用 read 工具查看】
+- .pyauto/inbox/<task_id>/foo.png (image/png, 123 KB)
+```
+
+目前只认识 `content_encoding="identity"`。未知编码、网络错误、非 HTTP 200、metadata
+声明大小与响应字节数不一致、或本地落盘失败都会在调用 handler 前将任务置 FAILED；错误
+信息包含附件 id，HTTP 失败同时包含状态码（网络未获得响应时标记 `HTTP 状态 unavailable`）。
+
 ## 注册 / 心跳 / 注销的 wire 行为
 
 `RegistrationClient`（所有 httpx 调用 `trust_env=False` 绕开系统代理）：
 
 - **注册** `POST {platform}/agent_platform/a2a/agents/register`
-  body `{name, url(=public_url), owner, description, register_key, tc_agent_name, workdir}`。
-  `workdir = os.getcwd()`（0.7.0 起自动携带，平台监控页展示工作目录；重注册即刷新）。
-  成功（HTTP200 且 `status.code==0`）→ 存 `result.agent_token`（心跳/注销/shutdown 端点鉴权
-  凭证，仅此一次返回）。
-- **心跳** `POST .../agents/heartbeat`，头 `X-Agent-Token`；0.5.0 起 body 带
-  `{busy, current_task_id, current_skill_id}`（executor 真实工作状态，平台据此续租 TC 锁/
-  判空占）。收 401 → 清 token → 下轮自动重注册。
-- **410（register 或 heartbeat）**：平台已删除/踢出本 agent → 停心跳/重注册并触发
-  `on_platform_deleted`（默认退进程）。与 401 语义相反，**不会自动重连**。
-- **`POST /_pyauto/shutdown`**（agent 侧控制端点，0.4.0 起）：平台删除时主动调用，
-  `X-Agent-Token` 比对通过 → 先回 200 再延迟触发 `on_platform_deleted`。
-- **注销** `POST .../agents/unregister`，头 `X-Agent-Token`（进程退出时尽力调用）。
-- **`X-Computer-Token` 头**（0.6.0 起）：环境变量 `PYAUTO_COMPUTER_TOKEN` 非空（pyauto-computer
-  CLI 拉起 agent 时注入）则 register/heartbeat 自动携带，平台据此关联 `a2a_agent.computer_id`。
+  body `{name, url(=public_url), owner, description, register_key}`。
+  成功（HTTP200 且 `status.code==0`）→ 存 `result.agent_token`（心跳/注销凭证，仅此一次返回）。
+- **心跳** `POST .../agents/heartbeat`，头 `X-Agent-Token`。收 401 → 清 token → 下轮自动重注册；
+  收 **410**（平台已删除/踢出本 agent，SDK ≥0.2.0）→ 置 `deleted=True`、停守护线程、触发
+  `on_deleted` 回调（AgentApp 默认回调 0.3.0 起 = 退出进程），**不再重连**。注册收 410 同样
+  停止重试。回归 = 重启进程重新注册（平台侧软删，注册即复活）。
+- **注销** `POST .../agents/unregister`，头 `X-Agent-Token`（进程退出时尽力调用；已被 410 踢出时跳过）。
+- **被踢控制端点（SDK ≥0.4.0）**：本 agent 的 Starlette 应用额外暴露
+  `POST <public_url>/_pyauto/shutdown`，鉴权 = 请求头 `X-Agent-Token` 等于注册时平台签发的
+  agent_token（`hmac.compare_digest`，注册成功前一律 403）。平台管理员点删除时主动调用：
+  校验通过 → `reg.halt()`（置 deleted、停心跳线程）→ 先回 200 `{"ok": true}` →
+  `threading.Timer(0.2s)` 延迟触发 `on_platform_deleted`（默认 `os._exit(0)`，延迟是为了
+  让响应先送达平台）。403 无任何副作用。
 - **重试**：注册失败指数退避 5→10→…→120s；启动先 `wait(2s)` 等 uvicorn 起监听（平台注册即回抓 card）。
 
 ## AgentCard 生成
@@ -95,24 +122,6 @@ handler：
 `supported_interfaces=[AgentInterface(protocol_binding="JSONRPC", url=public_url, protocol_version="1.0")]`，
 `default_input_modes/output_modes=["text/plain"]`，skills 由 `@app.skill` 累积。
 card 发布在 `<public_url>/.well-known/agent-card.json`（v1.0 拼写，注意不是旧版 `agent.json`）。
-
-## 平台消费侧 REST（查询 agent / 轮询派发结果）
-
-以上都是 agent 侧端点；从调用方（pi / 脚本）直连平台排查派发时用这组 REST，均需
-`Authorization: Bearer <用户 JWT>`（平台登录态，pi 本地存于 `~/.pi/agent/a2a-mentions.json`
-的 `baseUrl`/`token`/`expiresAt`；curl 访问 192.168.2.13 记得 `--noproxy`）：
-
-| 端点 | 返回 |
-|---|---|
-| `GET /agent_platform/a2a/agents` | `result.data[]`：全部 agent（id/name/agent_type/status/url/busy） |
-| `GET /agent_platform/a2a/agents/mentions` | `result[]`：**按当前用户权限过滤**的可派发 agent（id/name/agent_type/description/status/tags）。pi @ 补全与 `a2a_send` 的 agent 发现数据源——「我能调度谁」查这个，不是 `/agents` |
-| `GET /agent_platform/a2a/dispatches/<id>` | `result`：`state`（`working`/`completed`/`failed`）+ `result_text`/`error` + `remote_task_id` |
-
-- **派发创建响应**：`POST /dispatch` 返回 `{"dispatches":[{"dispatch_id":N,"agent_id":...,"agent_name":...}]}`。
-  `dispatch_id` 出现在 `dispatches` 数组里即代表**服务端已创建派发**——客户端解析失败
-  （如 pi `a2a_send` 报「没有 dispatch id」）不影响执行，拿 id 轮询上面的 dispatches 端点即可拿结果。
-- **`state=working` 的两种常态**：① 平台已转 30s 轮询 `GetTask`（见上节）；② handler 仍在阻塞
-  执行——例如 agent 在目标机弹出模态 GUI 对话框时，用户点掉弹框前派发一直停在 working。
 
 ## TaskState 与结果回传
 
