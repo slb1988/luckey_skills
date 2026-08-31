@@ -71,6 +71,7 @@ ONLINE_SEARCH_TIMEOUT_SECONDS = 120.0
 # Pi 记忆写入前的可读审计稿。spool 对象在 job 完成后会清理；该目录保留
 # 提取源文本和实际提交内容，方便离线判断是否因摘要预算而丢失关键信息。
 MEMORY_DRAFTS_DIRNAME = "memory-drafts"
+RECALL_RESULTS_DIRNAME = "recall-results"
 # prompt 太短时退回的通用项目背景 query（与 Pi 扩展 bootstrapTopics 保持一致）。
 RECALL_FALLBACK_TOPICS = "项目概况、核心架构、历史决策、当前进展、未完成事项、开发约定和重要注意事项"
 SKIP_CAPTURE_ENV = "MEMORY_HUB_SKIP_CAPTURE"
@@ -2247,6 +2248,127 @@ def format_context(
     return result.rstrip()
 
 
+def write_recall_result_file(
+    config: Config,
+    *,
+    source: str,
+    session_id: str,
+    project_id: str,
+    query: str,
+    facts: List[Dict[str, Any]],
+    retrieval: Optional[Dict[str, Any]],
+    quality: Optional[Dict[str, Any]],
+    duration_ms: int,
+) -> Path:
+    """Atomically persist a readable recall result outside model context."""
+    source_name = _safe_filename_component(source, "agent")
+    project_name = _safe_filename_component(project_id, "project")
+    session_name = _safe_filename_component(session_id, "session")
+    retrieval_id = retrieval.get("retrieval_id") if isinstance(retrieval, dict) else None
+    suffix = _safe_filename_component(str(retrieval_id or time.time_ns()), "result")
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    path = (
+        config.state_dir
+        / RECALL_RESULTS_DIRNAME
+        / source_name
+        / project_name
+        / ("%s-%s-%s.md" % (stamp, session_name, suffix))
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    candidates = quality.get("candidates") if isinstance(quality, dict) else None
+    kept = quality.get("kept") if isinstance(quality, dict) else len(facts)
+    ratio = "%s/%s" % (kept, candidates) if candidates is not None else str(kept)
+    summaries = []
+    for fact in facts[:3]:
+        summary = fact.get("summary") if isinstance(fact, dict) else None
+        value = summary.strip() if isinstance(summary, str) else ""
+        if not value:
+            value = fact_text(fact).split("\n", 1)[0].strip()
+        value = compact_text(value, 160)
+        if value and value not in summaries:
+            summaries.append(value)
+
+    lines = [
+        "# Memory Hub Recall Result",
+        "",
+        "## 本轮摘要",
+        "",
+        "- 识别结果：LLM 审核通过 `%s` 条历史记忆" % ratio,
+        "- 记忆摘要：%s" % ("；".join(summaries) if summaries else "无放行记忆"),
+        "- 上下文边界：此文件路径和审计元数据不会加入 agent context",
+        "",
+        "## 查询信息",
+        "",
+        "- generated_at: `%s`" % time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "- source: `%s`" % source,
+        "- session_id: `%s`" % session_id,
+        "- project_id: `%s`" % project_id,
+        "- duration_ms: `%s`" % duration_ms,
+        "- query: %s" % query,
+        "",
+        "### Retrieval",
+        "",
+        "```json",
+        json.dumps(retrieval, ensure_ascii=False, indent=2) if retrieval else "null",
+        "```",
+        "",
+        "### Quality",
+        "",
+        "```json",
+        json.dumps(quality, ensure_ascii=False, indent=2) if quality else "null",
+        "```",
+        "",
+    ]
+    for index, fact in enumerate(facts, 1):
+        metadata = (
+            {key: value for key, value in fact.items() if key not in {"text", "fact", "content", "name", "summary"}}
+            if isinstance(fact, dict)
+            else {}
+        )
+        summary = fact.get("summary") if isinstance(fact, dict) else None
+        lines.extend(
+            [
+                "## 已放行记忆 %d" % index,
+                "",
+                "### 摘要",
+                "",
+                summary.strip() if isinstance(summary, str) and summary.strip() else "（无摘要）",
+                "",
+                "### 内容",
+                "",
+                fact_text(fact) or "（无内容）",
+                "",
+                "### 元数据与 provenance",
+                "",
+                "```json",
+                json.dumps(metadata, ensure_ascii=False, indent=2),
+                "```",
+                "",
+            ]
+        )
+
+    temporary = tempfile.NamedTemporaryFile(
+        prefix=".%s." % path.name,
+        dir=str(path.parent),
+        mode="w",
+        encoding="utf-8",
+        delete=False,
+    )
+    temporary_path = Path(temporary.name)
+    try:
+        with temporary:
+            temporary.write("\n".join(lines))
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        os.chmod(temporary_path, 0o600)
+        os.replace(str(temporary_path), str(path))
+        return path.resolve()
+    except Exception:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
 def command_capture(args: argparse.Namespace, config: Config, store: StateStore) -> int:
     # --json 严格契约（pi 扩展 v5 起依赖）：stdout 恒输出一行
     # {"result": "enqueued"|"already_present"|"skipped_<reason>"|"error", ...}，
@@ -2410,6 +2532,24 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
         )
         facts = response["facts"]
         context = format_context(facts, args.max_chars, profile)
+        duration_ms = int((time.monotonic() - started) * 1000)
+        result_file = None
+        result_file_error = None
+        if getattr(args, "write_result_file", False):
+            try:
+                result_file = write_recall_result_file(
+                    config,
+                    source=getattr(args, "source", None) or "agent",
+                    session_id=getattr(args, "session_id", None) or "session",
+                    project_id=project_id,
+                    query=args.query,
+                    facts=facts,
+                    retrieval=response.get("retrieval"),
+                    quality=response.get("quality"),
+                    duration_ms=duration_ms,
+                )
+            except Exception as error:
+                result_file_error = compact_text(str(error), 500)
         if args.json:
             payload = {
                 "facts": facts,
@@ -2420,6 +2560,8 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
                 payload["retrieval"] = response["retrieval"]
             if response.get("quality") is not None:
                 payload["quality"] = response["quality"]
+            if result_file is not None:
+                payload["result_file"] = str(result_file)
             output = json.dumps(payload, ensure_ascii=False)
             print(output)
         else:
@@ -2439,8 +2581,10 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
                 "facts_count": len(facts),
                 "retrieval": response.get("retrieval"),
                 "quality": response.get("quality"),
+                "result_file": str(result_file) if result_file is not None else None,
+                "result_file_error": result_file_error,
                 "json": bool(args.json),
-                "duration_ms": int((time.monotonic() - started) * 1000),
+                "duration_ms": duration_ms,
                 "output_chars": len(output),
                 "output": output,
             },
@@ -2646,6 +2790,8 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--limit", type=int, default=10)
     search.add_argument("--max-chars", type=int, default=8000)
     search.add_argument("--json", action="store_true")
+    search.add_argument("--write-result-file", action="store_true")
+    search.add_argument("--session-id")
     feedback = commands.add_parser("feedback")
     feedback.add_argument("--memory-id", required=True)
     feedback.add_argument(

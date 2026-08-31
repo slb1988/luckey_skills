@@ -304,6 +304,9 @@ try {
 				assert.ok(statusCalls.some((entry) => String(entry.value).includes("记忆识别中")));
 				assert.match(notifyCalls[0].message, /已识别 2\/3 条历史记忆/);
 				assert.match(notifyCalls[0].message, /项目验证约定/);
+				assert.match(notifyCalls[0].message, /详情文件：.*recall-results/);
+				assert.ok(existsSync(join(stateDir, "recall-results", "pi", "fixture", "fixture-recall.md")));
+				assert.doesNotMatch(firstStart.systemPrompt, /recall-results|fixture-recall\.md/);
 				assert.ok(statusCalls.some((entry) => String(entry.value).includes("记忆 2\/3")));
 			}
 		}
@@ -361,6 +364,12 @@ try {
 			kept: 2,
 			min_rating: 2,
 		});
+		assert.doesNotMatch(toolResult.content[0].text, /recall-results|fixture-recall\.md/);
+		assert.ok(toolSearch.argv.includes("--write-result-file"));
+		assert.deepEqual(
+			toolSearch.argv.slice(toolSearch.argv.indexOf("--session-id"), toolSearch.argv.indexOf("--session-id") + 2),
+			["--session-id", "sess-e2e"],
+		);
 		if (ctx.hasUI) {
 			assert.match(notifyCalls.at(-1).message, /已识别 2\/3 条历史记忆/);
 		}

@@ -75,6 +75,8 @@ class MemoryHookTest(unittest.TestCase):
                 max_chars=4000,
                 json=True,
                 source="pi",
+                session_id="sess-ui",
+                write_result_file=True,
                 user_id=None,
                 display_name=None,
                 summary=None,
@@ -90,6 +92,15 @@ class MemoryHookTest(unittest.TestCase):
             self.assertEqual(payload["project_id"], "maindev")
             self.assertEqual(payload["quality"]["kept"], 1)
             self.assertIn("先小范围验证", payload["context"])
+            result_file = Path(payload["result_file"])
+            self.assertTrue(result_file.is_file())
+            result_text = result_file.read_text(encoding="utf-8")
+            self.assertTrue(result_text.startswith("# Memory Hub Recall Result\n\n## 本轮摘要"))
+            self.assertIn("LLM 审核通过 `1/3` 条历史记忆", result_text)
+            self.assertIn("历史决策", result_text)
+            self.assertIn("先小范围验证", result_text)
+            self.assertIn("session_id: `sess-ui`", result_text)
+            self.assertNotIn(str(result_file), payload["context"])
 
     def test_capture_is_durable_and_idempotent_while_server_is_down(self):
         with tempfile.TemporaryDirectory() as directory:

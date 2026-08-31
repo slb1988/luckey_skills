@@ -26,7 +26,8 @@ import { Type } from "typebox";
 //   首轮候选全被判 0 时给 agent 一条跨 project 重试提示，不注入被剔除记忆。
 // v18：用户评分 UI 由 Hub 同步 LLM 质量门禁替代；Pi 只注入后端判定 2/3 分的结果。
 // v19：Pi TUI 展示召回进行中状态与审核后的聚合结果/摘要，不暴露被拒候选或 LLM 推理。
-const EXTENSION_VERSION = "19";
+// v20：已放行结果另存本地 Markdown；路径只显示在 TUI，不进入 agent context。
+const EXTENSION_VERSION = "20";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -210,23 +211,25 @@ function showRecallOutcome(
 		durationMs: number;
 		quality: Record<string, unknown> | null;
 		facts: Record<string, unknown>[];
+		resultFile: string | null;
 	},
 ): void {
 	if (!ctx.hasUI) return;
 	const seconds = (data.durationMs / 1000).toFixed(1);
 	const counts = qualityCounts(data.quality, data.facts);
 	const ratio = counts.candidates === null ? String(counts.kept) : `${counts.kept}/${counts.candidates}`;
+	const fileLine = data.resultFile ? `\n详情文件：${data.resultFile}` : "";
 	try {
 		if (data.outcome === "injected") {
 			const summaries = memorySummaries(data.facts);
 			ctx.ui.setStatus("memory-hub-recall", `🧠 记忆 ${ratio} · ${data.project} · ${seconds}s`);
 			ctx.ui.notify(
-				`🧠 Memory Hub：已识别 ${ratio} 条历史记忆${summaries ? `｜${summaries}` : ""}（${seconds}s）`,
+				`🧠 Memory Hub：已识别 ${ratio} 条历史记忆${summaries ? `｜${summaries}` : ""}（${seconds}s）${fileLine}`,
 				"info",
 			);
 		} else if (data.outcome === "empty") {
 			ctx.ui.setStatus("memory-hub-recall", `🧠 记忆未命中 · ${data.project} · ${seconds}s`);
-			ctx.ui.notify(`Memory Hub：当前问题未识别到可用历史记忆（${seconds}s）`, "info");
+			ctx.ui.notify(`Memory Hub：当前问题未识别到可用历史记忆（${seconds}s）${fileLine}`, "info");
 		} else {
 			const reason = data.outcome === "timeout" ? "审核超时" : "召回失败";
 			ctx.ui.setStatus("memory-hub-recall", `⚠ 记忆${reason} · ${data.project}`);
@@ -930,6 +933,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		let durationMs: number;
 		let retrieval: Record<string, unknown> | null = null;
 		let quality: Record<string, unknown> | null = null;
+		let resultFile: string | null = null;
 		let resultProject = projectHint;
 		let visibleFacts: Record<string, unknown>[] = [];
 		const reviewCandidates: Record<string, unknown>[] = [];
@@ -945,6 +949,9 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				"--max-chars",
 				String(maxChars),
 				"--json",
+				"--write-result-file",
+				"--session-id",
+				sessionId,
 			];
 			if (projectDirective.project) searchArgs.push("--project", projectDirective.project);
 			const jsonResult = await runHub(
@@ -966,6 +973,9 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			quality = parsed && typeof (parsed as { quality?: unknown }).quality === "object"
 				&& (parsed as { quality?: unknown }).quality !== null
 				? (parsed as { quality: Record<string, unknown> }).quality
+				: null;
+			resultFile = parsed && typeof (parsed as { result_file?: unknown }).result_file === "string"
+				? (parsed as { result_file: string }).result_file
 				: null;
 			visibleFacts = factsRaw.filter(
 				(fact): fact is Record<string, unknown> => Boolean(fact && typeof fact === "object"),
@@ -1140,6 +1150,9 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				"--max-chars",
 				String(maxChars),
 				"--json",
+				"--write-result-file",
+				"--session-id",
+				sessionId,
 			];
 			if (projectDirective.project) searchArgs.push("--project", projectDirective.project);
 			const result = await runHub(
@@ -1164,6 +1177,9 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				&& (parsed as { quality?: unknown }).quality !== null
 				? (parsed as { quality: Record<string, unknown> }).quality
 				: null;
+			resultFile = parsed && typeof (parsed as { result_file?: unknown }).result_file === "string"
+				? (parsed as { result_file: string }).result_file
+				: null;
 			resultProject = parsed && typeof (parsed as { project_id?: unknown }).project_id === "string"
 				? (parsed as { project_id: string }).project_id
 				: projectHint;
@@ -1185,6 +1201,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			durationMs,
 			quality,
 			facts: visibleFacts,
+			resultFile,
 		});
 		trace("project_bootstrap", {
 			session_id: sessionId,
@@ -1198,6 +1215,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			exit_code: exitCode,
 			duration_ms: durationMs,
 			quality,
+			result_file: resultFile,
 			result_chars: recalled.length,
 			score_enabled: scoreEnabled,
 			rating_required: scoreEnabled && ctx.hasUI,
@@ -1313,7 +1331,18 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			const limit = Math.max(1, Math.min(10, Math.trunc(params.limit ?? 10)));
 			const project = typeof params.project === "string" ? params.project.trim() : "";
 			const projectHint = project || basename(ctx.cwd) || "当前项目";
-			const args = ["search", params.query, "--limit", String(limit), "--json"];
+			const args = [
+				"search",
+				params.query,
+				"--source",
+				"pi",
+				"--limit",
+				String(limit),
+				"--json",
+				"--write-result-file",
+				"--session-id",
+				ctx.sessionManager.getSessionId(),
+			];
 			if (project) args.push("--project", project);
 			const stopRecallIndicator = startRecallIndicator(ctx, projectHint, params.query);
 			const result = await runHub(
@@ -1331,6 +1360,9 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			const quality = parsed && typeof (parsed as { quality?: unknown }).quality === "object"
 				&& (parsed as { quality?: unknown }).quality !== null
 				? (parsed as { quality: Record<string, unknown> }).quality
+				: null;
+			const resultFile = parsed && typeof (parsed as { result_file?: unknown }).result_file === "string"
+				? (parsed as { result_file: string }).result_file
 				: null;
 			const resultProject = parsed && typeof (parsed as { project_id?: unknown }).project_id === "string"
 				? (parsed as { project_id: string }).project_id
@@ -1352,6 +1384,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				durationMs: result.durationMs,
 				quality,
 				facts,
+				resultFile,
 			});
 			const text = context || "Memory Hub is unavailable or no matching memory was found.";
 			trace("search", {
@@ -1363,6 +1396,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				exit_code: result.code,
 				duration_ms: result.durationMs,
 				quality,
+				result_file: resultFile,
 				result_chars: text.length,
 				result: clip(text),
 			});

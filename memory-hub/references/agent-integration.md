@@ -189,6 +189,13 @@ agent 上下文。单次候选上限 10，首轮仍取 6 条/最多 4000 字符�
 Claude/Codex 暂无同等扩展 UI，`UserPromptSubmit` 注入头部只增加一行
 `LLM 审核通过 kept/candidates` 聚合状态，作为弱支持。
 
+**v20 起每次 Pi 成功完成的首轮/手工召回都会原子写一份本地 Markdown**，路径为
+`${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/recall-results/pi/<project>/`。文件顶部先给
+`kept/candidates + 最多 3 条摘要`，再列 query、耗时、retrieval/quality JSON，以及每条已放行记忆的
+摘要、返回文本、分数组件和 provenance。Pi notification 末尾显示绝对路径；状态栏保持短格式。
+**路径和审计元数据不进入 systemPrompt，也不进入 `memory_search` tool content**，只有 TUI 与本地 trace
+可见。文件目前不自动清理，避免临时回看时丢失；服务端未返回的被拒候选仍不会写到客户端文件。
+
 v12-v17 的玩家评分 UI、`pi-recall-scores.jsonl` 和 feedback 上报路径现为历史兼容代码，不再由 v18
 首轮触发；旧环境变量 `MEMORY_HOOK_PI_BOOTSTRAP_SCORE` 也不再恢复该 UI。跨进程 session 去重和
 后端门禁行为都有 Node e2e 值守。
@@ -240,10 +247,10 @@ full-session 资产为准。该改动只在直接引用的 Python script 中，�
 | kind | 时机 | 关键字段 |
 |---|---|---|
 | `session_start` | 会话开始 | session_id、cwd |
-| `project_bootstrap` | session 首轮项目背景预热（v12+） | query、limit、project_override、outcome（v19：injected/empty/error/timeout/disabled/skipped_extraction/skipped_capture_env）、exit_code、duration_ms、quality、result_chars；审核细节按 retrieval_id 在服务端查 |
+| `project_bootstrap` | session 首轮项目背景预热（v12+） | query、limit、project_override、outcome（v20：injected/empty/error/timeout/disabled/skipped_extraction/skipped_capture_env）、exit_code、duration_ms、quality、result_file、result_chars；审核细节按 retrieval_id 在服务端查 |
 | `project_bootstrap_skip` | 已有持久完成标记，恢复旧 session 不重复回溯（v12） | session_id、outcome=already_completed |
 | `recall_score` / `recall_score_wait` | v12-v17 历史玩家评分事件；v18 不再产生 | total、scored、dropped、kept / rank、outcome |
-| `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、result（结果全文） |
+| `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、quality、result_file、result（模型可见结果全文，不含文件路径） |
 | `marker_write` / `marker_delete` / `marker_quarantine` | write-ahead marker 生命周期（v5） | sessionId 等 |
 | `enqueue_done` | `capture --no-flush` 入队完成（v5） | outcome、job_id、sha256、transcript_bytes |
 | `flush_schedule` / `flush_cancel` / `flush_done` | 防抖 flush 排程 / 取消 / 完成（v5） | outcome=completed/busy/failed |
@@ -257,6 +264,8 @@ full-session 资产为准。该改动只在直接引用的 Python script 中，�
   候选级真实用户标注；集体 review 时先按 `session_id` 与 Pi transcript 关联。
 - 同目录 `memory-drafts/pi/<project>/*.md`——Pi 向 Hub 写 session memory 前的可读提取稿；同时包含
   较完整源字段与实际 outbound `distilled_content`，不受 trace 单字段 20k 字符截断影响。
+- 同目录 `recall-results/pi/<project>/*.md`——Pi 从 Hub 读回并经 LLM 放行后的本地可读结果包；文件路径
+  只显示给 TUI，不注入 agent context。
 
 每轮检索测试/分析前用 `python3 scripts/rotate_pi_trace.py`（可加 `--include-hook-trace`）把旧
 trace 轮转到 `trace-backups/`，保证当轮数据干净；扩展按事件 append 写 trace、无持久句柄，

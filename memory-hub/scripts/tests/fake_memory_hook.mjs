@@ -9,7 +9,8 @@
 // FLUSH_BUSY_ONCE=1：首次 flush 报 busy（跨进程计数文件），之后正常——
 // 驱动扩展的 busy 有界重试路径。FAKE_DELAY_MS：capture 响应延时（毫秒），
 // 用于制造 catch-up 与活体 agent_end 的并发窗口（marker 代际竞态测试）。
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 let stdin = "";
 process.stdin.on("data", (chunk) => {
@@ -62,6 +63,13 @@ function respondNow(args) {
 		console.log(JSON.stringify(payload));
 	} else if (args[0] === "search") {
 		if (args.includes("--json")) {
+			let resultFile;
+			if (args.includes("--write-result-file")) {
+				const resultDir = join(process.env.MEMORY_HOOK_STATE_DIR, "recall-results", "pi", "fixture");
+				mkdirSync(resultDir, { recursive: true });
+				resultFile = join(resultDir, "fixture-recall.md");
+				writeFileSync(resultFile, "# Memory Hub Recall Result\n\n## 本轮摘要\n\n- 识别结果：2/3\n");
+			}
 			console.log(JSON.stringify({
 				project_id: args.includes("--project")
 					? args[args.indexOf("--project") + 1]
@@ -72,6 +80,7 @@ function respondNow(args) {
 					policy_version: "v2-fts-top3-llm",
 				},
 				quality: { mode: "llm", candidates: 3, kept: 2, min_rating: 2 },
+				result_file: resultFile,
 				context: "[project:fixture]\n- 项目使用严格测试驱动；先跑小规模验证再全量修改。",
 				facts: [
 					{
