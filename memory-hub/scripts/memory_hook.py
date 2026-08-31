@@ -1897,6 +1897,7 @@ class HubClient:
                     "limit": limit,
                     "session_view": "captured",
                     "scope_mode": "current_project",
+                    "quality_mode": "llm",
                 },
             )
             results = result.get("results", [])
@@ -1909,12 +1910,13 @@ class HubClient:
             return {
                 "facts": results if isinstance(results, list) else [],
                 "retrieval": retrieval,
+                "quality": result.get("quality") if isinstance(result.get("quality"), dict) else None,
             }
         except HubError as error:
-            # 滚动升级兼容：旧 Hub 没有 v2，或 v2 仍硬依赖不可用的 Graphiti
-            # /search-v2 时，继续用 v1；其他错误不掩盖，交给调用方 fail-open。
+            # 只兼容完全没有 v2 的旧 Hub。LLM 门禁 503/坏响应绝不能回退 v1，
+            # 否则未判候选会绕过 correctness-first 契约进入 agent 上下文。
             detail = str(error)
-            if not (detail.startswith("HTTP 404:") or detail.startswith("HTTP 503:")):
+            if not detail.startswith("HTTP 404:"):
                 raise
 
         result = self.request(
@@ -1932,7 +1934,11 @@ class HubClient:
             },
         )
         facts = result.get("facts", [])
-        return {"facts": facts if isinstance(facts, list) else [], "retrieval": None}
+        return {
+            "facts": facts if isinstance(facts, list) else [],
+            "retrieval": None,
+            "quality": None,
+        }
 
     def search(
         self, query: str, project_id: str, limit: int, user_id: str
@@ -2403,6 +2409,8 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             payload = {"facts": facts}
             if response.get("retrieval") is not None:
                 payload["retrieval"] = response["retrieval"]
+            if response.get("quality") is not None:
+                payload["quality"] = response["quality"]
             output = json.dumps(payload, ensure_ascii=False)
             print(output)
         else:

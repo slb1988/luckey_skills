@@ -461,6 +461,7 @@ class MemoryHookTest(unittest.TestCase):
             self.assertEqual(search_call[3], "user-b")
             self.assertEqual(search_call[1], "/v1/memories/search-v2")
             self.assertEqual(search_call[4]["json_body"]["schema_version"], "memory-search/2")
+            self.assertEqual(search_call[4]["json_body"]["quality_mode"], "llm")
             self.assertNotIn("user_id", search_call[4]["json_body"])
             memory_call = calls[1]
             self.assertEqual(memory_call[3], "user-b")
@@ -484,7 +485,7 @@ class MemoryHookTest(unittest.TestCase):
             def fake_request(method, path, project_id, user_id, **kwargs):
                 paths.append(path)
                 if path == "/v1/memories/search-v2":
-                    raise HubError("HTTP 503: GRAPHITI_UNAVAILABLE")
+                    raise HubError("HTTP 404: endpoint not found")
                 return {"facts": [{"fact": "legacy exact fact"}]}
 
             client.request = fake_request
@@ -493,6 +494,29 @@ class MemoryHookTest(unittest.TestCase):
                 [{"fact": "legacy exact fact"}],
             )
             self.assertEqual(paths, ["/v1/memories/search-v2", "/v1/memories/search"])
+
+    def test_search_does_not_bypass_llm_gate_on_v2_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=Path(directory),
+            )
+            client = HubClient(config)
+            paths = []
+
+            def fake_request(method, path, project_id, user_id, **kwargs):
+                paths.append(path)
+                raise HubError("HTTP 503: RETRIEVAL_JUDGE_UNAVAILABLE")
+
+            client.request = fake_request
+            with self.assertRaises(HubError):
+                client.search("query", "project-a", 5, "user-a")
+            self.assertEqual(paths, ["/v1/memories/search-v2"])
 
     def test_search_response_exposes_retrieval_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -510,13 +534,15 @@ class MemoryHookTest(unittest.TestCase):
                 "results": [{"result_id": "memory-1", "text": "answer"}],
                 "retrieval_id": "retrieval-1",
                 "query_hash": "a" * 64,
-                "policy_version": "v2-fts-top3",
+                "policy_version": "v2-fts-top3-llm",
+                "quality": {"mode": "llm", "candidates": 2, "kept": 1},
             }
 
             response = client.search_response("query", "project-a", 5, "user-a")
 
             self.assertEqual(response["facts"][0]["result_id"], "memory-1")
             self.assertEqual(response["retrieval"]["retrieval_id"], "retrieval-1")
+            self.assertEqual(response["quality"]["kept"], 1)
 
     def test_feedback_v2_falls_back_to_v1_for_old_hub(self):
         with tempfile.TemporaryDirectory() as directory:

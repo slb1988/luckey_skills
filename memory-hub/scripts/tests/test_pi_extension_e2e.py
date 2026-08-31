@@ -145,13 +145,13 @@ class PiExtensionE2ETest(unittest.TestCase):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
         self.assertIn("const defaultBootstrapTimeoutMs = 120 * 1000;", template)
 
-    def test_project_bootstrap_rating_gate_blocks_until_every_candidate_is_scored(self):
+    def test_project_bootstrap_does_not_expose_player_rating_ui(self):
         with tempfile.TemporaryDirectory() as directory:
             summary = self.run_driver(Path(directory), {"SCORE_GATE": "1"})
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "score-gate")
 
-    def test_project_bootstrap_all_zero_injects_only_cross_project_guidance(self):
+    def test_legacy_score_env_does_not_restore_player_rating_ui(self):
         with tempfile.TemporaryDirectory() as directory:
             summary = self.run_driver(Path(directory), {"SCORE_ALL_ZERO": "1"})
             self.assertTrue(summary["ok"])
@@ -169,13 +169,10 @@ class PiExtensionE2ETest(unittest.TestCase):
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "main")
 
-    def test_project_bootstrap_rating_is_default_on_and_only_explicit_zero_disables_it(self):
+    def test_project_bootstrap_uses_backend_llm_gate_instead_of_player_scores(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
-        self.assertIn(
-            'return process.env.MEMORY_HOOK_PI_BOOTSTRAP_SCORE !== "0";',
-            template,
-        )
-        self.assertNotIn('"跳过（不打分，照常注入）"', template)
+        self.assertIn("在线正确性由 Hub LLM 同步门禁", template)
+        self.assertIn("return false;", template)
 
 
 if __name__ == "__main__":

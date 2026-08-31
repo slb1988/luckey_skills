@@ -173,28 +173,29 @@ v4 是纯 AFK 防抖（agent_end 只排程计时器，到期才 capture）——
 （v4→v5 的设计定版依据与丢失窗口分析见 [troubleshooting.md](troubleshooting.md)）。
 行为有 Node e2e 值守（`scripts/tests/test_pi_extension_e2e.py`，需 node，无 node 机器跳过）。
 
-**v12 起交互式 Pi 的首轮评分默认开启**：结构化检索完成后，`before_agent_start` 逐条 `await`
-用户 0-3 分评分，全部候选完成前 agent 不会启动；无“跳过”选项，0 分候选本轮不注入。
-显式 `MEMORY_HOOK_PI_BOOTSTRAP_SCORE=0` 才关闭。v17 起 print/headless 无 UI 时仍执行一次结构化检索并记录
-`unrated_no_ui`，候选完整写入 review 供离线复盘，但**未经玩家评分不注入 agent 上下文**；因此
-`injected_context` 为空、额外上下文 token 为 0。评分写 `pi-recall-scores.jsonl`，每个 session 的 query、首 prompt、候选全文/
-摘要/ID/评分及最终注入上下文写 `pi-recall-reviews.jsonl`，用于后续批量复盘。评分门禁与跨进程
-session 去重都有 Node e2e 值守。
+**v18 起首轮与手工 `memory_search` 都由 Hub 做同步 LLM 质量门禁**：客户端请求
+`search-v2 quality_mode=llm`，服务端也是该默认值；Hub 先检索候选，再用一次批量 LLM 调用逐条判
+0-3 分，只返回 2/3 分。审核不可用、超时或响应不完整时返回 503，客户端不得回退 v1 绕过。
+Pi 的 `before_agent_start` 会等待该在线请求，但不再弹出玩家逐条评分 UI；只把服务端放行结果注入
+system prompt。被拒候选、理由、证据、冲突和错误只写服务端 `retrieval_judgments`，不会污染玩家或
+agent 上下文。单次候选上限 10，首轮仍取 6 条/最多 4000 字符，客户端等待预算 120 秒，服务端
+审核调用预算 110 秒。
 
-**v13 起评分 widget 与 `ctx.ui.select` 标题都会同步显示首个用户问题摘要**，用户可直接对照
-“问题—候选记忆”判断相关性。不要只依赖 widget：部分 Pi 前端可能不渲染它，选择框自身必须
-包含问题摘要与候选序号。问题最多显示 360 字符，只增加本地 UI 文本，不增加检索 token 或 LLM 成本。
+v12-v17 的玩家评分 UI、`pi-recall-scores.jsonl` 和 feedback 上报路径现为历史兼容代码，不再由 v18
+首轮触发；旧环境变量 `MEMORY_HOOK_PI_BOOTSTRAP_SCORE` 也不再恢复该 UI。跨进程 session 去重和
+后端门禁行为都有 Node e2e 值守。
+
+**v13-v17 的评分 widget 已在 v18 停用**。首个用户问题仍会被提炼为检索 query，但问题与内部候选
+不再通过 widget/select 暴露；需要复盘时按 retrieval_id 查询服务端 judgment 日志。
 
 **v14 起 Orca worker 的首问会先提取最后一个 `=== TASK ===` 之后的真实任务，再做 1200 字截断**；
 旧逻辑先截断整段 prompt，8KB 编排说明会把 TASK 完全挤掉，导致 query 与评分界面只显示 Orca
 操作样板。review/trace 增加 `prompt_source=orca_task|user_prompt`，便于后续区分入口质量与排序质量。
 
-**v15 起 search-v2 会把 Hub 返回的 `retrieval_id/query_hash/policy_version` 透传给 Pi**。玩家完成
-逐候选评分后，扩展把 rank 与原始 0-3 分全部 fire-and-forget 上报 `memory-feedback/2`；包括过去会
-丢失的 1 分中性信号。同一 retrieval 的重提由 Hub 幂等覆盖，不同 query 保持独立样本。滚动升级时，
-旧 Hub 以 400/404 拒绝 v2 后，`memory_hook.py` 自动降级为 feedback/1（0→irrelevant，2/3→relevant，
-1 仍只留本地 JSONL）。retrieval 三元组也写入 score/review/hook trace，便于按 session 与服务端评分
-join。feedback/2 当前只用于离线评估，不直接改变线上排序。
+**v15 起 search-v2 会把 Hub 返回的 `retrieval_id/query_hash/policy_version` 透传给 Pi**；v18 又透传
+聚合 `quality` 元数据。当前评分由服务端在返回前完成并直接写 `retrieval_judgments`，不再依赖玩家
+fire-and-forget feedback 才形成评估样本。只有 v2 明确 404（旧服务完全没有端点）时允许兼容回退 v1；
+审核 503、坏响应或其他错误都必须 fail-open 到“本轮不注入”，不能用 v1 返回未审核候选。
 
 **v16 起清理两类真实体验缺口**：① auto-skill extraction prompt（以及加载时已明确
 `MEMORY_HUB_SKIP_CAPTURE=1` 的 opt-out session）跳过自动 bootstrap，记录
@@ -231,9 +232,9 @@ full-session 资产为准。该改动只在直接引用的 Python script 中，�
 | kind | 时机 | 关键字段 |
 |---|---|---|
 | `session_start` | 会话开始 | session_id、cwd |
-| `project_bootstrap` | session 首轮项目背景预热（v12-v17） | query、limit、project_override、outcome（rated/unrated_no_ui/empty/error/timeout/disabled/skipped_extraction/skipped_capture_env）、exit_code、duration_ms、result_chars、rating_required、has_ui；v17 的 unrated_no_ui 必须 result_chars=0 |
+| `project_bootstrap` | session 首轮项目背景预热（v12+） | query、limit、project_override、outcome（v18：injected/empty/error/timeout/disabled/skipped_extraction/skipped_capture_env）、exit_code、duration_ms、result_chars；审核细节按 retrieval_id 在服务端查 |
 | `project_bootstrap_skip` | 已有持久完成标记，恢复旧 session 不重复回溯（v12） | session_id、outcome=already_completed |
-| `recall_score` / `recall_score_wait` | 评分完成统计 / 用户取消评分后继续等待（v12） | total、scored、dropped、kept / rank、outcome |
+| `recall_score` / `recall_score_wait` | v12-v17 历史玩家评分事件；v18 不再产生 | total、scored、dropped、kept / rank、outcome |
 | `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、result（结果全文） |
 | `marker_write` / `marker_delete` / `marker_quarantine` | write-ahead marker 生命周期（v5） | sessionId 等 |
 | `enqueue_done` | `capture --no-flush` 入队完成（v5） | outcome、job_id、sha256、transcript_bytes |
@@ -295,10 +296,8 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HOOK_PI_CAPTURE_DELAY_MS=300000  # Pi agent_end AFK 防抖归档延时；默认 5 分钟，置 0 逐轮立即上传
 # MEMORY_HOOK_PI_BOOTSTRAP_RECALL=0        # 可选：关闭 Pi 每 session 首轮 project 背景预热
 # MEMORY_HOOK_PI_BOOTSTRAP_TIMEOUT_MS=120000 # 首轮预热超时；失败后当前 session 不重试
-# MEMORY_HOOK_PI_BOOTSTRAP_SCORE=0         # 可选：关闭交互式 Pi 默认开启的首轮强制评分门禁。
-                                           # 默认逐条暂停打 0-3 分，全部完成前 agent 不启动；判 0 本轮剔除。
-                                           # scores/reviews JSONL 持久化并 fire-and-forget 上报 feedback；
-                                           # print/headless 无 UI 不阻塞，记录 outcome=unrated_no_ui
+# MEMORY_HOOK_PI_BOOTSTRAP_SCORE=0         # v18 起已废弃；在线评分固定由 Hub LLM 完成，
+                                           # 不再弹出玩家评分 UI，也不能用此变量绕过服务端门禁。
 # 会话标题 / 低价值过滤（内网 vLLM，hook 与 upload_sessions.py 共用，默认关）：
 # MEMORY_HUB_TITLE_LLM=1          # 默认 0 关闭；置 1 开启，关闭时退化为启发式标题
 #                                  # （启发式低价值过滤始终生效，见「会话标题与低价值过滤判定」）

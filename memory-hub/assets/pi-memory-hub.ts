@@ -24,7 +24,8 @@ import { Type } from "typebox";
 // v15：透传 retrieval metadata，并把逐候选 0-3 分上报 feedback/2。
 // v16：extraction/capture opt-out 子会话跳过自动召回；memory_search 支持显式 project；
 //   首轮候选全被判 0 时给 agent 一条跨 project 重试提示，不注入被剔除记忆。
-const EXTENSION_VERSION = "17";
+// v18：用户评分 UI 由 Hub 同步 LLM 质量门禁替代；Pi 只注入后端判定 2/3 分的结果。
+const EXTENSION_VERSION = "18";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -108,15 +109,14 @@ function clip(value: string): string {
 		: value;
 }
 
-// ---- v10/v12 首轮评分与复盘辅助 ----
+// ---- 首轮召回复盘辅助 ----
 const scoresFile = join(stateDir, "pi-recall-scores.jsonl");
 const reviewsFile = join(stateDir, "pi-recall-reviews.jsonl");
 const bootstrapMigrationSentinel = join(bootstrapDoneDir, ".v12-trace-migrated");
 
 function bootstrapScoreEnabled(): boolean {
-	// v12 起交互式 session 默认必须评分；保留显式 opt-out 方便临时排障。
-	// 不能依赖安装后才写入的用户环境变量：已经启动的 Pi 父进程不会继承它。
-	return process.env.MEMORY_HOOK_PI_BOOTSTRAP_SCORE !== "0";
+	// v18：在线正确性由 Hub LLM 同步门禁；Pi 不再向玩家展示内部候选评分流程。
+	return false;
 }
 
 function clipText(value: string, max: number): string {
@@ -179,7 +179,7 @@ function appendScores(records: Record<string, unknown>[]): void {
 		mkdirSync(dirname(scoresFile), { recursive: true });
 		appendFileSync(scoresFile, records.map((record) => JSON.stringify(record)).join("\n") + "\n", "utf8");
 	} catch {
-		// 留痕失败不阻断 agent
+		// 兼容旧评分路径；v18 默认不再产生玩家评分。
 	}
 }
 
@@ -286,7 +286,7 @@ function formatFactsDebug(facts: Record<string, unknown>[], maxChars: number): s
 function scoreToFeedbackType(score: number): string | null {
 	if (score === 0) return "irrelevant";
 	if (score >= 2) return "relevant";
-	return null; // 1 分（沾边）：中性信号，不上报
+	return null;
 }
 
 // fire-and-forget：detached + unref，pi 退出不等子进程；失败静默（只留 trace）。

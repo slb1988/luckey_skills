@@ -226,73 +226,12 @@ try {
 				? "project:maindev start work with exact question"
 				: "start work with exact question",
 		].join("\n");
-		let firstStart;
-		if (scoreGateMode || scoreAllZeroMode) {
-			let settled = false;
-			const startPromise = handlers.get("before_agent_start")(
-				{ prompt: firstPrompt, systemPrompt: "base-system" },
-				ctx,
-			).finally(() => {
-				settled = true;
-			});
-			await waitFor(() => selectCalls.length === 1, "first rating prompt");
-			await sleep(50);
-			assert.equal(settled, false, "agent must remain blocked before the first rating");
-			assert.equal(selectCalls[0].options.length, 4, "rating prompt must not offer a skip choice");
-			assert.ok(selectCalls[0].options.every((option) => /^[0-3]/.test(option)));
-			assert.match(selectCalls[0].title, /问题：start work with exact question/);
-			assert.match(selectCalls[0].title, /记忆 1\/2/);
-			assert.ok(
-				widgetCalls.some(({ key, lines }) =>
-					key === "memory-hub-score"
-					&& Array.isArray(lines)
-					&& lines.some((line) => line === "问题：start work with exact question"),
-				),
-				"rating widget must show the first user question",
-			);
-			selectResolvers.shift()(
-				scoreAllZeroMode
-					? "0 - 无关/噪声（本轮剔除）"
-					: "3 - 完整答案（可直接据此作答）",
-			);
-			await waitFor(() => selectCalls.length === 2, "second rating prompt");
-			await sleep(50);
-			assert.equal(settled, false, "agent must remain blocked until every candidate is rated");
-			selectResolvers.shift()("0 - 无关/噪声（本轮剔除）");
-			firstStart = await startPromise;
-			assert.equal(settled, true);
-			const scores = readJsonl(join(stateDir, "pi-recall-scores.jsonl"));
-			assert.deepEqual(scores.map((entry) => entry.score), scoreAllZeroMode ? [0, 0] : [3, 0]);
-			assert.ok(scores.every((entry) => typeof entry.text === "string" && entry.text.length > 0));
-			const reviews = readJsonl(join(stateDir, "pi-recall-reviews.jsonl"));
-			assert.equal(reviews.length, 1);
-			assert.equal(reviews[0].rating_required, true);
-			assert.equal(reviews[0].prompt_source, "orca_task");
-			assert.equal(reviews[0].prompt, "start work with exact question");
-			assert.equal(reviews[0].retrieval.retrieval_id, "retrieval-e2e");
-			assert.equal(reviews[0].candidates.length, 2);
-			assert.doesNotMatch(reviews[0].injected_context, /昨天午饭/);
-			if (scoreAllZeroMode) {
-				assert.match(reviews[0].injected_context, /显式指定 project/);
-				assert.doesNotMatch(reviews[0].injected_context, /严格测试驱动/);
-			}
-			await waitFor(() => hookCalls("feedback").length === 2, "retrieval feedback calls");
-			const feedbackCalls = hookCalls("feedback");
-			assert.deepEqual(
-				feedbackCalls.map((entry) => entry.argv[entry.argv.indexOf("--rating") + 1]),
-				scoreAllZeroMode ? ["0", "0"] : ["3", "0"],
-			);
-			assert.deepEqual(
-				feedbackCalls.map((entry) => entry.argv[entry.argv.indexOf("--candidate-rank") + 1]),
-				["1", "2"],
-			);
-			assert.ok(feedbackCalls.every((entry) => entry.argv.includes("retrieval-e2e")));
-		} else {
-			firstStart = await handlers.get("before_agent_start")(
-				{ prompt: firstPrompt, systemPrompt: "base-system" },
-				ctx,
-			);
-		}
+		const firstStart = await handlers.get("before_agent_start")(
+			{ prompt: firstPrompt, systemPrompt: "base-system" },
+			ctx,
+		);
+		assert.equal(selectCalls.length, 0, "v18 must not expose internal recall scoring UI");
+		assert.equal(widgetCalls.length, 0, "v18 must not expose internal recall scoring widget");
 		if (extractionBootstrapMode) {
 			assert.equal(firstStart, undefined, "extraction bootstrap must not inject memory");
 			assert.equal(hookCalls("search").length, 0, "extraction bootstrap must not search");
@@ -307,20 +246,11 @@ try {
 			assert.equal(traceEntries("project_bootstrap")[0].outcome, "timeout");
 			assert.equal(hookCalls("search").length, 0, "timed-out child is killed before fake logs");
 		} else {
-			if (scoreGateMode || scoreAllZeroMode || process.env.MEMORY_HOOK_PI_BOOTSTRAP_SCORE === "0") {
-				assert.match(firstStart.systemPrompt, /^base-system\n\n# Memory Hub/);
-			} else {
-				assert.equal(firstStart, undefined, "headless bootstrap must not inject unscored memory");
-			}
-			if (scoreAllZeroMode) {
-				assert.match(firstStart.systemPrompt, /显式指定 project/);
-				assert.doesNotMatch(firstStart.systemPrompt, /严格测试驱动/);
-			} else if (scoreGateMode || process.env.MEMORY_HOOK_PI_BOOTSTRAP_SCORE === "0") {
-				assert.match(firstStart.systemPrompt, /严格测试驱动/);
-			}
+			assert.match(firstStart.systemPrompt, /^base-system\n\n# Memory Hub/);
+			assert.match(firstStart.systemPrompt, /严格测试驱动/);
 			assert.equal(
 				traceEntries("project_bootstrap")[0].outcome,
-				scoreGateMode || scoreAllZeroMode ? "rated" : "unrated_no_ui",
+				"injected",
 			);
 			assert.equal(hookCalls("search").length, 1, "first prompt must search project memory once");
 			if (!projectDirectiveMode) {
@@ -356,13 +286,7 @@ try {
 			}
 			assert.ok(hookCalls("search")[0].argv.includes("6"), "bootstrap must keep a small result budget");
 			assert.ok(hookCalls("search")[0].argv.includes("4000"), "bootstrap must cap injected characters");
-			if (!ctx.hasUI && process.env.MEMORY_HOOK_PI_BOOTSTRAP_SCORE !== "0") {
-				const reviews = readJsonl(join(stateDir, "pi-recall-reviews.jsonl"));
-				assert.equal(reviews.length, 1);
-				assert.equal(reviews[0].outcome, "unrated_no_ui");
-				assert.equal(reviews[0].candidates.length, 2);
-				assert.equal(reviews[0].injected_context, "");
-			}
+			assert.equal(hookCalls("feedback").length, 0, "backend LLM judgments replace player feedback");
 		}
 		const secondStart = await handlers.get("before_agent_start")(
 			{ prompt: "continue", systemPrompt: "base-system" },
