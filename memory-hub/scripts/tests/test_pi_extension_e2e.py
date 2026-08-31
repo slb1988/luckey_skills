@@ -151,6 +151,18 @@ class PiExtensionE2ETest(unittest.TestCase):
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "score-gate")
 
+    def test_project_bootstrap_all_zero_injects_only_cross_project_guidance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(Path(directory), {"SCORE_ALL_ZERO": "1"})
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "score-all-zero")
+
+    def test_extraction_subsession_skips_automatic_bootstrap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(Path(directory), {"EXTRACTION_BOOTSTRAP": "1"})
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "extraction-bootstrap")
+
     def test_project_bootstrap_rating_is_default_on_and_only_explicit_zero_disables_it(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
         self.assertIn(

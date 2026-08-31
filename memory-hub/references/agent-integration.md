@@ -13,9 +13,10 @@ Memory Hub 项目及其 venv，只使用 Python 标准库访问远端 HTTP API�
 job 永久保留为 `queued`；后续 Stop、SessionEnd、agent_end 或手工 flush 会自动补传。因此 hook
 仍可 fail-open，不会阻止 Agent，也不会因短期网络故障丢失 session。
 
-快照格式为 `agent-session/2`，只保存最近 10 条 user/assistant 消息。工具事件、无法解析事件和
-Markdown fenced code 不上传；Markdown 标题、列表、链接和解释正文保留。Spool 每个 job 固化
-`user_id`，所以稍后 flush 时不会因进程环境变化而补传到错误用户。
+快照格式为 `agent-session/3`，保存最近 10 条 user/assistant 消息，并通过 `full_session` 指针关联
+`agent-session-full/1` 全量事件资产。窗口快照不含工具事件、无法解析事件和 Markdown fenced code；
+Markdown 标题、列表、链接和解释正文保留。Spool 每个 job 固化 `user_id`，所以稍后 flush 时不会
+因进程环境变化而补传到错误用户。
 
 ## 首轮自动召回（recall / bootstrap）
 
@@ -135,7 +136,7 @@ Windows 写入注册表 `HKCU\Environment` 并广播 `WM_SETTINGCHANGE`；POSIX 
 - Stop 每轮直接执行 `capture`，不得带 `--flush-limit 0`；SessionEnd 再提交最终幂等快照。
 - Codex 必须通过 app-server `hooks/list` 确认 3 个 handlers 均为 `trusted`，且没有 Memory Hub 相关 warning/error。
 - Pi 全局扩展必须包含 `before_agent_start`、`agent_end`、`session_shutdown`；`before_agent_start` 在每个
-  session 的首轮按 cwd/project 阻塞执行一次精炼背景检索（默认 limit=6、最多 5000 字符、120 秒超时），
+  session 的首轮按 cwd/project 阻塞执行一次精炼背景检索（默认 limit=6、最多 4000 字符、120 秒超时），
   然后取消挂起归档。无结果、报错或超时均 fail-open，且本 session 后续 prompt 不重试；`agent_end`
   走 AFK 防抖上传（默认空闲 5 分钟才归档，新 prompt 取消重计），`session_shutdown` 立即归档。
 - 安装器返回的各 agent `ok=true`。服务健康检查失败可保留 durable spool，但必须明确报告"已安装、尚未端到端验证"，不得宣称上传链路正常。
@@ -194,6 +195,15 @@ session 去重都有 Node e2e 值守。
 1 仍只留本地 JSONL）。retrieval 三元组也写入 score/review/hook trace，便于按 session 与服务端评分
 join。feedback/2 当前只用于离线评估，不直接改变线上排序。
 
+**v16 起清理两类真实体验缺口**：① auto-skill extraction prompt（以及加载时已明确
+`MEMORY_HUB_SKIP_CAPTURE=1` 的 opt-out session）跳过自动 bootstrap，记录
+`project_bootstrap.outcome=skipped_extraction|skipped_capture_env` 并写完成 marker；手工
+`memory_search` 工具仍可用。这样 extraction 不再被旧 extraction 记忆递归污染，也不浪费检索和注入
+预算。② `memory_search` 新增可选 `project` 参数；任务实际属于其他 project、但 Pi 从当前仓库启动时，
+可显式切换 scope（如 `project="maindev"`），不必换工作目录或绕到 shell CLI。首轮所有候选被用户
+打 0 时，候选本身仍全部剔除，只给 agent 注入一条很短的跨 project 重试提示，避免模型不知道召回已
+失败而继续猜测。三项均不增加服务端请求次数、LLM 或 embedding 成本。
+
 **Pi 的 session memory 写入带本地可读审计稿**：`memory_hook.py` 从 full-session spool 提取出
 首个用户目标、最近用户目标和最终助手结果并生成 `distilled_content` 后，必须先把两者原子写入
 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/memory-drafts/pi/<project>/`
@@ -212,7 +222,7 @@ full-session 资产为准。该改动只在直接引用的 Python script 中，�
 | kind | 时机 | 关键字段 |
 |---|---|---|
 | `session_start` | 会话开始 | session_id、cwd |
-| `project_bootstrap` | session 首轮项目背景预热（v12） | query、limit、outcome（rated/unrated_no_ui/empty/error/timeout）、exit_code、duration_ms、result_chars、rating_required、has_ui |
+| `project_bootstrap` | session 首轮项目背景预热（v12/v16） | query、limit、outcome（rated/unrated_no_ui/empty/error/timeout/disabled/skipped_extraction/skipped_capture_env）、exit_code、duration_ms、result_chars、rating_required、has_ui |
 | `project_bootstrap_skip` | 已有持久完成标记，恢复旧 session 不重复回溯（v12） | session_id、outcome=already_completed |
 | `recall_score` / `recall_score_wait` | 评分完成统计 / 用户取消评分后继续等待（v12） | total、scored、dropped、kept / rank、outcome |
 | `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、result（结果全文） |

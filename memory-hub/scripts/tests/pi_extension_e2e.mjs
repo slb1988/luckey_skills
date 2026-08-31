@@ -29,15 +29,20 @@ const traceFile = join(stateDir, "pi-trace.jsonl");
 const catchupMode = process.env.CATCHUP_MARKER === "1";
 const busyOnce = process.env.FLUSH_BUSY_ONCE === "1";
 const scoreGateMode = process.env.SCORE_GATE === "1";
+const scoreAllZeroMode = process.env.SCORE_ALL_ZERO === "1";
+const extractionBootstrapMode = process.env.EXTRACTION_BOOTSTRAP === "1";
 
 writeFileSync(transcriptPath, JSON.stringify({ type: "message", role: "user", text: "hello" }) + "\n");
 
 const handlers = new Map();
+const tools = new Map();
 const pi = {
 	on(event, fn) {
 		handlers.set(event, fn);
 	},
-	registerTool() {},
+	registerTool(tool) {
+		tools.set(tool.name, tool);
+	},
 };
 
 const selectCalls = [];
@@ -45,7 +50,7 @@ const selectResolvers = [];
 const widgetCalls = [];
 const ctx = {
 	cwd: process.cwd(),
-	hasUI: scoreGateMode,
+	hasUI: scoreGateMode || scoreAllZeroMode,
 	ui: {
 		setWidget(key, lines) {
 			widgetCalls.push({ key, lines });
@@ -210,14 +215,16 @@ try {
 
 		// 首轮 prompt 阻塞一次 project bootstrap 并注入 system prompt；后续 prompt
 		// 不重复检索。超时/失败时同样只尝试一次并 fail-open。
-		const firstPrompt = [
+		const firstPrompt = extractionBootstrapMode
+			? "You are the Skill extraction sub-agent. Analyze this session."
+			: [
 			"You are working inside Orca, a multi-agent IDE.",
 			"编排说明 ".repeat(900),
 			"=== TASK ===",
 			"start work with exact question",
 		].join("\n");
 		let firstStart;
-		if (scoreGateMode) {
+		if (scoreGateMode || scoreAllZeroMode) {
 			let settled = false;
 			const startPromise = handlers.get("before_agent_start")(
 				{ prompt: firstPrompt, systemPrompt: "base-system" },
@@ -240,7 +247,11 @@ try {
 				),
 				"rating widget must show the first user question",
 			);
-			selectResolvers.shift()("3 - 完整答案（可直接据此作答）");
+			selectResolvers.shift()(
+				scoreAllZeroMode
+					? "0 - 无关/噪声（本轮剔除）"
+					: "3 - 完整答案（可直接据此作答）",
+			);
 			await waitFor(() => selectCalls.length === 2, "second rating prompt");
 			await sleep(50);
 			assert.equal(settled, false, "agent must remain blocked until every candidate is rated");
@@ -248,7 +259,7 @@ try {
 			firstStart = await startPromise;
 			assert.equal(settled, true);
 			const scores = readJsonl(join(stateDir, "pi-recall-scores.jsonl"));
-			assert.deepEqual(scores.map((entry) => entry.score), [3, 0]);
+			assert.deepEqual(scores.map((entry) => entry.score), scoreAllZeroMode ? [0, 0] : [3, 0]);
 			assert.ok(scores.every((entry) => typeof entry.text === "string" && entry.text.length > 0));
 			const reviews = readJsonl(join(stateDir, "pi-recall-reviews.jsonl"));
 			assert.equal(reviews.length, 1);
@@ -258,11 +269,15 @@ try {
 			assert.equal(reviews[0].retrieval.retrieval_id, "retrieval-e2e");
 			assert.equal(reviews[0].candidates.length, 2);
 			assert.doesNotMatch(reviews[0].injected_context, /昨天午饭/);
+			if (scoreAllZeroMode) {
+				assert.match(reviews[0].injected_context, /显式指定 project/);
+				assert.doesNotMatch(reviews[0].injected_context, /严格测试驱动/);
+			}
 			await waitFor(() => hookCalls("feedback").length === 2, "retrieval feedback calls");
 			const feedbackCalls = hookCalls("feedback");
 			assert.deepEqual(
 				feedbackCalls.map((entry) => entry.argv[entry.argv.indexOf("--rating") + 1]),
-				["3", "0"],
+				scoreAllZeroMode ? ["0", "0"] : ["3", "0"],
 			);
 			assert.deepEqual(
 				feedbackCalls.map((entry) => entry.argv[entry.argv.indexOf("--candidate-rank") + 1]),
@@ -275,6 +290,14 @@ try {
 				ctx,
 			);
 		}
+		if (extractionBootstrapMode) {
+			assert.equal(firstStart, undefined, "extraction bootstrap must not inject memory");
+			assert.equal(hookCalls("search").length, 0, "extraction bootstrap must not search");
+			assert.equal(traceEntries("project_bootstrap")[0].outcome, "skipped_extraction");
+			assert.ok(existsSync(join(stateDir, "pi-bootstrap-done", "sess-e2e.json")));
+			console.log(JSON.stringify({ ok: true, mode: "extraction-bootstrap" }));
+			process.exit(0);
+		}
 		const bootstrapTimedOut = process.env.FAKE_SEARCH_DELAY_MS !== undefined;
 		if (bootstrapTimedOut) {
 			assert.equal(firstStart, undefined, "bootstrap timeout must continue without injection");
@@ -282,10 +305,15 @@ try {
 			assert.equal(hookCalls("search").length, 0, "timed-out child is killed before fake logs");
 		} else {
 			assert.match(firstStart.systemPrompt, /^base-system\n\n# Memory Hub/);
-			assert.match(firstStart.systemPrompt, /严格测试驱动/);
+			if (scoreAllZeroMode) {
+				assert.match(firstStart.systemPrompt, /显式指定 project/);
+				assert.doesNotMatch(firstStart.systemPrompt, /严格测试驱动/);
+			} else {
+				assert.match(firstStart.systemPrompt, /严格测试驱动/);
+			}
 			assert.equal(
 				traceEntries("project_bootstrap")[0].outcome,
-				scoreGateMode ? "rated" : "unrated_no_ui",
+				scoreGateMode || scoreAllZeroMode ? "rated" : "unrated_no_ui",
 			);
 			assert.equal(hookCalls("search").length, 1, "first prompt must search project memory once");
 			assert.match(
@@ -337,6 +365,24 @@ try {
 		assert.equal(hookCalls("search").length, searchesBeforeResume);
 		assert.equal(selectCalls.length, selectsBeforeResume);
 		assert.ok(traceEntries("project_bootstrap_skip").some((entry) => entry.outcome === "already_completed"));
+
+		const searchTool = tools.get("memory_search");
+		assert.ok(searchTool, "memory_search tool must be registered");
+		const searchesBeforeTool = hookCalls("search").length;
+		const toolResult = await searchTool.execute(
+			"tool-call",
+			{ query: "SyncStaticMeshAssetMetaDT", limit: 7, project: "maindev" },
+			undefined,
+			undefined,
+			ctx,
+		);
+		assert.equal(hookCalls("search").length, searchesBeforeTool + 1);
+		const toolSearch = hookCalls("search").at(-1);
+		assert.deepEqual(
+			toolSearch.argv.slice(toolSearch.argv.indexOf("--project"), toolSearch.argv.indexOf("--project") + 2),
+			["--project", "maindev"],
+		);
+		assert.equal(toolResult.details.project, "maindev");
 
 		// agent_end → enqueue 立即触发并 await 完成（handler 返回即 durable）
 		await handlers.get("agent_end")({}, ctx);
@@ -395,7 +441,7 @@ try {
 		console.log(
 			JSON.stringify({
 				ok: true,
-				mode: scoreGateMode ? "score-gate" : busyOnce ? "main-busy" : "main",
+				mode: scoreAllZeroMode ? "score-all-zero" : scoreGateMode ? "score-gate" : busyOnce ? "main-busy" : "main",
 				captures: hookCalls("capture").length,
 				flushes: hookCalls("flush").length,
 				enqueues: traceEntries("enqueue_done").length,

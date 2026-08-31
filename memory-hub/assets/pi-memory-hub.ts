@@ -21,7 +21,10 @@ import { Type } from "typebox";
 //   select 标题也保留问题，避免只支持选择框、不渲染 widget 的前端丢失判断依据。
 // v14：Orca worker 的首个 user prompt 含长编排说明，真实任务位于末尾 `=== TASK ===`；
 //   先提取 TASK 段再做 1200 字截断，避免检索 query 被编排样板占满。
-const EXTENSION_VERSION = "15";
+// v15：透传 retrieval metadata，并把逐候选 0-3 分上报 feedback/2。
+// v16：extraction/capture opt-out 子会话跳过自动召回；memory_search 支持显式 project；
+//   首轮候选全被判 0 时给 agent 一条跨 project 重试提示，不注入被剔除记忆。
+const EXTENSION_VERSION = "16";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -121,6 +124,7 @@ function clipText(value: string, max: number): string {
 }
 
 const orcaTaskMarker = "=== TASK ===";
+const extractionPromptPrefix = "You are the Skill extraction sub-agent.";
 
 function focusBootstrapPrompt(value: unknown): { text: string; source: "orca_task" | "user_prompt" } {
 	const raw = String(value ?? "");
@@ -769,6 +773,22 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			});
 			return;
 		}
+		const rawPrompt = String(event.prompt ?? "").trimStart();
+		const bootstrapSkip = rawPrompt.startsWith(extractionPromptPrefix)
+			? "skipped_extraction"
+			: skipCapture
+				? "skipped_capture_env"
+				: null;
+		if (bootstrapSkip) {
+			bootstrappedSessions.add(sessionId);
+			trace("project_bootstrap", {
+				session_id: sessionId,
+				cwd: ctx.cwd,
+				outcome: bootstrapSkip,
+			});
+			markBootstrapDone(sessionId, { cwd: ctx.cwd, outcome: bootstrapSkip });
+			return;
+		}
 		// 先登记 attempted：超时/空结果/服务故障都不在后续 prompt 重试，避免持续
 		// 增加首 token 延迟。手工深挖仍可使用 memory_search 工具。
 		bootstrappedSessions.add(sessionId);
@@ -974,8 +994,11 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 					kept: kept.length,
 				});
 				recalled = formatFactsDebug(kept, maxChars);
-				if (dropped > 0 && recalled) {
-					recalled = `（首轮评分：用户已将 ${dropped} 条判为无关并从本轮剔除）\n` + recalled;
+				if (dropped > 0) {
+					recalled = recalled
+						? `（首轮评分：用户已将 ${dropped} 条判为无关并从本轮剔除）\n` + recalled
+						: "当前 project 范围内的首轮候选均被用户判为无关，未注入任何候选记忆。" +
+							"若任务实际属于其他 project，可调用 memory_search 并显式指定 project。";
 				}
 			}
 		} else {
@@ -1115,15 +1138,22 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			"Use proactively when the current context is insufficient: references to past work " +
 			"(上次/之前/继续), unfamiliar project names or past decisions, user preferences, or facts " +
 			"not present in this session. Compose a focused keyword query instead of guessing; " +
-			"on empty or irrelevant results, retry with different keywords or a larger limit.",
+			"on empty or irrelevant results, retry with different keywords, a larger limit, or an explicit " +
+			"project when the task does not belong to the current working directory.",
 		parameters: Type.Object({
 			query: Type.String({ description: "Semantic search query" }),
 			limit: Type.Optional(Type.Number({ minimum: 1, maximum: 20 })),
+			project: Type.Optional(Type.String({
+				description: "Project scope override, for example maindev; defaults to the current cwd project",
+			})),
 		}),
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const limit = Math.max(1, Math.min(20, Math.trunc(params.limit ?? 10)));
+			const project = typeof params.project === "string" ? params.project.trim() : "";
+			const args = ["search", params.query, "--limit", String(limit)];
+			if (project) args.push("--project", project);
 			const result = await runHub(
-				["search", params.query, "--limit", String(limit)],
+				args,
 				undefined,
 				ctx.cwd,
 				searchTimeoutMs,
@@ -1136,6 +1166,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				cwd: ctx.cwd,
 				query: params.query,
 				limit,
+				project: project || null,
 				exit_code: result.code,
 				duration_ms: result.durationMs,
 				result_chars: text.length,
@@ -1143,7 +1174,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			});
 			return {
 				content: [{ type: "text", text }],
-				details: { exitCode: result.code },
+				details: { exitCode: result.code, project: project || null },
 			};
 		},
 	});
