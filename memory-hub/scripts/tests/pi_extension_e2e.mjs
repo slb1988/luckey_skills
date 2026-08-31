@@ -31,6 +31,7 @@ const busyOnce = process.env.FLUSH_BUSY_ONCE === "1";
 const scoreGateMode = process.env.SCORE_GATE === "1";
 const scoreAllZeroMode = process.env.SCORE_ALL_ZERO === "1";
 const extractionBootstrapMode = process.env.EXTRACTION_BOOTSTRAP === "1";
+const projectDirectiveMode = process.env.PROJECT_DIRECTIVE === "1";
 
 writeFileSync(transcriptPath, JSON.stringify({ type: "message", role: "user", text: "hello" }) + "\n");
 
@@ -221,7 +222,9 @@ try {
 			"You are working inside Orca, a multi-agent IDE.",
 			"编排说明 ".repeat(900),
 			"=== TASK ===",
-			"start work with exact question",
+			projectDirectiveMode
+				? "project:maindev start work with exact question"
+				: "start work with exact question",
 		].join("\n");
 		let firstStart;
 		if (scoreGateMode || scoreAllZeroMode) {
@@ -304,11 +307,15 @@ try {
 			assert.equal(traceEntries("project_bootstrap")[0].outcome, "timeout");
 			assert.equal(hookCalls("search").length, 0, "timed-out child is killed before fake logs");
 		} else {
-			assert.match(firstStart.systemPrompt, /^base-system\n\n# Memory Hub/);
+			if (scoreGateMode || scoreAllZeroMode || process.env.MEMORY_HOOK_PI_BOOTSTRAP_SCORE === "0") {
+				assert.match(firstStart.systemPrompt, /^base-system\n\n# Memory Hub/);
+			} else {
+				assert.equal(firstStart, undefined, "headless bootstrap must not inject unscored memory");
+			}
 			if (scoreAllZeroMode) {
 				assert.match(firstStart.systemPrompt, /显式指定 project/);
 				assert.doesNotMatch(firstStart.systemPrompt, /严格测试驱动/);
-			} else {
+			} else if (scoreGateMode || process.env.MEMORY_HOOK_PI_BOOTSTRAP_SCORE === "0") {
 				assert.match(firstStart.systemPrompt, /严格测试驱动/);
 			}
 			assert.equal(
@@ -316,11 +323,13 @@ try {
 				scoreGateMode || scoreAllZeroMode ? "rated" : "unrated_no_ui",
 			);
 			assert.equal(hookCalls("search").length, 1, "first prompt must search project memory once");
-			assert.match(
-				hookCalls("search")[0].argv[1],
-				new RegExp(process.cwd().split(/[\\/]/).at(-1)),
-				"bootstrap query must include the cwd project hint",
-			);
+			if (!projectDirectiveMode) {
+				assert.match(
+					hookCalls("search")[0].argv[1],
+					new RegExp(process.cwd().split(/[\\/]/).at(-1)),
+					"bootstrap query must include the cwd project hint",
+				);
+			}
 			assert.match(
 				hookCalls("search")[0].argv[1],
 				/start work with exact question/,
@@ -332,8 +341,28 @@ try {
 				"bootstrap query must exclude the orchestration preamble",
 			);
 			assert.equal(traceEntries("project_bootstrap")[0].prompt_source, "orca_task");
+			if (projectDirectiveMode) {
+				const bootstrapSearch = hookCalls("search")[0];
+				assert.deepEqual(
+					bootstrapSearch.argv.slice(
+						bootstrapSearch.argv.indexOf("--project"),
+						bootstrapSearch.argv.indexOf("--project") + 2,
+					),
+					["--project", "maindev"],
+				);
+				assert.match(bootstrapSearch.argv[1], /^maindev start work/);
+				assert.doesNotMatch(bootstrapSearch.argv[1], /project:maindev/);
+				assert.equal(traceEntries("project_bootstrap")[0].project_override, "maindev");
+			}
 			assert.ok(hookCalls("search")[0].argv.includes("6"), "bootstrap must keep a small result budget");
 			assert.ok(hookCalls("search")[0].argv.includes("4000"), "bootstrap must cap injected characters");
+			if (!ctx.hasUI && process.env.MEMORY_HOOK_PI_BOOTSTRAP_SCORE !== "0") {
+				const reviews = readJsonl(join(stateDir, "pi-recall-reviews.jsonl"));
+				assert.equal(reviews.length, 1);
+				assert.equal(reviews[0].outcome, "unrated_no_ui");
+				assert.equal(reviews[0].candidates.length, 2);
+				assert.equal(reviews[0].injected_context, "");
+			}
 		}
 		const secondStart = await handlers.get("before_agent_start")(
 			{ prompt: "continue", systemPrompt: "base-system" },

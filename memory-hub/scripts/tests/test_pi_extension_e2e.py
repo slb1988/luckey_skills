@@ -163,6 +163,12 @@ class PiExtensionE2ETest(unittest.TestCase):
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "extraction-bootstrap")
 
+    def test_project_bootstrap_accepts_leading_project_directive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(Path(directory), {"PROJECT_DIRECTIVE": "1"})
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "main")
+
     def test_project_bootstrap_rating_is_default_on_and_only_explicit_zero_disables_it(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
         self.assertIn(

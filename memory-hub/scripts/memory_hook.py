@@ -1467,7 +1467,8 @@ class StateStore:
             )
 
     def status(self) -> Dict[str, Any]:
-        with self.connect() as connection:
+        connection = self.connect()
+        try:
             counts = {
                 row["state"]: row["count"]
                 for row in connection.execute(
@@ -1477,10 +1478,24 @@ class StateStore:
             oldest = connection.execute(
                 "SELECT created_at, last_error FROM jobs WHERE state='queued' ORDER BY created_at LIMIT 1"
             ).fetchone()
+            latest_failed = connection.execute(
+                """
+                SELECT updated_at, last_error FROM jobs
+                WHERE state='failed' ORDER BY updated_at DESC LIMIT 1
+                """
+            ).fetchone()
             unconfigured = connection.execute(
                 "SELECT COUNT(*) AS count FROM jobs WHERE user_id=?",
                 (UNCONFIGURED_USER_ID,),
             ).fetchone()["count"]
+            oldest_created_at = oldest["created_at"] if oldest else None
+            oldest_error = oldest["last_error"] if oldest else None
+            latest_failed_at = latest_failed["updated_at"] if latest_failed else None
+            latest_failed_error = latest_failed["last_error"] if latest_failed else None
+        finally:
+            # sqlite Connection 的 context manager 只 commit/rollback，不 close；
+            # Windows 下 status 后残留句柄会阻止临时目录/数据库清理。
+            connection.close()
         return {
             "state_dir": str(self.config.state_dir),
             "pi_memory_drafts_dir": str(
@@ -1491,8 +1506,13 @@ class StateStore:
             "identity_source": self.config.identity_source,
             "counts": counts,
             "unconfigured_jobs": unconfigured,
-            "oldest_queued_at": oldest["created_at"] if oldest else None,
-            "last_error": oldest["last_error"] if oldest else None,
+            "oldest_queued_at": oldest_created_at,
+            "last_error": oldest_error,
+            "terminal_failed": {
+                "count": counts.get("failed", 0),
+                "latest_failed_at": latest_failed_at,
+                "latest_error": latest_failed_error,
+            },
         }
 
 

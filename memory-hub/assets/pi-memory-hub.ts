@@ -24,7 +24,7 @@ import { Type } from "typebox";
 // v15：透传 retrieval metadata，并把逐候选 0-3 分上报 feedback/2。
 // v16：extraction/capture opt-out 子会话跳过自动召回；memory_search 支持显式 project；
 //   首轮候选全被判 0 时给 agent 一条跨 project 重试提示，不注入被剔除记忆。
-const EXTENSION_VERSION = "16";
+const EXTENSION_VERSION = "17";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -133,6 +133,16 @@ function focusBootstrapPrompt(value: unknown): { text: string; source: "orca_tas
 	return {
 		text: selected.replace(/\s+/g, " ").trim().slice(0, 1200),
 		source: markerAt >= 0 ? "orca_task" : "user_prompt",
+	};
+}
+
+function parseProjectDirective(value: string): { text: string; project: string | null } {
+	// 只接受 focused prompt 开头的显式指令，避免把正文里的 project:xxx 误当 scope。
+	const match = value.match(/^project:([A-Za-z0-9][A-Za-z0-9._:-]{0,127})(?:\s+|$)/i);
+	if (!match) return { text: value, project: null };
+	return {
+		text: value.slice(match[0].length).trim(),
+		project: match[1].toLowerCase(),
 	};
 }
 
@@ -801,9 +811,10 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			markBootstrapDone(sessionId, { cwd: ctx.cwd, outcome: "disabled" });
 			return;
 		}
-		const projectHint = basename(ctx.cwd) || "当前项目";
 		const promptFocus = focusBootstrapPrompt(event.prompt);
-		const focusedPrompt = promptFocus.text;
+		const projectDirective = parseProjectDirective(promptFocus.text);
+		const focusedPrompt = projectDirective.text;
+		const projectHint = projectDirective.project || basename(ctx.cwd) || "当前项目";
 		const ratingQuestion = clipText(focusedPrompt || `${projectHint} 项目背景`, 360);
 		// 首轮应回答用户正在问的问题；只有 prompt 太短时才退回通用项目背景。
 		// 一次查询同时带 project hint，服务端仍按当前 project 硬隔离。
@@ -821,18 +832,20 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		let retrieval: Record<string, unknown> | null = null;
 		const reviewCandidates: Record<string, unknown>[] = [];
 		if (scoreEnabled) {
+			const searchArgs = [
+				"search",
+				query,
+				"--source",
+				"pi",
+				"--limit",
+				String(limit),
+				"--max-chars",
+				String(maxChars),
+				"--json",
+			];
+			if (projectDirective.project) searchArgs.push("--project", projectDirective.project);
 			const jsonResult = await runHub(
-				[
-					"search",
-					query,
-					"--source",
-					"pi",
-					"--limit",
-					String(limit),
-					"--max-chars",
-					String(maxChars),
-					"--json",
-				],
+				searchArgs,
 				undefined,
 				safeSpawnCwd(ctx.cwd),
 				bootstrapTimeoutMs(),
@@ -937,6 +950,11 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 							text: factText,
 						});
 					}
+					if (score === null) {
+						// Headless session 没有玩家评分能力：候选只写 review 供复盘，
+						// 不允许未经评分的记忆污染 agent 上下文。
+						continue;
+					}
 					if (score === 0) {
 						dropped += 1;
 						continue;
@@ -1002,17 +1020,19 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				}
 			}
 		} else {
+			const searchArgs = [
+				"search",
+				query,
+				"--source",
+				"pi",
+				"--limit",
+				String(limit),
+				"--max-chars",
+				String(maxChars),
+			];
+			if (projectDirective.project) searchArgs.push("--project", projectDirective.project);
 			const result = await runHub(
-				[
-					"search",
-					query,
-					"--source",
-					"pi",
-					"--limit",
-					String(limit),
-					"--max-chars",
-					String(maxChars),
-				],
+				searchArgs,
 				undefined,
 				safeSpawnCwd(ctx.cwd),
 				bootstrapTimeoutMs(),
@@ -1035,6 +1055,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			limit,
 			max_chars: maxChars,
 			prompt_source: promptFocus.source,
+			project_override: projectDirective.project,
 			outcome,
 			exit_code: exitCode,
 			duration_ms: durationMs,
@@ -1052,6 +1073,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				cwd: ctx.cwd,
 				prompt: focusedPrompt,
 				prompt_source: promptFocus.source,
+				project_override: projectDirective.project,
 				query,
 				retrieval,
 				outcome,

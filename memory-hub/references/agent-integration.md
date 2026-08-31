@@ -175,8 +175,9 @@ v4 是纯 AFK 防抖（agent_end 只排程计时器，到期才 capture）——
 
 **v12 起交互式 Pi 的首轮评分默认开启**：结构化检索完成后，`before_agent_start` 逐条 `await`
 用户 0-3 分评分，全部候选完成前 agent 不会启动；无“跳过”选项，0 分候选本轮不注入。
-显式 `MEMORY_HOOK_PI_BOOTSTRAP_SCORE=0` 才关闭；print/headless 无 UI 时不阻塞并记录
-`unrated_no_ui`。评分写 `pi-recall-scores.jsonl`，每个 session 的 query、首 prompt、候选全文/
+显式 `MEMORY_HOOK_PI_BOOTSTRAP_SCORE=0` 才关闭。v17 起 print/headless 无 UI 时仍执行一次结构化检索并记录
+`unrated_no_ui`，候选完整写入 review 供离线复盘，但**未经玩家评分不注入 agent 上下文**；因此
+`injected_context` 为空、额外上下文 token 为 0。评分写 `pi-recall-scores.jsonl`，每个 session 的 query、首 prompt、候选全文/
 摘要/ID/评分及最终注入上下文写 `pi-recall-reviews.jsonl`，用于后续批量复盘。评分门禁与跨进程
 session 去重都有 Node e2e 值守。
 
@@ -204,6 +205,14 @@ join。feedback/2 当前只用于离线评估，不直接改变线上排序。
 打 0 时，候选本身仍全部剔除，只给 agent 注入一条很短的跨 project 重试提示，避免模型不知道召回已
 失败而继续猜测。三项均不增加服务端请求次数、LLM 或 embedding 成本。
 
+**v17 起把“检索留痕”与“注入模型”拆开**：无 UI session 没有玩家评分能力，候选只进入
+`pi-recall-reviews.jsonl`，不再像 v12-v16 那样把 `score=null` 的候选当作可注入候选。这样仍可在后续
+集体 review 中评估 headless/worker 的召回准确度，同时避免未验证信息污染子任务和浪费最多 4000 字符
+上下文。另支持首问开头的 `project:<id>` scope 指令（包括 Orca `=== TASK ===` 后的第一段），例如
+`project:maindev 调研 SyncStaticMeshAssetMetaDT`；扩展会从 query 中移除指令，并给 bootstrap search
+显式传 `--project maindev`。只识别 focused prompt 开头且 project id 通过严格字符校验的指令，正文中
+偶然出现的 `project:` 不会改 scope。trace/review 增加 `project_override`，不增加查询次数。
+
 **Pi 的 session memory 写入带本地可读审计稿**：`memory_hook.py` 从 full-session spool 提取出
 首个用户目标、最近用户目标和最终助手结果并生成 `distilled_content` 后，必须先把两者原子写入
 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/memory-drafts/pi/<project>/`
@@ -222,7 +231,7 @@ full-session 资产为准。该改动只在直接引用的 Python script 中，�
 | kind | 时机 | 关键字段 |
 |---|---|---|
 | `session_start` | 会话开始 | session_id、cwd |
-| `project_bootstrap` | session 首轮项目背景预热（v12/v16） | query、limit、outcome（rated/unrated_no_ui/empty/error/timeout/disabled/skipped_extraction/skipped_capture_env）、exit_code、duration_ms、result_chars、rating_required、has_ui |
+| `project_bootstrap` | session 首轮项目背景预热（v12-v17） | query、limit、project_override、outcome（rated/unrated_no_ui/empty/error/timeout/disabled/skipped_extraction/skipped_capture_env）、exit_code、duration_ms、result_chars、rating_required、has_ui；v17 的 unrated_no_ui 必须 result_chars=0 |
 | `project_bootstrap_skip` | 已有持久完成标记，恢复旧 session 不重复回溯（v12） | session_id、outcome=already_completed |
 | `recall_score` / `recall_score_wait` | 评分完成统计 / 用户取消评分后继续等待（v12） | total、scored、dropped、kept / rank、outcome |
 | `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、result（结果全文） |

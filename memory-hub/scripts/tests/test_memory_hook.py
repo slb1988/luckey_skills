@@ -91,6 +91,50 @@ class MemoryHookTest(unittest.TestCase):
                 store.status()["counts"], {"queued": 1, "superseded": 1}
             )
 
+    def test_status_explains_terminal_failed_jobs(self):
+        # StateStore 旧方法大量使用 sqlite context manager（只 commit 不 close），
+        # Windows 测试进程退出前可能仍持数据库句柄；这里关注返回契约而非临时文件清理。
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "user", "message": {"content": "remember"}}),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            enqueued = store.enqueue(
+                self.profile(), "pi", "failed-session", str(root), transcript
+            )
+            connection = store.connect()
+            try:
+                connection.execute(
+                    "UPDATE jobs SET state='failed', last_error=?, updated_at=? WHERE job_id=?",
+                    ("manual drop for validation", 1234.5, enqueued["job_id"]),
+                )
+                connection.commit()
+            finally:
+                connection.close()
+
+            status = store.status()
+            self.assertEqual(status["counts"], {"failed": 1})
+            self.assertEqual(
+                status["terminal_failed"],
+                {
+                    "count": 1,
+                    "latest_failed_at": 1234.5,
+                    "latest_error": "manual drop for validation",
+                },
+            )
+
     def test_snapshot_keeps_recent_messages_markdown_and_drops_fenced_code(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
