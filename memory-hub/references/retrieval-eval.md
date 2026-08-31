@@ -69,6 +69,9 @@ runner 默认单请求故障上限为 120 秒，与 Agent 召回一致；这不�
 python scripts/eval_retrieval.py --api-version 2 --base-url http://127.0.0.1:9287 --golden tests/eval/golden.admin_sun_depot_7184.canary.jsonl
 ```
 
+runner 在 `--api-version 2` 时必须显式发送 `quality_mode=retrieval`，只衡量检索器并保持历史
+MRR/Noise 可比；在线 hook 则使用服务端默认的 `quality_mode=llm`。两类报告不要混算。
+
 详尽 schema/runner 说明以 `D:\Github\memory-hub\tests\eval\README.md` 为准。
 
 ## 指标与 answer-level 评级
@@ -87,10 +90,11 @@ Noise@10 明显上升即暂停推广。v1 `fact:*` 与 v2 `memory:*` 是不同 I
 
 ## LLM 使用原则
 
-优先让现有本地 LLM 获得结构化的 `summary + excerpt + project/session/memory provenance` 后按需
-判断。FTS-only 不调用 embedding/LLM，成本可预测。只有在“正确 memory 已进入候选但排序或
-筛选仍持续失败”的证据成立后，才评估后端 LLM reranker；必须同时报告额外 token、延迟、
-失败降级和可复现性。
+在线 Agent/hook 固定使用后端 LLM 质量门禁：一次请求把至多 10 条结构化候选批量判 0-3 分，
+只返回 2/3 分；审核失败时 503 fail-closed。每条详细判断进入 `retrieval_judgments`，定期分析
+rating/rationale/evidence/conflict 与人工 judgment 的差异，同时报告 token、延迟和失败率。
+离线检索 eval 必须用 `quality_mode=retrieval` 排除 LLM，另做“检索器”和“端到端放行结果”两层指标，
+避免 LLM 把召回缺陷掩盖成漂亮的 Noise 数字。
 
 ## 部署验收 known-good smoke 向量
 
