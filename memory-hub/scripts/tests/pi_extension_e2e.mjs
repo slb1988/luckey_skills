@@ -301,7 +301,10 @@ try {
 			assert.equal(hookCalls("feedback").length, 0, "backend LLM judgments replace player feedback");
 			if (ctx.hasUI) {
 				assert.ok(widgetCalls.some((entry) => entry.key === "memory-hub-recall"));
-				assert.ok(statusCalls.some((entry) => String(entry.value).includes("记忆识别中")));
+				assert.ok(
+					statusCalls.every((entry) => !String(entry.value).includes("记忆识别中")),
+					"the progress widget must not be duplicated in the bottom status bar",
+				);
 				assert.match(notifyCalls[0].message, /已识别 2\/3 条历史记忆/);
 				assert.match(notifyCalls[0].message, /项目验证约定/);
 				assert.match(notifyCalls[0].message, /详情文件：.*recall-results/);

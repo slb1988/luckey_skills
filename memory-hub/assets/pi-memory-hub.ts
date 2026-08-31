@@ -27,7 +27,8 @@ import { Type } from "typebox";
 // v18：用户评分 UI 由 Hub 同步 LLM 质量门禁替代；Pi 只注入后端判定 2/3 分的结果。
 // v19：Pi TUI 展示召回进行中状态与审核后的聚合结果/摘要，不暴露被拒候选或 LLM 推理。
 // v20：已放行结果另存本地 Markdown；路径只显示在 TUI，不进入 agent context。
-const EXTENSION_VERSION = "20";
+// v21：召回期间只保留顶部进度 widget，移除底部重复的“记忆识别中”状态。
+const EXTENSION_VERSION = "21";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -159,7 +160,6 @@ function startRecallIndicator(ctx: ExtensionContext, project: string, query: str
 				`🧠 Memory Hub 正在检索并审核历史记忆… ${seconds}s`,
 				`project: ${project} · query: ${preview}`,
 			]);
-			ctx.ui.setStatus("memory-hub-recall", `🧠 记忆识别中 ${seconds}s`);
 		} catch {
 			// UI 不支持时不影响召回和 agent 启动。
 		}

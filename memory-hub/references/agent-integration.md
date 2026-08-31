@@ -182,7 +182,7 @@ agent 上下文。单次候选上限 10，首轮仍取 6 条/最多 4000 字符�
 审核调用预算 110 秒。
 
 **v19 起 Pi TUI 对召回结果可感知**：首轮 bootstrap 和手工 `memory_search` 都改用结构化 JSON
-响应。阻塞等待期间 widget/status 显示“正在检索并审核”与累计耗时；完成后清理 widget，在状态栏
+响应。阻塞等待期间顶部 widget 显示“正在检索并审核”与累计耗时；完成后清理 widget，在状态栏
 保留 `识别数/候选数 · project · 耗时`，并用 notification 展示最多 3 条已放行记忆的摘要。空结果、
 超时和错误也会明确提示“本轮未注入”。前端只看 Hub 的聚合 `quality` 与已放行结果，不展示 LLM
 理由、冲突字段或被拒候选；提示失败不影响 agent。新 session 会清理上一 session 的残留状态。
@@ -195,6 +195,9 @@ Claude/Codex 暂无同等扩展 UI，`UserPromptSubmit` 注入头部只增加一
 摘要、返回文本、分数组件和 provenance。Pi notification 末尾显示绝对路径；状态栏保持短格式。
 **路径和审计元数据不进入 systemPrompt，也不进入 `memory_search` tool content**，只有 TUI 与本地 trace
 可见。文件目前不自动清理，避免临时回看时丢失；服务端未返回的被拒候选仍不会写到客户端文件。
+
+**v21 起召回进行中不再同时写底部 status**，避免顶部 widget 与底部“记忆识别中”重复；完成后的
+短状态和结果 notification 保持不变。
 
 v12-v17 的玩家评分 UI、`pi-recall-scores.jsonl` 和 feedback 上报路径现为历史兼容代码，不再由 v18
 首轮触发；旧环境变量 `MEMORY_HOOK_PI_BOOTSTRAP_SCORE` 也不再恢复该 UI。跨进程 session 去重和
