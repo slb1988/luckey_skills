@@ -78,8 +78,8 @@ python scripts/eval_retrieval.py --api-version 2 --base-url http://127.0.0.1:928
 - 延迟：p50/p95/p99/max；120 秒是故障上限，不是期望延迟。
 - 真实答案：完整回答 / 部分回答 / 关键结论漏召回 / 错答或幻觉。
 - 安全拒答单列：不算完整命中，但优于编造。
-- token/时间：记录检索输出字符数与模型 input/output/cache；默认候选最多 5 条、每条约 1200
-  字，不因“更多记忆”无限扩大上下文。
+- token/时间：记录检索输出字符数与模型 input/output/cache；2026-08-31 起生产候选最多 3 条、
+  每条约 1200 字，不因“更多记忆”无限扩大上下文；旧报告仍可能有 4–5 条。
 
 门禁至少要求：answer-level 不退化、关键 golden answer 命中；Recall@5 下降超过 2pp 或
 Noise@10 明显上升即暂停推广。v1 `fact:*` 与 v2 `memory:*` 是不同 ID 空间，coverage=0 时先查
@@ -95,7 +95,23 @@ Noise@10 明显上升即暂停推广。v1 `fact:*` 与 v2 `memory:*` 是不同 I
 ## 部署验收 known-good smoke 向量
 
 <memory category="debug-commands">
-**search-v2 部署验收 known-good smoke 向量**（commit 45c96f9「Keep three structured memory candidates」验收实测通过）：`project=maindev, query=SyncStaticMeshAssetMetaDT, limit=10` → 预期 HTTP 200、memory `01a043eb-b994-7ecb-bd36-49aec0e282aa`（source_type=`memory_document`）排第一。fusion 结构化 memory 候选保留口径：候选充足时 pruned 保留 3–5 条；**unpruned 候选不足 3 条时 pruned == unpruned，不会补齐**（该向量实测 unpruned=2 → pruned=2，stats 全 0，属正常行为不是 bug）——验收时不要用「pruned ≥ 3」做无条件断言。
+**search-v2 部署验收 known-good smoke 向量**（commit 45c96f9「Keep three structured memory candidates」验收实测通过）：`project=maindev, query=SyncStaticMeshAssetMetaDT, limit=10` → 预期 HTTP 200、memory `01a043eb-b994-7ecb-bd36-49aec0e282aa`（source_type=`memory_document`）排第一。fusion 结构化 memory 候选保留口径：2026-08-31 起候选充足时固定保留 top-3、`policy_version=v2-fts-top3`；**unpruned 候选不足 3 条时 pruned == unpruned，不会补齐**（该向量实测 unpruned=2 → pruned=2，stats 全 0，属正常行为不是 bug）——验收时不要用「pruned = 3」做无条件断言。
 
 该向量曾因 feedback bug 数据损害暂时失败，2026-08-30 hotfix e081453 部署+数据修复后已恢复（`01a043eb` 重回第一，unpruned=2）。search-v2 响应中无独立 `pruned` 字段——fusion 只暴露 `memory_candidates_unpruned` 与 `memory_candidates`，实保留数看后者（unpruned=2 → candidates=2 即零裁剪）。第二 known-good 向量（5a9366f 验收实测通过）：`project=admin_sun_depot_7184, query="Stable 和 MainDev 的真实自动合并方向是什么，前端虚线为什么显示反了？", limit=10` → HTTP 200、4 条结果、首条 `01a0463e`。
 </memory>
+
+## 候选 K 离线门禁
+
+修改服务端候选上限前，必须用现网完整返回做离线前缀模拟，不要反复部署试阈值：
+
+```powershell
+python scripts/eval_retrieval.py --api-version 2 --result-limit 3 --golden tests/eval/golden.admin_sun_depot_7184.canary.jsonl
+python scripts/eval_retrieval.py --api-version 2 --result-limit 3 --golden tests/eval/golden.memory-hub.canary.jsonl
+python scripts/eval_retrieval.py --api-version 2 --result-limit 3 --golden tests/eval/golden.maindev.sample.jsonl
+```
+
+`--result-limit` 不改变服务端请求，只对融合结果前 N 条计分，报告会记录该值。2026-08-31 的
+K=3 定版证据：三组 StrongHit、AnswerHit、expected Recall@3 均为 1.0；Noise 分别从
+0.25/0.267/0.20 降至 0.208/0.167/0.167，平均候选约减少 31%。K=1/2 会让 admin 或 maindev
+丢完整答案，因此不准在现有证据上进一步收紧；允许 1–2 条或空结果必须先积累单独的 no-answer
+标注集。

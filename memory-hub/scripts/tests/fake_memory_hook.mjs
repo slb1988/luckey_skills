@@ -67,7 +67,7 @@ function respondNow(args) {
 				retrieval: {
 					retrieval_id: "retrieval-e2e",
 					query_hash: "a".repeat(64),
-					policy_version: "v2-fts-prune25",
+					policy_version: "v2-fts-top3",
 				},
 				facts: [
 					{

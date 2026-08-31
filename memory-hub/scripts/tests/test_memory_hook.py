@@ -465,7 +465,7 @@ class MemoryHookTest(unittest.TestCase):
                 "results": [{"result_id": "memory-1", "text": "answer"}],
                 "retrieval_id": "retrieval-1",
                 "query_hash": "a" * 64,
-                "policy_version": "v2-fts-prune25",
+                "policy_version": "v2-fts-top3",
             }
 
             response = client.search_response("query", "project-a", 5, "user-a")
@@ -503,7 +503,7 @@ class MemoryHookTest(unittest.TestCase):
                 session_id="session-1",
                 retrieval_id="retrieval-1",
                 query_hash="a" * 64,
-                policy_version="v2-fts-prune25",
+                policy_version="v2-fts-top3",
                 candidate_rank=2,
                 rating=0,
             )
