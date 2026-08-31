@@ -84,11 +84,13 @@ Pi memory_search 工具 / Claude·Codex memory_hook.py search CLI
   → POST Hub :9287 /v1/memories/search-v2（quality_mode=llm；服务端默认也是 llm）
   → FTS memory_document + 可选 Graphiti hybrid 候选融合/剪枝
   → Hub 先把全部候选以 pending 状态写 retrieval_judgments
+  → 若含明确纠错候选：一次小型 resolver 解析 resolved intent / superseded ranks
   → 一次批量 Review LLM 调用逐候选判 0-3 分并写理由/证据/冲突
+  → 服务端校验原文 evidence，并执行 resolver 的纠正/替代评分覆盖
   → 只返回 2/3 分结果；审核不可用或响应不完整时 503 fail-closed
 ```
 
-- **在线 hook 以正确性优先**：检索与 LLM 审核在同一个请求内同步完成，客户端等待预算 120 秒；服务端审核单次超时 110 秒、候选上限 10。LLM 只接收结构化 query、rank、来源、检索分数组件、摘要和受限文本，一批候选只调用一次，避免逐条调用导致 token/时间失控。
+- **在线 hook 以正确性优先**：检索与 LLM 审核在同一个请求内同步完成，客户端等待预算 120 秒；服务端整轮审核总预算 110 秒、候选上限 10。普通请求一次批量 LLM；只有出现明确纠错提示时额外调用一次 thinking-disabled、max 500 output tokens 的 resolver，两次调用共用总预算。LLM 只接收结构化 query、rank、来源、检索分数组件、摘要和受限文本，不逐候选调用。
 - `quality_mode=llm` 是服务端默认值，保证未升级客户端也不能绕过；`quality_mode=retrieval` 仅供离线 eval/baseline 显式使用。审核状态与详细结果只落服务端 `retrieval_judgments`，响应仅带保留后的结果和聚合 `quality` 计数，Pi 不展示内部判断过程，也不把被拒候选注入模型上下文。
 - 记忆按 `project:{project_id}` 隔离，**0 命中先怀疑 scope 错了**（换 project 重试，见 projects.md）；`GRAPHITI_UNAVAILABLE` 才是后端故障。
 - 语义检索噪音底线高：返回非空 ≠ 命中；调大 limit、换关键词重试后再下结论。

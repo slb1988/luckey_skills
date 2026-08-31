@@ -18,6 +18,12 @@ Graphiti 语义检索噪音底线高：乱查（大小写无关）也会返回"�
 **「memory 已 indexed、scope 正确却检索不到」时在 NAS 上直查 FTS 层拿真实 rank**：在 `/share/Container/memory-hub` 用当前服务代码 `memory_hub.application.retrieval._fts_query` 生成服务端同款 MATCH 表达式，再按 tenant_id、`group_id=project:<pid>`、`status='indexed'` 执行与 `search_memory_documents` 相同的 FTS SQL 并把 LIMIT 放大到 30，即得 API top-K 之外的 rank 与 fts_score（bm25，SQLite FTS5 越负越好）；sqlite3 按既有规矩复制临时副本或 `mode=ro` 打开，输出只留 rank/memory_id/score/summary，不复制候选正文与凭据。2026-08-31 实证根因模式：同主题近重复记忆以 bm25 ≈ -76 的离群分霸占 rank 1，目标记忆 -12.8 仅排第 12；下游固定 top-3 裁剪（`prune_memory_results_by_score` 默认 `max_results=3`，fusion `v2-fts-top3`），**rank 4+ 永不进入候选**——属取错（排序/裁剪遮蔽），不是存错，不要 reingest；修法是改写 query 或让目标排名进前 3。
 </memory>
 
+### 较新纠正已入库但旧答案仍被 LLM 放行
+
+<memory category="troubleshooting">
+遇到“纠正 memory 已 indexed、也进了 judge pool，在线结果仍反复返回旧答案”时，按三层定位：① 放大 FTS LIMIT 看纠正真实 rank；② 查 `retrieval_judgments` 确认纠正是否进 pool；③ 同一 query 连跑至少 5 次，看旧/新 rating 是否漂移。2026-08-31 Flask-Migrate 案中，judge11 已有完整 `correction_evidence`，但 kimi-k3 仍 5/5 给旧 ORM memory rating=3、只 2/5 保留纠正——这是“同批大 prompt 下语义消歧失败”，不是存错、证据截断或 JSON 格式问题。定版修复是 judge12 的条件式前置 resolver + 服务端执行 superseded ranks；不要靠继续堆主 judge prompt，也不要删除/reingest 两条历史。验收查 policy=`v2-fts-judge12-llm`、纠错请求 attempts=2、旧条 rating=0/conflict 含“较新显式纠正替代”、新条 rating=3/intent 为纠正语义；普通无纠错请求 attempts 必须仍为 1。
+</memory>
+
 ## Hook 与 Pi 扩展
 
 ### v4 AFK 防抖的 capture 丢失窗口（v5 已修复）

@@ -119,6 +119,26 @@ rating/rationale/evidence/conflict 与人工 judgment 的差异，同时报告 t
 **search-v2 judge 间歇 503 `RETRIEVAL_JUDGE_*`（4453dde 验收实测约 50%，8 次调用 4×503/4×200）的根因是 judge `max_tokens=1600` 被 kimi-k3 的 thinking 吃光（实测单次 thinking 达 2578 tokens），JSON 输出中途截断——不是检索层也不是 prompt 规则逻辑问题**（2026-09-01 部署 4453dde 后实证）。伴随症状是判分漂移：judge 时而拿 query 字眼（如「数值」）当借口给被纠正的旧答案 rating=3 放行，违反新 prompt 的替代规则；token 预算修复前不要把漂移误判成 prompt 规则失效或回滚 rescue，修复方向是 judge max_tokens 提到 ~6000 或网关侧禁 thinking，修后必须重跑纠错验收向量确认稳定性。4453dde 验收正面事实：correction_evidence 已确认实际注入 judge 输入（502 字符窗口，含标准流程与本机验证记录），且存在完全达标样本（纠正候选唯一保留 rating=3、旧错 rating=0 被过滤）——功能达标、稳定性未达标，两者要分开报。
 </memory>
 
+<memory category="troubleshooting">
+**0e54ce8（SCHEMA 6→7）发布在 pytest 门禁被一条断言脆弱性卡住，不是功能回归**：`tests/unit/test_retrieval_fts.py::test_search_v2_llm_quality_gate_scores_every_candidate_and_persists_details` 用 `== 110.0` 严格断言 judge `timeout_seconds`，而实际值是浮点 deadline 计算结果 109.99999276082963（~7µs 误差）；compileall 通过、同批其余 45 用例（migrations/judge/llm_client）全过。修法：`pytest.approx(110.0)` 修断言后推新 commit 重走发布，不要为过门禁删改其他测试。该发布的质量验收向量（门禁通过后执行，用户定版）：`project=admin_sun_depot_7184, query='admin_sun_depot_7184 pyautomation 后端一般如何更新 model 数值', limit=6, quality_mode=llm` 连续 5 次相同查询——须 5/5 HTTP 200、纠正 memory `01a0576b-2a32-7275-bb07-62fcdf8ad53e` 5/5 返回、旧错 `01a0576b-2674-7e2d-8bec-2d6538b081fa` 5/5 被过滤；judge 正确性只读汇总 `retrieval_judgments` 的 rating/intent/conflict/evidence，不回显候选正文。
+</memory>
+
+<memory category="troubleshooting">
+**068a2c7 部署本身全过但上条 5× 纠错验收 0/2 失败，根因仍在 judge 层且新增「评分抖动跨阈值」证据**（2026-08-31 NAS 生产实证）：schema_migrations=7、`retrieval_judgments` 有 intent 列、46 单测全过、policy=`v2-fts-judge11-llm`；连测结果——旧错 `2674` 5/5 以 rating=3 排 #1（judge 把「更新 model 数值」按「ORM 改行值」语义解读，与旧错表面吻合，未触发降级闸），纠正 `2a32` 仅 2/5 返回。新现象：**同一 query 连跑，纠正候选 rating 在 1↔2 间抖动（3×1 被 min_rating=2 过滤、2×2 保留）——judge 注意到 correction hint 但解读不稳定，5/5 稳定性验收在 judge 修复前天然不可达，不要因单次达标样本误判已修复**。intent/evidence 输出正常无臆造；known-good 向量（SyncStaticMeshAssetMetaDT）仍排第 1。结论不变：在线判分问题而非检索/部署问题，不要回滚部署或改 rescue，杠杆在 judge prompt 强制识别 correction 替代关系、换 judge 模型或成对比较。
+</memory>
+
+<memory category="troubleshooting">
+**只读 LLM 纠错裁决探针实证：kimi-k3 `thinking={type:disabled}` + max_tokens=500 可 5/5 稳定输出严格 JSON（单次 3.9–7.8s），且 2a32 的 correction_evidence 数据本身可裁决——此前 5× 纠错验收失败的根因进一步锁定在 judge 集成层（token 预算/thinking），不是证据数据不足**（2026-09-01 NAS 生产实证，全程只读）。判读「更新 model 数值」query：5/5 applies=true、corrected_term=「更新 model 数值」、resolved_intent=Flask-Migrate/Alembic schema 发布流程、old_answer_superseded=true（旧 ORM「改行值」答案答非所问）。对照前两条 judge 失败模式：「禁 thinking」修复方向获直接证据——thinking enabled 时单次 34–64s 且 max_tokens=1600 被 thinking（实测 2578 tokens）吃光截断；disabled 时 500 tokens 即充裕。探针构建方法：复用服务端 helper `explicit_correction_evidence()` 取纠正 memory 的 502 字符证据窗、`memory_excerpt()` 截 1200 字符取旧 memory 摘要，不写 judgment、不调 search-v2、不回显正文，严格 JSON schema {applies, corrected_term, resolved_intent, old_answer_superseded, rationale} 连跑 5 次独立解析。可重跑脚本留存 NAS `/tmp/memory_hub_llm_probe.py`（不含凭据/正文）。
+</memory>
+
+## 纠错验收结案：judge12 修复生效，`attempts` 字段是 resolver 触发的判读信号（22f9fb7 实证）
+
+<memory category="common-patterns">
+**commit 22f9fb7（policy_version=`v2-fts-judge12-llm`）生产验收 5/5 通过，前述 judge 失败链（token 预算/thinking/评分抖动）结案**：纠错向量（`admin_sun_depot_7184` / 「更新 model 数值」/ limit=6 / quality_mode=llm 连跑 5 次）5/5 HTTP 200，纠正 `01a0576b-2a32-7275-bb07-62fcdf8ad53e` 5/5 返回且唯一保留（candidates=10 → kept=1），旧错 `01a0576b-2674-7e2d-8bec-2d6538b081fa` 5/5 被过滤；judge 已正确执行替代规则——纠正 rating=3、intent=Flask-Migrate/schema 发布语义、rationale/evidence 有显式纠错留痕，旧错 rating=0、conflict 标记被较新纠正 superseded。**新判读信号：judgment `attempts` 暴露管线级数——纠错 query attempts=2（resolver+judge 两阶段），known-good（maindev/SyncStaticMeshAssetMetaDT）attempts=1；known-good 回归断言 attempts=1 即证明普通请求未触发 resolver、无额外 LLM 调用**。实测 llm 单次 32–73s，出现超出此前 ≥70s 预算的样本（73s），验收超时按 ≥80s 留余量。验收留痕存 NAS `data/acceptance-<short-sha>/`。
+
+定版机制：仅候选池含 `correction_hint` 时，用 thinking-disabled、max 500 output tokens 的 resolver 比较原 query、纠正原句与词面 top-3 alternatives，输出 resolved intent / correction rank / superseded ranks；corrected term 必须实际存在于 query，非法或不可用即 503 fail-closed。主 judge 改用 resolved intent，服务端确定性把纠正 rank 置 3、被替代 rank 置 0，并把原文 evidence、替代 conflict 与最终 intent 落库。该 case 两条 memory 都已 indexed 且纠正正文完整，FTS 原始 rank≈12、rescue 后 judge rank=9，所以完整故障链是“先取不到、后判不对”，不是后来会话未学习。本机 Pi 同链路 27.1 秒生成 `20260831T164115Z-smoke-flask-migrate-judge12-01a058b1-f8f5-76f6-bc30-750c5256e495.md`，摘要“Flask模型更新与数据库迁移”，含纠正 ID、不含旧错 ID。验收不得只抽一次成功样本，至少同 query 连跑 5 次并核对两条 judgment。
+</memory>
+
 ## 候选 K 离线门禁
 
 修改服务端候选上限前，必须用现网完整返回做离线前缀模拟，不要反复部署试阈值：
