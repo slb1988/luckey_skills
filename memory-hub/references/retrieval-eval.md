@@ -112,7 +112,11 @@ rating/rationale/evidence/conflict 与人工 judgment 的差异，同时报告 t
 ## 纠错召回验收：rescue 进 pool 与 judge 裁决是两个独立分层（ee4df3e 实证）
 
 <memory category="common-patterns">
-**纠错记忆验收不达标时先分层定位：rescue 是否把纠正候选送进 judge pool、judge 是否执行替代规则——两层根因不同、修法完全不同，不要把 judge 失败误判成检索失败去回滚 rescue 机制**。commit ee4df3e「rescue explicit memory corrections during rerank」定版机制：词面 top-8 之外，`correction_hint=True` 的候选最多再补 2 个槽位进 judge pool（policy_version=`v2-fts-judge10-llm`，质量门禁 candidates=10 → kept=2，min_rating=2）。2026-08-31 生产验收实证（project=admin_sun_depot_7184）：纠正 memory 词面 RRF rank=9（top-8 之外）仍两次稳定以 rank 9 进入 judge pool——rescue 按设计生效。已知 judge 失败模式：judge LLM（kimi-k3）在 `conflict` 字段已正确识别语义冲突（"rank1 针对数值更新，本条针对 schema 变更"），但不执行 prompt 的替代（supersede）规则，反把纠正判 rating=1 被 min_rating=2 过滤，旧错误 memory 仍以 rating=3 排第 1。判读方法：只读查 `retrieval_judgments`——纠正候选在 pool 内但低 rating = judge 层失败，**不是 rescue/检索失败**；后续杠杆是强化 judge prompt 替代规则、换 judge 模型、或对同批 conflict 对强制成对比较。另：`quality_mode=llm` 的 search-v2 批量判 10 候选实测单次 34–40s，验收脚本/回执的超时预算要按此留余量，不要套 retrieval 模式的预期。
+**纠错记忆验收不达标时先分层定位：rescue 是否把纠正候选送进 judge pool、judge 是否执行替代规则——两层根因不同、修法完全不同，不要把 judge 失败误判成检索失败去回滚 rescue 机制**。commit ee4df3e「rescue explicit memory corrections during rerank」定版机制：词面 top-8 之外，`correction_hint=True` 的候选最多再补 2 个槽位进 judge pool（policy_version=`v2-fts-judge10-llm`，质量门禁 candidates=10 → kept=2，min_rating=2）。2026-08-31 生产验收实证（project=admin_sun_depot_7184）：纠正 memory 词面 RRF rank=9（top-8 之外）仍两次稳定以 rank 9 进入 judge pool——rescue 按设计生效。已知 judge 失败模式：judge LLM（kimi-k3）在 `conflict` 字段已正确识别语义冲突（"rank1 针对数值更新，本条针对 schema 变更"），但不执行 prompt 的替代（supersede）规则，反把纠正判 rating=1 被 min_rating=2 过滤，旧错误 memory 仍以 rating=3 排第 1。判读方法：只读查 `retrieval_judgments`——纠正候选在 pool 内但低 rating = judge 层失败，**不是 rescue/检索失败**；后续杠杆是强化 judge prompt 替代规则、换 judge 模型、或对同批 conflict 对强制成对比较。另：`quality_mode=llm` 的 search-v2 批量判 10 候选实测单次 34–64s（4453dde 验收观测，含 63.8s 上限样本），验收脚本/回执的超时预算要按 ≥70s 留余量，不要套 retrieval 模式的预期。
+</memory>
+
+<memory category="troubleshooting">
+**search-v2 judge 间歇 503 `RETRIEVAL_JUDGE_*`（4453dde 验收实测约 50%，8 次调用 4×503/4×200）的根因是 judge `max_tokens=1600` 被 kimi-k3 的 thinking 吃光（实测单次 thinking 达 2578 tokens），JSON 输出中途截断——不是检索层也不是 prompt 规则逻辑问题**（2026-09-01 部署 4453dde 后实证）。伴随症状是判分漂移：judge 时而拿 query 字眼（如「数值」）当借口给被纠正的旧答案 rating=3 放行，违反新 prompt 的替代规则；token 预算修复前不要把漂移误判成 prompt 规则失效或回滚 rescue，修复方向是 judge max_tokens 提到 ~6000 或网关侧禁 thinking，修后必须重跑纠错验收向量确认稳定性。4453dde 验收正面事实：correction_evidence 已确认实际注入 judge 输入（502 字符窗口，含标准流程与本机验证记录），且存在完全达标样本（纠正候选唯一保留 rating=3、旧错 rating=0 被过滤）——功能达标、稳定性未达标，两者要分开报。
 </memory>
 
 ## 候选 K 离线门禁
