@@ -194,6 +194,16 @@ session 去重都有 Node e2e 值守。
 1 仍只留本地 JSONL）。retrieval 三元组也写入 score/review/hook trace，便于按 session 与服务端评分
 join。feedback/2 当前只用于离线评估，不直接改变线上排序。
 
+**Pi 的 session memory 写入带本地可读审计稿**：`memory_hook.py` 从 full-session spool 提取出
+首个用户目标、最近用户目标和最终助手结果并生成 `distilled_content` 后，必须先把两者原子写入
+`${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/memory-drafts/pi/<project>/`
+下的 Markdown 文件，才允许调用 `POST /v1/memories`。文件名由 source session id 加 snapshot SHA
+组成，相同内容幂等覆盖，不同内容版本分别保留；不同 project 不冲突。草稿保留每条
+最多 32 KiB 的提取源文本以及实际受 700/700/1400 字符预算约束的提交文本，适合直接比较定位
+“存前抽取不完整”还是“提交预算截断”。本地落盘失败时远端 memory 写入也失败，durable spool job
+保持 queued 等待下次 flush，不能绕过审计前置条件。草稿在 job 完成后仍保留；完整原始事件仍以
+full-session 资产为准。该改动只在直接引用的 Python script 中，不需要升级 Pi 扩展版本或重装。
+
 分析检索质量优先查以下留痕文件：
 
 - `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/pi-trace.jsonl`——Pi 扩展侧视角，
@@ -217,6 +227,8 @@ join。feedback/2 当前只用于离线评估，不直接改变线上排序。
   含完整输出、query、project_id、facts_count），claude/codex 无 pi-trace 时只能查这个。
 - 同目录 `pi-recall-reviews.jsonl` / `pi-recall-scores.jsonl`——v12 起的 session 级完整首轮回溯包与
   候选级真实用户标注；集体 review 时先按 `session_id` 与 Pi transcript 关联。
+- 同目录 `memory-drafts/pi/<project>/*.md`——Pi 向 Hub 写 session memory 前的可读提取稿；同时包含
+  较完整源字段与实际 outbound `distilled_content`，不受 trace 单字段 20k 字符截断影响。
 
 每轮检索测试/分析前用 `python3 scripts/rotate_pi_trace.py`（可加 `--include-hook-trace`）把旧
 trace 轮转到 `trace-backups/`，保证当轮数据干净；扩展按事件 append 写 trace、无持久句柄，

@@ -25,6 +25,7 @@ from memory_hook import (
     format_context,
     head_tail_sample,
     load_session_texts,
+    pi_memory_draft_path,
     project_id_for_cwd,
     read_hook_input,
     request_user_profile,
@@ -764,7 +765,7 @@ class MemoryHookTest(unittest.TestCase):
     def test_ensure_memory_distilled_keeps_first_user_goal(self):
         # 用户目标必须保留：取整会话首个真实用户消息（skill 包装剥离），
         # 尾部「commit」只能进「最近用户目标」。
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
             root = Path(directory)
             transcript = root / "session.jsonl"
             transcript.write_text(
@@ -815,6 +816,81 @@ class MemoryHookTest(unittest.TestCase):
             self.assertIn("首个用户目标：帮我排查并修复内存泄漏", distilled)
             self.assertIn("最近用户目标：commit", distilled)
             self.assertIn("会话结果：已提交。", distilled)
+
+            draft_path = pi_memory_draft_path(config, job)
+            self.assertTrue(draft_path.is_file())
+            draft = draft_path.read_text(encoding="utf-8")
+            self.assertIn("## 首个用户目标（提取源", draft)
+            self.assertIn("帮我排查并修复内存泄漏", draft)
+            self.assertIn("## 实际提交 Hub 的 distilled_content", draft)
+
+    def test_pi_memory_draft_is_complete_and_exists_before_hub_post(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            goal_tail = "GOAL_TAIL_MUST_REMAIN_LOCAL"
+            result_tail = "RESULT_TAIL_MUST_REMAIN_LOCAL"
+            long_goal = "用户目标" + ("甲" * 800) + goal_tail
+            long_result = "会话结果" + ("乙" * 1500) + result_tail
+            transcript.write_text(
+                "\n".join(
+                    json.dumps(event, ensure_ascii=False)
+                    for event in (
+                        {"type": "user", "message": {"content": long_goal}},
+                        {"type": "assistant", "message": {"content": long_result}},
+                    )
+                ),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            store.enqueue(
+                self.profile(), "pi", "session:with/windows-invalid", str(root), transcript,
+                project_id="sample-project",
+            )
+            job = store.queued(1)[0]
+            client = HubClient(config)
+            observed = {}
+
+            def fake_request(method, path, project_id, user_id, **kwargs):
+                self.assertEqual(path, "/v1/memories")
+                draft_path = pi_memory_draft_path(config, job)
+                # 顺序门禁：request 被调用时，可读草稿必须已经完成原子落盘。
+                self.assertTrue(draft_path.is_file())
+                observed["draft"] = draft_path.read_text(encoding="utf-8")
+                observed["outbound"] = kwargs["json_body"]["distilled_content"]
+                return {"memory_id": "memory-1", "status": "pending"}
+
+            client.request = fake_request
+            result = client.ensure_memory(job, 3, "file-3", "长会话测试")
+
+            self.assertEqual(result["memory_draft_path"], str(pi_memory_draft_path(config, job)))
+            self.assertIn(goal_tail, observed["draft"])
+            self.assertIn(result_tail, observed["draft"])
+            self.assertNotIn(goal_tail, observed["outbound"])
+            self.assertNotIn(result_tail, observed["outbound"])
+            self.assertNotIn(":", pi_memory_draft_path(config, job).name)
+
+            request_called = False
+
+            def must_not_request(*args, **kwargs):
+                nonlocal request_called
+                request_called = True
+                return {"memory_id": "unexpected", "status": "pending"}
+
+            client.request = must_not_request
+            with patch("memory_hook.write_pi_memory_draft", side_effect=OSError("disk full")):
+                with self.assertRaisesRegex(OSError, "disk full"):
+                    client.ensure_memory(job, 4, "file-4", "落盘失败门禁")
+            self.assertFalse(request_called)
 
     def test_environment_without_profile_falls_back_to_legacy_default_user(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(

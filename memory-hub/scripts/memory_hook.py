@@ -67,6 +67,9 @@ RECALL_DISABLE_ENV = "MEMORY_HOOK_RECALL"
 # 每个 prompt 都叠加检索延迟。按 mtime 超期 GC。
 RECALL_MARKER_DIRNAME = "recall-markers"
 RECALL_MARKER_MAX_AGE_SECONDS = 14 * 24 * 3600
+# Pi 记忆写入前的可读审计稿。spool 对象在 job 完成后会清理；该目录保留
+# 提取源文本和实际提交内容，方便离线判断是否因摘要预算而丢失关键信息。
+MEMORY_DRAFTS_DIRNAME = "memory-drafts"
 # prompt 太短时退回的通用项目背景 query（与 Pi 扩展 bootstrapTopics 保持一致）。
 RECALL_FALLBACK_TOPICS = "项目概况、核心架构、历史决策、当前进展、未完成事项、开发约定和重要注意事项"
 SKIP_CAPTURE_ENV = "MEMORY_HUB_SKIP_CAPTURE"
@@ -649,6 +652,105 @@ def save_client_profile(state_dir: Path, profile: UserProfile) -> Path:
         with temporary:
             json.dump(profile.as_dict(), temporary, ensure_ascii=False, indent=2)
             temporary.write("\n")
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        os.chmod(temporary_path, 0o600)
+        os.replace(str(temporary_path), str(path))
+        return path
+    except Exception:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+def _safe_filename_component(value: str, fallback: str) -> str:
+    """Return a Windows/POSIX-safe, bounded filename component."""
+    normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip()).strip("-._")
+    return (normalized or fallback)[:80]
+
+
+def pi_memory_draft_path(config: "Config", job: sqlite3.Row) -> Path:
+    """Stable readable draft path for one Pi session content version."""
+    project_id = job["project_id"] or config.archive_project_id
+    project = _safe_filename_component(project_id, "archive")
+    source_session_id = job["source_session_id"] or job["session_id"]
+    session = _safe_filename_component(source_session_id, "session")
+    content_digest = str(job["sha256"] or "unknown")[:12]
+    return (
+        config.state_dir
+        / MEMORY_DRAFTS_DIRNAME
+        / "pi"
+        / project
+        / ("%s-%s.md" % (session, content_digest))
+    )
+
+
+def write_pi_memory_draft(
+    config: "Config",
+    job: sqlite3.Row,
+    *,
+    version: int,
+    file_id: str,
+    title: str,
+    goal: str,
+    recent: str,
+    result: str,
+    distilled: str,
+) -> Path:
+    """Atomically persist the human-readable extraction before Hub memory POST.
+
+    The source sections use the full sanitized messages loaded from the full-session
+    spool (each message is bounded by MAX_MESSAGE_CHARS), while ``distilled`` is the
+    exact budgeted value sent to Memory Hub. A write failure is intentionally raised:
+    the durable job remains queued and must not bypass the local audit prerequisite.
+    """
+    path = pi_memory_draft_path(config, job)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    generated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    body = "\n".join(
+        (
+            "# Pi Memory Draft",
+            "",
+            "- generated_at: `%s`" % generated_at,
+            "- project_id: `%s`" % (job["project_id"] or config.archive_project_id),
+            "- source_session_id: `%s`" % job["source_session_id"],
+            "- hub_session_id: `%s`" % job["session_id"],
+            "- snapshot_sha256: `%s`" % job["sha256"],
+            "- session_version: `%s`" % version,
+            "- snapshot_file_id: `%s`" % file_id,
+            "- title: %s" % (title or "未命名会话"),
+            "- write_order: 此文件已在 `POST /v1/memories` 之前原子落盘",
+            "- source_limit: 每条源消息最多 %s 字符；下方 Hub 内容另受 700/700/1400 字符预算"
+            % MAX_MESSAGE_CHARS,
+            "",
+            "## 首个用户目标（提取源，%s 字符）" % len(goal),
+            "",
+            goal,
+            "",
+            "## 最近用户目标（提取源，%s 字符）" % len(recent),
+            "",
+            recent,
+            "",
+            "## 会话结果（提取源，%s 字符）" % len(result),
+            "",
+            result,
+            "",
+            "## 实际提交 Hub 的 distilled_content（%s 字符）" % len(distilled),
+            "",
+            distilled,
+            "",
+        )
+    )
+    temporary = tempfile.NamedTemporaryFile(
+        prefix=".%s." % path.name,
+        dir=str(path.parent),
+        mode="w",
+        encoding="utf-8",
+        delete=False,
+    )
+    temporary_path = Path(temporary.name)
+    try:
+        with temporary:
+            temporary.write(body)
             temporary.flush()
             os.fsync(temporary.fileno())
         os.chmod(temporary_path, 0o600)
@@ -1381,6 +1483,9 @@ class StateStore:
             ).fetchone()["count"]
         return {
             "state_dir": str(self.config.state_dir),
+            "pi_memory_drafts_dir": str(
+                self.config.state_dir / MEMORY_DRAFTS_DIRNAME / "pi"
+            ),
             "identity_configured": self.config.configured,
             "default_user_id": self.config.default_user_id,
             "identity_source": self.config.identity_source,
@@ -1514,6 +1619,21 @@ class HubClient:
                 compact_text(result, 1400),
             )
         )
+        memory_draft_path = None
+        if job["source"] == "pi":
+            # 硬顺序：先持久化可读提取稿，再写 Hub。这样即使远端失败或摘要被预算
+            # 截断，也能用本地源文本复核；落盘失败则由 durable spool 下次重试。
+            memory_draft_path = write_pi_memory_draft(
+                self.config,
+                job,
+                version=version,
+                file_id=file_id,
+                title=topic,
+                goal=goal,
+                recent=recent,
+                result=result,
+                distilled=distilled[: 16 * 1024],
+            )
         memory = self.request(
             "POST",
             "/v1/memories",
@@ -1536,10 +1656,13 @@ class HubClient:
                 "dry_run": self.config.dry_run,
             },
         )
-        return {
+        result_payload = {
             "memory_id": memory.get("memory_id"),
             "memory_status": memory.get("status"),
         }
+        if memory_draft_path is not None:
+            result_payload["memory_draft_path"] = str(memory_draft_path)
+        return result_payload
 
     def upload_job(self, job: sqlite3.Row) -> Dict[str, Any]:
         project_id = job["project_id"] or self.config.archive_project_id
