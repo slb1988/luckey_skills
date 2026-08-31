@@ -163,6 +163,13 @@ class PiExtensionE2ETest(unittest.TestCase):
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "extraction-bootstrap")
 
+    def test_skill_invocation_skips_automatic_bootstrap(self):
+        # /skill:name 展开注入块与裸 /skill: 命令都跳过首轮自动预热检索
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(Path(directory), {"SKILL_BOOTSTRAP": "1"})
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "skill-bootstrap")
+
     def test_project_bootstrap_accepts_leading_project_directive(self):
         with tempfile.TemporaryDirectory() as directory:
             summary = self.run_driver(Path(directory), {"PROJECT_DIRECTIVE": "1"})

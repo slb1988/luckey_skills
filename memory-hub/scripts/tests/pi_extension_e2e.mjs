@@ -31,6 +31,7 @@ const busyOnce = process.env.FLUSH_BUSY_ONCE === "1";
 const scoreGateMode = process.env.SCORE_GATE === "1";
 const scoreAllZeroMode = process.env.SCORE_ALL_ZERO === "1";
 const extractionBootstrapMode = process.env.EXTRACTION_BOOTSTRAP === "1";
+const skillBootstrapMode = process.env.SKILL_BOOTSTRAP === "1";
 const projectDirectiveMode = process.env.PROJECT_DIRECTIVE === "1";
 
 writeFileSync(transcriptPath, JSON.stringify({ type: "message", role: "user", text: "hello" }) + "\n");
@@ -227,7 +228,14 @@ try {
 		// 不重复检索。超时/失败时同样只尝试一次并 fail-open。
 		const firstPrompt = extractionBootstrapMode
 			? "You are the Skill extraction sub-agent. Analyze this session."
-			: [
+			: skillBootstrapMode
+				? [
+					'<skill name="memory-hub" location="D:\\skills\\memory-hub\\SKILL.md">',
+					"skill body",
+					"</skill>",
+					"修改 pi extension",
+				].join("\n")
+				: [
 			"You are working inside Orca, a multi-agent IDE.",
 			"编排说明 ".repeat(900),
 			"=== TASK ===",
@@ -250,6 +258,30 @@ try {
 			assert.equal(traceEntries("project_bootstrap")[0].outcome, "skipped_extraction");
 			assert.ok(existsSync(join(stateDir, "pi-bootstrap-done", "sess-e2e.json")));
 			console.log(JSON.stringify({ ok: true, mode: "extraction-bootstrap" }));
+			process.exit(0);
+		}
+		if (skillBootstrapMode) {
+			// 展开后的 <skill …> 注入块与裸 /skill: 命令都必须跳过首轮检索
+			assert.equal(firstStart, undefined, "skill invocation must not inject memory");
+			assert.equal(hookCalls("search").length, 0, "skill invocation must not search");
+			assert.equal(traceEntries("project_bootstrap")[0].outcome, "skipped_skill_invocation");
+			assert.ok(existsSync(join(stateDir, "pi-bootstrap-done", "sess-e2e.json")));
+			const rawCtx = {
+				...ctx,
+				sessionManager: {
+					getSessionId: () => "sess-e2e-raw-skill",
+					getSessionFile: () => transcriptPath,
+				},
+			};
+			const rawStart = await handlers.get("before_agent_start")(
+				{ prompt: "/skill:memory-hub 修改 pi extension", systemPrompt: "base-system" },
+				rawCtx,
+			);
+			assert.equal(rawStart, undefined, "raw /skill: command must not inject memory");
+			assert.equal(hookCalls("search").length, 0, "raw /skill: command must not search");
+			assert.equal(traceEntries("project_bootstrap").at(-1).outcome, "skipped_skill_invocation");
+			assert.ok(existsSync(join(stateDir, "pi-bootstrap-done", "sess-e2e-raw-skill.json")));
+			console.log(JSON.stringify({ ok: true, mode: "skill-bootstrap" }));
 			process.exit(0);
 		}
 		const bootstrapTimedOut = process.env.FAKE_SEARCH_DELAY_MS !== undefined;

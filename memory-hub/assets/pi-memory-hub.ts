@@ -28,7 +28,10 @@ import { Type } from "typebox";
 // v19：Pi TUI 展示召回进行中状态与审核后的聚合结果/摘要，不暴露被拒候选或 LLM 推理。
 // v20：已放行结果另存本地 Markdown；路径只显示在 TUI，不进入 agent context。
 // v21：召回期间只保留顶部进度 widget，移除底部重复的“记忆识别中”状态。
-const EXTENSION_VERSION = "21";
+// v22：用户已通过 /skill:name 显式指定 skill 的首轮 prompt 跳过自动预热检索
+//   （pi 会把 skill 全文展开注入 prompt 开头，skill 自带上下文与检索指引，
+//   再跑一次自动检索只浪费首 token 延迟）；需要历史记忆仍可用 memory_search。
+const EXTENSION_VERSION = "22";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -128,6 +131,14 @@ function clipText(value: string, max: number): string {
 
 const orcaTaskMarker = "=== TASK ===";
 const extractionPromptPrefix = "You are the Skill extraction sub-agent.";
+// 用户显式调用 skill 的首轮 prompt 形态：/skill:name 命令经 pi 展开后以
+// `<skill name="…" location="…">` 开头注入 skill 全文；裸命令未展开时兜底匹配 /skill:。
+const skillInjectionPrefix = "<skill ";
+const skillCommandPrefix = "/skill:";
+
+function isSkillInvocationPrompt(rawPrompt: string): boolean {
+	return rawPrompt.startsWith(skillInjectionPrefix) || rawPrompt.startsWith(skillCommandPrefix);
+}
 
 function focusBootstrapPrompt(value: unknown): { text: string; source: "orca_task" | "user_prompt" } {
 	const raw = String(value ?? "");
@@ -888,9 +899,11 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		const rawPrompt = String(event.prompt ?? "").trimStart();
 		const bootstrapSkip = rawPrompt.startsWith(extractionPromptPrefix)
 			? "skipped_extraction"
-			: skipCapture
-				? "skipped_capture_env"
-				: null;
+			: isSkillInvocationPrompt(rawPrompt)
+				? "skipped_skill_invocation"
+				: skipCapture
+					? "skipped_capture_env"
+					: null;
 		if (bootstrapSkip) {
 			bootstrappedSessions.add(sessionId);
 			trace("project_bootstrap", {
