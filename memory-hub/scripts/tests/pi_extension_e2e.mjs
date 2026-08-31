@@ -49,12 +49,21 @@ const pi = {
 const selectCalls = [];
 const selectResolvers = [];
 const widgetCalls = [];
+const statusCalls = [];
+const notifyCalls = [];
 const ctx = {
 	cwd: process.cwd(),
 	hasUI: scoreGateMode || scoreAllZeroMode,
+	mode: "tui",
 	ui: {
 		setWidget(key, lines) {
 			widgetCalls.push({ key, lines });
+		},
+		setStatus(key, value) {
+			statusCalls.push({ key, value });
+		},
+		notify(message, level) {
+			notifyCalls.push({ message, level });
 		},
 		select(title, options) {
 			selectCalls.push({ title, options });
@@ -231,7 +240,10 @@ try {
 			ctx,
 		);
 		assert.equal(selectCalls.length, 0, "v18 must not expose internal recall scoring UI");
-		assert.equal(widgetCalls.length, 0, "v18 must not expose internal recall scoring widget");
+		assert.ok(
+			widgetCalls.every((entry) => entry.key !== "memory-hub-score"),
+			"v19 must not restore the player scoring widget",
+		);
 		if (extractionBootstrapMode) {
 			assert.equal(firstStart, undefined, "extraction bootstrap must not inject memory");
 			assert.equal(hookCalls("search").length, 0, "extraction bootstrap must not search");
@@ -287,6 +299,13 @@ try {
 			assert.ok(hookCalls("search")[0].argv.includes("6"), "bootstrap must keep a small result budget");
 			assert.ok(hookCalls("search")[0].argv.includes("4000"), "bootstrap must cap injected characters");
 			assert.equal(hookCalls("feedback").length, 0, "backend LLM judgments replace player feedback");
+			if (ctx.hasUI) {
+				assert.ok(widgetCalls.some((entry) => entry.key === "memory-hub-recall"));
+				assert.ok(statusCalls.some((entry) => String(entry.value).includes("记忆识别中")));
+				assert.match(notifyCalls[0].message, /已识别 2\/3 条历史记忆/);
+				assert.match(notifyCalls[0].message, /项目验证约定/);
+				assert.ok(statusCalls.some((entry) => String(entry.value).includes("记忆 2\/3")));
+			}
 		}
 		const secondStart = await handlers.get("before_agent_start")(
 			{ prompt: "continue", systemPrompt: "base-system" },
@@ -336,6 +355,15 @@ try {
 			["--project", "maindev"],
 		);
 		assert.equal(toolResult.details.project, "maindev");
+		assert.deepEqual(toolResult.details.quality, {
+			mode: "llm",
+			candidates: 3,
+			kept: 2,
+			min_rating: 2,
+		});
+		if (ctx.hasUI) {
+			assert.match(notifyCalls.at(-1).message, /已识别 2\/3 条历史记忆/);
+		}
 
 		// agent_end → enqueue 立即触发并 await 完成（handler 返回即 durable）
 		await handlers.get("agent_end")({}, ctx);

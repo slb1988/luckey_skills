@@ -21,6 +21,7 @@ from memory_hook import (
     command_capture,
     command_configure,
     command_recall,
+    command_search,
     flush_pending,
     format_context,
     head_tail_sample,
@@ -41,6 +42,54 @@ class MemoryHookTest(unittest.TestCase):
     @staticmethod
     def profile(user_id="user-a", display_name="User A"):
         return UserProfile(user_id, display_name, "Long-lived test user")
+
+    def test_online_search_uses_two_minute_timeout_and_exposes_frontend_contract(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=8,
+                state_dir=Path(directory),
+            )
+            seen = []
+
+            def fake_search_response(client, query, project_id, limit, user_id):
+                seen.append(client.config.timeout_seconds)
+                return {
+                    "facts": [{"summary": "历史决策", "text": "先小范围验证。"}],
+                    "retrieval": {
+                        "retrieval_id": "r1",
+                        "query_hash": "a" * 64,
+                        "policy_version": "v2-fts-top3-llm",
+                    },
+                    "quality": {"mode": "llm", "candidates": 3, "kept": 1},
+                }
+
+            args = SimpleNamespace(
+                query="过去怎么决定的",
+                project="maindev",
+                limit=3,
+                max_chars=4000,
+                json=True,
+                source="pi",
+                user_id=None,
+                display_name=None,
+                summary=None,
+            )
+            stdout = io.StringIO()
+            with patch("memory_hook.request_user_profile", return_value=self.profile()), patch.object(
+                HubClient, "search_response", fake_search_response
+            ), patch("sys.stdout", stdout):
+                self.assertEqual(command_search(args, config), 0)
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(seen, [120.0])
+            self.assertEqual(payload["project_id"], "maindev")
+            self.assertEqual(payload["quality"]["kept"], 1)
+            self.assertIn("先小范围验证", payload["context"])
 
     def test_capture_is_durable_and_idempotent_while_server_is_down(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -646,11 +695,15 @@ class MemoryHookTest(unittest.TestCase):
             }
             calls = []
 
-            def fake_search(self_client, query, project_id, limit, user_id):
+            def fake_search_response(self_client, query, project_id, limit, user_id):
                 calls.append((query, project_id, limit, user_id))
-                return [fact]
+                return {
+                    "facts": [fact],
+                    "retrieval": {"retrieval_id": "r1"},
+                    "quality": {"mode": "llm", "candidates": 3, "kept": 1},
+                }
 
-            with patch.object(HubClient, "search", fake_search):
+            with patch.object(HubClient, "search_response", fake_search_response):
                 stdout = io.StringIO()
                 with patch("sys.stdin", io.StringIO(self._recall_payload(root))), patch(
                     "sys.stdout", stdout
@@ -658,6 +711,7 @@ class MemoryHookTest(unittest.TestCase):
                     self.assertEqual(command_recall(self._recall_args(), config), 0)
                 first = stdout.getvalue()
                 self.assertIn("自动首轮预热", first)
+                self.assertIn("LLM 审核通过 1/3 条历史记忆", first)
                 self.assertIn("recall 配置方法", first)
                 self.assertEqual(len(calls), 1)
                 query, project_id, limit, user_id = calls[0]
@@ -713,7 +767,7 @@ class MemoryHookTest(unittest.TestCase):
 
             stdout = io.StringIO()
             stderr = io.StringIO()
-            with patch.object(HubClient, "search", failing_search), patch(
+            with patch.object(HubClient, "search_response", failing_search), patch(
                 "sys.stdin", io.StringIO(self._recall_payload(root))
             ), patch("sys.stdout", stdout), patch("sys.stderr", stderr):
                 # 恒 exit 0：非零会阻塞 UserPromptSubmit。
@@ -738,11 +792,11 @@ class MemoryHookTest(unittest.TestCase):
             )
             calls = []
 
-            def fake_search(self_client, query, project_id, limit, user_id):
+            def fake_search_response(self_client, query, project_id, limit, user_id):
                 calls.append(query)
-                return []
+                return {"facts": [], "retrieval": None, "quality": {"candidates": 0, "kept": 0}}
 
-            with patch.object(HubClient, "search", fake_search):
+            with patch.object(HubClient, "search_response", fake_search_response):
                 stdout = io.StringIO()
                 with patch(
                     "sys.stdin",

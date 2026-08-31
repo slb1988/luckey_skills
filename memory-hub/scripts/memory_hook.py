@@ -67,6 +67,7 @@ RECALL_DISABLE_ENV = "MEMORY_HOOK_RECALL"
 # 每个 prompt 都叠加检索延迟。按 mtime 超期 GC。
 RECALL_MARKER_DIRNAME = "recall-markers"
 RECALL_MARKER_MAX_AGE_SECONDS = 14 * 24 * 3600
+ONLINE_SEARCH_TIMEOUT_SECONDS = 120.0
 # Pi 记忆写入前的可读审计稿。spool 对象在 job 完成后会清理；该目录保留
 # 提取源文本和实际提交内容，方便离线判断是否因摘要预算而丢失关键信息。
 MEMORY_DRAFTS_DIRNAME = "memory-drafts"
@@ -2401,12 +2402,20 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             os.getcwd(), config.archive_project_id
         )
         started = time.monotonic()
-        response = HubClient(config).search_response(
+        # 在线召回包含同步 LLM 审核，不能沿用 capture/upload 的 8 秒网络预算。
+        response = HubClient(
+            replace(config, timeout_seconds=ONLINE_SEARCH_TIMEOUT_SECONDS)
+        ).search_response(
             args.query, project_id, args.limit, profile.user_id
         )
         facts = response["facts"]
+        context = format_context(facts, args.max_chars, profile)
         if args.json:
-            payload = {"facts": facts}
+            payload = {
+                "facts": facts,
+                "project_id": project_id,
+                "context": context,
+            }
             if response.get("retrieval") is not None:
                 payload["retrieval"] = response["retrieval"]
             if response.get("quality") is not None:
@@ -2414,7 +2423,7 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             output = json.dumps(payload, ensure_ascii=False)
             print(output)
         else:
-            output = format_context(facts, args.max_chars, profile)
+            output = context
             if output:
                 print(output)
         trace_event(
@@ -2429,6 +2438,7 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
                 "limit": args.limit,
                 "facts_count": len(facts),
                 "retrieval": response.get("retrieval"),
+                "quality": response.get("quality"),
                 "json": bool(args.json),
                 "duration_ms": int((time.monotonic() - started) * 1000),
                 "output_chars": len(output),
@@ -2518,11 +2528,24 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
         client = HubClient(
             replace(config, timeout_seconds=args.timeout_seconds)
         )
-        facts = client.search(query, project_id, args.limit, profile.user_id)
+        response = client.search_response(query, project_id, args.limit, profile.user_id)
+        facts = response["facts"]
         recalled = format_context(facts, args.max_chars)
         if recalled:
+            quality = response.get("quality")
+            if isinstance(quality, dict):
+                candidates = quality.get("candidates")
+                kept = quality.get("kept")
+                status_line = "Memory Hub 识别结果：LLM 审核通过 %s/%s 条历史记忆。" % (
+                    kept,
+                    candidates,
+                )
+            else:
+                status_line = "Memory Hub 识别结果：召回 %d 条历史记忆。" % len(facts)
             output = (
                 "# Memory Hub：当前 project 的历史背景（自动首轮预热）\n"
+                + status_line
+                + "\n"
                 "以下是历史检索结果，仅作为背景；若与当前代码或用户指令冲突，以当前事实为准。\n\n"
                 + recalled
             )
@@ -2545,6 +2568,7 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
                 "limit": getattr(args, "limit", None),
                 "max_chars": getattr(args, "max_chars", None),
                 "outcome": outcome,
+                "quality": response.get("quality") if "response" in locals() else None,
                 "duration_ms": int((time.monotonic() - started) * 1000),
                 "output_chars": len(output),
                 "output": output,

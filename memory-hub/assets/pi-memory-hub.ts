@@ -25,7 +25,8 @@ import { Type } from "typebox";
 // v16：extraction/capture opt-out 子会话跳过自动召回；memory_search 支持显式 project；
 //   首轮候选全被判 0 时给 agent 一条跨 project 重试提示，不注入被剔除记忆。
 // v18：用户评分 UI 由 Hub 同步 LLM 质量门禁替代；Pi 只注入后端判定 2/3 分的结果。
-const EXTENSION_VERSION = "18";
+// v19：Pi TUI 展示召回进行中状态与审核后的聚合结果/摘要，不暴露被拒候选或 LLM 推理。
+const EXTENSION_VERSION = "19";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -79,7 +80,7 @@ function bootstrapTimeoutMs(): number {
 function bootstrapLimit(): number {
 	const parsed = Number(process.env.MEMORY_HOOK_PI_BOOTSTRAP_LIMIT ?? defaultBootstrapLimit);
 	if (!Number.isFinite(parsed)) return defaultBootstrapLimit;
-	return Math.max(1, Math.min(20, Math.trunc(parsed)));
+	return Math.max(1, Math.min(10, Math.trunc(parsed)));
 }
 
 function bootstrapMaxChars(): number {
@@ -144,6 +145,96 @@ function parseProjectDirective(value: string): { text: string; project: string |
 		text: value.slice(match[0].length).trim(),
 		project: match[1].toLowerCase(),
 	};
+}
+
+function startRecallIndicator(ctx: ExtensionContext, project: string, query: string): () => void {
+	if (!ctx.hasUI) return () => {};
+	const started = Date.now();
+	const preview = clipText(query.replace(/\s+/g, " "), 100);
+	const render = () => {
+		const seconds = ((Date.now() - started) / 1000).toFixed(1);
+		try {
+			ctx.ui.setWidget("memory-hub-recall", [
+				`🧠 Memory Hub 正在检索并审核历史记忆… ${seconds}s`,
+				`project: ${project} · query: ${preview}`,
+			]);
+			ctx.ui.setStatus("memory-hub-recall", `🧠 记忆识别中 ${seconds}s`);
+		} catch {
+			// UI 不支持时不影响召回和 agent 启动。
+		}
+	};
+	render();
+	const timer = setInterval(render, 250);
+	return () => {
+		clearInterval(timer);
+		try {
+			ctx.ui.setWidget("memory-hub-recall", undefined);
+		} catch {
+			// 清理失败不影响主流程。
+		}
+	};
+}
+
+function qualityCounts(
+	quality: Record<string, unknown> | null,
+	facts: Record<string, unknown>[],
+): { candidates: number | null; kept: number } {
+	const rawCandidates = quality?.candidates;
+	const rawKept = quality?.kept;
+	return {
+		candidates: typeof rawCandidates === "number" && Number.isFinite(rawCandidates)
+			? Math.max(0, Math.trunc(rawCandidates))
+			: null,
+		kept: typeof rawKept === "number" && Number.isFinite(rawKept)
+			? Math.max(0, Math.trunc(rawKept))
+			: facts.length,
+	};
+}
+
+function memorySummaries(facts: Record<string, unknown>[]): string {
+	const values: string[] = [];
+	for (const fact of facts.slice(0, 3)) {
+		const summary = typeof fact.summary === "string" ? fact.summary.trim() : "";
+		const fallback = factTextOf(fact).split("\n")[0]?.trim() ?? "";
+		const value = clipText(summary || fallback, 60);
+		if (value && !values.includes(value)) values.push(value);
+	}
+	return values.join("；");
+}
+
+function showRecallOutcome(
+	ctx: ExtensionContext,
+	data: {
+		outcome: string;
+		project: string;
+		durationMs: number;
+		quality: Record<string, unknown> | null;
+		facts: Record<string, unknown>[];
+	},
+): void {
+	if (!ctx.hasUI) return;
+	const seconds = (data.durationMs / 1000).toFixed(1);
+	const counts = qualityCounts(data.quality, data.facts);
+	const ratio = counts.candidates === null ? String(counts.kept) : `${counts.kept}/${counts.candidates}`;
+	try {
+		if (data.outcome === "injected") {
+			const summaries = memorySummaries(data.facts);
+			ctx.ui.setStatus("memory-hub-recall", `🧠 记忆 ${ratio} · ${data.project} · ${seconds}s`);
+			ctx.ui.notify(
+				`🧠 Memory Hub：已识别 ${ratio} 条历史记忆${summaries ? `｜${summaries}` : ""}（${seconds}s）`,
+				"info",
+			);
+		} else if (data.outcome === "empty") {
+			ctx.ui.setStatus("memory-hub-recall", `🧠 记忆未命中 · ${data.project} · ${seconds}s`);
+			ctx.ui.notify(`Memory Hub：当前问题未识别到可用历史记忆（${seconds}s）`, "info");
+		} else {
+			const reason = data.outcome === "timeout" ? "审核超时" : "召回失败";
+			ctx.ui.setStatus("memory-hub-recall", `⚠ 记忆${reason} · ${data.project}`);
+			ctx.ui.notify(`Memory Hub：${reason}，本轮未注入历史记忆（${seconds}s）`, "warning");
+		}
+	} catch {
+		// 前端提示失败不影响召回结果。
+	}
 }
 
 function factTextOf(fact: unknown): string {
@@ -256,8 +347,8 @@ function migrateBootstrapTraceOnce(): void {
 	}
 }
 
-// 与 memory_hook.py format_context 同构的精简版：只在调试评分模式使用
-// （需要按条过滤后再拼装），正常路径仍用 python 侧输出，避免两份格式漂移。
+// 与 memory_hook.py format_context 同构的兼容回退：新版 JSON 直接带 context；
+// 旧客户端响应缺 context 时才在 Pi 侧拼装。
 function formatFactsDebug(facts: Record<string, unknown>[], maxChars: number): string {
 	const seen = new Set<string>();
 	const blocks: string[] = [];
@@ -753,6 +844,14 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 
 	pi.on("session_start", async (_event, ctx) => {
 		lastCwd = ctx.cwd;
+		if (ctx.hasUI) {
+			try {
+				ctx.ui.setWidget("memory-hub-recall", undefined);
+				ctx.ui.setStatus("memory-hub-recall", undefined);
+			} catch {
+				// 新 session 清理旧提示失败不影响主流程。
+			}
+		}
 		trace("session_start", {
 			session_id: ctx.sessionManager.getSessionId(),
 			cwd: ctx.cwd,
@@ -830,7 +929,11 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		let exitCode: number;
 		let durationMs: number;
 		let retrieval: Record<string, unknown> | null = null;
+		let quality: Record<string, unknown> | null = null;
+		let resultProject = projectHint;
+		let visibleFacts: Record<string, unknown>[] = [];
 		const reviewCandidates: Record<string, unknown>[] = [];
+		const stopRecallIndicator = startRecallIndicator(ctx, projectHint, query);
 		if (scoreEnabled) {
 			const searchArgs = [
 				"search",
@@ -860,6 +963,13 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				&& (parsed as { retrieval?: unknown }).retrieval !== null
 				? (parsed as { retrieval: Record<string, unknown> }).retrieval
 				: null;
+			quality = parsed && typeof (parsed as { quality?: unknown }).quality === "object"
+				&& (parsed as { quality?: unknown }).quality !== null
+				? (parsed as { quality: Record<string, unknown> }).quality
+				: null;
+			visibleFacts = factsRaw.filter(
+				(fact): fact is Record<string, unknown> => Boolean(fact && typeof fact === "object"),
+			);
 			outcome = factsRaw.length
 				? ctx.hasUI ? "rated" : "unrated_no_ui"
 				: jsonResult.code === 124
@@ -1029,6 +1139,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				String(limit),
 				"--max-chars",
 				String(maxChars),
+				"--json",
 			];
 			if (projectDirective.project) searchArgs.push("--project", projectDirective.project);
 			const result = await runHub(
@@ -1039,7 +1150,26 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			);
 			exitCode = result.code;
 			durationMs = result.durationMs;
-			recalled = result.code === 0 ? result.stdout.trim() : "";
+			const parsed = result.code === 0 ? lastJsonLine(result.stdout) : null;
+			visibleFacts = parsed && Array.isArray((parsed as { facts?: unknown }).facts)
+				? (parsed as { facts: unknown[] }).facts.filter(
+					(fact): fact is Record<string, unknown> => Boolean(fact && typeof fact === "object"),
+				)
+				: [];
+			retrieval = parsed && typeof (parsed as { retrieval?: unknown }).retrieval === "object"
+				&& (parsed as { retrieval?: unknown }).retrieval !== null
+				? (parsed as { retrieval: Record<string, unknown> }).retrieval
+				: null;
+			quality = parsed && typeof (parsed as { quality?: unknown }).quality === "object"
+				&& (parsed as { quality?: unknown }).quality !== null
+				? (parsed as { quality: Record<string, unknown> }).quality
+				: null;
+			resultProject = parsed && typeof (parsed as { project_id?: unknown }).project_id === "string"
+				? (parsed as { project_id: string }).project_id
+				: projectHint;
+			recalled = parsed && typeof (parsed as { context?: unknown }).context === "string"
+				? (parsed as { context: string }).context.trim()
+				: formatFactsDebug(visibleFacts, maxChars);
 			outcome = recalled
 				? "injected"
 				: result.code === 124
@@ -1048,6 +1178,14 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 						? "empty"
 						: "error";
 		}
+		stopRecallIndicator();
+		showRecallOutcome(ctx, {
+			outcome,
+			project: resultProject,
+			durationMs,
+			quality,
+			facts: visibleFacts,
+		});
 		trace("project_bootstrap", {
 			session_id: sessionId,
 			cwd: ctx.cwd,
@@ -1059,6 +1197,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			outcome,
 			exit_code: exitCode,
 			duration_ms: durationMs,
+			quality,
 			result_chars: recalled.length,
 			score_enabled: scoreEnabled,
 			rating_required: scoreEnabled && ctx.hasUI,
@@ -1076,6 +1215,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				project_override: projectDirective.project,
 				query,
 				retrieval,
+				quality,
 				outcome,
 				exit_code: exitCode,
 				duration_ms: durationMs,
@@ -1164,25 +1304,56 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			"project when the task does not belong to the current working directory.",
 		parameters: Type.Object({
 			query: Type.String({ description: "Semantic search query" }),
-			limit: Type.Optional(Type.Number({ minimum: 1, maximum: 20 })),
+			limit: Type.Optional(Type.Number({ minimum: 1, maximum: 10 })),
 			project: Type.Optional(Type.String({
 				description: "Project scope override, for example maindev; defaults to the current cwd project",
 			})),
 		}),
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			const limit = Math.max(1, Math.min(20, Math.trunc(params.limit ?? 10)));
+			const limit = Math.max(1, Math.min(10, Math.trunc(params.limit ?? 10)));
 			const project = typeof params.project === "string" ? params.project.trim() : "";
-			const args = ["search", params.query, "--limit", String(limit)];
+			const projectHint = project || basename(ctx.cwd) || "当前项目";
+			const args = ["search", params.query, "--limit", String(limit), "--json"];
 			if (project) args.push("--project", project);
+			const stopRecallIndicator = startRecallIndicator(ctx, projectHint, params.query);
 			const result = await runHub(
 				args,
 				undefined,
 				ctx.cwd,
 				searchTimeoutMs,
 			);
-			const text = result.code === 0 && result.stdout.trim()
-				? result.stdout.trim()
-				: "Memory Hub is unavailable or no matching memory was found.";
+			const parsed = result.code === 0 ? lastJsonLine(result.stdout) : null;
+			const facts = parsed && Array.isArray((parsed as { facts?: unknown }).facts)
+				? (parsed as { facts: unknown[] }).facts.filter(
+					(fact): fact is Record<string, unknown> => Boolean(fact && typeof fact === "object"),
+				)
+				: [];
+			const quality = parsed && typeof (parsed as { quality?: unknown }).quality === "object"
+				&& (parsed as { quality?: unknown }).quality !== null
+				? (parsed as { quality: Record<string, unknown> }).quality
+				: null;
+			const resultProject = parsed && typeof (parsed as { project_id?: unknown }).project_id === "string"
+				? (parsed as { project_id: string }).project_id
+				: projectHint;
+			const context = parsed && typeof (parsed as { context?: unknown }).context === "string"
+				? (parsed as { context: string }).context.trim()
+				: formatFactsDebug(facts, 12000);
+			const outcome = context
+				? "injected"
+				: result.code === 124
+					? "timeout"
+					: result.code === 0
+						? "empty"
+						: "error";
+			stopRecallIndicator();
+			showRecallOutcome(ctx, {
+				outcome,
+				project: resultProject,
+				durationMs: result.durationMs,
+				quality,
+				facts,
+			});
+			const text = context || "Memory Hub is unavailable or no matching memory was found.";
 			trace("search", {
 				session_id: ctx.sessionManager.getSessionId(),
 				cwd: ctx.cwd,
@@ -1191,12 +1362,13 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				project: project || null,
 				exit_code: result.code,
 				duration_ms: result.durationMs,
+				quality,
 				result_chars: text.length,
 				result: clip(text),
 			});
 			return {
 				content: [{ type: "text", text }],
-				details: { exitCode: result.code, project: project || null },
+				details: { exitCode: result.code, project: resultProject, quality },
 			};
 		},
 	});

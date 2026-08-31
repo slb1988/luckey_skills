@@ -181,6 +181,14 @@ system prompt。被拒候选、理由、证据、冲突和错误只写服务端 
 agent 上下文。单次候选上限 10，首轮仍取 6 条/最多 4000 字符，客户端等待预算 120 秒，服务端
 审核调用预算 110 秒。
 
+**v19 起 Pi TUI 对召回结果可感知**：首轮 bootstrap 和手工 `memory_search` 都改用结构化 JSON
+响应。阻塞等待期间 widget/status 显示“正在检索并审核”与累计耗时；完成后清理 widget，在状态栏
+保留 `识别数/候选数 · project · 耗时`，并用 notification 展示最多 3 条已放行记忆的摘要。空结果、
+超时和错误也会明确提示“本轮未注入”。前端只看 Hub 的聚合 `quality` 与已放行结果，不展示 LLM
+理由、冲突字段或被拒候选；提示失败不影响 agent。新 session 会清理上一 session 的残留状态。
+Claude/Codex 暂无同等扩展 UI，`UserPromptSubmit` 注入头部只增加一行
+`LLM 审核通过 kept/candidates` 聚合状态，作为弱支持。
+
 v12-v17 的玩家评分 UI、`pi-recall-scores.jsonl` 和 feedback 上报路径现为历史兼容代码，不再由 v18
 首轮触发；旧环境变量 `MEMORY_HOOK_PI_BOOTSTRAP_SCORE` 也不再恢复该 UI。跨进程 session 去重和
 后端门禁行为都有 Node e2e 值守。
@@ -232,7 +240,7 @@ full-session 资产为准。该改动只在直接引用的 Python script 中，�
 | kind | 时机 | 关键字段 |
 |---|---|---|
 | `session_start` | 会话开始 | session_id、cwd |
-| `project_bootstrap` | session 首轮项目背景预热（v12+） | query、limit、project_override、outcome（v18：injected/empty/error/timeout/disabled/skipped_extraction/skipped_capture_env）、exit_code、duration_ms、result_chars；审核细节按 retrieval_id 在服务端查 |
+| `project_bootstrap` | session 首轮项目背景预热（v12+） | query、limit、project_override、outcome（v19：injected/empty/error/timeout/disabled/skipped_extraction/skipped_capture_env）、exit_code、duration_ms、quality、result_chars；审核细节按 retrieval_id 在服务端查 |
 | `project_bootstrap_skip` | 已有持久完成标记，恢复旧 session 不重复回溯（v12） | session_id、outcome=already_completed |
 | `recall_score` / `recall_score_wait` | v12-v17 历史玩家评分事件；v18 不再产生 | total、scored、dropped、kept / rank、outcome |
 | `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、result（结果全文） |
@@ -290,7 +298,7 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 #                                  # （install_hooks.py 全部参数只有 --agents/--home/--codex-bin/--cwd/
 #                                  # --user-id/--project），而是自动沿用进程环境/profile 里已有的 key
 #                                  # 并持久化（升级重装不丢）；check 的 auth 项会校验它是否设置且被服务端接受
-# MEMORY_HOOK_TIMEOUT_SECONDS=8
+# MEMORY_HOOK_TIMEOUT_SECONDS=8  # capture/upload 等普通 Hub 请求；在线 search 固定 120 秒以容纳 LLM 审核
 # MEMORY_HOOK_STATE_DIR=~/.local/state/memory-hub-hook
 # MEMORY_HOOK_DEBUG=1             # 调试失败原因
 # MEMORY_HOOK_PI_CAPTURE_DELAY_MS=300000  # Pi agent_end AFK 防抖归档延时；默认 5 分钟，置 0 逐轮立即上传

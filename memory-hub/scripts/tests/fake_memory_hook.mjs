@@ -63,12 +63,16 @@ function respondNow(args) {
 	} else if (args[0] === "search") {
 		if (args.includes("--json")) {
 			console.log(JSON.stringify({
-				project_id: "fixture",
+				project_id: args.includes("--project")
+					? args[args.indexOf("--project") + 1]
+					: "fixture",
 				retrieval: {
 					retrieval_id: "retrieval-e2e",
 					query_hash: "a".repeat(64),
-					policy_version: "v2-fts-top3",
+					policy_version: "v2-fts-top3-llm",
 				},
+				quality: { mode: "llm", candidates: 3, kept: 2, min_rating: 2 },
+				context: "[project:fixture]\n- 项目使用严格测试驱动；先跑小规模验证再全量修改。",
 				facts: [
 					{
 						result_id: "memory-useful",
