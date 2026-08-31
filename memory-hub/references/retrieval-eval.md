@@ -35,7 +35,7 @@ release 只做明确授权的运维。
    决策条件）；只记录布尔命中和必要短片段，不复制凭据或无关 session 正文。
 3. 原文没有答案：归类为 capture/蒸馏/低价值过滤/错误 project 的写侧问题。
 4. 原文有答案而 v1 没有：归类为 Graphiti 实体边抽取或排序损失。
-5. 原文有答案而 v2 FTS 也没有：检查 query token、FTS 索引、status、scope/group、top-K 截断。
+5. 原文有答案而 v2 FTS 也没有：检查 query token、FTS 索引、status、scope/group、top-K 截断（服务端同款 MATCH + FTS SQL 直查复现法见 [troubleshooting.md](troubleshooting.md)）。
 6. v2 已把答案片段返回但 agent 答错：才进入本地模型结构理解、排序或 rerank 问题。
 
 代表性证据（2026-08-29）：`maindev` memory
@@ -93,6 +93,11 @@ Noise@10 明显上升即暂停推广。v1 `fact:*` 与 v2 `memory:*` 是不同 I
 在线 Agent/hook 固定使用后端 LLM 质量门禁：一次请求把至多 10 条结构化候选批量判 0-3 分，
 只返回 2/3 分；审核失败时 503 fail-closed。每条详细判断进入 `retrieval_judgments`，定期分析
 rating/rationale/evidence/conflict 与人工 judgment 的差异，同时报告 token、延迟和失败率。
+
+直接查 SQLite（`/share/Container/memory-hub/data/memory-hub.sqlite3`）时注意：评分列实际名为
+`llm_rating`（不是 `rating`），其余关键列为 `candidate_rank` / `result_id` / `memory_id` /
+`rationale` / `evidence` / `conflict` / `status`（正常值为 `completed`）；按 `retrieval_id` 过滤。
+对在线生产库做只读分析时，先把 sqlite3 文件复制到临时副本再查询，查完清理，不直接打开在线库。
 离线检索 eval 必须用 `quality_mode=retrieval` 排除 LLM，另做“检索器”和“端到端放行结果”两层指标，
 避免 LLM 把召回缺陷掩盖成漂亮的 Noise 数字。
 
@@ -102,6 +107,12 @@ rating/rationale/evidence/conflict 与人工 judgment 的差异，同时报告 t
 **search-v2 部署验收 known-good smoke 向量**（commit 45c96f9「Keep three structured memory candidates」验收实测通过）：`project=maindev, query=SyncStaticMeshAssetMetaDT, limit=10` → 预期 HTTP 200、memory `01a043eb-b994-7ecb-bd36-49aec0e282aa`（source_type=`memory_document`）排第一。fusion 结构化 memory 候选保留口径：2026-08-31 起候选充足时固定保留 top-3、`policy_version=v2-fts-top3`；**unpruned 候选不足 3 条时 pruned == unpruned，不会补齐**（该向量实测 unpruned=2 → pruned=2，stats 全 0，属正常行为不是 bug）——验收时不要用「pruned = 3」做无条件断言。
 
 该向量曾因 feedback bug 数据损害暂时失败，2026-08-30 hotfix e081453 部署+数据修复后已恢复（`01a043eb` 重回第一，unpruned=2）。search-v2 响应中无独立 `pruned` 字段——fusion 只暴露 `memory_candidates_unpruned` 与 `memory_candidates`，实保留数看后者（unpruned=2 → candidates=2 即零裁剪）。第二 known-good 向量（5a9366f 验收实测通过）：`project=admin_sun_depot_7184, query="Stable 和 MainDev 的真实自动合并方向是什么，前端虚线为什么显示反了？", limit=10` → HTTP 200、4 条结果、首条 `01a0463e`。
+</memory>
+
+## 纠错召回验收：rescue 进 pool 与 judge 裁决是两个独立分层（ee4df3e 实证）
+
+<memory category="common-patterns">
+**纠错记忆验收不达标时先分层定位：rescue 是否把纠正候选送进 judge pool、judge 是否执行替代规则——两层根因不同、修法完全不同，不要把 judge 失败误判成检索失败去回滚 rescue 机制**。commit ee4df3e「rescue explicit memory corrections during rerank」定版机制：词面 top-8 之外，`correction_hint=True` 的候选最多再补 2 个槽位进 judge pool（policy_version=`v2-fts-judge10-llm`，质量门禁 candidates=10 → kept=2，min_rating=2）。2026-08-31 生产验收实证（project=admin_sun_depot_7184）：纠正 memory 词面 RRF rank=9（top-8 之外）仍两次稳定以 rank 9 进入 judge pool——rescue 按设计生效。已知 judge 失败模式：judge LLM（kimi-k3）在 `conflict` 字段已正确识别语义冲突（"rank1 针对数值更新，本条针对 schema 变更"），但不执行 prompt 的替代（supersede）规则，反把纠正判 rating=1 被 min_rating=2 过滤，旧错误 memory 仍以 rating=3 排第 1。判读方法：只读查 `retrieval_judgments`——纠正候选在 pool 内但低 rating = judge 层失败，**不是 rescue/检索失败**；后续杠杆是强化 judge prompt 替代规则、换 judge 模型、或对同批 conflict 对强制成对比较。另：`quality_mode=llm` 的 search-v2 批量判 10 候选实测单次 34–40s，验收脚本/回执的超时预算要按此留余量，不要套 retrieval 模式的预期。
 </memory>
 
 ## 候选 K 离线门禁

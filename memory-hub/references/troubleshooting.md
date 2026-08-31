@@ -12,6 +12,12 @@
 
 Graphiti 语义检索噪音底线高：乱查（大小写无关）也会返回"近似"结果——**返回非空 ≠ 命中，目标不在 top-N ≠ 不存在**。判定"没有这条记忆"前先调大 `--limit`（默认 10）并换关键词重试，再按 project scope 排查。live hook 同样按写入时 cwd 文件夹名派生 project：Windows 端写的记忆散落在 maindev/unity2018/agent-history 等，Mac 端 ObsidianVault 会话默认只能看到 obsidianvault project——跨机器"重启后搜不到"几乎都是 scope 隔离而非故障。
 
+### 「已 indexed 但检索不到」的 FTS 层直查复现（top-K 裁剪遮蔽）
+
+<memory category="debug-commands">
+**「memory 已 indexed、scope 正确却检索不到」时在 NAS 上直查 FTS 层拿真实 rank**：在 `/share/Container/memory-hub` 用当前服务代码 `memory_hub.application.retrieval._fts_query` 生成服务端同款 MATCH 表达式，再按 tenant_id、`group_id=project:<pid>`、`status='indexed'` 执行与 `search_memory_documents` 相同的 FTS SQL 并把 LIMIT 放大到 30，即得 API top-K 之外的 rank 与 fts_score（bm25，SQLite FTS5 越负越好）；sqlite3 按既有规矩复制临时副本或 `mode=ro` 打开，输出只留 rank/memory_id/score/summary，不复制候选正文与凭据。2026-08-31 实证根因模式：同主题近重复记忆以 bm25 ≈ -76 的离群分霸占 rank 1，目标记忆 -12.8 仅排第 12；下游固定 top-3 裁剪（`prune_memory_results_by_score` 默认 `max_results=3`，fusion `v2-fts-top3`），**rank 4+ 永不进入候选**——属取错（排序/裁剪遮蔽），不是存错，不要 reingest；修法是改写 query 或让目标排名进前 3。
+</memory>
+
 ## Hook 与 Pi 扩展
 
 ### v4 AFK 防抖的 capture 丢失窗口（v5 已修复）

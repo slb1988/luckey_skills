@@ -10,7 +10,9 @@ description: >
   admin/ops/API task. Also trigger when the user reports problems with the TeamCity
   web UI, login, builds, or agent assignment on this host. Covers the PL packaging
   pipeline (PL_BuildProjectWindows / PL_BuildUgsBinaries, UAT cook, MinIO upload)
-  and agent checkout-directory auto-clean incidents (DirectoryMap cleaner, 192h expiry).
+  and agent checkout-directory auto-clean incidents (DirectoryMap cleaner, 192h expiry),
+  the PLN_FlowAiReview AI-review pipeline (Sync/Unshelve/BuildUE_Linux/Pi_Agent_Review)
+  performance profile and queue bottlenecks.
 compatibility: linux, bash, ps, grep, find, curl
 ---
 
@@ -56,6 +58,7 @@ Always read the reference file before acting — it contains the actual paths, p
 | 打包管线 (PL_BuildProjectWindows / PL_BuildUgsBinaries / UAT cook) | `references/package-pipeline.md` |
 | Checkout 目录自动清理事故 (DirectoryMap cleaner, 192h expiry) | `references/checkout-dir-auto-clean.md` |
 | 构建失败排障（UE 构建 UBT mutex 冲突等） | `references/troubleshooting.md` |
+| FlowAiReview 管线耗时画像与瓶颈（Pi 评审步、单 Linux agent 串行） | `references/flow-aireview-pipeline.md` |
 
 Read the relevant reference before acting on that topic.
 

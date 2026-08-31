@@ -109,11 +109,14 @@ GET http://192.168.2.13:5000/user/get_userinfo_by_p4id/{p4_userid}
     "userid": "ou_a8df36499532f60666df651259582a8e",  ← 飞书 open_id
     "full_name": "林冠宇",
     "p4_userid": "linguanyu",
-    "is_resigned": false
+    "is_resigned": false,
+    "groups_json": "[\"lldap_admin\", \"p4-devops\", \"p4_all\"]"  ← lldap 组成员关系（JSON 字符串，需二次解析）
   },
   "status": { "code": 0 }
 }
 ```
+
+**按组门控**：需要判断某 p4 用户属于哪个组（如 `p4_leveldesigners` / `p4_environmentartist` 等美术组）时，解析 `groups_json` 即可，不要去查 p4 或 lldap。DevOps PreCheckin 的 uasset artist 规则即用的此字段。
 
 **注意大小写**：API 不区分大小写（LinGuanyu / linguanyu 都能查到），但 p4 用户名区分，建议直接把原始 p4 用户名传给 API。
 
