@@ -31,7 +31,14 @@ import { Type } from "typebox";
 // v22：用户已通过 /skill:name 显式指定 skill 的首轮 prompt 跳过自动预热检索
 //   （pi 会把 skill 全文展开注入 prompt 开头，skill 自带上下文与检索指引，
 //   再跑一次自动检索只浪费首 token 延迟）；需要历史记忆仍可用 memory_search。
-const EXTENSION_VERSION = "22";
+// v23：首轮检索 query 结构化——首个非空行作为「任务:」意图，其余行保留换行作为
+//   「上下文:」。此前整段压平成一行，粘贴的报错回显（错误信息里引用的源码/配置
+//   原文）会与任务句无缝拼接，关键词密度压过真实意图，检索与 LLM 门禁都被带偏
+//   （2026-08-31 ObsidianVault skill YAML 报错案）；server judge v11 起按该结构
+//   先复述 intent 再逐条判分。
+// v24：预热进度 widget 去重——query 本身以 projectHint 开头（检索 hint），
+//   展示时剥掉这个前缀，不再出现「project: X · query: X 任务: …」的重复。
+const EXTENSION_VERSION = "24";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -140,13 +147,27 @@ function isSkillInvocationPrompt(rawPrompt: string): boolean {
 	return rawPrompt.startsWith(skillInjectionPrefix) || rawPrompt.startsWith(skillCommandPrefix);
 }
 
-function focusBootstrapPrompt(value: unknown): { text: string; source: "orca_task" | "user_prompt" } {
+const maxBootstrapQueryChars = 1200;
+const maxBootstrapIntentChars = 300;
+
+function focusBootstrapPrompt(value: unknown): { intent: string; context: string; source: "orca_task" | "user_prompt" } {
 	const raw = String(value ?? "");
 	const markerAt = raw.lastIndexOf(orcaTaskMarker);
 	const selected = markerAt >= 0 ? raw.slice(markerAt + orcaTaskMarker.length) : raw;
+	const source = markerAt >= 0 ? "orca_task" as const : "user_prompt" as const;
+	// 首个非空行是用户意图；其余行（通常是粘贴的报错/日志/文件内容）只作上下文。
+	// 保留换行边界，让 server judge 能区分「任务」与「被引用材料」。
+	const lines = selected.split(/\r?\n/).map((line) => line.replace(/[ \t]+/g, " ").trim());
+	const firstAt = lines.findIndex((line) => line.length > 0);
+	if (firstAt < 0) return { intent: "", context: "", source };
+	const intent = clipText(lines[firstAt], maxBootstrapIntentChars);
+	const rest = lines.slice(firstAt + 1).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+	// projectHint、「任务: 」与「上下文:」标记约占 40 字，余量全给上下文。
+	const contextBudget = maxBootstrapQueryChars - intent.length - 40;
 	return {
-		text: selected.replace(/\s+/g, " ").trim().slice(0, 1200),
-		source: markerAt >= 0 ? "orca_task" : "user_prompt",
+		intent,
+		context: contextBudget > 0 ? clipText(rest, contextBudget) : "",
+		source,
 	};
 }
 
@@ -163,7 +184,15 @@ function parseProjectDirective(value: string): { text: string; project: string |
 function startRecallIndicator(ctx: ExtensionContext, project: string, query: string): () => void {
 	if (!ctx.hasUI) return () => {};
 	const started = Date.now();
-	const preview = clipText(query.replace(/\s+/g, " "), 100);
+	const flattened = query.replace(/\s+/g, " ");
+	// query 以 `${projectHint} ` 开头（检索用 hint，见 query 构造处）；展示时
+	// 剥掉该前缀，避免与同行的 project: 字段重复。memory_search 的 query 通常
+	// 不带此前缀，startsWith 判断对它是安全 no-op。
+	const projectPrefix = project + " ";
+	const displayQuery = flattened.startsWith(projectPrefix)
+		? flattened.slice(projectPrefix.length)
+		: flattened;
+	const preview = clipText(displayQuery, 100);
 	const render = () => {
 		const seconds = ((Date.now() - started) / 1000).toFixed(1);
 		try {
@@ -927,14 +956,14 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			return;
 		}
 		const promptFocus = focusBootstrapPrompt(event.prompt);
-		const projectDirective = parseProjectDirective(promptFocus.text);
-		const focusedPrompt = projectDirective.text;
+		const projectDirective = parseProjectDirective(promptFocus.intent);
+		const intent = projectDirective.text;
 		const projectHint = projectDirective.project || basename(ctx.cwd) || "当前项目";
-		const ratingQuestion = clipText(focusedPrompt || `${projectHint} 项目背景`, 360);
+		const ratingQuestion = clipText(intent || `${projectHint} 项目背景`, 360);
 		// 首轮应回答用户正在问的问题；只有 prompt 太短时才退回通用项目背景。
 		// 一次查询同时带 project hint，服务端仍按当前 project 硬隔离。
-		const query = focusedPrompt.length >= 4
-			? `${projectHint} ${focusedPrompt}`
+		const query = intent.length >= 4
+			? `${projectHint} 任务: ${intent}` + (promptFocus.context ? `\n上下文:\n${promptFocus.context}` : "")
 			: `${projectHint} ${bootstrapTopics}`;
 		const limit = bootstrapLimit();
 		const maxChars = bootstrapMaxChars();
