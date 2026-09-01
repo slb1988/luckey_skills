@@ -24,6 +24,12 @@ Graphiti 语义检索噪音底线高：乱查（大小写无关）也会返回"�
 遇到“纠正 memory 已 indexed、也进了 judge pool，在线结果仍反复返回旧答案”时，按三层定位：① 放大 FTS LIMIT 看纠正真实 rank；② 查 `retrieval_judgments` 确认纠正是否进 pool；③ 同一 query 连跑至少 5 次，看旧/新 rating 是否漂移。2026-08-31 Flask-Migrate 案中，judge11 已有完整 `correction_evidence`，但 kimi-k3 仍 5/5 给旧 ORM memory rating=3、只 2/5 保留纠正——这是“同批大 prompt 下语义消歧失败”，不是存错、证据截断或 JSON 格式问题。定版修复是 judge12 的条件式前置 resolver + 服务端执行 superseded ranks；不要靠继续堆主 judge prompt，也不要删除/reingest 两条历史。验收查 policy=`v2-fts-judge12-llm`、纠错请求 attempts=2、旧条 rating=0/conflict 含“较新显式纠正替代”、新条 rating=3/intent 为纠正语义；普通无纠错请求 attempts 必须仍为 1。
 </memory>
 
+### 历史问法检索：旧 memory 应入池返回、不得被 SUPERSEDES 硬降 0（judge13 已修复）
+
+<memory category="troubleshooting">
+**judge13（policy `v2-fts-judge13-evolution-llm`，commit `ab03ae7`，2026-09 部署验证）补齐历史查询方向**，与 judge12「当前问法纠错」对称：judge12 保证当前问法只给新答案（旧条 rating=0/SUPERSEDES）；judge13 保证**历史问法**（“以前错误的做法是什么”类）下旧 memory 正常进 judge candidate 池并可作为历史答案返回——不被结构化 SUPERSEDES 硬降 0、不触发 correction resolver（attempts=1）、query/intent 不被改写成当前做法。验收 A/B 向量（search-v2，quality_mode=`llm`，limit=10，实测用 admin_sun_depot_7184 的 model 数值更新记忆对）：A 当前问法 → kept=1 仅新 memory，旧条 rating=0/conflict=被 rank1 SUPERSEDES；B 历史问法 → kept=2 旧+新都返回，旧条 rank1/rating≥2，intent 保留历史语义，conflict 仅语义标注。回归判读：历史问法下旧条 rating=0、被踢出 candidate 池、或 intent 被改写即回归；主 judge 认为历史答案还需其他候选时，验收底线是旧条入池且未硬降 0。
+</memory>
+
 ## Hook 与 Pi 扩展
 
 ### v4 AFK 防抖的 capture 丢失窗口（v5 已修复）
@@ -75,6 +81,12 @@ recall/capture 全红），且 check 因「副本与模板一致」误报 ok。*
 由 install_hooks.py 注入本机解释器路径**（优先 /usr/bin/python3，否则 sys.executable）；老机器 check 报
 outdated 后重跑 install 即修复。排查「关窗提示有进程未结束」是否 hook 残留时，按命令行列 python.exe 分辨：
 本机常驻 python 通常是 UnrealMCP 和 pytest，与 memory-hook 无关；memory_hook.py 是逐事件短进程，正常不常驻。
+
+### Windows codex hook 零执行：shlex 单引号命令 + CODEX_HOME 被 Orca 重定向（双重根因）
+
+<memory category="troubleshooting">
+**「codex session 从未上传到 Hub、spool 零 codex job、recall-markers 零 codex 标记、hook-trace 零 codex 事件」的定版根因（2026-09-01 修复）是两层叠加**：① install_hooks.py 用 `shlex.join` 生成 hook 命令，POSIX 单引号形式（`'C:\Python311\python.exe' ...`）——codex 在 Windows 上经 `cmd /c` 执行 hook（二进制内 `hooks\src\engine\command_runner.rs` + `cmd /c` 字样），cmd 把单引号当路径字面量，spawn 直接失败（报错特征：cmd 下手跑该命令得「The filename, directory name, or volume label syntax is incorrect.」）；claude 不受影响（自己的 shell 能解析单引号）。② 本机 codex 大多由 Orca 拉起，`CODEX_HOME` 被重定向到 `C:\Users\admin\AppData\Roaming\orca\codex-runtime-home\home`——install/check 只写 `~/.codex/hooks.json`，运行时读的 Orca home 副本从未被更新。修复（install_hooks.py）：`python_command()` 在 `os.name=="nt"` 时改用 `subprocess.list2cmdline`（双引号/裸路径，cmd 与 sh 均兼容）；新增 `codex_home()` 优先读 `CODEX_HOME` 环境变量，install/check/trust 全部走它。**注意两个 home 都要装**：不带 CODEX_HOME 跑一次（`~/.codex`），带 Orca runtime home 跑一次。验证闭环：`codex exec --skip-git-repo-check "..."` 输出应出现 `hook: UserPromptSubmit Completed` / `hook: Stop Completed`（Failed 即回归），state dir 出现 `recall-markers/codex-*` 与 hook-trace codex 事件。教训：codex hook「没生效」类问题的取证三板斧——recall-markers 无标记 + hook-trace 无事件 + spool 无 job = hook 根本没执行；`install_hooks.py check` 的 trusted=3 只证明配置被信任，不证明能 spawn。
+</memory>
 
 ### 全员上传 401：服务端切生产模式后 hook 静默积压（无报错、无丢失）
 
@@ -179,3 +191,21 @@ Hub 已生成的占位摘要。
 默认开启推理的 Kimi/DeepSeek 兼容网关；上游非 2xx 响应正文会经过长度限制与凭据脱敏后
 进入审核理由。若仍为 400，优先根据详情核对 `REVIEW_LLM_MODEL` 是否为网关实际加载的
 模型 ID，其次核对 `REVIEW_LLM_BASE_URL` 是否为不含重复 `/v1` 的 Anthropic base URL。
+
+### REVIEW_LLM 网关接受裸 `thinking={type:enabled}`（不带 budget_tokens）
+
+<memory category="common-patterns">
+**生产 REVIEW_LLM 网关（10.77.77.4:8600，kimi-k3）接受裸 `thinking={"type":"enabled"}`，无需显式 `budget_tokens`**（2026-09-01 全程只读探针实证）：body = `thinking={type:enabled}` + `max_tokens=8192` + `temperature=0` → HTTP 200、~2.5s、`stop_reason=end_turn`、content blocks = `[thinking, text]`、text block 一次即严格合法 JSON（最小探针 usage：input 127 / output 54 tok）。结论：写入侧「高思考预算关系分析」应优先用该最小 body（思考预算随 max_tokens 走），不要画蛇添足加 `budget_tokens`；消费侧只取 `type=="text"` 的 block 做 JSON 解析，`thinking` block 正文不入库、不打日志，解析前保留 strip-fence 兜底。与 2026-08-31 探针互补：disabled 与 enabled 两种 thinking 协议该网关都接受，按场景选用（分类/triage 用 disabled 求稳求快，关系分析用 enabled 换推理深度）。
+</memory>
+
+### 关系管线首轮生产只读审计基线：写侧 p95 逼近 gunicorn 120s 超时，读侧唯一失败类按 retrieval 聚集（ab03ae7）
+
+<memory category="troubleshooting">
+**ab03ae7（judge13/关系管线）后首轮生产只读审计（2026-09-01 NAS 实证，审计窗口内系统活跃写入）给出的基线：写侧 memory_relation_analyses 全部 completed（23/23 无 failed），但单条分析 p50 ~32s / p95 ~93s / max ~110s、平均 ~18k prompt chars / ~7k input tokens——p95 已逼近 gunicorn 120s worker 超时，是整条关系管线最可能先撞墙的点，加流量前先盯这个分位**（n≈22、上线仅 ~1.6h，小样本勿外推分布；零/非零关系比 6/17）。读侧基线：retrieval_judgments 唯一失败类是 correction resolver 非法 JSON——10 条 failed 全属**同一次** retrieval（失败按 retrieval 聚集而非均匀散布，行级 non-retryable），即 retrieval-eval.md 已记的 `RETRIEVAL_CORRECTION_RESOLVER_INVALID_RESPONSE`；疑似 max_tokens=500 截断（与 2026-09-01 探针「500 tokens 够用」结论相左，未确证），最小修法候选是把 resolver max_tokens 提到 ~1000，本轮未实施。79 条 judgments 仅来自 8 次 retrieval 且多为部署 smoke 流量——数据不足是当前第一瓶颈，真实流量积累前不要据这些数字调参。审计结论核对：ab03ae7 的 historical-target 保留逻辑双向验证生效（current 压制 ✓ / historical 保留 ✓），与上条 judge13 A/B 验收一致。
+</memory>
+
+### ledger↔Neo4j 关系镜像对账：missing==在途 retry 是时序伪影，不是 orphan
+
+<memory category="common-patterns">
+**关系镜像对账（Hub active memory_relations ledger vs Neo4j Episodic 关系 overlay）判读规则：missing 数恰好等于 outbox 在途 retry 行数 = 预期自愈的时序伪影，不是 orphan**（2026-09-01 审计实证：ledger 31 vs Neo4j 29，missing=2 全部一一对应在途 retry 行、orphan=0；早前快照曾报「3 条 orphan」，复核证实同为时序伪影）。审计窗口是活的——本轮窗口内 ledger 从 7 涨到 31，不同时间点拍的快照计数不可互相比对。报 orphan 前必须：① 把 missing 集合与 outbox retry 集合按 aggregate_id 逐条核销；② 等 retry 收敛后复拍（本轮 6 分钟未收敛只够记「待复查」，不够判 orphan）；③ 仍对不上才按真 orphan 处理。与 episode confirm 的「retry=正常排队」判读（见 memory-center ingest-performance.md）同构，只是对象换成关系边。
+</memory>

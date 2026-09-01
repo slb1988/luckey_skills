@@ -45,7 +45,14 @@ def default_python() -> str:
 
 
 def python_command(*args: str) -> str:
-    return shlex.join([default_python(), str(MEMORY_HOOK), *args])
+    parts = [default_python(), str(MEMORY_HOOK), *args]
+    if os.name == "nt":
+        # Windows 上 codex 经 cmd /c 执行 hook 命令（hooks/engine/command_runner.rs），
+        # cmd 不识别 shlex.join 产出的 POSIX 单引号——引号成为路径字面量，spawn 直接
+        # 失败（2026-08-30 实例：hooks.json 安装后 codex 三个 handler 全部零执行）。
+        # list2cmdline 的双引号形式在 cmd 与 sh 下都可解析，claude 侧同样兼容。
+        return subprocess.list2cmdline(parts)
+    return shlex.join(parts)
 
 
 def desired_hooks(agent: str) -> Dict[str, Dict[str, Any]]:
@@ -1045,6 +1052,18 @@ def auth_status(home: Path, cwd: Path) -> Dict[str, Any]:
     }
 
 
+def codex_home(home: Path) -> Path:
+    """Codex 的配置根：CODEX_HOME 优先（Orca 等宿主会把 codex 运行时重定向到
+    自己的 home，如 orca/codex-runtime-home/home；此时 ~/.codex 下的 hooks.json
+    根本不是运行时会读的副本——2026-09-01 实例：修复只写 ~/.codex，Orca 拉起的
+    codex 仍读旧配置，hook 持续 spawn 失败）。
+    """
+    override = os.environ.get("CODEX_HOME")
+    if override and override.strip():
+        return Path(override).expanduser()
+    return home / ".codex"
+
+
 def parse_agents(value: str, home: Path) -> List[str]:
     supported = ("claude", "codex", "pi")
     if value == "all":
@@ -1052,7 +1071,7 @@ def parse_agents(value: str, home: Path) -> List[str]:
     if value == "auto":
         directories = {
             "claude": home / ".claude",
-            "codex": home / ".codex",
+            "codex": codex_home(home),
             "pi": home / ".pi" / "agent",
         }
         commands = {"claude": "claude", "codex": "codex", "pi": "pi"}
@@ -1074,7 +1093,7 @@ def parse_agents(value: str, home: Path) -> List[str]:
 def agent_paths(home: Path) -> Dict[str, Path]:
     return {
         "claude": home / ".claude" / "settings.json",
-        "codex": home / ".codex" / "hooks.json",
+        "codex": codex_home(home) / "hooks.json",
         "pi": home / ".pi" / "agent" / "extensions" / "memory-hub.ts",
     }
 
@@ -1098,11 +1117,12 @@ def run(action: str, agents: Iterable[str], home: Path, codex_bin: str, cwd: Pat
             if not check["ok"]:
                 raise InstallError("; ".join(check["errors"]))
             if agent == "codex":
-                config_path = home / ".codex" / "config.toml"
+                cx_home = codex_home(home)
+                config_path = cx_home / "config.toml"
                 if action == "install" and not config_path.exists():
                     atomic_write(config_path, "")
                 trust = verify_or_trust_codex(
-                    home / ".codex", cwd, codex_bin, apply_trust=action == "install"
+                    cx_home, cwd, codex_bin, apply_trust=action == "install"
                 )
                 check.update(trust)
             results[agent] = {"ok": True, "changed": changed, **check}
