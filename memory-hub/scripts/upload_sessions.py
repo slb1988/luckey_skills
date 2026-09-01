@@ -723,6 +723,13 @@ class HubClient:
             content_type = "application/json"
         last_error: Optional[Exception] = None
         for attempt in range(retries + 1):
+            # 大 body 上传到 NAS 实测带宽只有 ~300KB/s（11.5MB PUT 需 36.5s），
+            # 固定 30s 超时会让客户端先于服务端收完而断开，服务端随后 RST，
+            # 报成 WinError 10054（2026-09-01 补传 10MB/30MB 全量包实测）。
+            # 按 150KB/s 保守速率 + 15s 余量放大超时。
+            effective_timeout = self.config.timeout_seconds
+            if body:
+                effective_timeout = max(effective_timeout, len(body) / 150_000 + 15)
             request = urllib.request.Request(
                 self.config.hub_url + path,
                 data=body,
@@ -730,12 +737,17 @@ class HubClient:
                 headers=self.headers(agent_id, idempotency_key, content_type),
             )
             try:
-                with self.opener.open(request, timeout=self.config.timeout_seconds) as response:
+                with self.opener.open(request, timeout=effective_timeout) as response:
                     payload = response.read()
             except urllib.error.HTTPError as error:
                 if allow_404 and error.code == 404:
                     return None
-                detail = error.read().decode("utf-8", errors="replace")
+                # 服务端提前关连接时读错误详情会被 RST（WinError 10054）——
+                # 详情拿不到不能掩盖原始状态码，降级为占位文本。
+                try:
+                    detail = error.read().decode("utf-8", errors="replace")
+                except OSError:
+                    detail = "<error body unreadable: connection reset>"
                 raise HubError("HTTP %s: %s" % (error.code, compact_text(detail, 800)))
             except (urllib.error.URLError, TimeoutError, OSError) as error:
                 last_error = error
@@ -788,26 +800,42 @@ def ensure_memory(
             session.last_assistant or "未提取到助手最终文本",
         )
     )
-    memory = client.request(
-        "POST",
-        "/v1/memories",
-        agent_id,
-        idempotency_key=idem_key("memory", session.archive_session_id, session.sha256),
-        json_body={
-            "schema_version": "memory-write/1",
-            "agent_id": agent_id,
-            "project_id": client.config.project_id,
-            "session_id": session.archive_session_id,
-            "session_version": version,
-            "file_id": file_id,
-            "scope_type": "project",
-            "memory_type": "session_summary",
-            "distilled_content": distilled[:MAX_DISTILLED_CHARS],
-            "summary": topic[:1024],
-            "source_event_id": idem_key("event", session.archive_session_id, session.sha256),
-        },
-    )
-    return str(memory.get("memory_id") or "")
+    body = {
+        "schema_version": "memory-write/1",
+        "agent_id": agent_id,
+        "project_id": client.config.project_id,
+        "session_id": session.archive_session_id,
+        "session_version": version,
+        "file_id": file_id,
+        "scope_type": "project",
+        "memory_type": "session_summary",
+        "distilled_content": distilled[:MAX_DISTILLED_CHARS],
+        "summary": topic[:1024],
+        "source_event_id": idem_key("event", session.archive_session_id, session.sha256),
+    }
+    # 服务端幂等表会原样重放历史失败的 5xx 响应（2026-09-01 实证：旧批传
+    # memory key 重试稳定回放 500，同 body 换新 key 即 200）——遇到 5xx 换全新
+    # 幂等键重试（至多 3 轮），避免被旧失败记录永久卡死。若旧请求实际已创建
+    # memory 只是响应丢失，换键可能产生重复 session_summary，检索侧影响很小。
+    base_key = idem_key("memory", session.archive_session_id, session.sha256)
+    last_error: Optional[Exception] = None
+    for attempt in range(3):
+        key = base_key if attempt == 0 else "%s:retry%d" % (base_key, attempt)
+        try:
+            memory = client.request(
+                "POST",
+                "/v1/memories",
+                agent_id,
+                idempotency_key=key,
+                json_body=body,
+            )
+            return str(memory.get("memory_id") or "")
+        except HubError as error:
+            last_error = error
+            if str(error).startswith("HTTP 5"):
+                continue
+            raise
+    raise last_error  # type: ignore[misc]
 
 
 def upload_session(
@@ -980,26 +1008,47 @@ def _upload_blob(
     }
     if object_name is not None:
         request["object_name"] = object_name
-    upload = client.request(
-        "POST", "/v1/files/uploads", agent_id, idempotency_key=idem, json_body=request
-    )
-    upload_id = upload["upload_id"]
-    file_id = upload["file_id"]
-    file_status = client.request("GET", "/v1/files/%s" % file_id, agent_id)
-    if not file_status or file_status.get("status") != "available":
-        client.request(
-            "PUT",
-            "/v1/files/uploads/%s/content" % upload_id,
-            agent_id,
-            body=blob,
-            content_type="application/gzip",
-        )
-        completed = client.request(
-            "POST", "/v1/files/uploads/%s/complete" % upload_id, agent_id
-        )
-        if not completed or completed.get("status") != "available":
-            raise HubError("uploaded file did not become available")
-    return file_id
+    # 与 memory_hook._upload_file 同款自愈：服务端按幂等键原样重放首次响应，
+    # 过期/冲突（409/5xx）的上传会话重试结果相同——换全新幂等键重建，至多 3 轮。
+    last_error: Optional[Exception] = None
+    for attempt in range(3):
+        key = idem if attempt == 0 else "%s:reinit-%d" % (idem, attempt)
+        try:
+            upload = client.request(
+                "POST", "/v1/files/uploads", agent_id, idempotency_key=key, json_body=request
+            )
+        except HubError as error:
+            last_error = error
+            continue
+        upload_id = upload["upload_id"]
+        file_id = upload["file_id"]
+        file_status = client.request("GET", "/v1/files/%s" % file_id, agent_id)
+        status = file_status.get("status") if file_status else None
+        if status == "available":
+            return file_id
+        if status == "expired":
+            # 上传会话已过期/被清理，直接换键重建，不要往失效 URL PUT。
+            continue
+        try:
+            client.request(
+                "PUT",
+                "/v1/files/uploads/%s/content" % upload_id,
+                agent_id,
+                body=blob,
+                content_type="application/gzip",
+            )
+            completed = client.request(
+                "POST", "/v1/files/uploads/%s/complete" % upload_id, agent_id
+            )
+            if not completed or completed.get("status") != "available":
+                raise HubError("uploaded file did not become available")
+            return file_id
+        except HubError as error:
+            last_error = error
+            continue
+    if last_error is not None:
+        raise last_error
+    raise HubError("upload failed: file stuck in expired state")
 
 
 def backfill_full(

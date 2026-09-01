@@ -1583,8 +1583,14 @@ class HubClient:
             method=method,
             headers=self.headers(project_id, user_id, idempotency_key, content_type, agent_id),
         )
+        # 大 body 上传到 NAS 实测带宽只有 ~300KB/s（11.5MB PUT 需 36.5s）；固定
+        # 8s 超时会让客户端先于服务端收完而断开，服务端随后 RST（WinError 10054）。
+        # 按 150KB/s 保守速率 + 15s 余量放大超时（2026-09-01 与 upload_sessions.py 同步）。
+        effective_timeout = self.config.timeout_seconds
+        if body:
+            effective_timeout = max(effective_timeout, len(body) / 150_000 + 15)
         try:
-            with self.opener.open(request, timeout=self.config.timeout_seconds) as response:
+            with self.opener.open(request, timeout=effective_timeout) as response:
                 payload = response.read()
         except urllib.error.HTTPError as error:
             if allow_404 and error.code == 404:

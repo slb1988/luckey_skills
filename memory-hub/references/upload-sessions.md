@@ -72,3 +72,4 @@ python3 "$SKILL_DIR/scripts/upload_sessions.py" --project-id unity2018 --dry-run
 - 目录会递归扫描 `*.jsonl`；`--limit N` 可先小批量验证。
 - 大量上传后 memory 经 outbox 异步投递 Graphiti，`indexed` 状态用 `GET /v1/memories/{id}` 跟踪（索引状态定义见 [api-notes](api-notes.md)）。
 - 低价值过滤（启发式 + 可选 LLM）与归档摘要三段式 distilled 的规则与 hook 侧共用，见 [agent-integration.md](agent-integration.md)「会话标题与低价值过滤判定」。
+- **补传前注意执行环境的 `MEMORY_HUB_TITLE_LLM`**（2026-09-01 实例）：从 Orca 拉起的 shell 会继承 `MEMORY_HUB_TITLE_LLM=1`，LLM 分类器对 Orca worker session（首条用户消息是派遣模板，300 字截断后只剩样板）会误判低价值——49 个真实工作 session 被拦。显式确认过的批量补传应带 `MEMORY_HUB_TITLE_LLM=0` 退到启发式（仍有全噪声会话兜底过滤）。分类结果按内容 SHA 缓存在 state dir `title-cache.jsonl`，误判后需先删其中 `meaningful=false` 条目再重跑，否则缓存命中不会重判。

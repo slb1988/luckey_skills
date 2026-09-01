@@ -124,6 +124,18 @@ capture/flush 全部 401 落 spool 堆积，而当时只有 check 有注册表�
 
 （2026-08-29 实例，job 1210 卡 106 次、28 个 job 饿一天）：initiate 上传的幂等键是确定性的，服务端按 key 原样重放首次响应，上传会话 TTL 10 分钟过期后重试拿到的仍是同一个失效 upload_id；PUT 失效 URL 时服务端不读 body 直接 404/410 并关连接，大 body 客户端收到的是 WinError 10054（连接重置）而非 404，被误判为瞬时网络错误无限重试。特征：flush 永远 `failed:1`、`last_error=WinError 10054`、queued 堆积但 search 完全正常（GET 不受影响）。排查路径：spool.sqlite3 jobs 表查队头 last_error → curl 复现 GET/POST 正常 → 跟到 PUT expired upload。修复：`_upload_file` 检测 file status `expired` / PUT|complete 失败后换全新幂等键重建上传会话（至多 3 轮，retry_salt=job.attempts），`request()` 把裸 OSError 包成 HubError 让 full 上传降级生效。服务端待修：`initiate_upload` 幂等重放应检查 upload 是否过期、过期则新建而非原样返回。
 
+### 幂等表重放历史失败的 5xx：补传 memory 永久 500（客户端换盐兜底）
+
+<memory category="troubleshooting">
+**服务端幂等机制不只重放成功响应——历史失败的 500 也会被原样重放**（2026-09-01 codex 补传实证）：旧批传时代 `POST /v1/memories` 失败过的幂等键（`manual-upload-v2:memory:<sid>:<sha16>`），重试时稳定返回 500 Flask HTML 页；同 body 换全新 key 即 200。也就是说「某 session 已在 Hub（GET 200）、只有 memory 写入反复 500」时先怀疑幂等重放，不是内容问题。修复（upload_sessions.py `ensure_memory`）：5xx 时给幂等键追加 `:retry<N>` 盐重建（至多 3 轮），与 memory_hook `_upload_file` 的 reinit 同款；注意若旧请求实际已创建 memory 只是响应丢失，换键会产生重复 session_summary（检索侧影响很小，好过永久卡死）。服务端根治方向：幂等表只缓存 2xx，或重放前检查记录状态——与上一条「过期 upload 重放」是同一类缺陷的两个面。
+</memory>
+
+### 大 body 上传被客户端 30s/8s 固定超时掐断（报成 WinError 10054）
+
+<memory category="troubleshooting">
+**NAS 上传带宽实测只有 ~300KB/s（11.5MB PUT 需 36.5s），upload_sessions.py 默认 `--timeout 30`、memory_hook.py 默认 8s，会让客户端先于服务端收完 body 而断开，服务端随后 RST——客户端报「network error after retries: WinError 10054」或 409/410 连锁**（upload 行卡在 uploading/expired，下次同键重试 409 UPLOAD_IN_PROGRESS）。2026-09-01 补传 10.7MB/30MB 全量包实测。curl 手测同尺寸 body 成功 = 客户端超时问题而非服务端限制（服务端 max_session_file_bytes=100MB）。修复：两个客户端的 `request()` 统一按 body 大小放大超时 `max(base, len(body)/150KB/s + 15s)`。排障特征：小 session 全成功、唯独大 session 反复 10054/409/410 时先查客户端超时。
+</memory>
+
 ### session 归错 project（全落某个 catch-all）先查本机映射
 
 <memory category="troubleshooting">
