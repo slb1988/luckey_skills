@@ -30,6 +30,10 @@ description: Pi agent（pi，@earendil-works 的 coding agent）使用与排障�
 `ws:` 路由（.pi/extensions/workspace-routing → agentctl.py）解析需要两份数据同时就位：共享 catalog `.claude/agent-control/workspaces.json`（只有名字，可入库）+ 本机注册表 `%LOCALAPPDATA%\agent-control\workspaces.json`（机器路径绑定，不共享）。新机器报 `unknown workspace` 或 `has no local binding or remote route` 时先查本机注册表是否存在——没跑过 add 流程时它根本不存在。
 </memory>
 
+<memory category="code-locations">
+a2a-mentions 扩展的平台 token 存在全局文件 `~/.pi/agent/a2a-mentions.json`（格式 `{baseUrl, token, expiresAt?}`），不是按项目存的——ObsidianVault 与 MainDev 共用一份，写一次两边生效。`loadTokenStore` 两条非显然语义：(1) 只在 `expiresAt` 为 number 时判过期，**省略该字段即永久 token**（平台已支持签发永久 token，用户规则：本地一律按永久存，不写 expiresAt）；(2) 故意不校验 baseUrl 匹配（两个项目默认 baseUrl 不同：10.77.77.4:5000 vs 192.168.2.13:5000，严格匹配会互相踢登录）；同一 token 两个入口都认。改 token 后当前 session 需 `/a2a-reload` 或重开才生效；真过期会暴露为 HTTP 401 / status.code=101。
+</memory>
+
 ## 快速排查
 
 - 扩展加载失败，先 `pi -ne`（无扩展启动）确认是扩展问题还是 pi 本身问题。
