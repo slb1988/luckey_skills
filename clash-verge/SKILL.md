@@ -1,6 +1,6 @@
 ---
 name: clash-verge
-description: Clash Verge Rev（mihomo 内核）代理客户端的使用、排障与规则定制参考。当用户提到 Clash、Clash Verge、mihomo、代理不通、代理端口、7897、翻墙、节点切换、ChatGPT/Codex/OpenAI 走代理、chatgpt 连不上、分流规则、订阅更新覆盖配置、Merge 合并配置时触发。即使用户只说"代理挂了"、"某某网站走代理打不开"、"帮我加个走代理的域名"、"换个节点"也应触发。
+description: Clash Verge Rev（mihomo 内核）代理客户端的使用、排障与规则定制参考。当用户提到 Clash、Clash Verge、mihomo、代理不通、代理端口、7897、翻墙、节点切换、ChatGPT/Codex/OpenAI 走代理、chatgpt 连不上、分流规则、订阅更新覆盖配置、Merge 合并配置时触发。即使用户只说"代理挂了"、"某某网站走代理打不开"、"帮我加个走代理的域名"、"换个节点"、"网速慢"、"网络卡"也应触发。
 ---
 
 # Clash Verge Rev 运维参考
@@ -45,6 +45,21 @@ CONNECT 隧道返回 200 之后 TLS 握手挂起、直到超时（curl 输出 `0
 | api.openai.com 返回 401 | 缺 API key，**正常**（说明网络已连通） |
 | 两者都 000 超时 | 节点 IP 被封，换节点 |
 | cloudflare.com 也超时 | 节点到 Cloudflare 整体不通，换节点或换线路 |
+
+## 「网速慢」先别动 Clash：分层定位 + 跨网拥塞
+
+<memory category="troubleshooting">
+用户抱怨网速慢时，先 `route get <目标IP>` 确认走 en0（直连）还是 utun（代理）——本机国内流量默认直连，慢不一定是 Clash 的锅。本机是电信宽带，晚高峰跨运营商互联口拥塞是实测过的常见根因，本地无法修复，确认后直接告诉用户等高峰过，不要折腾本地配置。
+</memory>
+
+本机健康基线（电信宽带，网关 192.168.50.1）：ping 网关 ~3ms、ping 阿里DNS 223.5.5.5 ~9ms。分层定位，哪段炸了定位到哪：
+
+1. ping 网关 → 排除 WiFi/路由器
+2. ping 223.5.5.5 → 排除宽带出口
+3. ping 目标域名**解析出的每个 IP**（`dig +short <域名>`）——同域名不同运营商节点差异巨大（实测电信宽带上 baidu.com 的移动节点 89ms/67% 丢包 vs 另一节点 33ms/0% 丢包）
+4. traceroute 找拥塞跳：**202.97.x.x = 电信骨干，221.183.x.x = 移动骨干**；延迟在跨入对方骨干那一跳飙升 = 跨运营商互联口拥塞（晚高峰 21-23 点高发，深夜自愈）
+
+临时缓解只有清 DNS 缓存碰运气换解析节点：`sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder`（治标不治本）。
 
 ## ChatGPT / Codex / OpenAI 强制走代理的域名清单
 
