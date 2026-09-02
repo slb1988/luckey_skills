@@ -8,6 +8,10 @@
 - 卡住的 RUNNING 文档（`progress_msg` 长期显示 `N tasks are ahead in the queue`、chunk=0）修复流程：`DELETE` 停止 → `POST` 重新触发。参考脚本 `.claude/scripts/ragflow_fix_stuck_parse.py`。
 - **根因（2026-08-05 cyancook 实例验证）**：一批任务入队后 valkey/redis 或 task executor 重启，Redis 队列条目丢失，但 MySQL 里文档状态仍停在 RUNNING + 队首，永远不会被消费。判别方法：同库新触发的任务能正常跑（executor 活着），而老任务 `process_begin_at` 停留在同一历史时刻、progress 接近 0——即"假 RUNNING"。批量修复时只处理 `RUNNING && chunk_count==0 && progress_msg 含 ahead in the queue` 的文档，别误伤 FAIL 的和真正在跑的。
 - **2026-08-06 复发变体**：84 篇卡住文档显示的是 `0 tasks are ahead in the queue`（队首位置 0 但无人消费），且有一篇大文档（文本总表.xlsx）所有 Page 子任务日志均显示 `Task done`，文档级状态却停在 RUNNING、progress 不更新——说明队列条目和最终状态回写一起丢了（executor 空闲数小时）。修复相同；对这种"子任务全 done、状态假 RUNNING、chunk>0"的文档**只 DELETE 停止、不要重触发**（块已索引，重触发会重复解析）。注意脚本按 `chunk>0 且无 ahead` 启发式会把它误判为"真实在跑"，需单独处理。
+- **2026-09-02 硬僵尸变体（API 失效，需直接改库）**：57 篇大 xlsx 假 RUNNING 35 天，DELETE 报 `Can't stop parsing document that has not started or already completed`（服务端找不到活任务），POST 又报 `Can't parse document that is currently being processed`——双向锁死。且 PUT 改 chunk_method 会重置 progress 但**不改 run**；POST 失败时还会把 run 重新写成 RUNNING。修复顺序（MySQL：`192.168.2.13:14307` root/`infini_rag_flow`，库 `rag_flow`）：
+  1. `UPDATE document SET run='0', progress=0, progress_msg='' WHERE id IN (...)`（run 状态机：UNSTART=0/RUNNING=1/CANCEL=2/DONE=3/FAIL=4）
+  2. `DELETE FROM task WHERE doc_id IN (...) AND progress < 1`（清残留 task 行）
+  3. 再 `POST /chunks` 重触发。**顺序不能反**——POST 失败后 document.run 会被回写为 1，需重新 reset。
 
 ## 零分块文档（chunk_count=0）排查与重触发
 
@@ -32,6 +36,7 @@
 - `Duplicate column names detected`：xlsx 合并单元格/重复列名，table 解析器硬限制。处置 = 先用单文档端点把该篇改 `chunk_method=naive` 再重新触发解析
 - `field name cannot contain only whitespace`：同为内容格式问题，重试无效
 - 大 xlsx（单表上千行）还容易长成 RUNNING 僵尸并拖慢新文档解析队列，批量处置时优先清掉
+- **`OllamaEmbed: the input length exceeds the context length`（2026-09-02 根因）**：不是 chunk_token_num 能修的。链路：RagFlow 的 MarkdownParser 按标题切 section 后**不按 token 硬切大 section**（naive.py 合并循环只管合并不管劈开）→ 含几千字符平文本段的 .md 产出大 chunk → bge-m3@Ollama 有效上限实测 ~2048 tokens（3100 中文字符=2014 tokens 过、3148 字符就 400；/api/ps 显示 8192 但实际按 2048 拒绝，且 `truncate=true` 在 ~2K-10K 字符区间失效、>16K 字符反而截断成功——Ollama 截断实现有 bug）。处置：同步侧在上传前把长章节拆小（feishu_ragflow_sync 的 `split_long_sections` transformer，max 2200 字符按空行/换行切，续节补"原标题（续 N）"）；或修 Ollama 部署的 num_ctx/截断。
 
 ## 更新文档分块方法
 
