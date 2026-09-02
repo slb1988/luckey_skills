@@ -210,6 +210,27 @@ v12-v17 的玩家评分 UI、`pi-recall-scores.jsonl` 和 feedback 上报路径�
 旧逻辑先截断整段 prompt，8KB 编排说明会把 TASK 完全挤掉，导致 query 与评分界面只显示 Orca
 操作样板。review/trace 增加 `prompt_source=orca_task|user_prompt`，便于后续区分入口质量与排序质量。
 
+**v23 起首轮检索 query 结构化**：首个非空行作为「任务:」意图，其余行保留换行作为「上下文:」。
+此前整段压平成一行，粘贴的报错回显（报错信息里引用的源码/配置原文）会与任务句无缝拼接，
+关键词密度压过真实意图，把检索与 server judge 一起带偏（2026-08-31 ObsidianVault skill YAML
+报错案）。server judge v11 起按该结构先复述 intent 再逐条判分，并对「evidence 非候选原文引用」
+和「自承不直接支撑 intent 却给高分」两类高分失真做确定性降级。
+
+**v24 起预热进度 widget 不再重复显示 project 名**：首轮预热 query 在构造时**故意**以 projectHint
+开头（服务端按 project 硬隔离，但 query 文本里带项目名能提升相关性）——这是检索语义，不是 bug，
+不要从检索调用里删掉；v23 及之前展示层原样打出，widget 出现「project: X · query: X 任务: …」的
+重复。v24 起 `startRecallIndicator` 只在展示前剥掉 query 开头的 `${project} ` 前缀；`memory_search`
+的 query 通常不带该前缀，`startsWith` 判断对它是安全 no-op。纯展示层改动，检索行为不变。
+
+**v25 起首轮预热与 `memory_search` 检索可手动中断**。before_agent_start 等待期间 pi 内建 Esc 不生效
+（agent 尚未 streaming，内建 handler 只在 `isStreaming` 时 abort），扩展挂临时 `onTerminalInput` 监听：
+**Esc 吞键并取消**（避免误触发空编辑器的 double-esc 树选择器）；**Ctrl+C 只取消检索、按键照常放行**
+（保留 pi 的 clear/双击退出语义，连按两次仍会退出 pi）。取消即 SIGTERM 杀检索子进程、
+`outcome=cancelled` 立即放行 agent 启动，且写入 bootstrap-done 标记（本会话不再重试）。
+`memory_search` 工具改接 pi 的 abort signal：agent 回合内按 Esc 中断回合时同步杀子进程，不再挂到
+120s 超时。取消键识别是 `recallCancelKey()` 的轻量实现（legacy 裸 `\x1b`/`\x03` + Kitty CSI-u +
+modifyOtherKeys），与 pi-tui `matchesKey` 对齐但不引入运行时依赖。
+
 **v15 起 search-v2 会把 Hub 返回的 `retrieval_id/query_hash/policy_version` 透传给 Pi**；v18 又透传
 聚合 `quality` 元数据。当前评分由服务端在返回前完成并直接写 `retrieval_judgments`，不再依赖玩家
 fire-and-forget feedback 才形成评估样本。只有 v2 明确 404（旧服务完全没有端点）时允许兼容回退 v1；
@@ -250,8 +271,9 @@ full-session 资产为准。该改动只在直接引用的 Python script 中，�
 | kind | 时机 | 关键字段 |
 |---|---|---|
 | `session_start` | 会话开始 | session_id、cwd |
-| `project_bootstrap` | session 首轮项目背景预热（v12+） | query、limit、project_override、outcome（v20：injected/empty/error/timeout/disabled/skipped_extraction/skipped_capture_env）、exit_code、duration_ms、quality、result_file、result_chars；审核细节按 retrieval_id 在服务端查 |
+| `project_bootstrap` | session 首轮项目背景预热（v12+） | query、limit、project_override、outcome（v20：injected/empty/error/timeout/disabled/skipped_extraction/skipped_capture_env；v25+ 另有 cancelled）、exit_code、duration_ms、quality、result_file、result_chars；审核细节按 retrieval_id 在服务端查 |
 | `project_bootstrap_skip` | 已有持久完成标记，恢复旧 session 不重复回溯（v12） | session_id、outcome=already_completed |
+| `recall_cancel` | v25+ 用户在预热/检索等待期间按 Esc/Ctrl+C 手动中断 | session_id、cwd、key=escape\|ctrl_c |
 | `recall_score` / `recall_score_wait` | v12-v17 历史玩家评分事件；v18 不再产生 | total、scored、dropped、kept / rank、outcome |
 | `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、quality、result_file、result（模型可见结果全文，不含文件路径） |
 | `marker_write` / `marker_delete` / `marker_quarantine` | write-ahead marker 生命周期（v5） | sessionId 等 |

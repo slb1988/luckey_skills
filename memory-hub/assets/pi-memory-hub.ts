@@ -38,7 +38,13 @@ import { Type } from "typebox";
 //   先复述 intent 再逐条判分。
 // v24：预热进度 widget 去重——query 本身以 projectHint 开头（检索 hint），
 //   展示时剥掉这个前缀，不再出现「project: X · query: X 任务: …」的重复。
-const EXTENSION_VERSION = "24";
+// v25：首轮预热与 memory_search 检索可中断。before_agent_start 等待期间 pi 内建
+//   Esc 不生效（agent 尚未 streaming），扩展挂临时 onTerminalInput 监听：Esc
+//   吞掉（避免误触发空编辑器 double-esc 选择器）并取消，Ctrl+C 只取消检索、
+//   按键照常放行给 pi（保留 clear/双击退出语义）；取消即 SIGTERM 杀检索子进程、
+//   outcome=cancelled 放行 agent 启动。memory_search 工具改接 pi abort signal，
+//   Esc 中断 agent 回合时同步杀子进程，不再挂到 120s 超时。
+const EXTENSION_VERSION = "25";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -181,7 +187,20 @@ function parseProjectDirective(value: string): { text: string; project: string |
 	};
 }
 
-function startRecallIndicator(ctx: ExtensionContext, project: string, query: string): () => void {
+// v25 取消键识别：与 pi-tui matchesKey 对齐的轻量实现（避免运行时依赖 pi-tui）。
+// legacy 终端：Esc=\x1b、Ctrl+C=\x03；Kitty CSI-u：Esc=\x1b[27u（可带 ;1 修饰
+// 与 :event 后缀）、Ctrl+C=\x1b[99;5u；modifyOtherKeys：\x1b[27;<mod>;<key>~。
+function recallCancelKey(data: string): "escape" | "ctrl_c" | null {
+	if (data === "\x1b") return "escape";
+	if (data === "\x03") return "ctrl_c";
+	if (/^\x1b\[27(?:;1(?::[123])?)?u$/.test(data)) return "escape";
+	if (/^\x1b\[99;5(?::[123])?u$/.test(data)) return "ctrl_c";
+	if (data === "\x1b[27;1;27~") return "escape";
+	if (data === "\x1b[27;5;99~") return "ctrl_c";
+	return null;
+}
+
+function startRecallIndicator(ctx: ExtensionContext, project: string, query: string, cancelHint = "Esc/Ctrl+C 跳过"): () => void {
 	if (!ctx.hasUI) return () => {};
 	const started = Date.now();
 	const flattened = query.replace(/\s+/g, " ");
@@ -197,7 +216,7 @@ function startRecallIndicator(ctx: ExtensionContext, project: string, query: str
 		const seconds = ((Date.now() - started) / 1000).toFixed(1);
 		try {
 			ctx.ui.setWidget("memory-hub-recall", [
-				`🧠 Memory Hub 正在检索并审核历史记忆… ${seconds}s`,
+				`🧠 Memory Hub 正在检索并审核历史记忆… ${seconds}s（${cancelHint}）`,
 				`project: ${project} · query: ${preview}`,
 			]);
 		} catch {
@@ -270,6 +289,9 @@ function showRecallOutcome(
 		} else if (data.outcome === "empty") {
 			ctx.ui.setStatus("memory-hub-recall", `🧠 记忆未命中 · ${data.project} · ${seconds}s`);
 			ctx.ui.notify(`Memory Hub：当前问题未识别到可用历史记忆（${seconds}s）${fileLine}`, "info");
+		} else if (data.outcome === "cancelled") {
+			ctx.ui.setStatus("memory-hub-recall", `🧠 记忆召回已跳过 · ${data.project} · ${seconds}s`);
+			ctx.ui.notify(`Memory Hub：已手动跳过历史记忆检索（${seconds}s），本轮直接开始`, "info");
 		} else {
 			const reason = data.outcome === "timeout" ? "审核超时" : "召回失败";
 			ctx.ui.setStatus("memory-hub-recall", `⚠ 记忆${reason} · ${data.project}`);
@@ -571,9 +593,15 @@ function runHub(
 	cwd: string,
 	timeoutMs: number,
 	killOnTimeout = true,
+	cancelSignal?: AbortSignal,
 ): Promise<HubResult> {
 	return new Promise((resolve) => {
 		const started = Date.now();
+		// v25 可中断：signal 已中止则不再 spawn，直接以 130（SIGINT 惯例）结算。
+		if (cancelSignal?.aborted) {
+			resolve({ code: 130, stdout: "", durationMs: 0 });
+			return;
+		}
 		const child = spawn(python, [memoryHook, ...args], {
 			cwd,
 			env: process.env,
@@ -581,12 +609,22 @@ function runHub(
 		});
 		let stdout = "";
 		let settled = false;
+		const onAbort = () => {
+			try {
+				child.kill("SIGTERM");
+			} catch {
+				// 子进程已退出等情况不影响取消结算
+			}
+			finish(130);
+		};
 		const finish = (code: number) => {
 			if (settled) return;
 			settled = true;
 			clearTimeout(timer);
+			cancelSignal?.removeEventListener("abort", onAbort);
 			resolve({ code, stdout, durationMs: Date.now() - started });
 		};
+		cancelSignal?.addEventListener("abort", onAbort, { once: true });
 		const timer = setTimeout(() => {
 			if (killOnTimeout) {
 				child.kill("SIGTERM");
@@ -980,6 +1018,22 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		let visibleFacts: Record<string, unknown>[] = [];
 		const reviewCandidates: Record<string, unknown>[] = [];
 		const stopRecallIndicator = startRecallIndicator(ctx, projectHint, query);
+		// v25：预热等待可手动中断——before_agent_start 期间 pi 内建 Esc 处理器不
+		// 生效（agent 尚未 streaming），挂临时终端输入监听。Esc 吞掉（防止误触发
+		// 空编辑器 double-esc 选择器）；Ctrl+C 只取消检索、按键照常放行（保留 pi
+		// 的 clear/双击退出语义）。取消后子进程被 SIGTERM 杀掉，runHub 返回 130。
+		const recallAbort = new AbortController();
+		const stopCancelListener =
+			ctx.hasUI && typeof ctx.ui.onTerminalInput === "function"
+				? ctx.ui.onTerminalInput((data: string) => {
+					if (recallAbort.signal.aborted) return undefined;
+					const key = recallCancelKey(data);
+					if (!key) return undefined;
+					recallAbort.abort(key);
+					trace("recall_cancel", { session_id: sessionId, cwd: ctx.cwd, key });
+					return key === "escape" ? { consume: true } : undefined;
+				})
+				: () => {};
 		if (scoreEnabled) {
 			const searchArgs = [
 				"search",
@@ -1001,6 +1055,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				undefined,
 				safeSpawnCwd(ctx.cwd),
 				bootstrapTimeoutMs(),
+				true,
+				recallAbort.signal,
 			);
 			exitCode = jsonResult.code;
 			durationMs = jsonResult.durationMs;
@@ -1022,13 +1078,15 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			visibleFacts = factsRaw.filter(
 				(fact): fact is Record<string, unknown> => Boolean(fact && typeof fact === "object"),
 			);
-			outcome = factsRaw.length
-				? ctx.hasUI ? "rated" : "unrated_no_ui"
-				: jsonResult.code === 124
-					? "timeout"
-					: jsonResult.code === 0
-						? "empty"
-						: "error";
+			outcome = jsonResult.code === 130
+				? "cancelled"
+				: factsRaw.length
+					? ctx.hasUI ? "rated" : "unrated_no_ui"
+					: jsonResult.code === 124
+						? "timeout"
+						: jsonResult.code === 0
+							? "empty"
+							: "error";
 			if (factsRaw.length) {
 				const kept: Record<string, unknown>[] = [];
 				const records: Record<string, unknown>[] = [];
@@ -1202,6 +1260,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				undefined,
 				safeSpawnCwd(ctx.cwd),
 				bootstrapTimeoutMs(),
+				true,
+				recallAbort.signal,
 			);
 			exitCode = result.code;
 			durationMs = result.durationMs;
@@ -1228,14 +1288,17 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			recalled = parsed && typeof (parsed as { context?: unknown }).context === "string"
 				? (parsed as { context: string }).context.trim()
 				: formatFactsDebug(visibleFacts, maxChars);
-			outcome = recalled
-				? "injected"
-				: result.code === 124
-					? "timeout"
-					: result.code === 0
-						? "empty"
-						: "error";
+			outcome = result.code === 130
+				? "cancelled"
+				: recalled
+					? "injected"
+					: result.code === 124
+						? "timeout"
+						: result.code === 0
+							? "empty"
+							: "error";
 		}
+		stopCancelListener();
 		stopRecallIndicator();
 		showRecallOutcome(ctx, {
 			outcome,
@@ -1369,7 +1432,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				description: "Project scope override, for example maindev; defaults to the current cwd project",
 			})),
 		}),
-		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			const limit = Math.max(1, Math.min(10, Math.trunc(params.limit ?? 10)));
 			const project = typeof params.project === "string" ? params.project.trim() : "";
 			const projectHint = project || basename(ctx.cwd) || "当前项目";
@@ -1386,12 +1449,16 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				ctx.sessionManager.getSessionId(),
 			];
 			if (project) args.push("--project", project);
-			const stopRecallIndicator = startRecallIndicator(ctx, projectHint, params.query);
+			const stopRecallIndicator = startRecallIndicator(ctx, projectHint, params.query, "Esc 中断");
+			// agent 回合内按 Esc → pi abort signal → 同步杀掉检索子进程（130），
+			// 不再挂到 searchTimeoutMs 超时才放行回合中断。
 			const result = await runHub(
 				args,
 				undefined,
 				ctx.cwd,
 				searchTimeoutMs,
+				true,
+				signal,
 			);
 			const parsed = result.code === 0 ? lastJsonLine(result.stdout) : null;
 			const facts = parsed && Array.isArray((parsed as { facts?: unknown }).facts)
@@ -1412,13 +1479,15 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			const context = parsed && typeof (parsed as { context?: unknown }).context === "string"
 				? (parsed as { context: string }).context.trim()
 				: formatFactsDebug(facts, 12000);
-			const outcome = context
-				? "injected"
-				: result.code === 124
-					? "timeout"
-					: result.code === 0
-						? "empty"
-						: "error";
+			const outcome = result.code === 130
+				? "cancelled"
+				: context
+					? "injected"
+					: result.code === 124
+						? "timeout"
+						: result.code === 0
+							? "empty"
+							: "error";
 			stopRecallIndicator();
 			showRecallOutcome(ctx, {
 				outcome,
@@ -1428,7 +1497,10 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				facts,
 				resultFile,
 			});
-			const text = context || "Memory Hub is unavailable or no matching memory was found.";
+			const text = context
+				|| (result.code === 130
+					? "Memory Hub search was cancelled by the user."
+					: "Memory Hub is unavailable or no matching memory was found.");
 			trace("search", {
 				session_id: ctx.sessionManager.getSessionId(),
 				cwd: ctx.cwd,

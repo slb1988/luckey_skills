@@ -33,6 +33,8 @@ const scoreAllZeroMode = process.env.SCORE_ALL_ZERO === "1";
 const extractionBootstrapMode = process.env.EXTRACTION_BOOTSTRAP === "1";
 const skillBootstrapMode = process.env.SKILL_BOOTSTRAP === "1";
 const projectDirectiveMode = process.env.PROJECT_DIRECTIVE === "1";
+const multilinePromptMode = process.env.MULTILINE_PROMPT === "1";
+const recallCancelMode = process.env.RECALL_CANCEL === "1";
 
 writeFileSync(transcriptPath, JSON.stringify({ type: "message", role: "user", text: "hello" }) + "\n");
 
@@ -52,9 +54,11 @@ const selectResolvers = [];
 const widgetCalls = [];
 const statusCalls = [];
 const notifyCalls = [];
+// v25：模拟 pi TUI 的 onTerminalInput 监听注册表，测试用其手动喂按键。
+const terminalInputHandlers = new Set();
 const ctx = {
 	cwd: process.cwd(),
-	hasUI: scoreGateMode || scoreAllZeroMode,
+	hasUI: scoreGateMode || scoreAllZeroMode || recallCancelMode,
 	mode: "tui",
 	ui: {
 		setWidget(key, lines) {
@@ -69,6 +73,10 @@ const ctx = {
 		select(title, options) {
 			selectCalls.push({ title, options });
 			return new Promise((resolveChoice) => selectResolvers.push(resolveChoice));
+		},
+		onTerminalInput(handler) {
+			terminalInputHandlers.add(handler);
+			return () => terminalInputHandlers.delete(handler);
 		},
 	},
 	sessionManager: {
@@ -201,6 +209,87 @@ try {
 		);
 		assert.equal(hookCalls("capture").length, 2, "catch-up enqueue + live enqueue");
 		console.log(JSON.stringify({ ok: true, mode: "genrace", captures: hookCalls("capture").length }));
+	} else if (recallCancelMode) {
+		// v25 取消语义：before_agent_start 的预热检索可被 Esc/Ctrl+C 中断
+		//（fake search 延时 500ms，远晚于取消触发时机；子进程被杀则 fake 不会落
+		// hook-log，hookCalls("search") 恒为 0）；memory_search 工具接 pi abort
+		// signal，Esc 中断 agent 回合时同步杀子进程。
+		await handlers.get("session_start")({}, ctx);
+
+		// 第一轮：Ctrl+C 取消但不吞键（放行给 pi 的 clear/双击退出语义）
+		const ctrlCStartPromise = handlers.get("before_agent_start")(
+			{ prompt: "cancel bootstrap with ctrl+c", systemPrompt: "base-system" },
+			ctx,
+		);
+		await waitFor(
+			() => widgetCalls.some((entry) => entry.key === "memory-hub-recall"),
+			"recall progress widget",
+		);
+		assert.equal(terminalInputHandlers.size, 1, "recall must register exactly one cancel listener");
+		for (const handler of [...terminalInputHandlers]) {
+			assert.equal(handler("a"), undefined, "unrelated keys must pass through");
+			assert.equal(handler("\x03"), undefined, "ctrl+c must pass through to pi (not consumed)");
+		}
+		const ctrlCStart = await ctrlCStartPromise;
+		assert.equal(ctrlCStart, undefined, "cancelled bootstrap must not inject memory");
+		assert.equal(traceEntries("project_bootstrap")[0].outcome, "cancelled");
+		assert.equal(traceEntries("recall_cancel").at(-1).key, "ctrl_c");
+		assert.equal(hookCalls("search").length, 0, "cancelled child must be killed before the fake logs");
+		assert.ok(
+			notifyCalls.some((entry) => /手动跳过/.test(entry.message)),
+			"cancel must notify the manual skip",
+		);
+		assert.ok(
+			statusCalls.some((entry) => String(entry.value).includes("记忆召回已跳过")),
+			"cancel must update the recall status",
+		);
+		assert.equal(terminalInputHandlers.size, 0, "cancel listener must be removed after recall");
+		assert.ok(
+			existsSync(join(stateDir, "pi-bootstrap-done", "sess-e2e.json")),
+			"cancel counts as attempted and must not retry this session",
+		);
+
+		// 第二轮（新 session id）：Esc 取消且吞键（不触发内建 double-esc 选择器）
+		const escCtx = {
+			...ctx,
+			sessionManager: {
+				getSessionId: () => "sess-e2e-esc",
+				getSessionFile: () => transcriptPath,
+			},
+		};
+		const escStartPromise = handlers.get("before_agent_start")(
+			{ prompt: "cancel bootstrap with escape", systemPrompt: "base-system" },
+			escCtx,
+		);
+		await waitFor(() => terminalInputHandlers.size === 1, "second recall listener");
+		for (const handler of [...terminalInputHandlers]) {
+			assert.deepEqual(handler("\x1b"), { consume: true }, "escape must be consumed during recall");
+		}
+		const escStart = await escStartPromise;
+		assert.equal(escStart, undefined, "escape-cancelled bootstrap must not inject memory");
+		assert.equal(traceEntries("project_bootstrap").at(-1).outcome, "cancelled");
+		assert.equal(traceEntries("recall_cancel").at(-1).key, "escape");
+		assert.equal(hookCalls("search").length, 0, "escape-cancelled child must also be killed before logging");
+		assert.equal(terminalInputHandlers.size, 0, "second listener must be removed");
+
+		// memory_search 工具：agent 回合内 Esc → pi abort signal → 杀子进程（130）
+		const searchTool = tools.get("memory_search");
+		assert.ok(searchTool, "memory_search tool must be registered");
+		const toolAbort = new AbortController();
+		const toolPromise = searchTool.execute(
+			"tool-call",
+			{ query: "cancel tool search", limit: 5 },
+			toolAbort.signal,
+			undefined,
+			ctx,
+		);
+		await sleep(50); // 等子进程起来（fake search 延时 500ms 才响应）
+		toolAbort.abort();
+		const toolResult = await toolPromise;
+		assert.equal(toolResult.details.exitCode, 130, "aborted tool search must resolve with 130");
+		assert.match(toolResult.content[0].text, /cancelled/);
+		assert.equal(hookCalls("search").length, 0, "aborted tool child must be killed before logging");
+		console.log(JSON.stringify({ ok: true, mode: "recall-cancel" }));
 	} else {
 		// 主流程：回合级持久化 + 防抖 flush + shutdown 收敛
 		await handlers.get("session_start")({}, ctx);
@@ -234,6 +323,14 @@ try {
 					"skill body",
 					"</skill>",
 					"修改 pi extension",
+				].join("\n")
+				: multilinePromptMode
+				? [
+					"fix [Skill conflicts] D:\\skills\\teamcity-tool\\SKILL.md",
+					"Implicit keys need to be on a single line at line 13, column 1:",
+					"",
+					"  the PLN_FlowAiReview AI-review pipeline (Sync/Unshelve)",
+					"  ^",
 				].join("\n")
 				: [
 			"You are working inside Orca, a multi-agent IDE.",
@@ -297,24 +394,48 @@ try {
 				"injected",
 			);
 			assert.equal(hookCalls("search").length, 1, "first prompt must search project memory once");
-			if (!projectDirectiveMode) {
+			if (!projectDirectiveMode && !multilinePromptMode) {
 				assert.match(
 					hookCalls("search")[0].argv[1],
 					new RegExp(process.cwd().split(/[\\/]/).at(-1)),
 					"bootstrap query must include the cwd project hint",
 				);
 			}
-			assert.match(
-				hookCalls("search")[0].argv[1],
-				/start work with exact question/,
-				"bootstrap query must include the first user prompt",
-			);
-			assert.doesNotMatch(
-				hookCalls("search")[0].argv[1],
-				/Orca|编排说明/,
-				"bootstrap query must exclude the orchestration preamble",
-			);
-			assert.equal(traceEntries("project_bootstrap")[0].prompt_source, "orca_task");
+			if (multilinePromptMode) {
+				const structuredQuery = hookCalls("search")[0].argv[1];
+				assert.match(
+					structuredQuery,
+					/任务: fix \[Skill conflicts\]/,
+					"v23: first line must become the 任务 intent",
+				);
+				assert.match(
+					structuredQuery,
+					/\n上下文:\nImplicit keys need/,
+					"v23: pasted error block must stay in 上下文 behind a newline boundary",
+				);
+				assert.match(
+					structuredQuery,
+					/PLN_FlowAiReview/,
+					"v23: context payload must be preserved for retrieval",
+				);
+				assert.equal(
+					traceEntries("project_bootstrap")[0].prompt_source,
+					"user_prompt",
+				);
+			}
+			if (!multilinePromptMode) {
+				assert.match(
+					hookCalls("search")[0].argv[1],
+					/start work with exact question/,
+					"bootstrap query must include the first user prompt",
+				);
+				assert.doesNotMatch(
+					hookCalls("search")[0].argv[1],
+					/Orca|编排说明/,
+					"bootstrap query must exclude the orchestration preamble",
+				);
+				assert.equal(traceEntries("project_bootstrap")[0].prompt_source, "orca_task");
+			}
 			if (projectDirectiveMode) {
 				const bootstrapSearch = hookCalls("search")[0];
 				assert.deepEqual(
@@ -324,7 +445,7 @@ try {
 					),
 					["--project", "maindev"],
 				);
-				assert.match(bootstrapSearch.argv[1], /^maindev start work/);
+				assert.match(bootstrapSearch.argv[1], /^maindev 任务: start work/);
 				assert.doesNotMatch(bootstrapSearch.argv[1], /project:maindev/);
 				assert.equal(traceEntries("project_bootstrap")[0].project_override, "maindev");
 			}

@@ -5,6 +5,8 @@ v5 语义覆盖：
   before_agent_start 取消 flush、session_shutdown 收敛后最终 capture。
 - catch-up：session_start 扫描遗留 pending marker，补传 + 隔离损坏 marker +
   恰好一次 flush。
+- v25 取消：首轮预热检索可被 Esc/Ctrl+C 中断（杀子进程、outcome=cancelled、
+  不注入不重试）；memory_search 工具接 pi abort signal。
 
 需要 node（>=22.6，原生 type stripping）可执行；没有 node 的机器跳过。
 """
@@ -133,6 +135,16 @@ class PiExtensionE2ETest(unittest.TestCase):
             self.assertEqual(summary["flushes"], 3)
             self.assertEqual(summary["captures"], 4)
 
+    def test_recall_can_be_cancelled_by_escape_or_ctrl_c(self):
+        # v25：首轮预热 Esc/Ctrl+C 可中断（取消即杀子进程，不注入、本会话不重试）；
+        # memory_search 工具走 pi abort signal，Esc 中断回合时同步杀子进程。
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(
+                Path(directory), {"RECALL_CANCEL": "1", "FAKE_SEARCH_DELAY_MS": "500"}
+            )
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "recall-cancel")
+
     def test_project_bootstrap_timeout_fails_open_without_retry(self):
         with tempfile.TemporaryDirectory() as directory:
             summary = self.run_driver(
@@ -173,6 +185,12 @@ class PiExtensionE2ETest(unittest.TestCase):
     def test_project_bootstrap_accepts_leading_project_directive(self):
         with tempfile.TemporaryDirectory() as directory:
             summary = self.run_driver(Path(directory), {"PROJECT_DIRECTIVE": "1"})
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "main")
+
+    def test_project_bootstrap_structures_multiline_prompt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(Path(directory), {"MULTILINE_PROMPT": "1"})
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "main")
 

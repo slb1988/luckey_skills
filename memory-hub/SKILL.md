@@ -62,13 +62,19 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 
 除健康检查外，请求需三个身份头 `X-Agent-Id` / `X-Project-Id` / `X-User-Id`（生产另需 `Authorization: Bearer <MEMORY_HUB_API_KEY>`）；group_id 由服务端按身份计算（`global` / `user:{uid}` / `project:{pid}` / `agent:{aid}`），搜索自动覆盖可读的四个 group，客户端不传 `group_ids`。写 global 需 `X-Role: trusted_service/admin`，普通 agent 不要设。
 
-**检索先选对 project**（`GET /v1/projects` 或 [projects.md](references/projects.md)）；空结果先换其他 project 重试，都不命中再认为"没有这条记忆"（scope 隔离是设计行为，不是 bug）；不要绕过 Hub 直查 Graphiti；`GRAPHITI_UNAVAILABLE` 才是后端故障。写入流程、索引状态、错误码、curl → [api-notes.md](references/api-notes.md)。
+**检索先选对 project**（`GET /v1/projects` 或 [projects.md](references/projects.md)）；空结果先换其他 project 重试，都不命中再认为"没有这条记忆"（scope 隔离是设计行为，不是 bug）；不要绕过 Hub 直查 Graphiti；`GRAPHITI_UNAVAILABLE` 才是后端故障。hook 实际走 `/v1/memories/search-v2`（LLM 质量门禁、fail-closed），v1 纯 FTS 结果与 hook 召回不可直接对比。写入流程、索引状态、错误码、curl → [api-notes.md](references/api-notes.md)。
+
+<memory category="troubleshooting">
+Dashboard 创建/修改用户报 422（非 400）= Pydantic 请求模型在域逻辑之前拒绝，先查 role 的 `Literal[...]`。role 定义重复散落在四处，新增 role 必须全部同步改：`src/memory_hub/api/schemas.py`（Hub 数据面）、`backend/dashboard_backend/routers.py` 的 `AdminCreateUserBody/AdminUpdateUserBody`（管理面 `:9288/api/v1/admin/users`）、`application/accounts.py` 域校验（`role not in {...}`）、frontend `api/types.ts`——漏 dashboard_backend 那处就是 422。guest=只读角色：禁写数据面、不能签发 agent token。
+</memory>
 
 ## Hook 集成与批量归档
 
 三端（Claude Code / Codex / Pi）共用 `scripts/memory_hook.py`（仅标准库）：capture 先落本地 spool（fail-open 不丢）再上传；首轮自动召回 + 按需检索（Pi 用 `memory_search`，Claude/Codex 用 `search` CLI）。安装、check、身份、环境变量、Pi 扩展机制 → [agent-integration.md](references/agent-integration.md)。**改 `assets/` 下的安装副本（pi 扩展模板、project-aliases.json）必须递增版本号并重跑 install**。
 
 Pi 扩展 v22+：用户用 `/skill:name` 显式指定 skill 的首轮 prompt **跳过自动预热检索**——pi 会把 skill 展开为 `<skill name="…" location="…">` 块注入 prompt 开头（裸 `/skill:` 未展开命令作兜底匹配），扩展检测到即跳过，trace outcome 记 `skipped_skill_invocation` 并照常写 bootstrap-done 标记（同 session 后续不补检索）。排查「首轮预热没跑」先认这个 outcome，是设计行为不是故障；`memory_search` 工具不受影响，skill 内仍可主动检索。
+
+Pi 扩展 v25+：首轮预热（“正在检索并审核历史记忆…” widget）与 `memory_search` 检索**可按 Esc/Ctrl+C 中断**——取消即杀检索子进程、本轮不注入、agent 立即开始；trace outcome 记 `cancelled`，本会话不重试。Ctrl+C 只取消检索并照常透传给 pi（连按两次仍退出 pi）。
 
 批量归档历史 session 用 `scripts/upload_sessions.py`（漏传检测用 `backfill_missed_pi_sessions.py`），**执行前必须先读 [upload-sessions.md](references/upload-sessions.md)**。两条铁律（用户定版，违反被纠正过）：① 默认 `--hook-namespace` 双资产一起传；② project 归属先 `--dry-run` 出清单给用户 review，确认后才执行。
 
