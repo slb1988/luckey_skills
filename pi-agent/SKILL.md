@@ -34,6 +34,10 @@ description: Pi agent（pi，@earendil-works 的 coding agent）使用与排障�
 a2a-mentions 扩展的平台 token 存在全局文件 `~/.pi/agent/a2a-mentions.json`（格式 `{baseUrl, token, expiresAt?}`），不是按项目存的——ObsidianVault 与 MainDev 共用一份，写一次两边生效。`loadTokenStore` 两条非显然语义：(1) 只在 `expiresAt` 为 number 时判过期，**省略该字段即永久 token**（平台已支持签发永久 token，用户规则：本地一律按永久存，不写 expiresAt）；(2) 故意不校验 baseUrl 匹配（两个项目默认 baseUrl 不同：10.77.77.4:5000 vs 192.168.2.13:5000，严格匹配会互相踢登录）；同一 token 两个入口都认。改 token 后当前 session 需 `/a2a-reload` 或重开才生效；真过期会暴露为 HTTP 401 / status.code=101。
 </memory>
 
+<memory category="troubleshooting">
+skill-gateway「skill 未命中/未匹配到」且耗时显示 (0.0s)：先查项目根有没有 `SKILL.index.json`。`serverSelect()` 第一步就是读 `<项目根>/SKILL.index.json`，文件缺失时直接 return null，**根本不发网络请求**，所以耗时恒为 0。判据看审计日志 `.pi/extensions/skill-gateway/.audit/skill-gateway.jsonl` 里是否每轮都是 `index_missing` 事件。索引由生成器产出（MainDev 用 `.claude/build-index-unreal.js` + `skill_index_gen.bat`，v3.0.0 格式；ObsidianVault 长期没有生成器，gateway 从启用起一直空转）。另外两项目的 `.pi/extensions/` 会漂移：同名扩展（skill-gateway、dynamic-workflows、auto-skill、a2a-mentions、plan-mode、team-profile）ObsidianVault 曾落后 MainDev 一个多月；从 MainDev 覆盖同步时**保留 ObsidianVault 独有的 `workspace-routing`**。
+</memory>
+
 ## 快速排查
 
 - 扩展加载失败，先 `pi -ne`（无扩展启动）确认是扩展问题还是 pi 本身问题。

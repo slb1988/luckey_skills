@@ -275,6 +275,17 @@ setsid .venv/bin/memory-hub serve > data/memory-hub.log 2>&1 < /dev/null &
 
 > 原始 session JSON 都在 `data/session-files/objects/`（按内容 SHA-256 去重），记忆/版本/幂等/outbox 元数据在 `data/memory-hub.sqlite3`。两者都要备份。
 
+## SCHEMA_VERSION 迁移发布的额外门禁（用户定版）
+
+涉及 SCHEMA_VERSION bump 的发布，在通用「更新发布」流程上固定加三步；全程禁 delete/reingest/reset/改配置：
+
+1. **pull 前先备份 DB**：`cp data/memory-hub.sqlite3 data/memory-hub.sqlite3.bak.$(date +%F_%H%M%S)`，回执只报备份路径和大小。
+2. **测试门禁**：`.venv/bin/pytest tests/unit/test_retrieval_fts.py tests/unit/test_retrieval_judge.py tests/unit/test_review_llm_client.py tests/unit/test_database_migrations.py -q` + `.venv/bin/python -m compileall -q src tests scripts`；任一失败即停，不进入重启。
+   - NAS 环境注记：裸 `.venv/bin/pytest` 需 `PYTHONPATH=.` 才能 import 项目包；NAS `/tmp` 是 64MB tmpfs 易满（sqlite 报 disk 类错误），pytest 加 `--basetemp=<大容量路径>`——**适用于 NAS 上一切 pytest 运行、不限迁移门禁**（2026-09 一次普通增量发布门禁同样两连失败，报错 `database or disk is full` 与代码无关，清 /tmp 残留 + `--basetemp`/TMPDIR 指大盘后稳定全绿）；graphiti overlay 有变更时 compileall 目标追加 `deploy/graphiti-0.22.0`。pytest console script（`.venv/bin/pytest`）曾出现 collection quirk，遇到时改用 `.venv/bin/python -m pytest`（ce3efee 发布实证，测试本身全绿）。
+3. **重启后只读验证迁移生效**：`schema_migrations` 表最新版本 == 目标版本、新增列存在（如 v7 的 `retrieval_judgments.intent`），再跑 `health/live` + `health/ready`。
+
+**验收失败只完整回报证据，不回滚、不自行改代码/配置后继续**——修复/跳过由用户决策。
+
 ## 排障
 
 | 症状 | 排查 |
@@ -354,6 +365,8 @@ Hub 投递 Graphiti 前会过一道内容清洗层 `strip_archival_boilerplate()
 
 重建某 group 的图谱映射用服务端仓库 `scripts/reingest_group.py <group> [--noise-only] [--dry-run|--yes]`：删 episode（remove_episode 级联删派生边和独占实体）后把 SQLite 原记忆重入 outbox，episode uuid == memory_id 溯源不变。`--noise-only` 经 cypher-ro 反查命中噪声实体的 episode 定点重建（大 group 必用）。只处理 Hub 有记录的 episode，Graphiti 独有的只报告不删；级联删除会漏孤儿实体，重建后需按模式补一次终扫。事故全文：memory-center `incidents/2026-08-20-entity-extraction-noise.md`。
 
+存量 exact 重复回收用 `scripts/dedup_exact_memories.py`（默认 dry-run 出 JSON 报告，`--yes --limit N` 才实际分批执行）：判重规则与写入侧 exact 门禁一致（同 tenant/user/物理 group、content_hash+正文相等，**不跨物理 group 折叠**）；keeper 选 indexed 优先（图谱零抖动），其余软删 + 关审核行 + 撤 outbox + 退役关系账本 + 删 episode（失败转 graphiti_cleanup 表）+ tombstone 审计，软合并可 unmerge 反转；幂等可重跑。为 2026-09-01 exact 门禁（db0da36）上线前的 651 条存量冗余而写，新部署后先 dry-run 看报告再 `--yes --limit 5` 小批验证。
+
 ## 观测面板（dashboard）部署
 
 面板是独立服务（`backend/` + `frontend/dist/`），与主服务分离部署。`frontend/dist` **已不纳入 git 追踪**（自 commit 2c3b935），NAS 上有 node v22（`~/.local/bin/node`），需在 NAS 本地构建。
@@ -388,7 +401,7 @@ curl -sS http://127.0.0.1:9288/api/v1/health/live
 
 ```bash
 cd /share/Container/memory-hub
-.venv/bin/pytest
+.venv/bin/pytest                # NAS 上需加 --basetemp=<大容量路径>（/tmp 仅 64MB tmpfs，见上文门禁注记）
 .venv/bin/python -m compileall -q src tests
 ```
 

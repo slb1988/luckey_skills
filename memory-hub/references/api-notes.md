@@ -18,8 +18,22 @@
 | GET | `/v1/sessions/{session_id}` / `/versions/{v}` | 查询 latest / 确定版本 |
 | POST | `/v1/memories` | 写入精炼记忆（返回 202，初始 pending） |
 | GET | `/v1/memories/{memory_id}` | 查询索引状态 |
-| POST | `/v1/memories/search` | 检索记忆 |
+| POST | `/v1/memories/search` | 检索记忆（v1，纯 FTS，无质量门禁） |
+| POST | `/v1/memories/search-v2` | 检索记忆（v2，LLM 质量门禁；三端 hook 实际走这个） |
 | GET | `/v1/projects` | 列出已知 project（含 memory/session 计数，用于选择检索 scope） |
+
+## 检索：v2 与 v1 的差异（实测）
+
+三端 hook（memory_hook.py / Pi 扩展预热与 memory_search）实际打的是 `POST /v1/memories/search-v2`，
+schema `memory-search/2`，请求体固定带 `quality_mode=llm` + `session_view=captured` + `scope_mode=current_project`，
+LLM 判分读超时 120s。与 v1 的关键差异：
+
+- **质量门禁**：v2 用 LLM 对候选逐条判分（fail-closed），只返回过门禁的结果，并带审计元数据
+  （`retrieval_id` / `policy_version` / quality 摘要：候选数→保留数、min_rating）；v1 是纯 FTS，**无门禁**，返回原始候选。
+- **回退方向只有一条路**：仅 v2 返回 404 才回退 v1；**503 / 坏响应绝不回退**（fail-closed，错误原样透传调用方）。
+- **结果不可直接对比**：v1 的输出是未过 LLM 门禁的原始 FTS 结果，跟 hook 预热/召回注入的内容是两条链路。
+  排查「检索测试结果跟 hook 召回对不上」时，先确认对比的客户端走的是 v2——dashboard 检索测试的后端代理
+  （clients.py）2026-09 起已对齐 v2（若 dashboard 仍返回无门禁结果，先查 NAS 部署是否包含该修复）。
 
 ## 完整写入流程（顺序固定）
 

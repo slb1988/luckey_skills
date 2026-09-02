@@ -190,6 +190,22 @@ flask 日志文件名用了 `$$`，所以日志文件和实际 python PID 不对
 
 **安全做法**：用 `pgrep -f "manage.py runserver"` 找出真实 Python 进程后再 kill，同时处理旧 PID 文件中残留的无关进程。
 
+### 陷阱 5：部署 kill 撞车 AI review 代提交窗口 → CL 署名 AutoServer、review 永久卡 approved
+
+AI review 的代提交**不是原子的**。approve 落库后 `_trigger_auto_submit` → `submit_shelved_cl` 依次执行：
+
+1. `p4 change -f -U AutoServer <shelved_cl>`（署名改成服务账号，P4 trigger 回调走服务账号 bypass）
+2. `p4 submit -e`（服务端直落 shelf 内容，**不经 workspace 重写**；CL rename 为新号，此时署名=AutoServer）
+3. `p4 change -f` 恢复作者署名 + DB 推进（`status=submitted`、写新 CL 号、补 `cl_submitted` 活动）
+
+**步骤 2→3 之间有秒级窗口**。deploy.sh / kill.sh 的 `kill -9` 若命中此窗口（真实案例：CL 128399，2026-09-02，部署一个改 ai_review 代码的 CL 时撞车），步骤 3 全部丢失 → CL 永久署名 AutoServer、review 永久卡 `approved + 旧 shelved CL 号`。被杀进程无 Traceback、无 shutdown 日志，排查时"日志突然中断 + 进程号变了"就是外部 kill，别误判成代码异常。
+
+**不会自愈也不会被误打回**：`submit_retry_sweep` 只重试已有失败活动（n>0）的 review，n==0 直接 `continue`。
+
+- **预防**：部署前确认没有刚 approve 的 review（代提交在 approve 后秒级触发），改 ai_review 相关代码时尤其注意。
+- **修复**：`p4 change -f <new_cl>` 把 User 改回作者（需 super）；生产库 SQL 把 review 行改为 `cl=<new_cl>, cl_type='submitted', status='submitted'` 并补一条 `cl_submitted` 活动。
+- **识别类似事故**：CL 提交人是 AutoServer 但内容不像平台行为 → 基本是步骤 3 丢失；"CL 描述与文件清单不符 / BOM 被改"则通常是作者 shelve 时打的大包，`submit -e` 原样落 shelf 内容，平台不做合并或裁剪。
+
 ## 注意事项
 
 - **P4 字符集**：服务器为 Unicode 模式，必须设置 `P4CHARSET=utf8`，否则 sync 会失败

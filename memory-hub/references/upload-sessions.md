@@ -37,6 +37,13 @@ slug 方案各家不同：`E:\sununity` 在 Claude 是 `E--sununity`，在 Pi �
 原始 jsonl 不行）计算 SHA-256；上传前比对远端 latest 版本，一致则 `skipped`；所有写操作带确定性
 `Idempotency-Key`，中断可直接重跑。内容变化时自动 append 新版本。
 
+**幂等只覆盖「同一归档文档重传」，不覆盖「不同 session 蒸出相同内容」**（2026-09-01 审计）：
+`manual-upload-v2:*` source 曾占全量 memory 70.6%（3036/4302），是库内 exact 重复与审核队列
+洪峰的最大来源。写前 exact 查重已上线（db0da36，同 tenant/user/group/正文 → 202 复用不再
+重复入库，存量冗余用 `scripts/dedup_exact_memories.py` 回收），但审核队列也同时改为严格
+串行（每 tick 强制等待）——大批量归档仍应分批限速、避开 hook 归档高峰，否则队列消化
+明显变慢（设计行为，不是 worker 卡死）。
+
 ## project 归属与本机映射
 
 本机 project 归属是**机器级映射（字典）**，写在 state dir 的 `project-aliases.local.json`（

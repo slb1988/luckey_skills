@@ -130,6 +130,9 @@ Pi memory_search 工具 / Claude·Codex memory_hook.py search CLI
 3. **Neo4j Community 无 RBAC**：只读强制完全依赖 cypher-ro 网关；别外发任何自建账号。
 4. **审核预览是近似**：Graphiti 真实抽取在其内部，hub 侧关卡 2 只能逼近；Phase 6「入库后校对」未做。
 5. **Graphiti ingest 串行瓶颈**：大批量补传需数小时排空（650 条 ≈ 7.5-8h），worker 并发化未做。
+6. ~~写前无查重/novelty gate~~ **已修复（db0da36）**：写入口 exact 去重上线——同 tenant/user/物理 group 且 content_hash+正文相等 → 202 复用既有 memory，记 `memory_admission_events` 活 provenance（删 session 时记忆转交最早存活来源）；高思考演进分析（novel/evolution/duplicate）前移为批准前门禁，duplicate/failed 需人工二次确认、pending fail-closed，off 模式写入时/intake 批准时/extraction 批准前三条路径都触发。判重不跨物理 group 折叠。2026-09-01 审计存量 110 组/761 行 exact 重复（多余 651 条，最大单组 `project:maindev` n=70）由 `scripts/dedup_exact_memories.py` 分批回收（见 deploy.md「内容清洗与图谱重建」）。
+7. ~~auto 审核无节流~~ **已修复（db0da36）**：审核队列真正串行化——跨进程 `review_queue_leases` 单槽 + 行级 `triage_lease_until`/`preview_lease_until` + 每 tick 强制等待（batch=1 但零等待等于伪装串行，已被排除）。效果：洪峰 draining 变慢是设计行为，dashboard 上队列消化速度下降勿误判为 worker 卡死。
+8. ~~关系演化分析滞后于入图~~ **已修复（db0da36）**：演进分析不再等 indexed 入图后才跑，已前移为写入/批准链路的门禁（见第 6 条），仅-CONFIRMS 判定可在入图前拦截。
 
 ## 9. 文档地图
 

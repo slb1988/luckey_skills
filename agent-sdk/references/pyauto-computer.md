@@ -34,7 +34,11 @@
   Linux systemd --user + Linger 检查 / macOS LaunchAgent）拉起 `pyauto-computer supervisor`，
   supervisor 按各 agent 的 `--autostart` 标记拉起并守护——新增 agent 不再动系统自启项。
   Windows 上 schtasks 被拒（令牌未提权/策略限制）时的等效替代：Startup 文件夹放一个指向
-  `~/.local/bin/pyauto-computer.exe supervisor` 的快捷方式。
+  `~/.local/bin/pyauto-computer.exe supervisor` 的快捷方式；要完全无窗口改放 VBS
+  （`CreateObject("Wscript.Shell").Run """...pyauto-computer.exe"" supervisor", 0, False`）——
+  快捷方式登录时会闪现控制台窗口。Sun 本机（2026-08）实测手动 schtasks 与 PowerShell
+  `Register-ScheduledTask` 提权执行同样 Access denied（域策略级限制 Task Scheduler，不用再试），
+  VBS 方案无需管理员且已验证完整链路：登录 → supervisor → 按 autostart 拉起受管 agent。
 
 ## 跨网段 / 受限网络接入（0.4.1 QNAP NAS 实测）
 
@@ -90,3 +94,5 @@ curl -X POST http://<本机IP>:<port>/ -H "A2A-Version: 1.0" -H "Content-Type: a
 |---|---|---|---|---|---|
 | WinBuilder3 | #4 | winbuilder3-maindev（agent_id=32） | 9100 | MainDev 仓库根 | 装机细节见 `.team/win-builder/project_pyauto_computer_maindev_agent.md` |
 | QNAP NAS453Dmini | #5 | nas | 9100 | `/share/CACHEDEV1_DATA/homes/slb1988` | 跨网段（经 10.77.77.4 访问平台），`PYAUTO_PLATFORM_URL` 已写入 `~/.profile`；runtime=pi，平台未配 relay 走本机总线 |
+| Sun（admin 工作机） | #2 | sunlaibing（agent_id=30，runtime=pi） | 9100 | `C:\Users\admin` | autostart=on |
+| Sun（admin 工作机） | #2 | sun_maindev（runtime=pi） | 9101 | `D:\MainDev` | autostart=on；本机开机自启 = Startup 文件夹 `pyauto-supervisor.vbs`（域策略拒 schtasks，见上「自启模型」） |

@@ -135,6 +135,8 @@ volumes:
 
 > 修改补丁后必须 `docker compose restart graphiti`（bind mount 内容变化不会触发 recreate，需重启进程重新 import）。
 
+> 2026-09-01 起 prod graphiti 追加挂载 memory-relations overlay（`routers/retrieve.py` + dto retrieve.py，即 POST /memory-relations 写端点）；**overlay 源码唯一出处是 memory-hub 仓库 `deploy/graphiti-0.22.0/`**，先同步到本目录生产 patch 路径再进容器。新增挂载行属于 compose 变更，必须 `docker compose up -d graphiti` recreate（`restart` 不重新读 compose，本次部署实测如此）。candidate 实验实例（:8015，独立 DB）此前挂过 overlay 副本，**不得**给它加写端点。
+
 ## 只读 Cypher 网关（cypher-ro，端口 8006）
 
 给外部/dashboard 提供只读查图能力。**背景**：Neo4j Community 版不支持 RBAC（`GRANT ROLE` 是 Enterprise 功能，`SHOW ROLES`/`GRANT` 均报 `Unsupported administration command`），任何 `CREATE USER` 出来的账号都是**全权限**（实测可 CREATE/DELETE）——所以「建只读账号直连 7687」在社区版做不到，改用本网关做只读强制。
@@ -160,6 +162,7 @@ curl -X POST http://10.77.77.6:8006/query -H "Authorization: Bearer $TOKEN" \
 
 ## 关键坑位
 
+- **纠正类记忆不会自动替代旧事实，检索会双口径命中**（2026-09-01 只读核查实测确认）：Graphiti **没有 episode 级替代语义**，也没有 SUPERSEDES/CONTRADICTS 等显式关系类型——纠正完全依赖边级 `invalid_at`，而置位前提是 EdgeDuplicate 匹配成功。实测失败链有三环：① 实体 resolve 只挂 `IS_DUPLICATE_OF` 提示边**不做 merge**，同义实体长期并存（如 `pyAutomation backend`/`pyautomation`、`Flask-Migrate 迁移流程`/`flask db 迁移流程`），旧边因此进不了新边的 EdgeDuplicate 候选集；② 互相纠正的一对边**关系类型名不同**（`USES_CONVENTION` vs `FOLLOWS_CONVENTION`）、端点实体全不同、fact 表述差异大；③ 三环全错配 → 旧边 `invalid_at`/`expired_at` 保持 NULL（对照：同 group 历史上有 749 条边带 `invalid_at`，机制本身可用，是本次匹配失败而非功能缺失）。后果：同一事实的新旧写法在 `/search` 同时命中。消除双口径只能走写入侧（`DELETE /episode/{uuid}` 重投，或手动置 `invalid_at`），无法指望自动判定。核查手法：用 cypher-ro (8006) 按 `MATCH (e:Episodic {uuid:$u})-[:MENTIONS]->(n:Entity)` + `MATCH ()-[r:RELATES_TO]->() WHERE $u IN r.episodes` 查边端点/`invalid_at`。
 - **删 episode 的官方级联语义（重建图谱的基础）**：`DELETE /episode/{uuid}`（`remove_episode`）会连带删除：① 该 episode 创建的边（`edge.episodes[0] == uuid`）；② 只被该 episode 提及的实体节点；③ episode 本体。被多个 episode 共享的实体/边会保留。因此「删 episode → 重投同一内容」可以干净重建某条记忆的派生映射，配合 episode uuid == Memory ID 可实现整组重放（脚本见 memory-hub `scripts/reingest_group.py`）。**注意级联实测不是 100% 可靠**（出现过 MENTIONS 已空但实体残留的孤儿节点），重建后必须补一次模式扫描清扫。
 - **Neo4j Community 版没有 RBAC**：`GRANT ROLE` 等管理命令报 `Unsupported administration command`；`CREATE USER` 可执行但新账号是全权限（实测可写可删），**绝不能**作为「只读账号」对外发放。外部只读访问走 cypher-ro 网关（8006）。
 - **Neo4j 管理员用户名必须是 `neo4j`**。`NEO4J_AUTH` 只允许设置 neo4j 的密码，写其他用户名报 `Invalid admin username, it must be neo4j.`。
@@ -267,4 +270,5 @@ docker compose stop neo4j && tar -czf backup/neo4j-$(date +%F).tar.gz data/neo4j
 
 - `.env` 含真实密钥（两把阿里云 key、Neo4j 密码），不要在对话中回显完整内容。
 - 父目录 `/share/Container/memory_center/` 下旧的 `compose.yml`/`.env` 是历史草稿，正式配置在 `memory-center/` 子目录内。
+- `memory-center/` 目录**不是 git 仓库**：`compose.yml`/`patches/` 改动无版本记录，改前先备份到带时间戳目录（如 `patches/backup-<ts>/`）。
 - 修改 `compose.yml` 或 `.env` 需 **`docker compose up -d`**（recreate 容器才重新注入环境变量；`restart` 只重启进程、env 不变）；修改 `patches/` 需 `docker compose restart graphiti`（bind mount 内容变化需重启进程重新 import）。

@@ -27,6 +27,12 @@
 | `FAIL` | 重新触发：`POST .../chunks {"document_ids": [...]}`，建议每批 ≤32 篇、批间隔 ~1s，避免瞬时压满任务队列 |
 | `DONE` 且 chunk=0 | 多为内容为空或解析无产出（如空 Excel）；重触发无害但通常仍是 0，重试后仍失败的应单独列查文件本身 |
 
+**FAIL 要按 `progress_msg` 二次分诊，格式类错误重触发必然复发**（2026-08-29 实测 63 篇 FAIL 中 59 篇属此类）：
+
+- `Duplicate column names detected`：xlsx 合并单元格/重复列名，table 解析器硬限制。处置 = 先用单文档端点把该篇改 `chunk_method=naive` 再重新触发解析
+- `field name cannot contain only whitespace`：同为内容格式问题，重试无效
+- 大 xlsx（单表上千行）还容易长成 RUNNING 僵尸并拖慢新文档解析队列，批量处置时优先清掉
+
 ## 更新文档分块方法
 
 批量端点不支持 `chunk_method` 更新：

@@ -139,6 +139,20 @@ rating/rationale/evidence/conflict 与人工 judgment 的差异，同时报告 t
 定版机制：仅候选池含 `correction_hint` 时，用 thinking-disabled、max 500 output tokens 的 resolver 比较原 query、纠正原句与词面 top-3 alternatives，输出 resolved intent / correction rank / superseded ranks；corrected term 必须实际存在于 query，非法或不可用即 503 fail-closed。主 judge 改用 resolved intent，服务端确定性把纠正 rank 置 3、被替代 rank 置 0，并把原文 evidence、替代 conflict 与最终 intent 落库。该 case 两条 memory 都已 indexed 且纠正正文完整，FTS 原始 rank≈12、rescue 后 judge rank=9，所以完整故障链是“先取不到、后判不对”，不是后来会话未学习。本机 Pi 同链路 27.1 秒生成 `20260831T164115Z-smoke-flask-migrate-judge12-01a058b1-f8f5-76f6-bc30-750c5256e495.md`，摘要“Flask模型更新与数据库迁移”，含纠正 ID、不含旧错 ID。验收不得只抽一次成功样本，至少同 query 连跑 5 次并核对两条 judgment。
 </memory>
 
+## f9ca0bc（schema v8 写入侧事实演进关系）验收：当前问法通过，历史问法召回未证实（2026-09-01 实证）
+
+<memory category="troubleshooting">
+**commit f9ca0bc（SCHEMA 7→8：memory_relation_analyses + memory_relations 两表，graphiti overlay 新增 POST /memory-relations 写端点）生产部署验收通过，但「历史问法仍可查回旧 memory」未证实，且 resolver 有偶发 503**（2026-09-01 NAS 实证）：全量 pytest 247 passed、schema_migrations=8、pilot 关系分析 51s completed（SUPERSEDES 边真实落入 Neo4j 两端 Episodic 之间，`graphiti.add_memory_relation` outbox completed；高思考单次分析可到 180s，轮询不要提前判超时）。overlay 源码唯一出处是 memory-hub 仓库 `deploy/graphiti-0.22.0/routers/retrieve.py` + `dto/retrieve.py`，同步到 memory-center 生产 patch 路径后 bind mount 进 prod graphiti(:8005)；candidate 实例(:8015)已确认**无**该写端点，不要给它加。新验收向量（当前问法）：`project=admin_sun_depot_7184, query='admin_sun_depot_7184 pyautomation 后端现在应该如何更新 model 数值？', quality_mode=llm, limit=10` → HTTP 200、kept=1 仅新 memory `01a0576b-2a32-…`、旧 `…2674…` rank2 rating=0 且 conflict 标注被显式替代、policy 含 `judge13-evolution`。**两条已知未裁决缺陷**：① 历史问法（'以前错误的 model 数值更新做法是什么？'）下旧 memory 未进 FTS top-30 候选池、resolver 把历史意图改写为当前意图——SUPERSEDES 后旧 memory 物理保留完好（status=indexed、Neo4j 节点与入边均在），按历史意图的检索召回**当时未被证实**——**已于 ce3efee 部署验收（2026-09）闭环证实**：同一历史问法 HTTP 200，旧 memory `…2674…` rank 1（rating 3）保留、纠正 `…2a32…` rank 2，历史意图召回正常；② resolver 偶发 503 `RETRIEVAL_CORRECTION_RESOLVER_INVALID_RESPONSE`（fail-closed），重试即恢复，属已知抖动不是部署回归。
+</memory>
+
+## ce3efee 验收：known-good 向量 rank-1 断言在 quality_mode=llm 下天然抖动（2026-09 实证）
+
+<memory category="troubleshooting">
+**known-good 检索验收不要断言「期望 memory 排第 1」，只断言 presence + HTTP 200 + attempts=1 + 零 resolver 错误**（ce3efee 部署验收实证）：maindev / `SyncStaticMeshAssetMetaDT` / limit=10 单次，期望 memory `01a043eb-b994-7ecb-bd36-49aec0e282aa` 在场但 rank 2——judge 给竞争候选 rating=3、期望 rating=2，纯 LLM 排序波动，HTTP 200 且无任何错误码。同批 62 条 retrieval_judgments 全 completed、零 `RETRIEVAL_CORRECTION_RESOLVER_INVALID_RESPONSE`/unparseable resolver 失败（此前 f9ca0bc 记的偶发 resolver 503 本次零复现，「已知抖动非回归」结论不变）。rank-1 未达不是部署回归、不构成回滚依据；对照纠错向量（5/5 通过）与 known-good 的 attempts=1（未触发 resolver）即可区分 judge 排序抖动与真实检索故障。
+
+**事后根因诊断（2026-09-01 只读专项）把「纯排序波动」细化为「裸标识符 query 歧义」**：该 retrieval 的 FTS BM25 期望 8.573 > 竞争 7.033、fusion RRF 也第一——检索器始终排对，是 judge13 对裸工具名 query 认为「工具概览」memory 更贴合意图（rating 3 vs 期望 2），属可辩护的意图歧义、不是 judge 错误；同一 project 换 answer-level 问法「SyncStaticMeshAssetMetaDT 删除了多少行，最终还剩多少行？」连跑 3 次 quality_mode=llm，3/3 期望 rating=3 排第 1、竞争者 rating=1 被过滤（单次 6.2–7.3s）。**rating 顺序/rank-1 类断言只对 answer-level 自然语言问法有效；裸标识符 query 只断言 presence**。两候选关系为 complementary（各有独有内容），非 duplicate。
+</memory>
+
 ## 候选 K 离线门禁
 
 修改服务端候选上限前，必须用现网完整返回做离线前缀模拟，不要反复部署试阈值：
@@ -154,3 +168,15 @@ K=3 定版证据：三组 StrongHit、AnswerHit、expected Recall@3 均为 1.0�
 0.25/0.267/0.20 降至 0.208/0.167/0.167，平均候选约减少 31%。K=1/2 会让 admin 或 maindev
 丢完整答案，因此不准在现有证据上进一步收紧；允许 1–2 条或空结果必须先积累单独的 no-answer
 标注集。
+
+## 写侧关系分析候选 K（memory_relation_analyses）前缀统计
+
+<memory category="common-patterns">
+**写侧关系分析的 candidate K=10 不要凭直觉下调——现网前缀统计（2026-09-01，ce3efee 后生产库临时副本只读聚合 result_json）显示约 1/5 关系边来自 target_rank>3**：69 条 completed analyses / 73 条 relations，50/69（72%）跑在 candidate_count=10；target_rank >3 有 14/73（19.2%）、>6 有 5/73（6.8%）、>8 有 3/73（4.1%）；SUPERSEDES（n=11，stale-fact 替代这个最关键类别）>3 有 2 条、>6 有 1 条，最远落在 rank 10。K 从 10 砍到 6 会损失 ~7% 关系边且恰好牺牲 SUPERSEDES 长尾，当前证据不支持收紧；要调 K 必须先重跑同一聚合确认长尾占比已下降，不要部署试阈值。
+</memory>
+
+## 写侧关系分析 excerpt 预算定论：维持 new=6000 / candidate=2400，自适应分档已被离线模拟否决（2026-09 实证）
+
+<memory category="common-patterns">
+**memory evolution 写侧 excerpt 预算（新 memory 6000 字符、每个 candidate 2400 字符）已实证 100% 保留全部 accepted 关系证据，不要收紧**（2026-09 ce3efee 生产库临时副本只读审计：67 completed analyses / 73 relations，基线 73/73 new+old evidence 全保留）。三档自适应/收紧方案全部不达标：P1 保守分档（6000；rank1-3=2400、4-6=1800、7-10=1400）保留 100% 但总 excerpt 字符仅省 8.1%（p50 6.4% / p95 13.8%）——**多数 distilled_content 本就短于 cap，按 rank 收紧几乎咬不到字符**；P2 中度（5000；2000/1600/1200）省 12.3% 但丢 3 条关系证据、含 1 条 SUPERSEDES；P3 统一（5000；全 1800）丢 2 条。丢失全部是 old_evidence 落在更紧的 candidate 摘要之外（rank-1 与 rank-10 候选）。无方案同时满足 100% 保留 + ≥15% 节省，结论：保持 6000/2400；将来要重提收紧，必须先重跑同一离线模拟证明 distilled_content 长度分布已变。审计方法两条铁律：① 证据校验必须直接复用服务端 `memory_hub.application.retrieval.memory_excerpt` 原函数与 `parse_memory_evolution` 的 normalization/ellipsis 语义，自写近似会误判保留率；② 节省估算必须逐 candidate 重算实际摘要长度，禁止用 cap 直接相乘。写侧成本规模参考（45 条 organic post-deploy analyses）：candidate 来源 fts-only 236 / fts+graph 101 / graph-only 77 / recency-only 0，candidate_count p50/p95=10，prompt_chars p50≈18.8k / p95≈23.1k，input_tokens p50≈6.2k / p95≈8.6k，单次分析延迟 p50 26s / p95 76s（轮询超时按此留余量）。
+</memory>
