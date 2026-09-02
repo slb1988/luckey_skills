@@ -229,7 +229,8 @@ v12-v17 的玩家评分 UI、`pi-recall-scores.jsonl` 和 feedback 上报路径�
 `outcome=cancelled` 立即放行 agent 启动，且写入 bootstrap-done 标记（本会话不再重试）。
 `memory_search` 工具改接 pi 的 abort signal：agent 回合内按 Esc 中断回合时同步杀子进程，不再挂到
 120s 超时。取消键识别是 `recallCancelKey()` 的轻量实现（legacy 裸 `\x1b`/`\x03` + Kitty CSI-u +
-modifyOtherKeys），与 pi-tui `matchesKey` 对齐但不引入运行时依赖。
+modifyOtherKeys），与 pi-tui `matchesKey` 对齐但不引入运行时依赖。**v26 起取消功能静默生效，进度
+widget 不再显示 Esc/Ctrl+C 提示文案**（用户反馈碍眼），不要重新加回。
 
 **v15 起 search-v2 会把 Hub 返回的 `retrieval_id/query_hash/policy_version` 透传给 Pi**；v18 又透传
 聚合 `quality` 元数据。当前评分由服务端在返回前完成并直接写 `retrieval_judgments`，不再依赖玩家

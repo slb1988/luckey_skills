@@ -44,7 +44,9 @@ import { Type } from "typebox";
 //   按键照常放行给 pi（保留 clear/双击退出语义）；取消即 SIGTERM 杀检索子进程、
 //   outcome=cancelled 放行 agent 启动。memory_search 工具改接 pi abort signal，
 //   Esc 中断 agent 回合时同步杀子进程，不再挂到 120s 超时。
-const EXTENSION_VERSION = "25";
+// v26：预热进度 widget 去掉 Esc/Ctrl+C 提示文案（用户反馈碍眼），取消功能
+//   本身保留、静默生效。
+const EXTENSION_VERSION = "26";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -200,7 +202,7 @@ function recallCancelKey(data: string): "escape" | "ctrl_c" | null {
 	return null;
 }
 
-function startRecallIndicator(ctx: ExtensionContext, project: string, query: string, cancelHint = "Esc/Ctrl+C 跳过"): () => void {
+function startRecallIndicator(ctx: ExtensionContext, project: string, query: string): () => void {
 	if (!ctx.hasUI) return () => {};
 	const started = Date.now();
 	const flattened = query.replace(/\s+/g, " ");
@@ -216,7 +218,7 @@ function startRecallIndicator(ctx: ExtensionContext, project: string, query: str
 		const seconds = ((Date.now() - started) / 1000).toFixed(1);
 		try {
 			ctx.ui.setWidget("memory-hub-recall", [
-				`🧠 Memory Hub 正在检索并审核历史记忆… ${seconds}s（${cancelHint}）`,
+				`🧠 Memory Hub 正在检索并审核历史记忆… ${seconds}s`,
 				`project: ${project} · query: ${preview}`,
 			]);
 		} catch {
@@ -1449,7 +1451,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				ctx.sessionManager.getSessionId(),
 			];
 			if (project) args.push("--project", project);
-			const stopRecallIndicator = startRecallIndicator(ctx, projectHint, params.query, "Esc 中断");
+			const stopRecallIndicator = startRecallIndicator(ctx, projectHint, params.query);
 			// agent 回合内按 Esc → pi abort signal → 同步杀掉检索子进程（130），
 			// 不再挂到 searchTimeoutMs 超时才放行回合中断。
 			const result = await runHub(
