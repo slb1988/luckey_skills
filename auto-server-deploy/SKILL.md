@@ -15,17 +15,24 @@ description: Full-stack deploy of the auto-server frontend and backend on dev@au
 /home/dev/.pi/skills/auto-server-deploy/scripts/deploy.sh
 ```
 
+> 后端段自 2026-09-04 起**委托 depot 版 `/data/py_automation/backend/deploy.sh` 执行**（内置 `/server_status/busy` 空闲等待：连续 2 次空闲才 kill，上限 5 分钟，超时交互确认/非交互放弃）。确认风险后可用 `FORCE_DEPLOY=1 ./deploy.sh` 跳过等待。机制与边界见 `auto-server-backend-deploy/references/deploy-wait-for-idle.md`。
+
 ## 部署流程
 
-### 后端（5 步）
+### 后端（委托 depot 版脚本执行）
+
+自 2026-09-04 起后端段整体 `bash /data/py_automation/backend/deploy.sh`（消除「skill 版无等待保护」的双脚本分叉）。depot 版流程：
 
 | 步骤 | 操作 | 说明 |
 |------|------|------|
 | B1 | P4 同步 | `export P4CHARSET=utf8 && p4 sync` |
-| B2 | 停止服务 | ss -tlnp 精准抓取 5000 端口 python PID → pgrep manage.py/flask 兜底 → 去重 → 逐个 kill -9 并记录命令行 → 端口 + 进程双重验证 |
-| B3 | 归档日志 | `mv flask_*.log ./tmp/` |
-| B4 | 轮转 app.log | `mv logs/app.log logs/app.log.{N}`（自动递增） |
-| B5 | 启动服务 | `nohup python3 manage.py runserver --host 0.0.0.0 --port 5000 &` |
+| B2 | **等待空闲** | 轮询 `GET /server_status/busy`，连续 2 次空闲才继续，上限 5 分钟；超时交互确认（非交互放弃部署）；`FORCE_DEPLOY=1` 跳过 |
+| B3 | 停止服务 | `kill -9 $(cat python3_pid.log)` |
+| B4 | 归档日志 | `mv flask_*.log ./tmp/` |
+| B5 | 轮转 app.log | `mv logs/app.log logs/app.log.{N}`（自动递增） |
+| B6 | 启动服务 | `nohup python3 manage.py runserver --host 0.0.0.0 --port 5000 &` |
+
+环境变量由本脚本在调用前准备好（source `/etc/environment` + 补回 npm-global/pnpm PATH + `FEISHU_ASSISTANT_PI_BIN`），子进程继承。
 
 ### 前端（2 步）
 
@@ -126,6 +133,8 @@ ls /data/py_automation/frontend/dist/
 
 ## 停服原理
 
+> 以下为旧版内联停服逻辑的设计背景（2026-09-04 前本脚本自行 kill）。当前停服/启动已委托 depot 版 `backend/deploy.sh`，本节保留供手动排障参考。
+
 ### Flask debug 进程模型
 
 ```
@@ -160,6 +169,7 @@ Flask 以 debug/reloader 模式运行时 fork 出两个 python 进程：reloader
 
 ## 注意事项
 
+- **空闲等待**：后端段默认等待 `/server_status/busy` 空闲（见上表 B2），`FORCE_DEPLOY=1` 才跳过。busy 语义注意——AI review 等编译（`await_compile`）时构建跑在 TeamCity 上、服务器侧只是 DB 状态，判空闲是**正确行为**，重启无损（新进程收 `tc_callback` 续跑）
 - **P4 字符集**：必须设置 `P4CHARSET=utf8`，服务器为 Unicode 模式
 - 部署顺序：先停后端 → 部署后端 → 部署前端，减少停机时间
 - 如果 P4 无更新，sync 输出 `File(s) up-to-date.`，不影响后续步骤

@@ -12,6 +12,10 @@ description: Deploy the auto-server Flask backend on dev@auto-server. Syncs late
 ## 快速开始
 
 ```bash
+# 仅后端（depot 版，内置 /server_status/busy 空闲等待；FORCE_DEPLOY=1 跳过等待）：
+cd /data/py_automation/backend && ./deploy.sh
+
+# 全栈（前端 + 后端，后端段同样走上面的 depot 版脚本）：
 /home/dev/.pi/skills/auto-server-deploy/scripts/deploy.sh
 ```
 
@@ -20,10 +24,11 @@ description: Deploy the auto-server Flask backend on dev@auto-server. Syncs late
 | 步骤 | 操作 | 说明 |
 |------|------|------|
 | 1 | P4 同步代码 | `export P4CHARSET=utf8 && p4 -u admin_sun -p 192.168.2.13:1666 -c auto-server sync` |
-| 2 | 停止服务 | 用 `pgrep -f "manage.py runserver"` 找到真实 PID 后 kill（**不能用 `python3_pid.log`，见下方陷阱**） |
-| 3 | 归档 flask 日志 | `mv flask_*.log ./tmp/` |
-| 4 | 轮转 app.log | `mv logs/app.log logs/app.log.{N}`（自动递增序号，永不覆盖） |
-| 5 | 启动服务 + 修正 PID | 启动后用 `pgrep -f "manage.py runserver"` 获取真实 python PID 写入 `python3_pid.log` |
+| 2 | 等待空闲 | 轮询 `GET /server_status/busy`，连续 2 次空闲才继续，上限 5 分钟；超时交互确认（非交互放弃）；`FORCE_DEPLOY=1` 跳过 |
+| 3 | 停止服务 | 用 `pgrep -f "manage.py runserver"` 找到真实 PID 后 kill（**不能用 `python3_pid.log`，见下方陷阱**） |
+| 4 | 归档 flask 日志 | `mv flask_*.log ./tmp/` |
+| 5 | 轮转 app.log | `mv logs/app.log logs/app.log.{N}`（自动递增序号，永不覆盖） |
+| 6 | 启动服务 + 修正 PID | 启动后用 `pgrep -f "manage.py runserver"` 获取真实 python PID 写入 `python3_pid.log` |
 
 ## P4 配置
 
@@ -97,6 +102,13 @@ cd /data/py_automation/backend
 # 1. 同步（必须设置 P4CHARSET）
 export P4CHARSET=utf8
 p4 -u admin_sun -p 192.168.2.13:1666 -c auto-server sync
+
+# 1.5 等待空闲（避免切到在途任务；确认风险后可跳过直接进 2）：
+for i in $(seq 1 30); do
+    curl -s --max-time 5 http://127.0.0.1:5000/server_status/busy | grep -q '"busy": *false' && break
+    echo "等待服务器空闲... ($i)"
+    sleep 10
+done
 
 # 2. 停服（用 pgrep 找真实 PID，不要依赖 python3_pid.log）
 REAL_PID=$(pgrep -f "manage.py runserver")
@@ -207,6 +219,10 @@ AI review 的代提交**不是原子的**。approve 落库后 `_trigger_auto_sub
 - **识别类似事故**：CL 提交人是 AutoServer 但内容不像平台行为 → 基本是步骤 3 丢失；"CL 描述与文件清单不符 / BOM 被改"则通常是作者 shelve 时打的大包，`submit -e` 原样落 shelf 内容，平台不做合并或裁剪。
 
 ## 注意事项
+
+<memory category="troubleshooting">
+**deploy.sh 双脚本分叉（2026-09-04 已修复）**：等待空闲机制 `wait_for_idle`（轮询 `/server_status/busy`，连续 2 次空闲才 kill，上限 5 分钟）CL 1427（2026-09-03）起只进了 depot 版 `/data/py_automation/backend/deploy.sh`；skill 版 `~/.pi/skills/auto-server-deploy/scripts/deploy.sh` 曾长期没有（停留 08-29 版），而两份 SKILL.md 快速开始都指向它 → 按 skill 文档部署 = 绕过等待保护直接 kill -9。2026-09-04 起 skill 版后端段改为委托 depot 版执行，分叉消除。busy 语义注意：AI review 进 `await_compile` 后构建跑在 TeamCity 上，服务器侧只是 DB 状态，busy 判空闲是**正确的**，重启无损（新进程会正常收 `tc_callback` 续跑）。机制细节与残留缺陷（TOCTOU 窗口、PID 文件捷径）见 [references/deploy-wait-for-idle.md](references/deploy-wait-for-idle.md)。
+</memory>
 
 - **P4 字符集**：服务器为 Unicode 模式，必须设置 `P4CHARSET=utf8`，否则 sync 会失败
 - **环境**：直接本地执行，不需要 SSH
