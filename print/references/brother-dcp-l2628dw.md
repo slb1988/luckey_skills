@@ -3,60 +3,72 @@
 ## 基本信息
 
 - **型号**: Brother DCP-L2628DW（A4 **黑白**激光多功能一体机，打印/复印/扫描，34ppm，自动双面）
-- **位置**: 家庭 LAN（192.168.2.0/23）
-- **连接方式**: Wi-Fi / 有线 / USB
+- **位置**: 家庭 LAN（192.168.50.0/24，RT-AC5300）
+- **当前 IP**: `192.168.50.40`（Wi-Fi 接入；建议路由器绑 DHCP 静态租约）
 - **MAC**: 94:DD:F8:ED:94:C4（由 Bonjour UUID e3248000-80ce-11db-8000-94ddf8ed94c4 末 12 位得出）
-- **当前 IP**: 未知（2026-09 调研时打印机离线，建议路由器绑 DHCP 静态租约后回填）
-- **设备 URI**: `dnssd://Brother%20DCP-L2628DW._ipps._tcp.local./?uuid=e3248000-80ce-11db-8000-94ddf8ed94c4`
 
-## 网络协议（Brother 同级机型标配，待打印机开机后实测确认）
+## 网络协议（2026-09-03 实测确认）
 
-- IPP/IPPS（631）、LPD（515）、RAW/JetDirect（9100）、WSD、mDNS/Bonjour、SNMP
-- AirPrint / Mopria（= IPP Everywhere 兼容，可无驱动打印）
-- 打印语言 PCL6 / BR-Script3；**无原生 PDF 直打保证**——9100 直发 PDF 不可靠，PDF 应由客户端渲染（SumatraPDF）或经 CUPS 过滤链转换
+- 端口全通：IPP/IPPS（631/443）、LPD（515）、RAW（9100）；mDNS/Bonjour、SNMP
+- **IPP 属性实测**（`ipptool -tv ipp://192.168.50.40/ipp/print get-printer-attributes.test`）：
+  - URI: `ipp://192.168.50.40/ipp/print`，IPPS: `ipps://192.168.50.40:443/ipp/print`，无认证
+  - `document-format-supported` = `application/octet-stream, image/urf, image/pwg-raster`
+    → **不收 application/pdf**！PDF 必须经 CUPS 过滤链转 PWG Raster（或客户端渲染），9100 直发 PDF 不可靠
+  - 双面: `two-sided-long-edge / two-sided-short-edge`；纸张: A4/Letter/A5/A6/B5/B6/信封等；IP Everywhere 兼容
+- 打印语言 PCL6 / BR-Script3
 
-## macOS 配置（已完成）
+## ⭐ NAS CUPS 中继（2026-09-03 已部署，AI 打印主入口）
+
+QNAP TS-453Dmini 上 Docker 容器 **`cups-server`**（镜像 `olbat/cupsd`，host 网络，`--restart unless-stopped`）：
+
+| 项 | 值 |
+|---|---|
+| 配置持久化 | `/share/CACHEDEV1_DATA/Container/cups/config` → 容器 `/etc/cups` |
+| 监听 | `0.0.0.0:631`（LAN `192.168.50.2:631` + WG `10.77.77.6:631` 都可达） |
+| 队列名 | `brother` → `ipp://192.168.50.40/ipp/print`（driverless/IPP Everywhere 自动 PPD，默认 A4） |
+| 客户端 URI | `ipp://192.168.50.2:631/printers/brother` 或 `ipp://10.77.77.6:631/printers/brother` |
+| Web 管理 | `http://192.168.50.2:631/admin`（admin 账号，密码部署时设定，问用户） |
+
+**AI 打印标准流程（主路径，走 @nas 中转）**：
+1. 本机生成/拿到待打印文件
+2. PDF/大文件 → oss-upload 传 OSS 拿公网链接；图片 ≤5MB 可直接作 a2a_send 附件
+3. `a2a_send @nas`：`curl -sL '<url>' -o /tmp/x.pdf && docker exec cups-server lp -d brother -o page-ranges=1-3,7 /tmp/x.pdf`
+4. @nas 回报 `lpstat -W all -o brother` 确认 completed
+
+**备选直连路径**（本机在 WG 私网或家局域网，且有 CUPS 客户端）：
+```bash
+lp -h 10.77.77.6 -d brother -o page-ranges=1-3,7 -o sides=two-sided-long-edge file.pdf
+lp -h 192.168.50.2 -d brother -o media=iso_a5_148x210mm photo.jpg
+```
+（2026-09-03 本机两条路径均已 lpstat 验证通过）
+
+## macOS（本机已配好本地队列）
 
 - **系统名称**: `Brother_DCP_L2628DW`，IPPS over Bonjour，自动双面可用
 - 打印：`lp -d Brother_DCP_L2628DW /path/to/file`
 - PDF 选页：`lp -d Brother_DCP_L2628DW -o page-ranges=1-3,7 file.pdf`
+- 不在家时改走 NAS 中继：`lp -h 10.77.77.6 -d brother ...`
 
-## Windows CLI 打印（本机待落地）
+## Windows CLI 打印
 
-本机（192.168.2.70）未安装该打印机，无 lp/lpr/SumatraPDF。推荐组合：
+推荐直接挂 NAS 中继队列（不用装 Brother 驱动）：
 
 ```powershell
-# 1. 装打印机（拿到 IP 后；Microsoft IPP Class Driver 即可，或 Brother 官方驱动）
-Add-PrinterPort -Name "IP_Brother" -PrinterHostAddress <打印机IP>
-Add-Printer -Name "Brother" -DriverName "Microsoft IPP Class Driver" -PortName "IP_Brother"
+# 添加打印机 → 按 URL → http://192.168.50.2:631/printers/brother（家局域网）
+# 或 http://10.77.77.6:631/printers/brother（WG 私网，任何地点可用）
+# 驱动选 Generic IPP Everywhere 或 Microsoft IPP Class Driver
 ```
 
+PDF 选页/份数/双面用 SumatraPDF 便携版（也能直接打 jpg/png）：
 ```bash
-# 2. SumatraPDF（便携版单 exe）：PDF 选页/份数/双面，也能直接打印 jpg/png
-SumatraPDF.exe -print-to "Brother" -print-settings "1-3,7" -silent -exit-when-done file.pdf
-SumatraPDF.exe -print-to "Brother" -silent image.png
+SumatraPDF.exe -print-to "<打印机名>" -print-settings "1-3,7" -silent -exit-when-done file.pdf
 ```
 
-- 图片备选：`mspaint /pt image.png "Brother"`
-- Windows 自带 `lpr.exe`（需启用 LPR 端口监视器）只能发 PCL/PS 原始流、不能选页，不推荐
-- 重度 CLI 需求可装 WSL2 Ubuntu + CUPS，与 macOS 命令一致
+- 图片备选：`mspaint /pt image.png "<打印机名>"`
+- Windows 自带 `lpr.exe` 只能发 PCL/PS 原始流、不能选页，不推荐
 
-## Linux / 服务器
+## 运维备忘
 
-```bash
-lpadmin -p brother -E -v ipp://<打印机IP>/ipp/print -m everywhere
-lp -d brother -o page-ranges=1-3 file.pdf
-```
-
-## 远程打印（纳入 WireGuard 私网）
-
-- **路由器方案不可行**：家里 RT-AC5300 是 Merlin-KoolShare，内核 2.6.36，无 WireGuard（梅林 388+ 才有）；Entware 装 wireguard-go 太折腾，端口转发暴露公网不安全（且家宽可能 CGNAT）
-- **推荐：QNAP NAS（10.77.77.6，已在 WG，与打印机同 LAN）跑 CUPS 容器做中继**（Container Station + olbat/cupsd 类镜像），监听 WG 接口并仅放行 10.77.77.0/24；远程节点用 `lp -d brother -h 10.77.77.6 -o page-ranges=... file.pdf` 或添加 `ipp://10.77.77.6:631/printers/brother`
-- 已验证：本机 → 10.77.77.6 WG 链路通（16ms）
-
-## 待办
-
-- [ ] 打印机开机后确认 IP，路由器绑静态 DHCP，回填本文档
-- [ ] 实测 IPP `document-format-supported`（确认是否收 application/pdf，还是只收 image/urf）
-- [ ] Windows 侧装驱动 + SumatraPDF，封装 prt 脚本
-- [ ] NAS 部署 CUPS 中继
+- 容器重启策略 unless-stopped，NAS 重启自动恢复；首次部署坑：空目录挂 `/etc/cups` 会遮盖镜像默认配置导致 cupsd 退出，需先从镜像 `cp -a /etc/cups/.` 到宿主目录再启动（见 `.claude/plans/Brother打印机CUPS中继部署.md`）
+- 容器日志有一条无害 avahi 报错（容器内无 avahi-daemon，只影响 mDNS 广播，不影响打印）
+- 打印机换 IP 后重建队列：`docker exec cups-server lpadmin -p brother -v ipp://<新IP>/ipp/print`
