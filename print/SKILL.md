@@ -16,6 +16,19 @@ compatibility:
 2. **读取参考文件** — 根据打印机名称读取 `references/<printer-name>.md` 获取连接信息（如果有）
 3. **打印** — 使用 `lp -d <printer-name> <file>` 发送打印任务
 
+## 打印路径路由
+
+Brother DCP-L2628DW（家中打印机）有三条打印路径，按执行环境选路：
+
+| 场景 | 路径 | 入口 |
+|---|---|---|
+| **AI agent 打印（默认主路径）** | @nas 中转 | 文件→OSS 链接 / ≤5MB 图片作 a2a 附件 → `a2a_send @nas` → NAS 执行 `docker exec cups-server lp -d brother` |
+| 本机在家局域网 | 本地队列 | macOS 已配 `lp -d Brother_DCP_L2628DW` |
+| 本机在 WG 私网/远程 | NAS CUPS 直连 | `lp -h 10.77.77.6 -d brother` |
+
+- 打印机档案与客户端配置 → `references/brother-dcp-l2628dw.md`
+- NAS 中继架构、容器运维、@nas 派发模板 → `references/nas-cups-relay.md`
+
 ## 多打印机支持
 
 - 每台打印机对应 `references/<打印机标识>.md` 文件

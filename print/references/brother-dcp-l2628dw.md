@@ -69,6 +69,4 @@ SumatraPDF.exe -print-to "<打印机名>" -print-settings "1-3,7" -silent -exit-
 
 ## 运维备忘
 
-- 容器重启策略 unless-stopped，NAS 重启自动恢复；首次部署坑：空目录挂 `/etc/cups` 会遮盖镜像默认配置导致 cupsd 退出，需先从镜像 `cp -a /etc/cups/.` 到宿主目录再启动（见 `.claude/plans/Brother打印机CUPS中继部署.md`）
-- 容器日志有一条无害 avahi 报错（容器内无 avahi-daemon，只影响 mDNS 广播，不影响打印）
-- 打印机换 IP 后重建队列：`docker exec cups-server lpadmin -p brother -v ipp://<新IP>/ipp/print`
+容器/队列运维、@nas 派发模板、客户端接入统一见 [nas-cups-relay.md](nas-cups-relay.md)。
