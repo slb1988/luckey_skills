@@ -10,6 +10,7 @@ description: QNAP NAS 综合运维工具。当用户提到 QNAP 命令行、NAS 
 - **型号**: TS-453Dmini (Gemini Lake, TS-X53D 系列)
 - **QPKG 路径**: `/share/CACHEDEV1_DATA/.qpkg/`
 - **Shell 环境**: `/bin/sh`（非 bash），需注意兼容性
+- **pyauto-computer agent**: NAS 上跑 pyAutomation 受管 agent（名 `nas`，端口 9100），**重启后不自启**（QTS 无 systemd user session），恢复方法 → [references/pyauto-agent.md](references/pyauto-agent.md)
 
 ## HybridMount / CacheMount 命令行
 

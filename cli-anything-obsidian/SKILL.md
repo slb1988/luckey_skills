@@ -122,6 +122,15 @@ cli-hub launch <name>     # launch an installed CLI
 | `smithue-cli` | `smithue-cli` | `smithue-cli` / `npx smithue-cli` | Control Unreal Engine editor via Smith |
 | `ueatelier` | `cli-anything-ueatelier` | `cli-anything-ueatelier` | Unreal Editor 5.6/5.7 MCP self-extension workbench |
 
+## Line Endings (This Vault)
+
+<memory category="troubleshooting">
+- Obsidian saves notes with **LF on all platforms**; merely opening a note can trigger a save (plugin/frontmatter touch) and silently rewrite a CRLF file to LF.
+- Repo `.gitattributes` pins `* text=auto eol=lf` (commit 1a59a985): `text=auto` alone checks out "native" EOL (CRLF on Windows) → Mac/Windows/Obsidian EOL flapping. Both halves are required; don't drop `eol=lf`.
+- Phantom modification pattern: `git status` shows `M` but `git diff` is empty → EOL/stat-cache mismatch, content identical to blob after normalization. `git add <file>` re-hashes and clears it.
+- Programmatic writes (Python fallback, scripts) must emit LF, not platform-native CRLF.
+</memory>
+
 ## Reference
 
 For vault structure, URI protocol, frontmatter format, plugin data locations:
