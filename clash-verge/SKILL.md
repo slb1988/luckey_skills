@@ -94,6 +94,10 @@ intercom.io  intercomcdn.com
 
 补充排查技巧：TUN 的 auto-route 不是两条 /1 了事，而是按排除范围**二分出整棵 CIDR 路由树**（排除的网段在树上留「洞」），路由全挂 metric 0——**同前缀下 metric 0 会赢过本机已连接的物理路由**。所以「明明是直连内网段却被代理」先看路由表（Windows: `route print -4 | findstr <网段>`），看到这种二分树模式就是 TUN 劫的。
 
+<memory category="troubleshooting">
+TUN 模式下 TCP 端口扫描结果不可信：TUN 网卡劫持 SYN，扫描器会大量「假通」（端口显示开放但无真实服务）。在本机扫网段/探设备（如找网络打印机）时，「端口开放」必须用真实协议响应验证（IPP GET、mDNS 查询等），不能信扫描器的 SYN 结果。
+</memory>
+
 ## mihomo 控制 API 速查
 
 连接方式（管道/socket/TCP）见对应系统的 references。认证头：`Authorization: Bearer <secret>`（secret 在运行时配置里，Verge 常见默认值是 `set-your-secret`）。

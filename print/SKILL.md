@@ -45,3 +45,11 @@ lp -d 打印机名称 文件路径
 # 查看打印任务状态
 lpstat -o 打印机名称
 ```
+
+<memory category="core-rules">
+不要把 PDF 直发打印机 9100 原始端口——PCL6/BR-Script3 激光机不保证能解析 PDF。PDF 必须由客户端渲染（Windows 用 SumatraPDF）或经 CUPS 过滤链转换；CUPS/lp 下选页用 `-o page-ranges=1-3,7`。
+</memory>
+
+<memory category="common-patterns">
+Windows（无 CUPS）CLI 打印入口：装打印机用 `Microsoft IPP Class Driver` 即可（`Add-PrinterPort` + `Add-Printer`）；打印用 SumatraPDF 便携版 `SumatraPDF -print-to "<打印机名>" -print-settings "1-3,7" -silent file.pdf`（支持选页/份数/双面，也能直接打 jpg/png）。图片备选 `mspaint /pt image.png "<打印机名>"`。系统自带 `lpr.exe` 只能发 PCL/PS 原始流、不能选页，不推荐。
+</memory>

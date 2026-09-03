@@ -12,6 +12,12 @@ Plugin: 科学上网 full / fancyss_arm_full
 Observed local plugin version: 3.5.30
 ```
 
+## VPN Capability Limits
+
+- **No WireGuard on this router**: KoolShare RT-AC5300 stays on kernel 2.6.36; Merlin's native WireGuard requires 388.x firmware which does not exist for this KoolShare model, and wireguard-go via Entware is impractical on this kernel. Do not propose router-level WG peering.
+- **No inbound exposure either**: home broadband is likely CGNAT (no public IP), so port-forwarding LAN services (e.g. printer 9100/631) to the internet is both infeasible and unsafe.
+- Consequence: to bring LAN-only devices into the private WireGuard network, use a dual-homed relay that is both a WG peer and on the home LAN (e.g. QNAP NAS 10.77.77.6 running a CUPS container), not the router.
+
 ## Access
 
 - Admin host: use `ASUS_ROUTER_HOST` from sensitive config.
