@@ -25,6 +25,8 @@
   host 进程（`python -m pyauto_computer host`，Windows DETACHED_PROCESS / POSIX
   start_new_session），等 20s 确认端口监听。stop 杀进程树并立即上报平台置 offline（不等
   心跳 TTL）。forget 只删本机映射，平台侧记录要到监控页删。
+  **`start --autostart` 对已运行的 agent 不生效**（cmd_start 检测到运行中提前 return，
+  走不到写标记）——要给在跑的 agent 开 autostart 必须先 stop 再 start --autostart。
 - **host 的 skill**：默认 skill `run`——派发文本 → runtime CLI headless 一次性执行
   （cwd=workroot，输出截断 20000 字符，默认超时 1800s）→ 回传文本；`bus: @目标 消息`
   前缀走 hcom 总线出站。pi 适配器移植了 WinBuilder3MainAgent/pi_runner.py 的三个硬仗经验
@@ -39,6 +41,20 @@
   快捷方式登录时会闪现控制台窗口。Sun 本机（2026-08）实测手动 schtasks 与 PowerShell
   `Register-ScheduledTask` 提权执行同样 Access denied（域策略级限制 Task Scheduler，不用再试），
   VBS 方案无需管理员且已验证完整链路：登录 → supervisor → 按 autostart 拉起受管 agent。
+  **无 systemd 的 Linux（QNAP BusyBox 等）**：`service *` 三个子命令直接 FileNotFoundError
+  崩溃。等效方案是 **cron 每分钟拉起 `pyauto-computer supervisor`**——supervisor 内置 pid
+  文件幂等（`_already_running()`，已运行则打印一句即退出 0），周期触发天然安全，同时覆盖
+  开机自启 + 崩溃自愈。cron 行要内联 `PATH`（含 `~/.local/bin`，supervisor 的自动升级要
+  调 `uv`）和 `HOME`。QNAP 上条目加进 `/etc/config/crontab`（administrators 组可写），
+  重载需 `echo <admin密码> | sudo -S -u admin /usr/bin/crontab /etc/config/crontab`
+  （`crontab` 命令要 suid；`/etc/init.d/crond.sh restart` 非 admin 执行会 daemon_mgr
+  segfault，别走那条路）。
+- **升级链路由 supervisor 唯一执行**：平台经心跳下发 `desired_versions` hint 到 workroot，
+  supervisor 的 `_process_upgrades` 每轮巡检执行（先逐个 agent 升级，最后 CLI 经 detached
+  `_self_upgrade` helper 自升级）。**supervisor 不跑则平台推了新版也不会升**；手动核对平台
+  上是否有新版：GET `/agent_platform/a2a/computer/packages/<pkg>-<ver>-py3-none-any.whl`，
+  存在=200，**不存在=500**（Flask send_file 抛错而非 404）；本机已装版本看
+  `~/.local/share/uv/tools/pyauto-computer/uv-receipt.toml`。
 
 ## 跨网段 / 受限网络接入（0.4.1 QNAP NAS 实测）
 
@@ -93,6 +109,8 @@ curl -X POST http://<本机IP>:<port>/ -H "A2A-Version: 1.0" -H "Content-Type: a
 | 机器 | computer | agent | 端口 | workroot | 备注 |
 |---|---|---|---|---|---|
 | WinBuilder3 | #4 | winbuilder3-maindev（agent_id=32） | 9100 | MainDev 仓库根 | 装机细节见 `.team/win-builder/project_pyauto_computer_maindev_agent.md` |
-| QNAP NAS453Dmini | #5 | nas | 9100 | `/share/CACHEDEV1_DATA/homes/slb1988` | 跨网段（经 10.77.77.4 访问平台），`PYAUTO_PLATFORM_URL` 已写入 `~/.profile`；runtime=pi，平台未配 relay 走本机总线 |
+
+
+| QNAP NAS453Dmini | #5 | nas | 9100 | `/share/CACHEDEV1_DATA/homes/slb1988` | 跨网段（经 10.77.77.4 访问平台），`PYAUTO_PLATFORM_URL` 已写入 `~/.profile`；runtime=pi，平台未配 relay 走本机总线；无 systemd，supervisor 由 crontab 每分钟拉起（条目在 `/etc/config/crontab`，尾部 `# pyauto-computer` 注释，见上「自启模型」） |
 | Sun（admin 工作机） | #2 | sunlaibing（agent_id=30，runtime=pi） | 9100 | `C:\Users\admin` | autostart=on |
 | Sun（admin 工作机） | #2 | sun_maindev（runtime=pi） | 9101 | `D:\MainDev` | autostart=on；本机开机自启 = Startup 文件夹 `pyauto-supervisor.vbs`（域策略拒 schtasks，见上「自启模型」） |
