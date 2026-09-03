@@ -33,10 +33,18 @@ WG/局域网设备 ──lp -h 10.77.77.6 | 192.168.50.2──▶ cups-server :6
 
 ## @nas 派发模板（可直接抄进 a2a_send）
 
+**容器文件系统隔离（所有模板共用前提）**：cups-server 容器与 QNAP 宿主机的文件系统不共享，唯一挂载卷是 `…/cups/config → /etc/cups`。任何落在宿主机路径的文件（curl 下载、a2a 附件落盘、NAS 本地文件），`docker exec cups-server lp <宿主机路径>` 都会报 `No such file or directory`。统一两步走：
+
+```bash
+docker cp <宿主机路径> cups-server:/tmp/<文件名>   # 先拷进容器
+docker exec cups-server lp -d brother <options> /tmp/<文件名>   # lp 作用在容器内路径
+```
+
 ### 打印 PDF（走 OSS 链接，支持选页/双面/份数）
 
 ```bash
 curl -sL '<OSS_URL>' -o /tmp/print-job.pdf && \
+docker cp /tmp/print-job.pdf cups-server:/tmp/print-job.pdf && \
 docker exec cups-server lp -d brother \
   -o page-ranges=1-3,7 -o sides=two-sided-long-edge -o copies=1 /tmp/print-job.pdf
 ```
@@ -44,14 +52,13 @@ docker exec cups-server lp -d brother \
 ### 打印已在 NAS 本地的文件
 
 ```bash
-docker exec cups-server lp -d brother -o <options> <NAS绝对路径>
+docker cp <NAS绝对路径> cups-server:/tmp/<文件名> && \
+docker exec cups-server lp -d brother -o <options> /tmp/<文件名>
 ```
 
 ### 图片直打
 
-图片 ≤5MB 可作为 a2a_send 附件直接传给 @nas，落盘后同样走 `lp -d brother`；CUPS 过滤链自动处理缩放。改纸张示例：`-o media=iso_a5_148x210mm`。
-
-**注意容器文件系统隔离**：附件落在宿主机（如 `/tmp/xx.png`）后，`docker exec cups-server lp ... /tmp/xx.png` 会报 `No such file or directory`——容器 `/tmp` 与宿主机不共享。必须先 `docker cp /tmp/xx.png cups-server:/tmp/xx.png` 拷进容器，再对容器内路径执行 `lp`。
+图片 ≤5MB 可作为 a2a_send 附件直接传给 @nas，落盘后按上方共用前提 `docker cp` 进容器再走 `lp -d brother`；CUPS 过滤链自动处理缩放。改纸张示例：`-o media=iso_a5_148x210mm`。
 
 ### 状态确认（每次派发打印后必跟）
 
