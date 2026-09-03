@@ -51,6 +51,8 @@ docker exec cups-server lp -d brother -o <options> <NAS绝对路径>
 
 图片 ≤5MB 可作为 a2a_send 附件直接传给 @nas，落盘后同样走 `lp -d brother`；CUPS 过滤链自动处理缩放。改纸张示例：`-o media=iso_a5_148x210mm`。
 
+**注意容器文件系统隔离**：附件落在宿主机（如 `/tmp/xx.png`）后，`docker exec cups-server lp ... /tmp/xx.png` 会报 `No such file or directory`——容器 `/tmp` 与宿主机不共享。必须先 `docker cp /tmp/xx.png cups-server:/tmp/xx.png` 拷进容器，再对容器内路径执行 `lp`。
+
 ### 状态确认（每次派发打印后必跟）
 
 ```bash
