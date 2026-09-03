@@ -72,6 +72,16 @@ trace 无 `session_start` = 扩展未被加载（查扩展路径/加载冲突）
 
 在刚执行完 install 的**同一 shell** 里跑 `install_hooks.py check --agents auto`，`identity.source` 显示 `missing` 是预期——user-id 环境变量已写入 `~/.profile`/`~/.zprofile` 但当前进程未加载；新开终端或重启 agent 后即正常。不要据此重装或重复 configure。
 
+### install 报 `[Errno 2] No such file or directory: '<agent-cli>'` = 该 agent CLI 不在 PATH
+
+install 的 codex 装后验证会真实 spawn codex app-server（`hooks/list` 确认 3 个 handler trusted），
+executable 取自 `shutil.which("codex")`，找不到时回退字面量 `"codex"` → FileNotFoundError。
+`--agents auto` 按「home 目录存在 **或** CLI 在 PATH」探测 agent——home 在而 CLI 缺失/损坏
+（如 Orca runtime home 存在、全局 codex 未装或 npm 包残缺）时 codex 仍被选中，于是**只有 codex 端**报
+`[Errno 2] No such file or directory: 'codex'`，claude/pi 照常 ok=true，总结果 ok=false。
+这不是 hooks.json 写入失败：修好 CLI 或 `--codex-bin <绝对路径>` 指定后重跑 install 即可。
+claude/pi 端同理——装后验证/探测依赖对应 CLI 时，缺失都表现为 Errno 2 + 命令名。
+
 ### Windows 上 hook 全静默 exit 127（模板 python 路径硬编码）
 
 agent-integration.md 的 install/configure 示例命令是 macOS 写法（`/usr/bin/python3`、`/Users/sun/...`）。
