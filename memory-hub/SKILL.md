@@ -56,6 +56,8 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 
 服务端仓库文档（NAS 项目 `docs/`）：`USAGE.md`、`API_CONTRACT.md`、`IMPLEMENTATION.md`、`DASHBOARD.md`、`REVIEW_PIPELINE.md`、`MULTI_USER_AUTH.md`。
 
+关卡 2（抽取审核）队列的批量/自动处置走独立 skill：**memory-review**（`.claude/skills/memory-review/`，含 scan/apply 脚本与审核准则）。
+
 用户在 Memory Hub 语境提到 `eval`、记忆评估或检索效果验证时，立即按 [retrieval-eval.md](references/retrieval-eval.md) 执行；先做只读 baseline 和"存错还是取错"分层，不把非空结果等同于有效召回。
 
 ## 身份、Scope 与检索
