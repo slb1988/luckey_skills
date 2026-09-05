@@ -43,7 +43,7 @@ skill-gateway「skill 未命中/未匹配到」且耗时显示 (0.0s)：先查�
 </memory>
 
 <memory category="common-patterns">
-pi-btw 扩展同步基线：从 narumiruna/pi-extensions 的 commit `0eb67035f39790033c42be200999847cf620ce0d` 迁移 + 二次修改而来；上游本地 clone 在 `/Users/sun/Documents/GitHub/pi-extensions`。**同步官方更新的流程**：上游 clone `git fetch` → `git diff 0eb67035..<新基线> -- packages/pi-btw/` 找出官方 diff → 按迁移 runbook 落地（保留本地二次修改）→ **修改前必须先给用户 review diff**（硬性规则）→ 同步完更新基线 commit 记录。
+pi-btw 扩展同步基线：从 narumiruna/pi-extensions 的 commit `0eb67035f39790033c42be200999847cf620ce0d` 迁移 + 二次修改而来；上游本地 clone 在 `/Users/sun/Documents/GitHub/pi-extensions`。**项目内入口固定为源码优先**：`package.json` 的 `pi.extensions` 指向 `./src/index.ts`（`src/` 下 10 个原始源文件是本地权威源码，pi loader 直接加载 TS 源码），`dist/index.ts` 只作上游构建产物保留、必须保持未修改——本地修复一律改 `src/`（如 UI 修复在 `src/fullscreen-ui.ts`），禁止把修复落在 dist bundle。**同步官方更新的流程**：上游 clone `git fetch` → `git diff 0eb67035..<新基线> -- packages/pi-btw/` 找出官方 diff → 按迁移 runbook 落地（保留本地二次修改）→ **修改前必须先给用户 review diff**（硬性规则）→ 同步完更新基线 commit 记录。
 </memory>
 
 <memory category="troubleshooting">
