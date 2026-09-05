@@ -38,6 +38,10 @@ a2a-mentions 扩展的平台 token 存在全局文件 `~/.pi/agent/a2a-mentions.
 skill-gateway「skill 未命中/未匹配到」且耗时显示 (0.0s)：先查项目根有没有 `SKILL.index.json`。`serverSelect()` 第一步就是读 `<项目根>/SKILL.index.json`，文件缺失时直接 return null，**根本不发网络请求**，所以耗时恒为 0。判据看审计日志 `.pi/extensions/skill-gateway/.audit/skill-gateway.jsonl` 里是否每轮都是 `index_missing` 事件。索引由生成器产出（MainDev 用 `.claude/build-index-unreal.js` + `skill_index_gen.bat`，v3.0.0 格式；ObsidianVault 长期没有生成器，gateway 从启用起一直空转）。另外两项目的 `.pi/extensions/` 会漂移：同名扩展（skill-gateway、dynamic-workflows、auto-skill、a2a-mentions、plan-mode、team-profile）ObsidianVault 曾落后 MainDev 一个多月；从 MainDev 覆盖同步时**保留 ObsidianVault 独有的 `workspace-routing`**。
 </memory>
 
+<memory category="common-patterns">
+把 npm 发布的 pi 扩展（或 narumiruna/pi-extensions monorepo 里的包）vendor 进项目 `.pi/extensions/`：构建后只需拷 `dist/ + package.json`——pi loader 靠子目录 package.json 里的 `pi.extensions` 字段（如 `["./dist/index.ts"]`）自动发现并加载。在扩展目录内装依赖必须 `npm install --omit=dev --legacy-peer-deps`：`@earendil-works/pi-ai|pi-tui|pi-coding-agent|pi-agent-core` 由 pi 运行时 virtualModules/jiti alias 提供，**不能落进扩展自己的 node_modules**（不加 --legacy-peer-deps 时 npm 会把 peerDeps 自动装进扩展目录，多余且可能冲突）。加载失败信号是 `Failed to load extension "<path>"` diagnostic；冒烟：`pi -p "reply with just: ok" --no-session` 无该错误即成功（TUI-only 命令如 /btw 需进 TUI 实测）。完整迁移 runbook 见 `.team/sunlaibing/reference_pi-extensions-migration.md`。
+</memory>
+
 <memory category="troubleshooting">
 `SessionManager.listAll()` 会**递归扫描** `~/.pi/agent/sessions/` 的所有子目录，凡是 `.jsonl` 结尾的文件都会进会话列表——所以批量清理会话时不能把裸 .jsonl 挪进 `backup/` 之类子目录（会以伪项目 `backup` 重新污染列表）。既定约定：打包成 `.tar.gz` 存 `~/.pi/agent/sessions/backup/`，先校验归档再删原件，并在该目录 `README.md` 的 Records 节登记。auto-skill extraction 子会话曾是主要污染源（累计数千个），2026-08 已修根因：extraction 子会话改用 `SessionManager.inMemory()`，不再落盘；之后再看到 extraction 会话说明扩展是旧版，从 MainDev 同步 auto-skill 即可。
 </memory>
