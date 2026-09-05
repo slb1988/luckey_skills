@@ -42,6 +42,10 @@ skill-gateway「skill 未命中/未匹配到」且耗时显示 (0.0s)：先查�
 把 npm 发布的 pi 扩展（或 narumiruna/pi-extensions monorepo 里的包）vendor 进项目 `.pi/extensions/`：构建后只需拷 `dist/ + package.json`——pi loader 靠子目录 package.json 里的 `pi.extensions` 字段（如 `["./dist/index.ts"]`）自动发现并加载。在扩展目录内装依赖必须 `npm install --omit=dev --legacy-peer-deps`：`@earendil-works/pi-ai|pi-tui|pi-coding-agent|pi-agent-core` 由 pi 运行时 virtualModules/jiti alias 提供，**不能落进扩展自己的 node_modules**（不加 --legacy-peer-deps 时 npm 会把 peerDeps 自动装进扩展目录，多余且可能冲突）。加载失败信号是 `Failed to load extension "<path>"` diagnostic；冒烟：`pi -p "reply with just: ok" --no-session` 无该错误即成功（TUI-only 命令如 /btw 需进 TUI 实测）。完整迁移 runbook 见 `.team/sunlaibing/reference_pi-extensions-migration.md`。
 </memory>
 
+<memory category="common-patterns">
+pi-btw 扩展同步基线：从 narumiruna/pi-extensions 的 commit `0eb67035f39790033c42be200999847cf620ce0d` 迁移 + 二次修改而来；上游本地 clone 在 `/Users/sun/Documents/GitHub/pi-extensions`。**同步官方更新的流程**：上游 clone `git fetch` → `git diff 0eb67035..<新基线> -- packages/pi-btw/` 找出官方 diff → 按迁移 runbook 落地（保留本地二次修改）→ **修改前必须先给用户 review diff**（硬性规则）→ 同步完更新基线 commit 记录。
+</memory>
+
 <memory category="troubleshooting">
 `SessionManager.listAll()` 会**递归扫描** `~/.pi/agent/sessions/` 的所有子目录，凡是 `.jsonl` 结尾的文件都会进会话列表——所以批量清理会话时不能把裸 .jsonl 挪进 `backup/` 之类子目录（会以伪项目 `backup` 重新污染列表）。既定约定：打包成 `.tar.gz` 存 `~/.pi/agent/sessions/backup/`，先校验归档再删原件，并在该目录 `README.md` 的 Records 节登记。auto-skill extraction 子会话曾是主要污染源（累计数千个），2026-08 已修根因：extraction 子会话改用 `SessionManager.inMemory()`，不再落盘；之后再看到 extraction 会话说明扩展是旧版，从 MainDev 同步 auto-skill 即可。
 </memory>
