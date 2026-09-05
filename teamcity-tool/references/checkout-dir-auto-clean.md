@@ -10,7 +10,7 @@
 - **日志特征**：`DirectoryMapUnknownCleaner - Checking not listed in directory.map folder <dir>` + `DirectoryCleanerImpl - Move directory <dir> to .../work/.old/<dir>_N for cleaning`。
 - **登记时机**：任何带 custom `checkoutDir` 的配置（**MANUAL 模式也会登记**）在该 agent 上启动构建时，目录名进 `work/directory.map`（纯文本，条目形如 `bt133=PLNew::Task_AiReview -> DefaultAgent_Stable |?| <时间> |:| never`）；`system/checkoutdir-revisions/<dir>.xml` 只在真正执行 VCS checkout 时写。
 - **竞态窗口**：评审/同步链若在 work/ 下新建 P4 client Root（如 P4SyncWorkspace.py 新建 `{agent}_{stream}`），而链上前置配置（Sync/Unshelve）不带该 checkoutDir——新目录在「创建」到「链中某个带 checkoutDir 的配置启动登记」之间的窗口内，会被链自己后续构建的启动扫描清掉（Stable 首评实测：53min 全量同步完稿后 2 分钟内被连清两次）。
-- **结论性建议**：P4 长驻工作区**不要放在 agent work/ 下**（挪到如 `/mnt/disk2/TeamCity/p4ws/`）；必须放的话，链首加一个带该 checkoutDir 的空 registrar 配置把登记提前。
+- **结论性建议**：P4 长驻工作区**不要放在 agent work/ 下**——已实施：挪到 `%teamcity.agent.home.dir%/p4ws/`（agent home 级目录，UnknownCleaner 不扫，先例 buildAgent/devops；agent-home 相对路径兼容多 agent/Windows，2026-09-05 CL 1481/1482 落地）。
 
 ## 机制(DirectoryMapDirectoriesCleanerImpl)
 
