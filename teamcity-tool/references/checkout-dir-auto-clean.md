@@ -2,6 +2,16 @@
 
 > 关联:[gotchas.md](gotchas.md) 的「Checkout directory 过期自动清理」条目;PL 侧镜像知识在 `D:\MainDev\.claude\skills\teamcity-package-pipeline\SKILL.md`。
 
+## 姊妹清理器：DirectoryMapUnknownCleaner（2026-09-04 auto-server 实例）
+
+与 192h 孤儿过期清理（DirectoryMapDirectoriesCleanerImpl）**不同**的另一个 cleaner：
+
+- **触发**：每次构建启动准备时（agent 重启后也会）扫描 `work/` 下**未登记进 `work/directory.map`** 的子目录，当即当作无主垃圾 `Move directory ... to work/.old/xxx` 并异步物理删除——**没有 192h 宽限，发现即清**。
+- **日志特征**：`DirectoryMapUnknownCleaner - Checking not listed in directory.map folder <dir>` + `DirectoryCleanerImpl - Move directory <dir> to .../work/.old/<dir>_N for cleaning`。
+- **登记时机**：任何带 custom `checkoutDir` 的配置（**MANUAL 模式也会登记**）在该 agent 上启动构建时，目录名进 `work/directory.map`（纯文本，条目形如 `bt133=PLNew::Task_AiReview -> DefaultAgent_Stable |?| <时间> |:| never`）；`system/checkoutdir-revisions/<dir>.xml` 只在真正执行 VCS checkout 时写。
+- **竞态窗口**：评审/同步链若在 work/ 下新建 P4 client Root（如 P4SyncWorkspace.py 新建 `{agent}_{stream}`），而链上前置配置（Sync/Unshelve）不带该 checkoutDir——新目录在「创建」到「链中某个带 checkoutDir 的配置启动登记」之间的窗口内，会被链自己后续构建的启动扫描清掉（Stable 首评实测：53min 全量同步完稿后 2 分钟内被连清两次）。
+- **结论性建议**：P4 长驻工作区**不要放在 agent work/ 下**（挪到如 `/mnt/disk2/TeamCity/p4ws/`）；必须放的话，链首加一个带该 checkoutDir 的空 registrar 配置把登记提前。
+
 ## 机制(DirectoryMapDirectoriesCleanerImpl)
 
 - 任何曾被 buildType 登记为 **custom checkout directory** 的目录,都会进入 agent 的 directory map(agent system 目录下持久化)。

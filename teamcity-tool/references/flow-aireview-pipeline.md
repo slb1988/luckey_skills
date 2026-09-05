@@ -46,10 +46,11 @@ UBT 按 `ISourceFileWorkingSet`（本地修改/可写文件）把 unshelve 进�
 
 - Dashboard `编译错误数: 0`：`_analyze_compile_errors()`（auto-server 后端）靠正则 `提取到 **(\d+)** 条` 从日志分析报告抠数字，匹配不上就落 0——实际有错误时飞书通知里的数字是对的，只是 dashboard 归因展示少数字。
 
-### 新流首次评审：工具脚本缺失 + 回调缺席卡死（2026-09-04 review 157 实例）
+### 新流首次评审：UnknownCleaner 清工作区 + 工具脚本缺失（2026-09-04 review 157 实例，9/5 查清）
 
-- **触发条件**：某条流**史上第一次**发起 AI 评审（review 157 / CL 129252 是 Stable 流首评）。Sync 阶段新建 P4 client `{agent}_{stream}` 并全量同步（Stable 0→126068 跑了 53min，**同步本身成功**）。
-- **根因**：`PLN_TaskAiReview` 是 `checkoutMode=MANUAL` + **不挂任何 VCS root**，`Collect Review Context` 步直接跑 `python Tools/AiReview/AiReviewContextCollect.py`，**假设评审脚本随 UE 流的 sync 进入工作区**。但当时 `Tools/AiReview/` 只在 MainDev 流——Stable HEAD（126068，8/24 拷贝）里没有 → `Errno 2` exit 2，整链 FAILURE。
-- **次生症状**：`Validate And Publish Result` 步被跳过 → 回调永远不发 → 后端 review 记录 `compile_status=running` 卡死（dashboard 一直转圈），尽管链已 FAILED。查评审卡住时先对 `compile_build_url` 的链状态。
-- **修复**：次日 CL 129362（'add ai review tool'）把 `Tools/AiReview/` 合入 Stable 流，流层面根治；此后任意流首评前确认该流含 `Tools/AiReview/` 即可。
-- **排查路径**：复合构建 REST 只返直接依赖需递归追踪；`Task_AiReview` 的 settings 里 `checkoutMode/checkoutDirectory` 是关键；sync 日志 grep 目标文件名可证「流里有没有」。
+- **触发条件**：某条流**史上第一次**发起 AI 评审（review 157 / CL 129252 是 Stable 流首评）。Sync 阶段新建 P4 client `{agent}_{stream}` 并全量同步（Stable 0→126068 跑了 53min，同步本身成功）。
+- **主因（结构性，会复发）**：工作区内容在评审步开始前被 **TC agent 的 DirectoryMapUnknownCleaner 整树清掉**。该 cleaner 在**每个构建启动准备时**扫描 agent `work/` 下未登记进 `work/directory.map` 的目录，当无主垃圾 move 到 `work/.old/` 随后物理删除（日志特征：`Checking not listed in directory.map folder ...` + `Move directory ... to .../work/.old/...`）。链上 Sync/Unshelve 配置**无 checkoutDir**（跑在 hashed 目录），登记只发生在带 `checkoutDir=work/%agent%_%P4Stream%` 的 TaskBuildUELinux/Task_AiReview（MANUAL 模式也会登记）**启动那一刻**——于是新工作区在 Sync 完稿后、登记前的窗口里被链自己的 Unshelve/BuildUE 构建启动扫描连清两次（20:08:41/20:08:51，日志实锤），AiReview 步面对的是空目录。MainDev 不出事是因为早已登记且天天被用。**每条新流的首评都会踩这个窗口**。
+- **次因（已被 CL 129362 修复）**：`Task_AiReview` 是 `checkoutMode=MANUAL` + 不挂 VCS root，`Collect Review Context` 跑 `python Tools/AiReview/AiReviewContextCollect.py` 依赖脚本随 UE 流 sync 进工作区；当时 `Tools/AiReview/` 只在 MainDev 流，Stable HEAD（126068）没有 → 即使没被清也会报 `Errno 2` exit 2。9/5 CL 129362 已把工具合入 Stable。新流首评前确认该流含 `Tools/AiReview/`。
+- **次生症状**：`Validate And Publish Result` 步被跳过 → 回调永远不发 → 后端 review 记录 `compile_status=running` 卡死（dashboard 一直转圈）。查评审卡住先对 `compile_build_url` 的链状态。
+- **清理后现场**：磁盘空目录 + P4 have-table 满（up-to-date 假象）——裸重跑 sync 只拉 delta 秒过、工作区 99% 缺失。恢复必须 `p4 -c {agent}_{stream} clean //CyanCookOfficialDepot/<stream>/...` 或 sync -f 全量补回（.old 会被 cleaner 第二阶段 purge，无法从 .old 抢救）。
+- **根治方向**：把 P4SyncRoot + 两处 checkoutDir 挪出 agent work/（如 `/mnt/disk2/TeamCity/p4ws/`，UnknownCleaner 只扫 work/；改动点：`Teamcity_PLN/.teamcity/patches/buildTypes/` 的 TaskSyncCyanCookDepot.kts `P4SyncRoot` 参数 + TaskAiReview.kts/TaskBuildUELinux.kts 的 checkoutDir，BuildUE 的 Verify Client Root 用 `%teamcity.build.checkoutDir%` 无需改；存量 MainDev client 需同步 `mv` 目录 + 改 client spec Root）。轻量替代：链首加一个 MANUAL+checkoutDir 的空 registrar 配置把登记提前到链开始。
