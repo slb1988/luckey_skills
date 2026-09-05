@@ -39,6 +39,14 @@ dir) and can be ignored. The report's security summary (Gen / Socket / Snyk) is 
 official-repo skills commonly show Snyk Medium risk.
 </memory>
 
+<memory category="core-rules">
+Global (`-g`) install location depends on which agent host runs the command:
+- pi → `~/.pi/agent/skills/`
+- Claude Code / Codex → `~/.agents/skills/`
+Without `-g`, the skill installs only into the current project. Same skill can be installed in multiple hosts; check the target dir before re-installing.
+两条观察其实互补（2026-09-05 Mac 实测）：物理文件落 `~/.agents/skills/`，再以 symlink 传播到各 host 目录（如 `~/.pi/agent/skills/orchestration -> ~/.agents/skills/orchestration`）；但 `~/.claude/skills` 本机是独立实体目录，不在传播链上。
+</memory>
+
 ## How to Help Users Find Skills
 
 ### Step 1: Understand What They Need
