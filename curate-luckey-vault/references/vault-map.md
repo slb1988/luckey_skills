@@ -28,6 +28,7 @@ Older PKM documents may still mention `type`, `domain`, `status`, `created`, and
 | `.claude/AutomationDocs` | Documentation for repository automation and operations |
 | `.claude/plans` | Implementation plans required by repository instructions |
 | `.claude/skills` | Skills submodule; `.agents/skills` is the preferred compatibility entry |
+| `reading-wiki` | Compiled reading knowledge base outside the vault: `raw/web` clips → `sources` curated → `wiki` concept pages |
 
 Legacy directories such as `002 Cards` and `010 GameDev` still exist. Do not route new content into them unless a live rule or an existing canonical note requires it.
 
@@ -38,6 +39,10 @@ Current `02_notes` domains include `ai_agent`, `career`, `daily`, `devops`, `gam
 ## Project roots
 
 Current `03_projects` roots include `astro`, `bump`, `cardgame`, `cyancook`, `personal`, `tps`, and `tr`. Inspect the selected project before inventing a new subdirectory. Topic-focused subdirectories are appropriate when several documents share one operational subject.
+
+## reading-wiki pipeline state (verified 2026-09)
+
+`reading-wiki/` at repo root is a three-layer compiled knowledge base: `raw/web/` (Web Clipper captures with `source` URL frontmatter) → `sources/` (curated ingest output) → `wiki/` (compiled concept pages plus `index.md`/`MOC.md`). The compiler (llmwiki CLI) is **lost** — only `.llmwiki/state.json` (incremental content-hash state) remains — so the wiki layer is frozen at its 2026-04 compile. Known residue: alias broken links from inconsistent concept naming (e.g. `Lumen` vs `Lumen (Unreal Engine)`), and duplicate articles across `raw/web/` and `sources/`. Rebuilding the concept compile means re-implementing it and adding alias normalization, not adding more sources. The full archive/compile pipeline design (ArchiveBox → RAGFlow + memory-hub) lives in `.claude/plans/个人知识档案馆与编译管线.md`.
 
 ## Link and identity conventions
 

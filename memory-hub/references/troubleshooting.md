@@ -8,6 +8,18 @@
 
 编辑器内 `memory_search` 0 命中时，绕过扩展用 CLI 复现：pi/claude 的记忆扩展只是薄封装，实际检索全部在 `scripts/memory_hook.py search`（扩展源码里 grep 不到 project/检索逻辑属正常）。`/usr/bin/python3 scripts/memory_hook.py search "<query>" --project <id> --limit 20 --json` 与编辑器内走同一链路，且 `--project` 可探测当前 cwd 派生 scope 之外的项目（如 agent-history、maindev），`--json` 可看原始返回结构排除展示层问题。
 
+### 「Memory Hub is unavailable or no matching memory was found」= 三态统一文案，不等于服务挂了
+
+<memory category="troubleshooting">
+**`memory_search` 返回给 agent 的文本把 timeout / empty / error 三种 outcome 统一成同一句 "Memory Hub is unavailable or no matching memory was found."**（pi 扩展 search 工具文本分支，`assets/pi-memory-hub.ts` ~1505；widget 的 `showRecallOutcome` 有三态区分但只给人看，agent 只看到统一文案）。已实证的误判模式：agent 见此文案断言「Memory search is unavailable」、放弃检索转凭印象回答。三态中 empty 其实是**检索成功**、judge fail-closed 把全部候选正确过滤（真阴性），恰恰证明链路健康；kept=0 是常态而非异常信号（2026-09-03 本机 111 次在线召回抽样 43 次 kept=0，38.7%）。判别要看客观层而非这句文案：recall 详情文件 / pi-trace 的 outcome 字段（injected/empty/timeout/error/cancelled），或 CLI 同 query 复现 + known-good 向量（retrieval-eval.md）。
+</memory>
+
+### 首轮预热 0 命中的时序类根因：目标记忆「尚未归档」；search 无查询缓存是设计
+
+<memory category="troubleshooting">
+**0 命中归因除 scope 隔离/FTS 遮蔽外还有时序类：首轮预热发生在 session 开头，目标记忆若在该 session 中后期才归档入库，预热时它尚不存在**（2026-09-03 实证：预热 11:01:09 搜「小龙虾」0 命中、judge 正确过滤 10 条不相关候选；目标记忆 11:14:25 才归档；事后用同一 query 复现——query_hash 相同 `07bed9ab`——即 kept=1 正常命中）。配套设计事实：search-v2 **无查询缓存**，`query_hash` 仅用于审计/留痕（memory_hook 透传，可按它核对两次调用是否同一 query），同一 query 重复调用实时重算、会返回两次调用之间新入库的记忆——这正是刻意不加结果缓存的理由（缓存会遮蔽新记忆），优化检索时不要引入查询缓存。排查「刚才明明聊过却搜不到」先对齐「预热/搜索时刻 vs 归档时刻」，再按 scope/排序排查。
+</memory>
+
 ### Graphiti 语义检索的噪音底线（返回非空 ≠ 命中）
 
 Graphiti 语义检索噪音底线高：乱查（大小写无关）也会返回"近似"结果——**返回非空 ≠ 命中，目标不在 top-N ≠ 不存在**。判定"没有这条记忆"前先调大 `--limit`（默认 10）并换关键词重试，再按 project scope 排查。live hook 同样按写入时 cwd 文件夹名派生 project：Windows 端写的记忆散落在 maindev/unity2018/agent-history 等，Mac 端 ObsidianVault 会话默认只能看到 obsidianvault project——跨机器"重启后搜不到"几乎都是 scope 隔离而非故障。

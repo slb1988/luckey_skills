@@ -1,0 +1,40 @@
+{
+  "removals": [
+    {
+      "review_id": "01a06cc1-3b9e-788f-a21a-db6e301708ec",
+      "entities": [],
+      "edges": [
+        {"source": "kid-learning-journey", "name": "DECIDED", "target": "女儿"},
+        {"source": "kid-learning-journey", "name": "DECIDED", "target": "家长开发者"}
+      ]
+    }
+  ],
+  "approvals": [
+    {"review_id": "01a06cde-fcf0-7a6f-9068-66e2ec7ee675", "content_mode": "curated",
+     "rationale": "auto-review: 预览4实体3边均有正文支撑（flask/vue-ts技术栈、ABC三原型）；novelty=evolution（文档迁移+原型落地）"},
+    {"review_id": "01a06cd7-55f2-7678-8ab4-1b55c3e9d98c", "content_mode": "curated",
+     "rationale": "auto-review: 综合方案6边全部有正文支撑（person一等公民、状态机、语录链、边界裁定）；novelty=evolution REFINES"},
+    {"review_id": "01a06ccb-d31f-7781-bfa8-1522e068d1ad", "content_mode": "curated",
+     "rationale": "auto-review: checklist/脚本/A-B-C判定7边均与正文一致，引用关系（drift-audit.md）准确；novelty=evolution"},
+    {"review_id": "01a06cc4-97b3-71dc-9a7f-c51a8eff2f25", "content_mode": "curated",
+     "rationale": "auto-review: 轻游戏化+性能预算8边fact均有正文支撑；3条边端点未入实体表但fact文本自足，curated渲染无碍；novelty=evolution"},
+    {"review_id": "01a06cc1-3b9e-788f-a21a-db6e301708ec", "content_mode": "curated",
+     "rationale": "auto-review: v0.2定案事实准确；已remove 4条target错挂Person的DECIDED边（2个三元组），余9边准确；novelty=evolution"},
+    {"review_id": "01a06cba-93cd-7570-af35-69d44a8e6298", "content_mode": "curated",
+     "rationale": "auto-review: 平台与hub分层/伪名user/P0缺口8边均有正文支撑；novelty=evolution"},
+    {"review_id": "01a06cb3-44f4-7c80-a897-84fa73068e56", "content_mode": "curated",
+     "rationale": "auto-review: 首版方案6边准确（受约束AI教练、错题闭环、restx契约顾虑）；novelty=novel"},
+    {"review_id": "01a06ca9-209a-76fe-8161-dd143c1f11b6", "content_mode": "curated",
+     "rationale": "auto-review: codex技能目录预算2边与正文一致（10000上限、禁重复副本、重启生效）；novelty=evolution"},
+    {"review_id": "01a06c97-dbaf-7477-9326-77f5460e0592", "content_mode": "curated",
+     "rationale": "auto-review: orca实体是正文真实主题（Settings Arguments配置）非模板污染；3边准确；novelty=evolution"},
+    {"review_id": "01a06c92-db24-7edd-9a69-7b62594c1e48", "content_mode": "curated",
+     "rationale": "auto-review: P4并行隔离6边全部有正文支撑，预览正确忽略正文开头的Orca派发模板；novelty=evolution"},
+    {"review_id": "01a06c79-271f-7663-83c5-1657bb7d0105", "content_mode": "curated",
+     "rationale": "auto-review: 漏洞A/B修复机制8边准确；尾部CL1472待提交为短期状态但主体是长期机制知识且预览未抽取该部分；novelty=evolution SUPERSEDES"}
+  ],
+  "rejections": [
+    {"review_id": "01a06c78-c047-7d8c-9427-b1059375c838",
+     "rationale": "auto-review（人工确认）: worker侧会话，预览整体为Orca派发模板污染（只抽出orca+worker_done约定，修复内容零抽取）；正文有效内容与同批01a06c79完全重复且后者保真度更高，无独立长期价值"}
+  ]
+}

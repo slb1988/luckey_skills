@@ -8,6 +8,10 @@ description: QNAP NAS 综合运维工具。当用户提到 QNAP 命令行、NAS 
 ## 环境信息
 
 - **型号**: TS-453Dmini (Gemini Lake, TS-X53D 系列)
+- **资源天花板（2026-09-04 实测）**: <memory category="core-rules">J4125 + 8GB RAM，但常态可用仅 ~2.2GB（已吃 3GB swap）。新部署任何服务的硬约束：数据库用 SQLite 不用 Postgres，OCR/worker 并发压到 1，容器显式设 memory 上限（≤1.5G），避开 Elasticsearch/Tika 类重栈；首次批量导入安排夜间。内存紧张时 Qsirch 是首要瘦身候选（约可释放 500M-1G）。</memory>
+- **内存占用地图（2026-09-04 实测稳态）**: <memory category="core-rules">MemAvailable ~2.0GB + swap 用 2.7GB/30GB 即为常态基线，不算异常。Top 占用归属：Neo4j（memory-center 容器）~930MB ＞ MariaDB（MultimediaConsole QPKG）~590MB ＞ Qsirch OpenSearch ~320MB ＞ dashboard_backend ~185MB；memory-center 三容器合计 ~1.16GB，是 NAS 上最重的自有部署。注意 Qsirch 主进程实测仅 ~320M，瘦身收益按此量级校准预期。</memory>
+- **网络身份（2026-09-04 实测更新）**: LAN `192.168.50.2/24`（qvs0 虚拟交换机，DHCP 来自 192.168.50.1，eth0 DOWN），WireGuard `10.77.77.6` 为兜底通道。**旧资料中的 `192.168.2.13` 不再是 NAS**——那是同网段另一台服务器（TeamCity :8111 / nginx :80，其 :1666 也有服务）；NAS 的 Perforce 现为 `192.168.50.2:1666`。工作站（192.168.2.x）到 192.168.50.x 跨网段路由可通。注意 NAS 网口是 DHCP，有换号风险，WG 地址永远可靠。
+- **SMB**: 服务端正常（smbd 监听 0.0.0.0:445/139，无防火墙/接口绑定限制），但禁 guest（匿名 net use 报 error 64）；工作站无已存凭据时需先配 `cmdkey`/`net use /persistent`。`net view` 报 1702 只是 NetBIOS 浏览被禁，不影响按 UNC 路径直连。
 - **QPKG 路径**: `/share/CACHEDEV1_DATA/.qpkg/`
 - **Shell 环境**: `/bin/sh`（非 bash），需注意兼容性
 - **pyauto-computer agent**: NAS 上跑 pyAutomation 受管 agent（名 `nas`，端口 9100），**重启后不自启**（QTS 无 systemd user session），恢复方法 → [references/pyauto-agent.md](references/pyauto-agent.md)
@@ -420,3 +424,7 @@ $SQLITE $DB "SELECT json_extract(value, '$.name'), json_extract(value, '$.enable
 - `qnap-git-setup` — Git 安装、SSH key 生成、GitHub 绑定
 - `qnap-perforce` — Docker Perforce (Helix Core) 运维
 - `mihomo-proxy-setup` — 翻墙代理（QNAP 可能需要）
+
+## 项目实例
+
+- **AI 文档收件室（Paperless-ngx）**：调研结论与本机资源水位评估见主仓库 `.claude/plans/AI文档收件室-系统架构调研.md`（2026-09-04）

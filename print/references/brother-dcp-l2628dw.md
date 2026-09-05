@@ -3,9 +3,19 @@
 ## 基本信息
 
 - **型号**: Brother DCP-L2628DW（A4 **黑白**激光多功能一体机，打印/复印/扫描，34ppm，自动双面）
+<<<<<<< Updated upstream
 - **位置**: 家庭 LAN（192.168.50.0/24，RT-AC5300）
 - **当前 IP**: `192.168.50.40`（Wi-Fi 接入；建议路由器绑 DHCP 静态租约）
 - **MAC**: 94:DD:F8:ED:94:C4（由 Bonjour UUID e3248000-80ce-11db-8000-94ddf8ed94c4 末 12 位得出）
+=======
+- **位置**: 家庭 LAN（**192.168.50.0/24**，网关 192.168.50.1 = ASUS RT-AC5300 Merlin-KoolShare）
+  - ⚠️ 拓扑要点：`192.168.2.0/23` 是**公司**网段（TeamCity/auto-server/nginx 所在），不是家里；家 LAN 是 192.168.50.x
+  - NAS（QNAP NAS453Dmini，WG 10.77.77.6）在家 LAN `192.168.50.2`，与打印机同网段
+- **连接方式**: Wi-Fi / 有线 / USB
+- **MAC**: 94:DD:F8:ED:94:C4（由 Bonjour UUID e3248000-80ce-11db-8000-94ddf8ed94c4 末 12 位得出）
+- **当前 IP**: 未知（2026-09 调研时打印机离线；⚠️ 若它持有旧 192.168.2.x 静态 IP，需在打印机面板上重新配 WiFi/DHCP 到 50 网段）
+- **设备 URI**: `dnssd://Brother%20DCP-L2628DW._ipps._tcp.local./?uuid=e3248000-80ce-11db-8000-94ddf8ed94c4`
+>>>>>>> Stashed changes
 
 ## 网络协议（2026-09-03 实测确认）
 
@@ -51,6 +61,7 @@ lp -h 192.168.50.2 -d brother -o media=iso_a5_148x210mm photo.jpg
 
 ## Windows CLI 打印
 
+<<<<<<< Updated upstream
 推荐直接挂 NAS 中继队列（不用装 Brother 驱动）：
 
 ```powershell
@@ -58,6 +69,12 @@ lp -h 192.168.50.2 -d brother -o media=iso_a5_148x210mm photo.jpg
 # 或 http://10.77.77.6:631/printers/brother（WG 私网，任何地点可用）
 # 驱动选 Generic IPP Everywhere 或 Microsoft IPP Class Driver
 ```
+=======
+本机 = 公司 PC（192.168.2.70 / WG 10.77.77.3），与打印机**不直通**，须经 NAS 中继：
+打印机上线 + NAS CUPS 就绪后，添加 IPP 打印机指向 `http://10.77.77.6:631/printers/brother`
+（设置 → 添加打印机 → 手动添加 → 按名称选择共享打印机 → 填该 URL，驱动选 Microsoft IPP Class Driver），
+再用 SumatraPDF 打印：
+>>>>>>> Stashed changes
 
 PDF 选页/份数/双面用 SumatraPDF 便携版（也能直接打 jpg/png）：
 ```bash
@@ -69,4 +86,24 @@ SumatraPDF.exe -print-to "<打印机名>" -print-settings "1-3,7" -silent -exit-
 
 ## 运维备忘
 
+<<<<<<< Updated upstream
 容器/队列运维、@nas 派发模板、客户端接入统一见 [nas-cups-relay.md](nas-cups-relay.md)。
+=======
+```bash
+lpadmin -p brother -E -v ipp://<打印机IP>/ipp/print -m everywhere
+lp -d brother -o page-ranges=1-3 file.pdf
+```
+
+## 远程打印（纳入 WireGuard 私网）
+
+- **路由器方案不可行**：家里 RT-AC5300（192.168.50.1）是 Merlin-KoolShare，内核 2.6.36，无 WireGuard（梅林 388+ 才有）；Entware 装 wireguard-go 太折腾，端口转发暴露公网不安全（且家宽可能 CGNAT）
+- **推荐：QNAP NAS（10.77.77.6，已在 WG，家 LAN 192.168.50.2 与打印机同网段）跑 CUPS 容器做中继**（Container Station + ydkn/cups，`--network host`，配置持久化 /share/Container/cups），仅放行 10.77.77.0/24 + 192.168.50.0/24；远程节点用 `lp -d brother -h 10.77.77.6 -o page-ranges=... file.pdf` 或添加 `ipp://10.77.77.6:631/printers/brother`
+- 已验证：本机 → 10.77.77.6 WG 链路通（16ms）
+
+## 待办
+
+- [ ] 打印机开机后确认 IP，路由器绑静态 DHCP，回填本文档
+- [ ] 实测 IPP `document-format-supported`（确认是否收 application/pdf，还是只收 image/urf）
+- [ ] Windows 侧装驱动 + SumatraPDF，封装 prt 脚本
+- [ ] NAS 部署 CUPS 中继
+>>>>>>> Stashed changes

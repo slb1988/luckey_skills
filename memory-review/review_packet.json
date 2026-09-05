@@ -1,0 +1,167 @@
+[
+ {
+  "review_id": "01a06cff-e22c-72fb-a4bd-9dac8d06bac1",
+  "project_id": "memory-hub",
+  "memory_type": "session_summary",
+  "summary": "我作为 sunlaibing admin账号登录，创建 user 账号，报错 index-CPq-jitj.js:1790 POST https://lucke",
+  "created_at": "2026-09-04T15:18:24.035303Z",
+  "entity_count": 7,
+  "edge_count": 6,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆不仅修复并显式改变了候选2描述的『BFF 框架校验失败返回 422』行为（改为全局 400 INVALID_ARGUMENT 信封），还新增了错误信封格式、前端校验规则、协议互锁测试与 codex review 迭代结果等历史候选未覆盖的事实。"
+  },
+  "distilled_content": "首个用户目标：我作为 sunlaibing admin账号登录，创建 user 账号，报错 index-CPq-jitj.js:1790 POST https://luckeyhome.site/memory-hub/api/v1/admin/users 422 (Unprocessable Content) ，什么原因，fix ，然后 orca 编排 codex review，针对结果继续求改迭代。最近用户目标：我作为 sunlaibing admin账号登录，创建 user 账号，报错 index-CPq-jitj.js:1790 POST https://luckeyhome.site/memory-hub/api/v1/admin/users 422 (Unprocessable Content) ，什么原因，fix ，然后 orca 编排 codex review，针对结果继续求改迭代。会话结果：完成。总结： ## 根因 你创建 user 账号时的 **422 来自 dashboard BFF（FastAPI）的请求体校验**——最可能是初始密码 < 8 位（或用户名 < 2 位）。链路问题有两个： 1. **BFF 泄漏了 FastAPI 原生 422**（`{detail: [...]}` 数组），而不是 hub 风格的 `{error: {code, message}}` 信封；前端 `parseOrThrow` 把 `detail` 数组直接 `String()`，错误提示变成 `[object Object]`，所以你只能在 console 里看到裸 422。 2. **创建用户表单零客户端校验**，非法输入直接打后端。 ## 修复（6 文件） | 文件 | 改动 | |---|---| | `backend/dashboard_backend/main.py` | 全局 `RequestValidationError` → **400 INVALID_ARGUMENT 信封**（message 为 `字段: 原因` 可读文本） | | `frontend/src/api/client.ts` | `formatDetail` 防御性格式化 + 严格类型守卫（`isRecord`，畸形整体回退） | | `frontend/src/views/UsersView.vue` | 创建前置校验：用户名 `^[a-z0-9][a-z0-9._-]{1,31}$`、密码 8–256（按 code point 计）、显示名 ≤64 | | `protocol/openapi.yaml` | 新增 `InvalidArgument`(400)/`DomainInvalidArgument`(422) 可复用响应，30+ operation 补齐声明，password 补 `maxLength: 256`，措辞明确「框架级 400 / 领域校验按端点声明」 | | `backend/tests/` | 新增 4 个用例（信封完整性、loc 语义、多错误拼接、非法 JSON）+ **协议互锁强化**：以 FastAPI 生成 schema 为基准，凡可触发框架校验的 operation 必须声明解析到 Error 的 400（已做两类负向验证） | ## Orca 编排 codex review：4 轮迭代 - **R1**（非 LGTM）：1 major（全局 422→400 只同步了 1 个端点的协议）+ 3 minor（loc 过滤误删业务字段 `query`/`path`、信封伪称与 hub 一致、password maxLength 三方不一致）+ 1 nit（类型退化） - **R2**（非 LGTM）：发现互锁不解析 `$ref` 参数导致 `GET /outbox` 漏声明、既有裸 400 缺 schema - **R3**（非 LGTM）：仅剩 5 个 GET 端点的显式领域 422 未声明 - **R4**（终审）：**LGTM** ✅ 小插曲：第一轮 codex 被 hooks 信任弹窗卡住导致 dispatch capability 被吊销，`worker_done` 送达失败，已通过回收其 `/tmp` 报告 + 手动 t",
+  "proposed": {
+   "entities": [
+    {
+     "name": "memory-hub",
+     "type": "Project",
+     "summary": "部署在 luckeyhome.site 的记忆中枢项目，含 dashboard 前端（vue）与 FastAPI BFF（backend/dashboard_backend），管理接口路径 /memory-hub/api/v1/admin/*"
+    },
+    {
+     "name": "dashboard bff",
+     "type": "Service",
+     "summary": "memory-hub 的 FastAPI 后端（backend/dashboard_backend/main.py），曾把 FastAPI 原生 422 校验错误直接泄漏给前端"
+    },
+    {
+     "name": "dashboard frontend",
+     "type": "Service",
+     "summary": "memory-hub 的 vue 前端（frontend/src），api client.ts 的 parseOrThrow 曾把 detail 数组渲染成 [object Object]"
+    },
+    {
+     "name": "error envelope convention",
+     "type": "Convention",
+     "summary": "memory-hub 统一错误信封 {error:{code,message}}：框架级请求校验错误（FastAPI RequestValidationError）须全局转为 400 INVALID_ARGUMENT，message 为「字段: 原因」可读文本；领域校验错误按端点在 openapi.yaml 声明为 422 DomainInvalidArgument"
+    },
+    {
+     "name": "protocol interlock test",
+     "type": "Convention",
+     "summary": "协议互锁测试以 FastAPI 生成 schema 为基准（须解析 $ref 参数）：凡可触发框架校验的 operation 必须在 openapi.yaml 声明解析到 Error schema 的 400 响应"
+    },
+    {
+     "name": "user creation validation rules",
+     "type": "Convention",
+     "summary": "创建用户的校验规则：用户名 ^[a-z0-9][a-z0-9._-]{1,31}$，密码 8–256（按 code point 计），显示名 ≤64；前端创建表单须前置校验，三方（前端/BFF/openapi）保持一致"
+    },
+    {
+     "name": "orca codex review loop",
+     "type": "Convention",
+     "summary": "用 orca 编排 codex review 的工作流：逐轮修复 major/minor/nit 直至终审 LGTM（本次 4 轮）；注意 codex 可能被 hooks 信任弹窗卡住导致 dispatch capability 被吊销、worker_done 送达失败，可回 /tmp 回收报告"
+    }
+   ],
+   "edges": [
+    {
+     "source": "dashboard bff",
+     "target": "memory-hub",
+     "name": "PART_OF",
+     "fact": "dashboard bff（FastAPI, backend/dashboard_backend）是 memory-hub 的后端服务，向 dashboard 前端提供 /memory-hub/api/v1/admin/* 接口"
+    },
+    {
+     "source": "dashboard frontend",
+     "target": "dashboard bff",
+     "name": "CALLS",
+     "fact": "dashboard 前端通过 client.ts 的 parseOrThrow 调用 dashboard bff；曾因 BFF 泄漏 FastAPI 原生 422 detail 数组导致错误提示显示为 [object Object]"
+    },
+    {
+     "source": "dashboard bff",
+     "target": "error envelope convention",
+     "name": "FOLLOWS",
+     "fact": "dashboard bff 注册全局 RequestValidationError 处理器，把框架级 422 转为 400 INVALID_ARGUMENT 的 {error:{code,message}} 信封，message 为「字段: 原因」可读文本"
+    },
+    {
+     "source": "memory-hub",
+     "target": "protocol interlock test",
+     "name": "ENFORCES",
+     "fact": "memory-hub 以协议互锁测试强制 openapi.yaml 与 FastAPI 实现一致：可触发框架校验的 operation 必须声明 400 Error 响应，领域 422 也须按端点显式声明"
+    },
+    {
+     "source": "dashboard frontend",
+     "target": "user creation validation rules",
+     "name": "IMPLEMENTS",
+     "fact": "创建用户表单在提交前做客户端校验：用户名 ^[a-z0-9][a-z0-9._-]{1,31}$、密码 8–256（code point 计）、显示名 ≤64，避免非法输入直接打后端产生 422"
+    },
+    {
+     "source": "orca codex review loop",
+     "target": "memory-hub",
+     "name": "APPLIED_TO",
+     "fact": "memory-hub 的修复流程采用 orca 编排 codex review：非 LGTM 结果逐轮修复再评审，直到终审 LGTM（422 修复案例共 4 轮）"
+    }
+   ]
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a06cfb-4e63-7750-a049-ba57f1ab9891",
+  "project_id": "admin_sun_depot_7184",
+  "memory_type": "session_summary",
+  "summary": "RequestReview.py 控制台闪烁优化",
+  "created_at": "2026-09-04T15:13:24.057844Z",
+  "entity_count": 4,
+  "edge_count": 2,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆包含历史候选未覆盖的长期事实：p4.exe 子进程绕过 pythonw 静默机制产生控制台闪烁，及统一 P4 入口增加 CREATE_NO_WINDOW 的修复方案；该事实对候选4中『watcher 脱离控制台即静默』的隐含结论构成边界补充，形成 REFINES 演进关系。"
+  },
+  "distilled_content": "首个用户目标：为什么 RequestReview.py 在单子提交成功后，弹出最终的结果dialog窗口前，会频繁刷新控制台之类的窗口，有点晃眼，能不能静默无感知，或者优化下代码，记得更新同步另一个同名文件。最近用户目标：为什么 RequestReview.py 在单子提交成功后，弹出最终的结果dialog窗口前，会频繁刷新控制台之类的窗口，有点晃眼，能不能静默无感知，或者优化下代码，记得更新同步另一个同名文件。会话结果：已优化完成。 **原因** - watcher 虽由 `pythonw.exe` 启动，但内部连续调用的 `p4.exe` 仍会创建临时控制台。 - 提交成功后的收尾会执行多条 `opened/diff/revert/sync/change`，因此黑框连续闪烁。 **修复** - `DevOps/RequestReview.py` 的统一 P4 入口增加 Windows `CREATE_NO_WINDOW`。 - 输出仍静默捕获到日志，错误诊断不受影响。 - 最终结果 Dialog 保留，前面的控制台闪烁将消失。 - 已同步： - dist 镜像 `//depot/DevOps/dist/RequestReview.py` - 本机 P4VUtils 运行副本，并保持只读属性 **验证** - RequestReview 单测：`83 passed` - 后端全量：`1866 passed, 11 skipped` - 源文件与 dist 镜像逐字节一致 待人工提交： - 源 CL **1477** - dist CL **129333** 新启动的 Request Review watcher 即会使用修复版。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "requestreview.py",
+     "type": "Tool",
+     "summary": "DevOps 下的提交评审工具脚本，由 pythonw.exe 启动 watcher 并内部调用 p4.exe 执行 P4 操作"
+    },
+    {
+     "name": "create_no_window fix",
+     "type": "Decision",
+     "summary": "在 RequestReview.py 的统一 P4 入口为 Windows 子进程增加 CREATE_NO_WINDOW 标志，消除 p4.exe 频繁创建临时控制台导致的黑框闪烁，输出仍静默捕获到日志"
+    },
+    {
+     "name": "requestreview dist 同步约定",
+     "type": "Convention",
+     "summary": "修改 DevOps/RequestReview.py 后必须同步 dist 镜像 //depot/DevOps/dist/RequestReview.py 及本机 P4VUtils 运行副本（保持只读属性），并保证源文件与 dist 逐字节一致"
+    },
+    {
+     "name": "p4.exe 控制台闪烁问题",
+     "type": "Concept",
+     "summary": "watcher 虽由 pythonw.exe 启动，但内部连续调用的 p4.exe 仍会创建临时控制台；提交成功后收尾执行多条 opened/diff/revert/sync/change 命令导致黑框连续闪烁"
+    }
+   ],
+   "edges": [
+    {
+     "source": "create_no_window fix",
+     "target": "p4.exe 控制台闪烁问题",
+     "name": "FIXES",
+     "fact": "RequestReview.py 通过在统一 P4 入口增加 Windows CREATE_NO_WINDOW 标志，修复了 p4.exe 子进程频繁弹出临时控制台导致结果 Dialog 前黑框闪烁的问题"
+    },
+    {
+     "source": "requestreview dist 同步约定",
+     "target": "requestreview.py",
+     "name": "APPLIES_TO",
+     "fact": "每次修改 DevOps/RequestReview.py 都必须同步更新 dist 镜像 //depot/DevOps/dist/RequestReview.py 和本机 P4VUtils 运行副本（保持只读属性），并验证逐字节一致"
+    }
+   ]
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ }
+]

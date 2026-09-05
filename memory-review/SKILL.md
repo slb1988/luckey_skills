@@ -85,7 +85,7 @@ removals 先于 approvals 执行（服务端保证 remove 后 curated 用清理�
 apply 按 (action, content_mode, rationale) 分组批量调用；需要逐条不同 rationale 时
 给每条单独一句即可，脚本会自动分组。
 
-## 已知典型问题模式（2026-09-04 首批 36 条审核实证）
+## 已知典型问题模式（2026-09-04 首批 36 条 + 后续批次实证）
 
 | 模式 | 处置 |
 |------|------|
@@ -94,6 +94,14 @@ apply 按 (action, content_mode, rationale) 分组批量调用；需要逐条不
 | 预览 1 实体 0 边、正文有实质内容 | approve `original` |
 | novelty=evolution（演进链 SUPERSEDES/REFINES 旧记忆） | 正常 approve，链路本身即价值 |
 | 个人偏好类记忆（硬件选型、购物兴趣） | 可批；这类画像是设计内的记忆类型 |
+| `DECIDED` 边错挂 Person（`项目 -DECIDED-> 女儿/家长`，target 应是决策实体而非人） | 按三元组 remove（一个三元组可覆盖多条同三元组重复边），保留其余预览 approve curated |
+| 整个预览只有 Orca 派发模板实体（`orca` + 派发约定），正文实际内容零抽取 | curated/original 都会灌噪音（original 正文大半是模板原文，Graphiti 重抽同样撞上）；建议 reject 或升级人工 |
+| `orca` 实体不一定是污染：正文真实主题就是 orca 本身（如 Orca Arguments 配置机制）时合法 | 看正文主题而非实体名，勿误删 |
+
+**novelty 分析的盲区**：比对候选只来自**已入图谱**的记忆，看不到同队列待审条目——同一事项
+的 worker 侧 + 编排侧两个会话可能都被判 novel（分析时另一条还没入图谱）。判了 novel 不代表
+队列内无重复；扫完 packet 后需在同批条目间横向比对 project/正文关键词，重复的二选一
+（通常拒预览更差的那份，拿不准就留队列升级）。
 
 ## 服务端接口速查（dashboard BFF 代理，前缀 `/api/v1`）
 

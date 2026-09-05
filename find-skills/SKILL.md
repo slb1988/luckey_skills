@@ -30,6 +30,15 @@ The Skills CLI (`npx skills`) is the package manager for the open agent skills e
 
 **Browse skills at:** https://skills.sh/
 
+<memory category="common-patterns">
+**Global install behavior (`npx skills add <pkg> -g`)**: the skill lands in `~/.agents/skills/<name>`
+and propagates to ~17 agent platforms (Pi, Claude Code, Codex, Cursor, Cline, Copilot…) via
+universal install + symlinks — one command covers all agents, no per-agent setup. The install
+report lists per-agent results; a PromptScript failure entry is expected (it has no global skills
+dir) and can be ignored. The report's security summary (Gen / Socket / Snyk) is informational —
+official-repo skills commonly show Snyk Medium risk.
+</memory>
+
 ## How to Help Users Find Skills
 
 ### Step 1: Understand What They Need
