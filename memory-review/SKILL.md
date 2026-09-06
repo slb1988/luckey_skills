@@ -108,6 +108,10 @@ apply 按 (action, content_mode, rationale) 分组批量调用；需要逐条不
 | `DECIDED` 边错挂 Person（`项目 -DECIDED-> 女儿/家长`，target 应是决策实体而非人） | 按三元组 remove（一个三元组可覆盖多条同三元组重复边），保留其余预览 approve curated |
 | 整个预览只有 Orca 派发模板实体（`orca` + 派发约定），正文实际内容零抽取 | curated/original 都会灌噪音（original 正文大半是模板原文，Graphiti 重抽同样撞上）；建议 reject 或升级人工 |
 | `orca` 实体不一定是污染：正文真实主题就是 orca 本身（如 Orca Arguments 配置机制）时合法 | 看正文主题而非实体名，勿误删 |
+| 同一编码规则在多个 Linear 工单上被重复验证（换工单重述同一事实）、或正文只含单张工单的完成状态 | novelty 看不到同队列条目，须跨条目横向比对：通用规则只留最佳一份主记录，其余 reject；单工单完成状态按短期状态 reject |
+| 正文/预览含事实性错误（校验条件写反、结论已被线上最终版本证伪或取代） | reject；需要留存时以修正版重投，勿批带病版本——错误事实入图谱比丢记忆危害大 |
+| project/user 归属错误（worker 误标对话主体、记忆落错 project） | 不能原地带病批准：先用正确归属重投干净摘要并检索验证成功，再 reject 原条 |
+| 非 canonical 实体写法成对出现（`Memory Hub`/`memory-hub`、`xiaoyingtao`/`小樱桃`、`Chat Hub`） | 外科清理时统一改到图谱 canonical 写法后再 approve |
 
 **novelty 分析的盲区**：比对候选只来自**已入图谱**的记忆，看不到同队列待审条目——同一事项
 的 worker 侧 + 编排侧两个会话可能都被判 novel（分析时另一条还没入图谱）。判了 novel 不代表
