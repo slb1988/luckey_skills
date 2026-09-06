@@ -14,6 +14,12 @@ memory-center 把 LLM 和 embedding **解耦**成两组独立配置，可以分�
 
 > `graph_service/config.py` 只读 `openai_api_key` / `openai_base_url` / `model_name` 三个变量名，所以接 Anthropic 协议时**复用 `OPENAI_*` 变量名承载 key/base_url/model**，改值不改名。
 
+### CodePlan Anthropic 端点与凭据
+
+`https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic` 是阿里云 CodePlan 的 Anthropic Messages 兼容入口；凭阿里云 CodePlan token 即可调用，不需要另有 OpenAI 或 Anthropic 官方账号。
+
+直接接入 Claude Code 时用 `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` + `ANTHROPIC_MODEL`；Anthropic SDK 通常用 `ANTHROPIC_BASE_URL` + `ANTHROPIC_API_KEY`（模型由调用参数或应用配置指定）。memory-center 因上游配置读取限制，仍把同一组 base URL/key/model 写入 `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `MODEL_NAME`，不要把两套变量名混用。
+
 ## 换 provider 前必须满足的三个硬约束
 
 1. **embedding 必须是 1024 维**。graphiti-core 0.22.0 硬编码 `EMBEDDING_DIM=1024`（`embedder/client.py`）。选非 1024 维模型（如 nomic-embed-text 768 维）必须额外改这个文件。
