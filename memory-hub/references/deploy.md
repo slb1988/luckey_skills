@@ -286,6 +286,21 @@ setsid .venv/bin/memory-hub serve > data/memory-hub.log 2>&1 < /dev/null &
 
 **验收失败只完整回报证据，不回滚、不自行改代码/配置后继续**——修复/跳过由用户决策。
 
+## Graphiti overlay（deploy/graphiti-0.22.0）变更的部署
+
+Graphiti 服务（:8005）跑在 memory-center docker 容器里，自定义端点（/search-v2、/curate/*、
+/resolve-entities、/get-memory）以 patches 文件形式注入容器，运行实体在 NAS 的
+`memory_center/memory-center/patches/`。仓库 `deploy/graphiti-0.22.0/` 是 patches 的源码权威，
+**两边不会自动同步**：只 push 仓库不拷 patches，容器跑的还是旧代码；`stop_all.sh/start_all.sh`
+只重启 hub/dashboard/worker 三进程，**不碰 graphiti 容器**。
+
+overlay 变更的发布步骤（插在通用流程的 stop/start 环节）：
+
+1. 备份现 patches：`cp patches/retrieve.py patches/retrieve.py.bak.$(date +%Y%m%d%H%M%S)`（dto 等同理）
+2. 拷贝仓库 `deploy/graphiti-0.22.0/` 对应文件覆盖 patches/
+3. memory-center 目录下 `docker compose restart graphiti`，等 healthy（~10s）
+4. 直接打 :8005 的变更端点凒烟（如 `POST /resolve-entities`），别只信 hub /health/ready——它只探活不验端点版本
+
 ## 排障
 
 | 症状 | 排查 |

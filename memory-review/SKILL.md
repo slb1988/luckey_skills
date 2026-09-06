@@ -52,6 +52,13 @@ python scripts/review_queue.py apply decisions.json
    novel/evolution 的通常都可批；不必因为"看着像"就拒其中一条——去重是演进链的事。
 5. **content_mode 选择**：预览实体/边丰富且准确 → `curated`（Graphiti 高保真复现审核结果）；
    预览薄（0 边）但正文有价值 → `original`（保留原蒸馏文）。
+6. **实体存在性标注只是参考，不是拒绝理由**（2026-09-06 起 detail 自带）：`entity_existence`
+   （打开详情时实时查图谱）与 `entity_resolution`（preview 落库时的快照）标出
+   已有 / 已有·近似 / 已有·多候选 / 新 / 未知。已有实体仍可能带来新边新事实——判重看
+   novelty 与正文增量，不看实体是否已存在。「已有·近似」带 `suggested_canonical` 时无需
+   手动改名：批准 curated 的重验会把 approved 别名/唯一候选自动改写为 canonical 并留痕。
+   `ambiguous` 实体的 `llm_verdict`（map/new/uncertain + 置信度）只是建议，拿不准不要强行归并。
+   空预览（0 实体 0 边）有 badge；正文有实质价值时仍可 approve `original`。
 
 **安全红线（不可自动逾越）**：
 - novelty `admission=duplicate` 或分析 `failed` → **升级人工**，不要自动 approve（服务端也
@@ -111,10 +118,11 @@ apply 按 (action, content_mode, rationale) 分组批量调用；需要逐条不
 | 同一编码规则在多个 Linear 工单上被重复验证（换工单重述同一事实）、或正文只含单张工单的完成状态 | novelty 看不到同队列条目，须跨条目横向比对：通用规则只留最佳一份主记录，其余 reject；单工单完成状态按短期状态 reject |
 | 正文/预览含事实性错误（校验条件写反、结论已被线上最终版本证伪或取代） | reject；需要留存时以修正版重投，勿批带病版本——错误事实入图谱比丢记忆危害大 |
 | project/user 归属错误（worker 误标对话主体、记忆落错 project） | 不能原地带病批准：先用正确归属重投干净摘要并检索验证成功，再 reject 原条 |
-| 非 canonical 实体写法成对出现（`Memory Hub`/`memory-hub`、`xiaoyingtao`/`小樱桃`、`Chat Hub`） | 外科清理时统一改到图谱 canonical 写法后再 approve |
+| 非 canonical 实体写法成对出现（`Memory Hub`/`memory-hub`、`xiaoyingtao`/`小樱桃`、`Chat Hub`） | 机制已接管大部分：preview 落库前机械规范化（NFKC+空白折叠+重名合并），casefold/normalized 唯一候选自动进别名管理页待审（approved 后批准重验自动改写）；漏网的仍按外科清理统一改到图谱 canonical 写法后再 approve |
 
-**novelty 分析的盲区**：比对候选只来自**已入图谱**的记忆，看不到同队列待审条目——同一事项
-的 worker 侧 + 编排侧两个会话可能都被判 novel（分析时另一条还没入图谱）。判了 novel 不代表
+**novelty 候选的可见范围**：比对候选 = 已入图谱记忆 + 严格更早的同队列在途条目（最多
+2 个槽位，service.py `_memory_evolution_candidates`）——同批**晚到**的重复仍互不可见，同一事项
+的 worker 侧 + 编排侧两个会话可能都被判 novel。判了 novel 不代表
 队列内无重复；扫完 packet 后需在同批条目间横向比对 project/正文关键词，重复的二选一
 （通常拒预览更差的那份，拿不准就留队列升级）。
 
