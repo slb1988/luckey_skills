@@ -35,17 +35,25 @@ const skillBootstrapMode = process.env.SKILL_BOOTSTRAP === "1";
 const projectDirectiveMode = process.env.PROJECT_DIRECTIVE === "1";
 const multilinePromptMode = process.env.MULTILINE_PROMPT === "1";
 const recallCancelMode = process.env.RECALL_CANCEL === "1";
+const personaManualMode = process.env.PERSONA_MANUAL === "1";
+const personaOversizeMode = process.env.PERSONA_OVERSIZE === "1";
+const personaAutoEnabled = process.env.MEMORY_HOOK_PI_PERSONA_CARD === "1";
+const personaFailureMode = process.env.FAKE_PERSONA_CARD_FAIL === "1";
 
 writeFileSync(transcriptPath, JSON.stringify({ type: "message", role: "user", text: "hello" }) + "\n");
 
 const handlers = new Map();
 const tools = new Map();
+const commands = new Map();
 const pi = {
 	on(event, fn) {
 		handlers.set(event, fn);
 	},
 	registerTool(tool) {
 		tools.set(tool.name, tool);
+	},
+	registerCommand(name, command) {
+		commands.set(name, command);
 	},
 };
 
@@ -117,8 +125,62 @@ try {
 	for (const event of ["session_start", "before_agent_start", "agent_end", "session_shutdown"]) {
 		assert.ok(handlers.has(event), `extension must register ${event}`);
 	}
+	assert.ok(commands.has("memory-card"), "extension must register /memory-card");
+	assert.ok(tools.has("memory_persona_card"), "extension must register memory_persona_card");
 
-	if (catchupMode) {
+	if (personaManualMode) {
+		// Default-off only governs automatic first-turn injection. Manual command/tool remain usable.
+		await handlers.get("session_start")({}, ctx);
+		const firstStart = await handlers.get("before_agent_start")(
+			{ prompt: "manual persona test", systemPrompt: "base-system" },
+			ctx,
+		);
+		assert.match(firstStart.systemPrompt, /严格测试驱动/);
+		assert.equal(hookCalls("persona-card").length, 0, "default-off bootstrap must not request a card");
+		await commands.get("memory-card").handler("person-manual", ctx);
+		assert.equal(hookCalls("persona-card").length, 1);
+		assert.match(notifyCalls.at(-1).message, /canonical persona card/);
+		const toolResult = await tools.get("memory_persona_card").execute(
+			"persona-tool",
+			{ person_id: "person-tool" },
+			undefined,
+			undefined,
+			ctx,
+		);
+		assert.match(toolResult.content[0].text, /canonical persona card/);
+		assert.equal(toolResult.details.personId, "person-tool");
+		assert.equal(hookCalls("persona-card").length, 2);
+		assert.deepEqual(
+			hookCalls("persona-card").map((entry) => entry.argv[entry.argv.indexOf("--person-id") + 1]),
+			["person-manual", "person-tool"],
+		);
+		assert.deepEqual(
+			traceEntries("memory_persona_card").map((entry) => entry.trigger),
+			["command", "tool"],
+		);
+		console.log(JSON.stringify({ ok: true, mode: "persona-manual" }));
+	} else if (personaOversizeMode) {
+		await handlers.get("session_start")({}, ctx);
+		const firstStart = await handlers.get("before_agent_start")(
+			{ prompt: "oversized persona test", systemPrompt: "base-system" },
+			ctx,
+		);
+		const personaPrefix = firstStart.systemPrompt.split("# Memory Hub：")[0];
+		assert.equal((personaPrefix.match(/P/g) || []).length, 2500, "bootstrap card must be capped at 2500");
+		await commands.get("memory-card").handler("", ctx);
+		assert.equal(notifyCalls.at(-1).message.length, 2500, "command card must be capped at 2500");
+		const toolResult = await tools.get("memory_persona_card").execute(
+			"persona-tool",
+			{},
+			undefined,
+			undefined,
+			ctx,
+		);
+		assert.equal(toolResult.content[0].text.length, 2500, "tool card must be capped at 2500");
+		assert.equal(toolResult.details.truncated, true);
+		assert.ok(traceEntries("memory_persona_card").every((entry) => entry.truncated === true));
+		console.log(JSON.stringify({ ok: true, mode: "persona-oversize" }));
+	} else if (catchupMode) {
 		// catch-up 场景：session_start 前预置遗留 marker——合法可补传、半截损坏、
 		// transcript 已消失（应保留 marker）、extraction 子 session（应终态删除）
 		mkdirSync(pendingDir, { recursive: true });
@@ -383,11 +445,36 @@ try {
 		}
 		const bootstrapTimedOut = process.env.FAKE_SEARCH_DELAY_MS !== undefined;
 		if (bootstrapTimedOut) {
-			assert.equal(firstStart, undefined, "bootstrap timeout must continue without injection");
+			if (personaAutoEnabled && !personaFailureMode) {
+				assert.match(firstStart.systemPrompt, /^base-system\n\n# 关于 测试用户/);
+				assert.doesNotMatch(firstStart.systemPrompt, /严格测试驱动/);
+				assert.equal(hookCalls("persona-card").length, 1);
+			} else {
+				assert.equal(firstStart, undefined, "bootstrap timeout must continue without injection");
+			}
 			assert.equal(traceEntries("project_bootstrap")[0].outcome, "timeout");
 			assert.equal(hookCalls("search").length, 0, "timed-out child is killed before fake logs");
 		} else {
-			assert.match(firstStart.systemPrompt, /^base-system\n\n# Memory Hub/);
+			if (personaAutoEnabled && !personaFailureMode) {
+				assert.match(firstStart.systemPrompt, /^base-system\n\n# 关于 测试用户/);
+				assert.match(firstStart.systemPrompt, /canonical persona card/);
+				assert.ok(
+					firstStart.systemPrompt.indexOf("canonical persona card") < firstStart.systemPrompt.indexOf("# Memory Hub："),
+					"persona card must precede task-specific recall",
+				);
+				assert.equal(hookCalls("persona-card").length, 1);
+				assert.equal(traceEntries("memory_persona_card")[0].outcome, "injected");
+			} else {
+				assert.match(firstStart.systemPrompt, /^base-system\n\n# Memory Hub/);
+				assert.doesNotMatch(firstStart.systemPrompt, /canonical persona card/);
+				if (personaFailureMode) {
+					assert.equal(hookCalls("persona-card").length, 1);
+					assert.equal(traceEntries("memory_persona_card")[0].outcome, "error");
+					assert.equal(traceEntries("project_bootstrap")[0].persona_outcome, "error");
+				} else {
+					assert.equal(hookCalls("persona-card").length, 0, "default bootstrap must not request a card");
+				}
+			}
 			assert.match(firstStart.systemPrompt, /严格测试驱动/);
 			assert.equal(
 				traceEntries("project_bootstrap")[0].outcome,
@@ -485,6 +572,7 @@ try {
 				resumedHandlers.set(event, fn);
 			},
 			registerTool() {},
+			registerCommand() {},
 		});
 		const searchesBeforeResume = hookCalls("search").length;
 		const selectsBeforeResume = selectCalls.length;
@@ -587,7 +675,17 @@ try {
 		console.log(
 			JSON.stringify({
 				ok: true,
-				mode: scoreAllZeroMode ? "score-all-zero" : scoreGateMode ? "score-gate" : busyOnce ? "main-busy" : "main",
+				mode: personaFailureMode
+					? "persona-failure"
+					: personaAutoEnabled
+						? "persona-auto"
+						: scoreAllZeroMode
+							? "score-all-zero"
+							: scoreGateMode
+								? "score-gate"
+								: busyOnce
+									? "main-busy"
+									: "main",
 				captures: hookCalls("capture").length,
 				flushes: hookCalls("flush").length,
 				enqueues: traceEntries("enqueue_done").length,

@@ -16,10 +16,12 @@ from memory_hook import (
     StateStore,
     UNCONFIGURED_USER_ID,
     UserProfile,
+    build_parser,
     build_snapshot,
     classify_snapshot,
     command_capture,
     command_configure,
+    command_persona_card,
     command_recall,
     command_search,
     flush_pending,
@@ -42,6 +44,164 @@ class MemoryHookTest(unittest.TestCase):
     @staticmethod
     def profile(user_id="user-a", display_name="User A"):
         return UserProfile(user_id, display_name, "Long-lived test user")
+
+    @staticmethod
+    def config(directory):
+        return Config(
+            hub_url="http://memory.test",
+            default_user_id="user-a",
+            agent_id="test-agent",
+            archive_project_id="agent-history",
+            api_key=None,
+            timeout_seconds=8,
+            state_dir=Path(directory),
+        )
+
+    def test_persona_card_resolves_unique_active_self_and_returns_canonical_payload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            client = HubClient(self.config(directory))
+            calls = []
+            canonical = {
+                "renderer_version": "persona-card/1",
+                "person_id": "self-active",
+                "markdown": "# 关于 User A\n\n## 稳定特性\n- 简洁直接",
+                "budget": {"max_chars": 2000},
+            }
+
+            def fake_request(method, path, project_id, user_id, **_kwargs):
+                calls.append((method, path, project_id, user_id))
+                if path == "/v1/persons":
+                    return {
+                        "persons": [
+                            {"person_id": "child", "kind": "child", "status": "active"},
+                            {"person_id": "self-old", "kind": "self", "status": "archived"},
+                            {"person_id": "self-active", "kind": "self", "status": "active"},
+                        ]
+                    }
+                return canonical
+
+            client.request = fake_request
+            self.assertIs(client.persona_card("project-a", "user-a"), canonical)
+            self.assertEqual(
+                [call[1] for call in calls],
+                ["/v1/persons", "/v1/persons/self-active/card"],
+            )
+
+    def test_persona_card_explicit_id_skips_discovery_and_url_encodes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            client = HubClient(self.config(directory))
+            paths = []
+
+            def fake_request(_method, path, _project_id, _user_id, **_kwargs):
+                paths.append(path)
+                return {
+                    "renderer_version": "persona-card/1",
+                    "person_id": "person/a",
+                    "markdown": "# canonical",
+                }
+
+            client.request = fake_request
+            card = client.persona_card("project-a", "user-a", "person/a")
+            self.assertEqual(card["markdown"], "# canonical")
+            self.assertEqual(paths, ["/v1/persons/person%2Fa/card"])
+
+    def test_persona_card_discovery_and_payload_fail_closed(self):
+        cases = (
+            ({"persons": []}, "PERSON_NOT_FOUND"),
+            (
+                {
+                    "persons": [
+                        {"person_id": "a", "kind": "self", "status": "active"},
+                        {"person_id": "b", "kind": "self", "status": "active"},
+                    ]
+                },
+                "MULTIPLE_ACTIVE_SELF",
+            ),
+            ({"persons": "bad"}, "BAD_RESPONSE"),
+        )
+        for listed, code in cases:
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
+                client = HubClient(self.config(directory))
+                client.request = lambda *_args, **_kwargs: listed
+                with self.assertRaises(HubError) as failure:
+                    client.persona_card("project-a", "user-a")
+                self.assertEqual(failure.exception.error_code, code)
+
+        with tempfile.TemporaryDirectory() as directory:
+            client = HubClient(self.config(directory))
+            client.request = lambda *_args, **_kwargs: {
+                "renderer_version": "persona-card/1",
+                "person_id": "different",
+                "markdown": "# canonical",
+            }
+            with self.assertRaises(HubError) as bad_card:
+                client.persona_card("project-a", "user-a", "expected")
+            self.assertEqual(bad_card.exception.error_code, "BAD_RESPONSE")
+
+    def test_persona_card_command_markdown_json_and_stable_errors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.config(directory)
+            canonical = {
+                "renderer_version": "persona-card/1",
+                "person_id": "self-active",
+                "markdown": "# canonical persona",
+                "budget": {"max_chars": 2000},
+            }
+            base_args = dict(
+                person_id=None,
+                source="pi",
+                user_id=None,
+                display_name=None,
+                summary=None,
+                project="project-a",
+                json=False,
+            )
+            with patch("memory_hook.request_user_profile", return_value=self.profile()), patch.object(
+                HubClient, "persona_card", return_value=canonical
+            ):
+                stdout = io.StringIO()
+                with patch("sys.stdout", stdout):
+                    self.assertEqual(
+                        command_persona_card(SimpleNamespace(**base_args), config), 0
+                    )
+                self.assertEqual(stdout.getvalue(), "# canonical persona\n")
+                stdout = io.StringIO()
+                with patch("sys.stdout", stdout):
+                    self.assertEqual(
+                        command_persona_card(
+                            SimpleNamespace(**{**base_args, "json": True}), config
+                        ),
+                        0,
+                    )
+                self.assertEqual(json.loads(stdout.getvalue()), canonical)
+
+            failures = (
+                (HubError("HTTP 401", status_code=401), "UNAUTHENTICATED"),
+                (HubError("HTTP 404", status_code=404), "PERSON_NOT_FOUND"),
+                (HubError("many", error_code="MULTIPLE_ACTIVE_SELF"), "MULTIPLE_ACTIVE_SELF"),
+                (HubError("bad", error_code="BAD_RESPONSE"), "BAD_RESPONSE"),
+            )
+            for error, code in failures:
+                with self.subTest(code=code), patch(
+                    "memory_hook.request_user_profile", return_value=self.profile()
+                ), patch.object(HubClient, "persona_card", side_effect=error):
+                    stdout = io.StringIO()
+                    stderr = io.StringIO()
+                    with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+                        self.assertEqual(
+                            command_persona_card(SimpleNamespace(**base_args), config), 1
+                        )
+                    self.assertEqual(stdout.getvalue(), "")
+                    self.assertTrue(stderr.getvalue().startswith("memory hook persona-card: %s:" % code))
+                    self.assertNotIn("HTTP", stderr.getvalue())
+
+    def test_persona_card_parser_contract(self):
+        args = build_parser().parse_args(
+            ["persona-card", "--source", "pi", "--person-id", "person-1", "--json"]
+        )
+        self.assertEqual(args.command, "persona-card")
+        self.assertEqual(args.person_id, "person-1")
+        self.assertTrue(args.json)
 
     def test_online_search_uses_two_minute_timeout_and_exposes_frontend_contract(self):
         with tempfile.TemporaryDirectory() as directory:

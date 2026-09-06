@@ -27,9 +27,13 @@ process.stdin.on("end", () => {
 
 function respond() {
 	const args = process.argv.slice(2);
-	const searchDelay = args[0] === "search" ? Number(process.env.FAKE_SEARCH_DELAY_MS || 0) : 0;
-	if (searchDelay > 0) {
-		setTimeout(() => respondNow(args), searchDelay);
+	const operationDelay = args[0] === "search"
+		? Number(process.env.FAKE_SEARCH_DELAY_MS || 0)
+		: args[0] === "persona-card"
+			? Number(process.env.FAKE_PERSONA_CARD_DELAY_MS || 0)
+			: 0;
+	if (operationDelay > 0) {
+		setTimeout(() => respondNow(args), operationDelay);
 		return;
 	}
 	respondNow(args);
@@ -61,6 +65,26 @@ function respondNow(args) {
 			payload.flush = { busy: false, completed: 1, failed: 0, recovered: 0 };
 		}
 		console.log(JSON.stringify(payload));
+	} else if (args[0] === "persona-card") {
+		if (process.env.FAKE_PERSONA_CARD_FAIL === "1") {
+			process.exitCode = 1;
+			return;
+		}
+		const explicitAt = args.indexOf("--person-id");
+		const personId = explicitAt >= 0 ? args[explicitAt + 1] : "person-e2e";
+		const markdown = process.env.FAKE_PERSONA_OVERSIZE === "1"
+			? "P".repeat(3000)
+			: "# 关于 测试用户\n\n## 稳定特性\n- 使用 canonical persona card";
+		console.log(JSON.stringify({
+			renderer_version: "persona-card/1",
+			person_id: personId,
+			display_name: "测试用户",
+			budget: { max_chars: 2000, used_chars: markdown.length },
+			sections: [],
+			included: { facets: 1, quotes: 0 },
+			omitted: { facets: 0, quotes: 0 },
+			markdown,
+		}));
 	} else if (args[0] === "search") {
 		if (args.includes("--json")) {
 			let resultFile;

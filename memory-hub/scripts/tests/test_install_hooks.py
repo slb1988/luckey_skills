@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from install_hooks import (
+    PI_TEMPLATE,
     apply_machine_project,
     check_json_hooks,
     check_machine_project,
@@ -14,6 +15,7 @@ from install_hooks import (
     install_machine_project,
     install_pi_extension,
     normalize_project,
+    pi_extension_version,
     resolve_machine_project,
 )
 
@@ -91,7 +93,33 @@ class InstallHooksTest(unittest.TestCase):
             self.assertIn("MEMORY_HOOK_PI_CAPTURE_DELAY_MS", content)
             self.assertIn("cancelPendingFlush", content)
             self.assertIn("catchupPending", content)
+            # v27: manual command/tool are always present; automatic card injection is exact opt-in.
+            self.assertIn('pi.registerCommand("memory-card"', content)
+            self.assertIn('name: "memory_persona_card"', content)
+            self.assertIn("MEMORY_HOOK_PI_PERSONA_CARD", content)
+            self.assertIn("personaCardMaxChars = 2500", content)
+            self.assertIn('trace("memory_persona_card"', content)
             self.assertFalse(install_pi_extension(path))
+
+    def test_pi_template_v27_and_outdated_copy_are_detected(self):
+        self.assertEqual(pi_extension_version(PI_TEMPLATE.read_text(encoding="utf-8")), "27")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "memory-hub.ts"
+            install_pi_extension(path)
+            path.write_text(
+                path.read_text(encoding="utf-8").replace(
+                    'const EXTENSION_VERSION = "27";',
+                    'const EXTENSION_VERSION = "26";',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            result = check_pi_extension(path)
+            self.assertFalse(result["ok"])
+            self.assertIn(
+                "extension version 26 is outdated (managed 27); rerun install",
+                result["errors"],
+            )
 
     def test_pi_check_rejects_extension_without_idle_debounce(self):
         with tempfile.TemporaryDirectory() as directory:

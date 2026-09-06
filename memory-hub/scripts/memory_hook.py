@@ -24,6 +24,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -1519,7 +1520,18 @@ class StateStore:
 
 
 class HubError(RuntimeError):
-    pass
+    """Hub failure with optional machine-readable status while preserving legacy text."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: Optional[int] = None,
+        error_code: Optional[str] = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.error_code = error_code
 
 
 def job_idempotency_key(kind: str, job: sqlite3.Row) -> str:
@@ -1596,7 +1608,26 @@ class HubClient:
             if allow_404 and error.code == 404:
                 return None
             detail = error.read().decode("utf-8", errors="replace")
-            raise HubError("HTTP %s: %s" % (error.code, compact_text(detail, 1000)))
+            error_code = None
+            try:
+                error_payload = json.loads(detail)
+                error_object = (
+                    error_payload.get("error") if isinstance(error_payload, dict) else None
+                )
+                candidate = (
+                    error_object.get("code") if isinstance(error_object, dict) else None
+                )
+                if isinstance(candidate, str) and re.fullmatch(
+                    r"[A-Z][A-Z0-9_]{0,127}", candidate
+                ):
+                    error_code = candidate
+            except json.JSONDecodeError:
+                pass
+            raise HubError(
+                "HTTP %s: %s" % (error.code, compact_text(detail, 1000)),
+                status_code=error.code,
+                error_code=error_code,
+            )
         except urllib.error.URLError as error:
             raise HubError(str(error.reason))
         except OSError as error:
@@ -1609,9 +1640,13 @@ class HubClient:
         try:
             value = json.loads(payload.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise HubError("invalid JSON response: %s" % error)
+            raise HubError(
+                "invalid JSON response: %s" % error, error_code="BAD_RESPONSE"
+            )
         if not isinstance(value, dict):
-            raise HubError("unexpected non-object response")
+            raise HubError(
+                "unexpected non-object response", error_code="BAD_RESPONSE"
+            )
         return value
 
     def ensure_memory(
@@ -1887,6 +1922,73 @@ class HubClient:
         if last_error is not None:
             raise last_error
         raise HubError("upload failed: file stuck in expired state")
+
+    def persona_card(
+        self,
+        project_id: str,
+        user_id: str,
+        person_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Return Hub's canonical persona card, resolving one active self if omitted."""
+        target_person_id = person_id.strip() if isinstance(person_id, str) else ""
+        if person_id is not None and not target_person_id:
+            raise HubError(
+                "person id must not be empty", error_code="INVALID_PERSON_ID"
+            )
+        if not target_person_id:
+            listed = self.request("GET", "/v1/persons", project_id, user_id)
+            persons = listed.get("persons") if isinstance(listed, dict) else None
+            if not isinstance(persons, list) or any(
+                not isinstance(person, dict) for person in persons
+            ):
+                raise HubError(
+                    "persons response has an invalid shape", error_code="BAD_RESPONSE"
+                )
+            active_self = [
+                person
+                for person in persons
+                if person.get("kind") == "self" and person.get("status") == "active"
+            ]
+            if not active_self:
+                raise HubError(
+                    "no active self persona", error_code="PERSON_NOT_FOUND"
+                )
+            if len(active_self) > 1:
+                raise HubError(
+                    "multiple active self personas",
+                    error_code="MULTIPLE_ACTIVE_SELF",
+                )
+            candidate = active_self[0].get("person_id")
+            if not isinstance(candidate, str) or not candidate:
+                raise HubError(
+                    "active self response is missing person_id",
+                    error_code="BAD_RESPONSE",
+                )
+            target_person_id = candidate
+        encoded_person_id = urllib.parse.quote(target_person_id, safe="")
+        card = self.request(
+            "GET",
+            "/v1/persons/%s/card" % encoded_person_id,
+            project_id,
+            user_id,
+        )
+        if not isinstance(card, dict):
+            raise HubError("card response is invalid", error_code="BAD_RESPONSE")
+        renderer_version = card.get("renderer_version")
+        returned_person_id = card.get("person_id")
+        markdown = card.get("markdown")
+        if (
+            not isinstance(renderer_version, str)
+            or not renderer_version
+            or returned_person_id != target_person_id
+            or not isinstance(markdown, str)
+            or not markdown.strip()
+        ):
+            raise HubError(
+                "card response has an invalid canonical payload",
+                error_code="BAD_RESPONSE",
+            )
+        return card
 
     def search_response(
         self, query: str, project_id: str, limit: int, user_id: str
@@ -2514,6 +2616,59 @@ def command_feedback(args: argparse.Namespace, config: Config) -> int:
         return 1
 
 
+PERSONA_CARD_ERROR_HINTS = {
+    "UNAUTHENTICATED": "configure a valid MEMORY_HUB_API_KEY",
+    "PERSON_NOT_FOUND": "create or activate a self persona, or pass --person-id",
+    "MULTIPLE_ACTIVE_SELF": "pass --person-id to choose one persona explicitly",
+    "BAD_RESPONSE": "the Hub returned an invalid persona card response",
+    "INVALID_PERSON_ID": "pass a non-empty person id",
+    "HUB_UNAVAILABLE": "the Hub request failed; retry after connectivity recovers",
+}
+
+
+def persona_card_error_code(error: Exception) -> str:
+    if isinstance(error, HubError):
+        if error.status_code == 401:
+            return "UNAUTHENTICATED"
+        if error.status_code == 404:
+            return "PERSON_NOT_FOUND"
+        if error.error_code:
+            return error.error_code
+    return "HUB_UNAVAILABLE"
+
+
+def command_persona_card(args: argparse.Namespace, config: Config) -> int:
+    try:
+        profile = request_user_profile(
+            config,
+            explicit_user_id=args.user_id,
+            explicit_display_name=getattr(args, "display_name", None),
+            explicit_summary=getattr(args, "summary", None),
+        )
+        if not profile_is_ready(profile):
+            print(setup_reminder(config, profile), file=sys.stderr)
+            return 2
+        assert profile is not None
+        project_id = args.project or project_id_for_cwd(
+            os.getcwd(), config.archive_project_id
+        )
+        card = HubClient(config).persona_card(
+            project_id, profile.user_id, person_id=args.person_id
+        )
+        if args.json:
+            print(json.dumps(card, ensure_ascii=False))
+        else:
+            print(card["markdown"])
+        return 0
+    except Exception as error:
+        code = persona_card_error_code(error)
+        hint = PERSONA_CARD_ERROR_HINTS.get(
+            code, "the persona card request could not be completed"
+        )
+        print("memory hook persona-card: %s: %s" % (code, hint), file=sys.stderr)
+        return 1
+
+
 def command_search(args: argparse.Namespace, config: Config) -> int:
     try:
         profile = request_user_profile(
@@ -2786,6 +2941,14 @@ def build_parser() -> argparse.ArgumentParser:
     # --no-flush：只入队不上传（pi 扩展回合级持久化）；--json：严格机器可读契约。
     capture.add_argument("--no-flush", action="store_true")
     capture.add_argument("--json", action="store_true")
+    persona_card = commands.add_parser("persona-card")
+    persona_card.add_argument("--person-id")
+    persona_card.add_argument("--source", choices=("claude", "codex", "pi"))
+    persona_card.add_argument("--user-id")
+    persona_card.add_argument("--display-name")
+    persona_card.add_argument("--summary")
+    persona_card.add_argument("--project")
+    persona_card.add_argument("--json", action="store_true")
     search = commands.add_parser("search")
     search.add_argument("query")
     search.add_argument("--source", choices=("claude", "codex", "pi"))
@@ -2847,6 +3010,8 @@ def main() -> int:
         return command_capture(args, config, StateStore(config))
     if args.command == "search":
         return command_search(args, config)
+    if args.command == "persona-card":
+        return command_persona_card(args, config)
     if args.command == "feedback":
         return command_feedback(args, config)
     if args.command == "recall":

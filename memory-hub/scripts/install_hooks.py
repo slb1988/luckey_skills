@@ -269,6 +269,19 @@ def check_pi_extension(path: Path) -> Dict[str, Any]:
                     "pi durable-enqueue/idle-debounced-flush contract broken: missing %s"
                     % marker
                 )
+        # v27 persona-card contract：命令/工具始终可用；首轮注入只能显式 opt-in，
+        # canonical markdown 另有 2500 字符防御上限，任何失败都需独立 trace。
+        for marker in (
+            'pi.registerCommand("memory-card"',
+            'name: "memory_persona_card"',
+            "MEMORY_HOOK_PI_PERSONA_CARD",
+            "personaCardMaxChars = 2500",
+            'trace("memory_persona_card"',
+        ):
+            if marker not in content:
+                errors.append(
+                    "pi v27 persona-card contract broken: missing %s" % marker
+                )
     return {
         "ok": not errors,
         "path": str(path),

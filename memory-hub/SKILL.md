@@ -57,6 +57,7 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 服务端仓库文档（NAS 项目 `docs/`）：`USAGE.md`、`API_CONTRACT.md`、`IMPLEMENTATION.md`、`DASHBOARD.md`、`REVIEW_PIPELINE.md`、`MULTI_USER_AUTH.md`。
 
 关卡 2（抽取审核）队列的批量/自动处置走独立 skill：**memory-review**（`.claude/skills/memory-review/`，含 scan/apply 脚本与审核准则）。
+每日人物洞察走独立 skill：**insight-daily**（`.claude/skills/insight-daily/`）；它在 `daily-report` 生成日记后只上传相关分节，触发/轮询 insight run，并用本地 manifest 做逐字复核，不修改 `daily-report`。
 
 用户在 Memory Hub 语境提到 `eval`、记忆评估或检索效果验证时，立即按 [retrieval-eval.md](references/retrieval-eval.md) 执行；先做只读 baseline 和"存错还是取错"分层，不把非空结果等同于有效召回。
 
@@ -72,11 +73,13 @@ Dashboard 创建/修改用户报 422（非 400）= Pydantic 请求模型在域�
 
 ## Hook 集成与批量归档
 
-三端（Claude Code / Codex / Pi）共用 `scripts/memory_hook.py`（仅标准库）：capture 先落本地 spool（fail-open 不丢）再上传；首轮自动召回 + 按需检索（Pi 用 `memory_search`，Claude/Codex 用 `search` CLI）。安装、check、身份、环境变量、Pi 扩展机制 → [agent-integration.md](references/agent-integration.md)。**改 `assets/` 下的安装副本（pi 扩展模板、project-aliases.json）必须递增版本号并重跑 install**。
+三端（Claude Code / Codex / Pi）共用 `scripts/memory_hook.py`（仅标准库）：capture 先落本地 spool（fail-open 不丢）再上传；首轮自动召回 + 按需检索（Pi 用 `memory_search`，Claude/Codex 用 `search` CLI）。人物卡可手工运行 `memory_hook.py persona-card [--person-id ID]`（默认输出 Hub canonical Markdown，`--json` 输出原始结构）；Pi 另提供 `/memory-card` 与 `memory_persona_card`。安装、check、身份、环境变量、Pi 扩展机制 → [agent-integration.md](references/agent-integration.md)。**改 `assets/` 下的安装副本（pi 扩展模板、project-aliases.json）必须递增版本号并重跑 install**。
 
 Pi 扩展 v22+：用户用 `/skill:name` 显式指定 skill 的首轮 prompt **跳过自动预热检索**——pi 会把 skill 展开为 `<skill name="…" location="…">` 块注入 prompt 开头（裸 `/skill:` 未展开命令作兜底匹配），扩展检测到即跳过，trace outcome 记 `skipped_skill_invocation` 并照常写 bootstrap-done 标记（同 session 后续不补检索）。排查「首轮预热没跑」先认这个 outcome，是设计行为不是故障；`memory_search` 工具不受影响，skill 内仍可主动检索。
 
 Pi 扩展 v25+：首轮预热（“正在检索并审核历史记忆…” widget）与 `memory_search` 检索**可按 Esc/Ctrl+C 中断**——取消即杀检索子进程、本轮不注入、agent 立即开始；trace outcome 记 `cancelled`，本会话不重试。Ctrl+C 只取消检索并照常透传给 pi（连按两次仍退出 pi）。
+
+Pi 扩展 v27+ 注册 `/memory-card` 与 `memory_persona_card`，两者始终可手工读取 Hub canonical card；首轮自动 card 注入只有 `MEMORY_HOOK_PI_PERSONA_CARD=1` 才启用，默认关闭。启用后 card（客户端防御上限 2500 字符）排在 project recall 前；任一请求失败都独立 fail-open 并写 `memory_persona_card` trace，不替代 `memory_search`，也不改变未 opt-in 的默认首轮行为。
 
 批量归档历史 session 用 `scripts/upload_sessions.py`（漏传检测用 `backfill_missed_pi_sessions.py`），**执行前必须先读 [upload-sessions.md](references/upload-sessions.md)**。两条铁律（用户定版，违反被纠正过）：① 默认 `--hook-namespace` 双资产一起传；② project 归属先 `--dry-run` 出清单给用户 review，确认后才执行。
 

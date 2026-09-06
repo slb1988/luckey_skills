@@ -46,7 +46,9 @@ import { Type } from "typebox";
 //   Esc 中断 agent 回合时同步杀子进程，不再挂到 120s 超时。
 // v26：预热进度 widget 去掉 Esc/Ctrl+C 提示文案（用户反馈碍眼），取消功能
 //   本身保留、静默生效。
-const EXTENSION_VERSION = "26";
+// v27：新增 /memory-card 与 memory_persona_card；首轮 persona card 注入仅在
+//   MEMORY_HOOK_PI_PERSONA_CARD=1 时启用，默认关闭，并与既有 recall 独立 fail-open 组合。
+const EXTENSION_VERSION = "27";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -70,6 +72,10 @@ const defaultBootstrapTimeoutMs = 120 * 1000;
 const searchTimeoutMs = 120 * 1000;
 const defaultBootstrapLimit = 6;
 const defaultBootstrapMaxChars = 4000;
+// Hub card 当前服务端预算是 2000；客户端仍以 2500 字符做防御性硬上限，
+// 防止坏响应或未来配置漂移占满模型上下文。
+const personaCardMaxChars = 2500;
+const personaCardTimeoutMs = 15 * 1000;
 const bootstrapTopics =
 	"项目概况、核心架构、历史决策、当前进展、未完成事项、开发约定和重要注意事项";
 
@@ -661,6 +667,97 @@ function lastJsonLine(stdout: string): Record<string, unknown> | null {
 	return null;
 }
 
+interface PersonaCardResult {
+	outcome: "injected" | "disabled" | "cancelled" | "timeout" | "error" | "bad_response";
+	markdown: string;
+	personId: string | null;
+	rendererVersion: string | null;
+	exitCode: number;
+	durationMs: number;
+	sourceChars: number;
+	truncated: boolean;
+}
+
+function disabledPersonaCard(): PersonaCardResult {
+	return {
+		outcome: "disabled",
+		markdown: "",
+		personId: null,
+		rendererVersion: null,
+		exitCode: 0,
+		durationMs: 0,
+		sourceChars: 0,
+		truncated: false,
+	};
+}
+
+function personaCardAutoEnabled(): boolean {
+	// Exact opt-in only. Missing/true/yes must all preserve the default-off behavior.
+	return process.env.MEMORY_HOOK_PI_PERSONA_CARD === "1";
+}
+
+async function loadPersonaCard(
+	trigger: "bootstrap" | "command" | "tool",
+	cwd: string,
+	sessionId: string | null,
+	personId?: string,
+	cancelSignal?: AbortSignal,
+): Promise<PersonaCardResult> {
+	const args = ["persona-card", "--source", "pi", "--json"];
+	if (personId) args.push("--person-id", personId);
+	const result = await runHub(
+		args,
+		undefined,
+		safeSpawnCwd(cwd),
+		Math.min(bootstrapTimeoutMs(), personaCardTimeoutMs),
+		true,
+		cancelSignal,
+	);
+	const parsed = result.code === 0 ? lastJsonLine(result.stdout) : null;
+	const rawMarkdown = parsed && typeof parsed.markdown === "string" ? parsed.markdown : "";
+	const returnedPersonId = parsed && typeof parsed.person_id === "string" ? parsed.person_id : null;
+	const rendererVersion = parsed && typeof parsed.renderer_version === "string"
+		? parsed.renderer_version
+		: null;
+	const valid = Boolean(rawMarkdown.trim() && returnedPersonId && rendererVersion);
+	const markdown = valid ? clipText(rawMarkdown, personaCardMaxChars) : "";
+	const outcome: PersonaCardResult["outcome"] = result.code === 130
+		? "cancelled"
+		: result.code === 124
+			? "timeout"
+			: result.code !== 0
+				? "error"
+				: valid
+					? "injected"
+					: "bad_response";
+	const cardResult: PersonaCardResult = {
+		outcome,
+		markdown: outcome === "injected" ? markdown : "",
+		personId: returnedPersonId,
+		rendererVersion,
+		exitCode: result.code,
+		durationMs: result.durationMs,
+		sourceChars: rawMarkdown.length,
+		truncated: valid && rawMarkdown.length > personaCardMaxChars,
+	};
+	// Never log the canonical Markdown itself; trace only metadata and lengths.
+	trace("memory_persona_card", {
+		trigger,
+		session_id: sessionId,
+		cwd,
+		requested_person_id: personId || null,
+		person_id: returnedPersonId,
+		renderer_version: rendererVersion,
+		outcome,
+		exit_code: result.code,
+		duration_ms: result.durationMs,
+		source_chars: rawMarkdown.length,
+		result_chars: cardResult.markdown.length,
+		truncated: cardResult.truncated,
+	});
+	return cardResult;
+}
+
 export default function memoryHubExtension(pi: ExtensionAPI) {
 	// v12 首次加载只扫描一次旧 trace 并批量补 marker；之后每个 session 仅做 O(1)
 	// 文件存在检查，避免 trace 随实战增长后拖慢首轮。
@@ -986,14 +1083,37 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		// 先登记 attempted：超时/空结果/服务故障都不在后续 prompt 重试，避免持续
 		// 增加首 token 延迟。手工深挖仍可使用 memory_search 工具。
 		bootstrappedSessions.add(sessionId);
-		if (process.env.MEMORY_HOOK_PI_BOOTSTRAP_RECALL === "0") {
+		const recallEnabled = process.env.MEMORY_HOOK_PI_BOOTSTRAP_RECALL !== "0";
+		const personaEnabled = personaCardAutoEnabled();
+		if (!recallEnabled && !personaEnabled) {
 			trace("project_bootstrap", {
 				session_id: sessionId,
 				cwd: ctx.cwd,
 				outcome: "disabled",
+				recall_outcome: "disabled",
+				persona_outcome: "disabled",
 			});
 			markBootstrapDone(sessionId, { cwd: ctx.cwd, outcome: "disabled" });
 			return;
+		}
+		if (!recallEnabled) {
+			const persona = await loadPersonaCard("bootstrap", ctx.cwd, sessionId);
+			const combinedOutcome = persona.markdown ? "persona_injected" : persona.outcome;
+			trace("project_bootstrap", {
+				session_id: sessionId,
+				cwd: ctx.cwd,
+				outcome: combinedOutcome,
+				recall_outcome: "disabled",
+				persona_outcome: persona.outcome,
+				persona_chars: persona.markdown.length,
+			});
+			markBootstrapDone(sessionId, { cwd: ctx.cwd, outcome: combinedOutcome });
+			if (!persona.markdown) return;
+			return {
+				systemPrompt: event.systemPrompt
+					? event.systemPrompt + "\n\n" + persona.markdown
+					: persona.markdown,
+			};
 		}
 		const promptFocus = focusBootstrapPrompt(event.prompt);
 		const projectDirective = parseProjectDirective(promptFocus.intent);
@@ -1025,6 +1145,10 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		// 空编辑器 double-esc 选择器）；Ctrl+C 只取消检索、按键照常放行（保留 pi
 		// 的 clear/双击退出语义）。取消后子进程被 SIGTERM 杀掉，runHub 返回 130。
 		const recallAbort = new AbortController();
+		// Card 与 recall 同时启动并共享取消信号；card 失败不影响 recall，反之亦然。
+		const personaPromise = personaEnabled
+			? loadPersonaCard("bootstrap", ctx.cwd, sessionId, undefined, recallAbort.signal)
+			: Promise.resolve(disabledPersonaCard());
 		const stopCancelListener =
 			ctx.hasUI && typeof ctx.ui.onTerminalInput === "function"
 				? ctx.ui.onTerminalInput((data: string) => {
@@ -1302,6 +1426,9 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		}
 		stopCancelListener();
 		stopRecallIndicator();
+		const persona = await personaPromise;
+		// 用户明确取消首轮等待时不注入已抢先完成的 card，避免取消语义出现半成功。
+		const personaMarkdown = outcome === "cancelled" ? "" : persona.markdown;
 		showRecallOutcome(ctx, {
 			outcome,
 			project: resultProject,
@@ -1319,6 +1446,9 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			prompt_source: promptFocus.source,
 			project_override: projectDirective.project,
 			outcome,
+			recall_outcome: outcome,
+			persona_outcome: outcome === "cancelled" ? "cancelled" : persona.outcome,
+			persona_chars: personaMarkdown.length,
 			exit_code: exitCode,
 			duration_ms: durationMs,
 			quality,
@@ -1351,14 +1481,20 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			});
 		}
 		markBootstrapDone(sessionId, { cwd: ctx.cwd, outcome });
-		if (!recalled) return;
+		if (!recalled && !personaMarkdown) return;
 
-		const injection = [
-			"# Memory Hub：当前 project 的历史背景（自动首轮预热）",
-			"以下是历史检索结果，仅作为背景；若与当前代码或用户指令冲突，以当前事实为准。",
-			"",
-			recalled,
-		].join("\n");
+		const injections: string[] = [];
+		// Persona 部分只使用 Hub canonical markdown；客户端不重排、不二次渲染。
+		if (personaMarkdown) injections.push(personaMarkdown);
+		if (recalled) {
+			injections.push([
+				"# Memory Hub：当前 project 的历史背景（自动首轮预热）",
+				"以下是历史检索结果，仅作为背景；若与当前代码或用户指令冲突，以当前事实为准。",
+				"",
+				recalled,
+			].join("\n"));
+		}
+		const injection = injections.join("\n\n");
 		return {
 			systemPrompt: event.systemPrompt
 				? event.systemPrompt + "\n\n" + injection
@@ -1415,6 +1551,64 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		if (isDurableOutcome(outcome) || isTerminalSkipOutcome(outcome)) {
 			deleteMarker(target.sessionId, outcome);
 		}
+	});
+
+	pi.registerCommand("memory-card", {
+		description: "Show the canonical Memory Hub persona card (optional person id argument)",
+		handler: async (args, ctx) => {
+			const personId = args.trim() || undefined;
+			const result = await loadPersonaCard(
+				"command",
+				ctx.cwd,
+				ctx.sessionManager.getSessionId(),
+				personId,
+			);
+			if (result.markdown) {
+				ctx.ui.notify(result.markdown, "info");
+			} else {
+				ctx.ui.notify(
+					`Memory Hub persona card unavailable (${result.outcome}).`,
+					"warning",
+				);
+			}
+		},
+	});
+
+	pi.registerTool({
+		name: "memory_persona_card",
+		label: "Memory Persona Card",
+		description:
+			"Fetch the canonical Memory Hub persona card for the owner active self persona, " +
+			"or for an explicit person_id. Output is defensively capped at 2500 characters.",
+		parameters: Type.Object({
+			person_id: Type.Optional(Type.String({
+				description: "Optional explicit persona id; defaults to the owner active self persona",
+			})),
+		}),
+		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+			const personId = typeof params.person_id === "string" ? params.person_id.trim() : "";
+			const result = await loadPersonaCard(
+				"tool",
+				ctx.cwd,
+				ctx.sessionManager.getSessionId(),
+				personId || undefined,
+				signal,
+			);
+			const text = result.markdown
+				|| (result.outcome === "cancelled"
+					? "Memory Hub persona card request was cancelled by the user."
+					: `Memory Hub persona card is unavailable (${result.outcome}).`);
+			return {
+				content: [{ type: "text", text }],
+				details: {
+					exitCode: result.exitCode,
+					outcome: result.outcome,
+					personId: result.personId,
+					rendererVersion: result.rendererVersion,
+					truncated: result.truncated,
+				},
+			};
+		},
 	});
 
 	pi.registerTool({

@@ -65,6 +65,16 @@ class PiExtensionE2ETest(unittest.TestCase):
         state_dir.mkdir()
         hook_log = workdir / "hook-log.jsonl"
         env = os.environ.copy()
+        # Default-off assertions must not inherit a developer shell opt-in or fake scenario.
+        for key in (
+            "MEMORY_HOOK_PI_PERSONA_CARD",
+            "PERSONA_MANUAL",
+            "PERSONA_OVERSIZE",
+            "FAKE_PERSONA_CARD_FAIL",
+            "FAKE_PERSONA_OVERSIZE",
+            "FAKE_PERSONA_CARD_DELAY_MS",
+        ):
+            env.pop(key, None)
         env["MEMORY_HOOK_PI_CAPTURE_DELAY_MS"] = "300"
         env["MEMORY_HOOK_PI_BOOTSTRAP_TIMEOUT_MS"] = "200"
         env["MEMORY_HOOK_STATE_DIR"] = str(state_dir)
@@ -152,6 +162,61 @@ class PiExtensionE2ETest(unittest.TestCase):
             )
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "main")
+
+    def test_persona_card_default_off_but_manual_command_and_tool_work(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(Path(directory), {"PERSONA_MANUAL": "1"})
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "persona-manual")
+
+    def test_persona_card_opt_in_combines_canonical_card_and_recall(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(
+                Path(directory), {"MEMORY_HOOK_PI_PERSONA_CARD": "1"}
+            )
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "persona-auto")
+
+    def test_persona_card_failure_does_not_block_recall(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(
+                Path(directory),
+                {
+                    "MEMORY_HOOK_PI_PERSONA_CARD": "1",
+                    "FAKE_PERSONA_CARD_FAIL": "1",
+                },
+            )
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "persona-failure")
+
+    def test_recall_failure_does_not_block_opted_in_persona_card(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(
+                Path(directory),
+                {
+                    "MEMORY_HOOK_PI_PERSONA_CARD": "1",
+                    "FAKE_SEARCH_DELAY_MS": "500",
+                },
+            )
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "persona-auto")
+
+    def test_persona_card_all_consumers_enforce_2500_character_cap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(
+                Path(directory),
+                {
+                    "MEMORY_HOOK_PI_PERSONA_CARD": "1",
+                    "PERSONA_OVERSIZE": "1",
+                    "FAKE_PERSONA_OVERSIZE": "1",
+                },
+            )
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "persona-oversize")
+
+    def test_pi_template_is_v27(self):
+        template = PI_TEMPLATE.read_text(encoding="utf-8")
+        self.assertIn('const EXTENSION_VERSION = "27";', template)
 
     def test_project_bootstrap_default_timeout_is_two_minutes(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
