@@ -33,6 +33,7 @@ const scoreAllZeroMode = process.env.SCORE_ALL_ZERO === "1";
 const extractionBootstrapMode = process.env.EXTRACTION_BOOTSTRAP === "1";
 const skillBootstrapMode = process.env.SKILL_BOOTSTRAP === "1";
 const projectDirectiveMode = process.env.PROJECT_DIRECTIVE === "1";
+const chatHubIdentityMode = process.env.CHAT_HUB_IDENTITY === "1";
 const multilinePromptMode = process.env.MULTILINE_PROMPT === "1";
 const recallCancelMode = process.env.RECALL_CANCEL === "1";
 const personaManualMode = process.env.PERSONA_MANUAL === "1";
@@ -377,7 +378,19 @@ try {
 
 		// 首轮 prompt 阻塞一次 project bootstrap 并注入 system prompt；后续 prompt
 		// 不重复检索。超时/失败时同样只尝试一次并 fail-open。
-		const firstPrompt = extractionBootstrapMode
+		const firstPrompt = chatHubIdentityMode
+			? [
+				"[weixin dm from o9cq80wxWQVTTdH0L4BQ0nSh4Sts@im.wechat]",
+				"[chat-hub 可信逻辑说话人]",
+				'profile_id: "xiaoyingtao"',
+				'display_name: "小樱桃"',
+				"resolved_by: voice (0.865)",
+				'guidance: "一年级小女孩。"',
+				"[/chat-hub 可信逻辑说话人]",
+				"",
+				"给我出3道数学题",
+			].join("\n")
+			: extractionBootstrapMode
 			? "You are the Skill extraction sub-agent. Analyze this session."
 			: skillBootstrapMode
 				? [
@@ -481,7 +494,7 @@ try {
 				"injected",
 			);
 			assert.equal(hookCalls("search").length, 1, "first prompt must search project memory once");
-			if (!projectDirectiveMode && !multilinePromptMode) {
+			if (!projectDirectiveMode && !multilinePromptMode && !chatHubIdentityMode) {
 				assert.match(
 					hookCalls("search")[0].argv[1],
 					new RegExp(process.cwd().split(/[\\/]/).at(-1)),
@@ -510,7 +523,7 @@ try {
 					"user_prompt",
 				);
 			}
-			if (!multilinePromptMode) {
+			if (!multilinePromptMode && !chatHubIdentityMode) {
 				assert.match(
 					hookCalls("search")[0].argv[1],
 					/start work with exact question/,
@@ -535,6 +548,23 @@ try {
 				assert.match(bootstrapSearch.argv[1], /^maindev 任务: start work/);
 				assert.doesNotMatch(bootstrapSearch.argv[1], /project:maindev/);
 				assert.equal(traceEntries("project_bootstrap")[0].project_override, "maindev");
+				assert.equal(traceEntries("project_bootstrap")[0].project_override_source, "directive");
+			}
+			if (chatHubIdentityMode) {
+				const bootstrapSearch = hookCalls("search")[0];
+				assert.deepEqual(
+					bootstrapSearch.argv.slice(
+						bootstrapSearch.argv.indexOf("--project"),
+						bootstrapSearch.argv.indexOf("--project") + 2,
+					),
+					["--project", "xiaoyingtao"],
+				);
+				// query 以说话人 project 开头且用剥掉信封的干净正文
+				assert.match(bootstrapSearch.argv[1], /^xiaoyingtao 任务: 给我出3道数学题/);
+				assert.doesNotMatch(bootstrapSearch.argv[1], /可信逻辑说话人|weixin dm/);
+				const bootTrace = traceEntries("project_bootstrap")[0];
+				assert.equal(bootTrace.project_override, "xiaoyingtao");
+				assert.equal(bootTrace.project_override_source, "chat_hub_identity");
 			}
 			assert.ok(hookCalls("search")[0].argv.includes("6"), "bootstrap must keep a small result budget");
 			assert.ok(hookCalls("search")[0].argv.includes("4000"), "bootstrap must cap injected characters");

@@ -398,6 +398,8 @@ User ID 解析优先级为命令行 `--user-id`、hook 输入的 `user_id`、
 
 **chat-hub 微信会话特殊处理**（2026-09-06 用户定版，实现在共享模块 `session_messages.py`，hook 与 upload_sessions 同效）：微信消息带三层信封——`[weixin dm from …]` 传输行、`[chat-hub 可信逻辑说话人]…[/…]` 身份封套、`[入站微信语音/图片 …]` 媒体信封。不剥离时 700/700/1400 字符预算全被信封占满、标题也是信封（当日小樱桃数学测评会话事故：测评结论所在的会话被归档成纯信封文本）。`strip_chat_hub_envelope` 剥信封并**保留语音转写文本作为正文**（无转写的语音消息剥后为空，交由噪声过滤）；同时按身份封套统计说话人（`chat_hub_speakers_from_pairs`，按消息数降序、首位为对话主体），归档时在 distilled 开头写「对话主体：xxx（chat-hub 微信会话）。」标记、summary/标题加 `[主体] ` 前缀（多人如 `[孙来兵+小樱桃]`）——满足「会话要分析对话的人的主体是谁并做标记记录」的要求。已知边界：遗留无身份封套的旧会话只有传输行可剥（speaker 为空）；裸 `[图片]` 标记不算噪声，纯图片会话标题仍可能退化为「[图片]」。
 
+**chat-hub 会话按人归 project**（2026-09-06 用户定版）：capture 时用 `chat_hub_project_for_speakers`（session_messages.py）判定——**单一非机主说话人（身份封套 profile_id ≠ 归档 user_id）的会话归其 profile_id 同名 project**（如 `xiaoyingtao`），机主/多人混合/legacy 无封套会话维持 cwd 派生。`MEMORY_HUB_CHAT_HUB_PROJECT_ROUTING=0` 关闭；upload_sessions 批量回填同规则生效（显式 `--project-id` 与「已在库 session 沿用原 project」优先于该路由）。Pi 扩展 v28 起 bootstrap 召回同规则：首轮 prompt 的身份封套命中非机主时检索 project 自动切到说话人（query 用剥信封后的干净正文构造），trace 记 `project_override_source=chat_hub_identity`。注意 chat-hub 是单 RPC 进程多逻辑用户（switch_session），**进程级环境变量无法按人区分**，所以路由做在 capture/召回的 transcript/prompt 解析层。收益：非机主语料（如孩子的对话）在小 project 池里做 novelty/实体分析，不与机主项目大池混评。
+
 ## 独立应用命令
 
 ```bash

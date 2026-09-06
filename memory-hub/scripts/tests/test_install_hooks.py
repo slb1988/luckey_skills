@@ -101,15 +101,15 @@ class InstallHooksTest(unittest.TestCase):
             self.assertIn('trace("memory_persona_card"', content)
             self.assertFalse(install_pi_extension(path))
 
-    def test_pi_template_v27_and_outdated_copy_are_detected(self):
-        self.assertEqual(pi_extension_version(PI_TEMPLATE.read_text(encoding="utf-8")), "27")
+    def test_pi_template_v28_and_outdated_copy_are_detected(self):
+        self.assertEqual(pi_extension_version(PI_TEMPLATE.read_text(encoding="utf-8")), "28")
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "memory-hub.ts"
             install_pi_extension(path)
             path.write_text(
                 path.read_text(encoding="utf-8").replace(
+                    'const EXTENSION_VERSION = "28";',
                     'const EXTENSION_VERSION = "27";',
-                    'const EXTENSION_VERSION = "26";',
                     1,
                 ),
                 encoding="utf-8",
@@ -117,7 +117,7 @@ class InstallHooksTest(unittest.TestCase):
             result = check_pi_extension(path)
             self.assertFalse(result["ok"])
             self.assertIn(
-                "extension version 26 is outdated (managed 27); rerun install",
+                "extension version 27 is outdated (managed 28); rerun install",
                 result["errors"],
             )
 

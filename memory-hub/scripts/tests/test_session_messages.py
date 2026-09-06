@@ -489,3 +489,17 @@ def test_scan_session_file_chat_hub_goals_and_speakers(tmp_path) -> None:
     assert session.first_user == "给我出3道数学题"
     assert session.last_user == "7"
     assert session.speakers and session.speakers[0]["profile_id"] == "xiaoyingtao"
+
+
+def test_chat_hub_project_routing() -> None:
+    from session_messages import chat_hub_project_for_speakers
+
+    child = [{"profile_id": "xiaoyingtao", "display_name": "小樱桃", "messages": 3}]
+    owner = [{"profile_id": "sunlaibing", "display_name": "孙来兵", "messages": 2}]
+    mixed = child + owner
+    assert chat_hub_project_for_speakers(child, "sunlaibing") == "xiaoyingtao"
+    assert chat_hub_project_for_speakers(owner, "sunlaibing") is None
+    assert chat_hub_project_for_speakers(mixed, "sunlaibing") is None
+    assert chat_hub_project_for_speakers([], "sunlaibing") is None
+    assert chat_hub_project_for_speakers(child, "") is None
+    assert chat_hub_project_for_speakers([{"profile_id": "BAD ID!", "display_name": "", "messages": 1}], "sunlaibing") is None

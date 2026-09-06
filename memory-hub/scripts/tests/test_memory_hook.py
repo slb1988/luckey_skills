@@ -2136,6 +2136,87 @@ class MemoryHookTest(unittest.TestCase):
             self.assertEqual(result["failed"], 1)
             self.assertEqual(store.status()["counts"], {"queued": 2})
 
+    def _chat_hub_capture(self, speaker_block: str, env_disable: bool = False):
+        """chat-hub 会话 capture：返回 (job row, cwd project 应保留的标记)。"""
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        cwd_dir = root / "obsidianvault"
+        cwd_dir.mkdir()
+        transcript = root / "session.jsonl"
+        body = (
+            "[weixin dm from o9cq80wxWQVTTdH0L4BQ0nSh4Sts@im.wechat]\n"
+            + speaker_block
+            + "给我出3道数学题"
+        )
+        transcript.write_text(
+            json.dumps(
+                {
+                    "type": "message",
+                    "message": {"role": "user", "content": [{"type": "text", "text": body}]},
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "type": "message",
+                    "message": {"role": "assistant", "content": [{"type": "text", "text": "好呀"}]},
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        config = Config(
+            hub_url="http://127.0.0.1:1",
+            default_user_id="sunlaibing",
+            agent_id="test-agent",
+            archive_project_id="agent-history",
+            api_key=None,
+            timeout_seconds=0.1,
+            state_dir=root / "state",
+        )
+        store = StateStore(config)
+        args = SimpleNamespace(
+            user_id=None, source="pi", flush_limit=0, verbose=False,
+            display_name=None, summary=None, no_flush=True, json=True,
+        )
+        hook = {
+            "session_id": "session-hub-1",
+            "transcript_path": str(transcript),
+            "cwd": str(cwd_dir),
+            "hook_event_name": "SessionEnd",
+        }
+        env = {"MEMORY_HUB_CHAT_HUB_PROJECT_ROUTING": "0"} if env_disable else {}
+        with patch.dict(os.environ, env), patch("sys.stdin", io.StringIO(json.dumps(hook))):
+            self.assertEqual(command_capture(args, config, store), 0)
+        with store.connect() as connection:
+            row = connection.execute("SELECT * FROM jobs").fetchone()
+        return row
+
+    def test_capture_routes_single_non_owner_chat_hub_session_to_speaker_project(self):
+        row = self._chat_hub_capture(
+            '[chat-hub 可信逻辑说话人]\nprofile_id: "xiaoyingtao"\ndisplay_name: "小樱桃"\n'
+            "resolved_by: voice (0.8)\n[/chat-hub 可信逻辑说话人]\n"
+        )
+        self.assertIsNotNone(row)
+        self.assertEqual(row["project_id"], "xiaoyingtao")
+
+    def test_capture_chat_hub_owner_session_keeps_cwd_project(self):
+        row = self._chat_hub_capture(
+            '[chat-hub 可信逻辑说话人]\nprofile_id: "sunlaibing"\ndisplay_name: "孙来兵"\n'
+            "resolved_by: manual\n[/chat-hub 可信逻辑说话人]\n"
+        )
+        self.assertEqual(row["project_id"], "obsidianvault")
+
+    def test_capture_chat_hub_routing_disabled_by_env(self):
+        row = self._chat_hub_capture(
+            '[chat-hub 可信逻辑说话人]\nprofile_id: "xiaoyingtao"\ndisplay_name: "小樱桃"\n'
+            "resolved_by: voice (0.8)\n[/chat-hub 可信逻辑说话人]\n",
+            env_disable=True,
+        )
+        self.assertEqual(row["project_id"], "obsidianvault")
+
 
 if __name__ == "__main__":
     unittest.main()

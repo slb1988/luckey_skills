@@ -214,9 +214,9 @@ class PiExtensionE2ETest(unittest.TestCase):
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "persona-oversize")
 
-    def test_pi_template_is_v27(self):
+    def test_pi_template_is_v28(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
-        self.assertIn('const EXTENSION_VERSION = "27";', template)
+        self.assertIn('const EXTENSION_VERSION = "28";', template)
 
     def test_project_bootstrap_default_timeout_is_two_minutes(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
@@ -250,6 +250,15 @@ class PiExtensionE2ETest(unittest.TestCase):
     def test_project_bootstrap_accepts_leading_project_directive(self):
         with tempfile.TemporaryDirectory() as directory:
             summary = self.run_driver(Path(directory), {"PROJECT_DIRECTIVE": "1"})
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "main")
+
+    def test_project_bootstrap_routes_chat_hub_identity_to_speaker_project(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(
+                Path(directory),
+                {"CHAT_HUB_IDENTITY": "1", "MEMORY_HUB_CLIENT_USER_ID": "sunlaibing"},
+            )
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "main")
 

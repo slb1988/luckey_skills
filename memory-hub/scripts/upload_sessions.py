@@ -49,6 +49,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from session_messages import (
+    chat_hub_project_for_speakers,
     chat_hub_speaker_note,
     chat_hub_speaker_title_prefix,
     chat_hub_speakers_from_pairs,
@@ -57,6 +58,16 @@ from session_messages import (
 )
 
 MAX_RECENT_MESSAGES = 10
+
+
+def chat_hub_routing_enabled() -> bool:
+    """chat-hub 按说话人归 project 的开关（与 memory_hook.py 同一环境变量）。"""
+    return os.environ.get("MEMORY_HUB_CHAT_HUB_PROJECT_ROUTING", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
 
 IDENTIFIER_RE = re.compile(r"[^A-Za-z0-9._:-]+")
 FENCED_CODE_RE = re.compile(r"```.*?```", re.DOTALL)
@@ -1449,6 +1460,12 @@ def main(argv: Optional[List[str]] = None) -> int:
                 Path(session.cwd).name if session.cwd else "", "agent-history"
             ).lower()
             project_id = project_aliases.get(derived, project_aliases.get("*", derived))
+            # chat-hub 会话按说话人归 project（与 hook capture 同规则）：单一非机主
+            # 说话人的会话归其 profile_id 同名 project。
+            if chat_hub_routing_enabled():
+                routed = chat_hub_project_for_speakers(session.speakers, user_id)
+                if routed:
+                    project_id = routed
 
         if args.backfill_full:
             # 补传模式：纯本地构建，不走 LLM title / finalize / memory 重写。

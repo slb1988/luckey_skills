@@ -21,6 +21,12 @@
 | POST | `/v1/memories/search` | 检索记忆（v1，纯 FTS，无质量门禁） |
 | POST | `/v1/memories/search-v2` | 检索记忆（v2，LLM 质量门禁；三端 hook 实际走这个） |
 | GET | `/v1/projects` | 列出已知 project（含 memory/session 计数，用于选择检索 scope） |
+| POST | `/v1/memories/{memory_id}/invalidate` | **admin**：单条强制遗忘——status=invalidated、取消在途 outbox、Graphiti episode 级联删除、审计留痕；审核中的 memory 报 409（走 review reject）；随 session 删除的报 409 |
+| POST | `/v1/sessions/batch-delete` | session 级软删 + Graphiti 清理（episodes/memories/files 级联，幂等）；体：`{"schema_version":"session-batch-delete/1","session_ids":[...]}` |
+
+**手工 POST /v1/memories 也进审核管线**：写完状态是 `pending_extraction`（关卡 2 待审），不是立即 indexed；
+需 review approve（original/curated）后才出队进 Graphiti、检索可见。轮询 `GET /v1/memories/{id}` 看到
+`pending_extraction` 不是卡住，是待审核。
 
 ## 检索：v2 与 v1 的差异（实测）
 

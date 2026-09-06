@@ -167,13 +167,15 @@ capture/flush 全部 401 落 spool 堆积，而当时只有 check 有注册表�
 ### chat-hub（微信桥）会话归档成信封：distilled 预算被身份封套/语音元数据占满
 
 <memory category="troubleshooting">
-**「chat-hub 会话没进记忆学习」先查是不是「归档链路正常、但 distilled 全是信封」**（2026-09-02 trace 取证确认根因）：Pi chat-hub 微信会话经 hook 正常归档，但 memory_hook.py 归档摘要三段式预算（首个用户目标 700 / 最近用户目标 700 / 会话结果 1400 字符）被 chat-hub 信封元数据（身份封套 + 语音转写元数据）占满，真实对话内容被挤出，标题退化成 `[weixin dm from ...]` 垃圾。提取链只剥 `<skill>` 注入包装（`strip_skill_wrapper`），**不剥 chat-hub 信封**——与 skill 包装同类的污染，缺同一层的剥离。后果：信封归档对后续 session 召回毫无价值，该段微信对话对记忆系统实际不可见（新 session 检索不到其中结论，会重复犯已纠正过的错）。确认方法：`GET /v1/memories/{memory_id}` 看 `distilled_content` 是否被信封占满；session trace 的 outbound 段留有完整 distilled 快照（不受单字段 20k 截断影响）。剥离修复落点（hook 侧提取链 / chat-hub 侧干净首行 / 两侧）截至定版前尚未实施。
+**「chat-hub 会话没进记忆学习」先查是不是「归档链路正常、但 distilled 全是信封」**（2026-09-02 trace 取证确认根因）：Pi chat-hub 微信会话经 hook 正常归档，但 memory_hook.py 归档摘要三段式预算（首个用户目标 700 / 最近用户目标 700 / 会话结果 1400 字符）被 chat-hub 信封元数据（身份封套 + 语音转写元数据）占满，真实对话内容被挤出，标题退化成 `[weixin dm from ...]` 垃圾。提取链只剥 `<skill>` 注入包装（`strip_skill_wrapper`），**不剥 chat-hub 信封**——与 skill 包装同类的污染，缺同一层的剥离。后果：信封归档对后续 session 召回毫无价值，该段微信对话对记忆系统实际不可见（新 session 检索不到其中结论，会重复犯已纠正过的错）。确认方法：`GET /v1/memories/{memory_id}` 看 `distilled_content` 是否被信封占满；session trace 的 outbound 段留有完整 distilled 快照（不受单字段 20k 截断影响）。**已于 2026-09-06 修复（hook 侧）**：共享模块 session_messages.py 的 `strip_chat_hub_envelope` 剥传输行/身份封套/媒体信封并保留语音转写，hook 与 upload_sessions 同效；归档同时在 distilled 开头写「对话主体」标记、标题加 `[主体]` 前缀。详见 agent-integration.md「chat-hub 微信会话特殊处理」。
 </memory>
 
 ### chat-hub 拆出的第三人会话归档 user_id 仍是机主（可信封套 profile_id 不参与归档身份）
 
 <memory category="troubleshooting">
 **「chat-hub 已用声纹/人工切换把某人拆成独立 pi 会话，但其记忆与画像仍归到机主」的根因（2026-09 实读确认）**：拆分只体现在 prompt 注入的可信身份封套 `profile_id: "<id>"`；`memory_hook.py` 归档用机器级身份（hook 安装配置的 user_id），capture 链路不解析封套 profile_id，该人物全部会话以 `user_id=<机主>` 入库——insight run 按「账号 user_ids」汇集记忆时自然归不到该人物。修复方向是在 capture 时解析封套 profile_id 作为归档 user_id（hook 归档身份通道原生支持按会话覆盖，回填历史会话走同一通道可正确归因）；要动的是归档侧身份解析，不是 chat-hub 拆分逻辑。与上一条「信封淹没 distilled」是两个独立问题，确认方式不同：本条看归档 session 的 user_id，不看 distilled_content。
+
+**2026-09-06 用户定版：不改归档 user_id**（保持机主账号，多人物快照挂在机主下，信息主体靠「对话主体」标记区分）；改为按说话人归 **project**（单一非机主说话人 → profile_id 同名 project，如 xiaoyingtao），见 agent-integration.md「chat-hub 会话按人归 project」。「解析 profile_id 作为归档 user_id」方向已否决，勿再提。
 </memory>
 
 ## 测试

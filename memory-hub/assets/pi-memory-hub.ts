@@ -48,7 +48,10 @@ import { Type } from "typebox";
 //   本身保留、静默生效。
 // v27：新增 /memory-card 与 memory_persona_card；首轮 persona card 注入仅在
 //   MEMORY_HOOK_PI_PERSONA_CARD=1 时启用，默认关闭，并与既有 recall 独立 fail-open 组合。
-const EXTENSION_VERSION = "27";
+// v28：chat-hub 身份封套路由——首轮 prompt 的 profile_id 为非机主逻辑用户时，
+//   bootstrap 检索 project 改用该 profile_id（可用 MEMORY_HUB_CHAT_HUB_PROJECT_ROUTING=0
+//   关闭），与 hook capture 的归档归属规则对齐。
+const EXTENSION_VERSION = "28";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -193,6 +196,54 @@ function parseProjectDirective(value: string): { text: string; project: string |
 		text: value.slice(match[0].length).trim(),
 		project: match[1].toLowerCase(),
 	};
+}
+
+// v28：chat-hub 身份封套 → project 路由。chat-hub 微信会话的首轮 prompt 带网关生成的
+// 可信身份封套（[chat-hub 可信逻辑说话人] profile_id: "…" …[/…]）；当说话人是单一
+// 非机主逻辑用户（如 xiaoyingtao）时，bootstrap 检索改用其 profile_id 作为 project，
+// 与 hook capture 侧 MEMORY_HUB_CHAT_HUB_PROJECT_ROUTING 的归档归属保持一致。
+// 机主本人 / 无封套 / 非法 id 一律返回 null（维持 cwd 项目）。
+function chatHubRoutingEnabled(): boolean {
+	const value = (process.env.MEMORY_HUB_CHAT_HUB_PROJECT_ROUTING || "1").trim().toLowerCase();
+	return !(value === "0" || value === "false" || value === "no" || value === "off");
+}
+
+function parseChatHubSpeakerProject(rawPrompt: string, ownerUserId: string): string | null {
+	const block = rawPrompt.match(/\[chat-hub 可信逻辑说话人\]([\s\S]*?)\[\/chat-hub 可信逻辑说话人\]/);
+	if (!block) return null;
+	const profile = block[1].match(/profile_id:\s*"([^"]+)"/);
+	if (!profile) return null;
+	const profileId = profile[1].trim().toLowerCase();
+	if (!/^[a-z0-9][a-z0-9._:-]{0,127}$/.test(profileId)) return null;
+	const owner = ownerUserId.trim().toLowerCase();
+	if (!owner || profileId === owner) return null;
+	return profileId;
+}
+
+// 与 python session_messages.strip_chat_hub_envelope 同口径：剥传输行/身份封套/
+// 媒体信封行（语音保留微信转写文本）。仅用于构造检索 query，不改归档内容；
+// 非 chat-hub 文本原样返回。
+function stripChatHubEnvelopeText(text: string): string {
+	if (!text) return text;
+	let body = text;
+	const block = body.match(/\[chat-hub 可信逻辑说话人\][\s\S]*?\[\/chat-hub 可信逻辑说话人\]/);
+	if (block) body = body.replace(block[0], "\n");
+	const stripped = body.replace(/^\s*/, "");
+	const transport = stripped.match(/^\[[a-z]+\s+(?:dm|group)\s+from\s+[^\]\n]+\]/);
+	if (!transport) return text;
+	body = stripped.slice(transport[0].length);
+	const kept: string[] = [];
+	for (const rawLine of body.split("\n")) {
+		const line = rawLine.trim();
+		if (!line) continue;
+		if (/^\[入站微信[^\]\n]*\]$/.test(line)) {
+			const voice = line.match(/不准确）："([^"\n]*)"\s*\]?\s*$/);
+			if (voice && voice[1].trim()) kept.push(voice[1].trim());
+			continue;
+		}
+		kept.push(line);
+	}
+	return kept.join("\n").trim();
 }
 
 // v25 取消键识别：与 pi-tui matchesKey 对齐的轻量实现（避免运行时依赖 pi-tui）。
@@ -1115,10 +1166,20 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 					: persona.markdown,
 			};
 		}
-		const promptFocus = focusBootstrapPrompt(event.prompt);
+		const chatHubProject = chatHubRoutingEnabled()
+			? parseChatHubSpeakerProject(event.prompt, process.env.MEMORY_HUB_CLIENT_USER_ID || "")
+			: null;
+		// chat-hub 会话先用剥掉信封的干净正文构造检索 query（身份封套/语音元数据
+		// 不参与检索意图）。
+		const promptFocus = focusBootstrapPrompt(
+			chatHubProject ? stripChatHubEnvelopeText(event.prompt) : event.prompt,
+		);
 		const projectDirective = parseProjectDirective(promptFocus.intent);
 		const intent = projectDirective.text;
-		const projectHint = projectDirective.project || basename(ctx.cwd) || "当前项目";
+		// v28：显式 project: 指令优先；其次 chat-hub 身份封套（单一非机主说话人
+		// → 其 profile_id 作为检索 project，与归档侧归属规则一致）。
+		const projectOverride = projectDirective.project || chatHubProject;
+		const projectHint = projectOverride || basename(ctx.cwd) || "当前项目";
 		const ratingQuestion = clipText(intent || `${projectHint} 项目背景`, 360);
 		// 首轮应回答用户正在问的问题；只有 prompt 太短时才退回通用项目背景。
 		// 一次查询同时带 project hint，服务端仍按当前 project 硬隔离。
@@ -1175,7 +1236,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				"--session-id",
 				sessionId,
 			];
-			if (projectDirective.project) searchArgs.push("--project", projectDirective.project);
+			if (projectOverride) searchArgs.push("--project", projectOverride);
 			const jsonResult = await runHub(
 				searchArgs,
 				undefined,
@@ -1380,7 +1441,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				"--session-id",
 				sessionId,
 			];
-			if (projectDirective.project) searchArgs.push("--project", projectDirective.project);
+			if (projectOverride) searchArgs.push("--project", projectOverride);
 			const result = await runHub(
 				searchArgs,
 				undefined,
@@ -1444,7 +1505,12 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			limit,
 			max_chars: maxChars,
 			prompt_source: promptFocus.source,
-			project_override: projectDirective.project,
+			project_override: projectOverride,
+			project_override_source: projectDirective.project
+				? "directive"
+				: chatHubProject
+					? "chat_hub_identity"
+					: null,
 			outcome,
 			recall_outcome: outcome,
 			persona_outcome: outcome === "cancelled" ? "cancelled" : persona.outcome,
@@ -1467,7 +1533,12 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				cwd: ctx.cwd,
 				prompt: focusedPrompt,
 				prompt_source: promptFocus.source,
-				project_override: projectDirective.project,
+				project_override: projectOverride,
+				project_override_source: projectDirective.project
+					? "directive"
+					: chatHubProject
+						? "chat_hub_identity"
+						: null,
 				query,
 				retrieval,
 				quality,

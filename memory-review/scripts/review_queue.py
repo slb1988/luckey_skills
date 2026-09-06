@@ -10,7 +10,7 @@
   MEMORY_HUB_API_KEY            必填（生产 Bearer）
   MEMORY_HUB_CLIENT_USER_ID     必填（默认 sunlaibing 从注册表环境变量继承）
   MEMORY_REVIEW_BASE_URL        可选，默认 https://luckeyhome.site/memory-hub
-                                （dashboard BFF；直连 Hub 用 http://10.77.77.6:9287，前缀自动处理）
+                                （dashboard BFF；**直连 Hub :9287 没有 /review 路由（404）**，本机直连用 http://10.77.77.6:9288）
 
 决策文件格式（apply 的输入）：
 {

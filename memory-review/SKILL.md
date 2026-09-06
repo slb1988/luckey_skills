@@ -149,4 +149,6 @@ duplicate（误杀）。完整排查：`.claude/plans/MemoryHub抽取审核重�
 | POST | `/review/extraction/actions` | 批量 approve/reject；`content_mode`、`acknowledge_novelty_warning`、`rationale`（v13+） |
 
 直连 Hub 用 `http://10.77.77.6:9287/v1/...`（脚本 `--base-url` 自动适配前缀）。
+**注意（2026-09-06 实测修正）**：review 系列接口只在 dashboard BFF 上，直连 Hub :9287 会 404；
+本机直连应 `--base-url http://10.77.77.6:9288`。
 服务端字段/状态机权威定义：`D:/Github/memory-hub/docs/REVIEW_PIPELINE.md`。

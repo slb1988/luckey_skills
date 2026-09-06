@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from session_messages import (
+    chat_hub_project_for_speakers,
     chat_hub_speaker_note,
     chat_hub_speaker_title_prefix,
     chat_hub_speakers_from_pairs,
@@ -2544,6 +2545,28 @@ def command_capture(args: argparse.Namespace, config: Config, store: StateStore)
     cwd = str(hook.get("cwd") or os.getcwd())
     # 归档 project 按工作根目录名分类（如 memory-hub / maindev / obsidianvault）。
     project_id = project_id_for_cwd(cwd, config.archive_project_id)
+    # chat-hub 会话按说话人归 project（2026-09-06 用户定版）：单一非机主说话人
+    # （如 xiaoyingtao）的会话归其同名 project，避免她的语料混进机主项目大池子、
+    # 让服务端在小池子里做 novelty/实体分析。机主/多人混合/legacy 无封套会话
+    # 不受影响；MEMORY_HUB_CHAT_HUB_PROJECT_ROUTING=0 关闭。
+    if os.environ.get("MEMORY_HUB_CHAT_HUB_PROJECT_ROUTING", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    ):
+        try:
+            routing_events = read_transcript_events(transcript_path)
+            routed_project = chat_hub_project_for_speakers(
+                chat_hub_speakers_from_pairs(
+                    extract_session_pairs(routing_events, source=args.source)
+                ),
+                profile.user_id if profile else "",
+            )
+            if routed_project:
+                project_id = routed_project
+        except Exception:
+            pass  # 路由判定失败 fail-open：维持 cwd 派生，不影响归档主链路
     try:
         ready = profile_is_ready(profile)
         target_profile = profile if ready else UserProfile(UNCONFIGURED_USER_ID)

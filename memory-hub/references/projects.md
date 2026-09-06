@@ -17,6 +17,7 @@ Memory Hub 提供 `GET /v1/projects` 列出已知 project（含 memory/session �
 | `unity2018` | Unity 2018 源码项目（E:\\sununity）历史 session 归档：1094 个 Pi session + 1 个 Claude session（agent 分别为 `pi` / `claude-code`），2026-08 由 `upload_sessions.py` 手动批量归档 | 755 sessions / 755 memories |
 | `agent-history` | Claude Code 的 session 归档主库 + 杂项兜底（Downloads、`C:\Users\admin`、`E:\`、中文目录等派生不出合法名字的 cwd） | 430+ sessions，2026-08 活跃 |
 | `obsidianvault` | Obsidian 知识库仓库 | 136 sessions（pi + claude），含别名归并（见下节） |
+| `xiaoyingtao` | 小樱桃（机主女儿）的 chat-hub 微信会话 + 成长档案（`manual:xiaoyingtao:profile`） | 2026-09-06 按人分池定版：chat-hub 单一非机主说话人会话自动归其 profile_id 同名 project（见 agent-integration.md「chat-hub 会话按人归 project」） |
 | `admin_sun_depot_7184` | DevOps 主仓库 `D:\work\admin_sun_depot_7184` | 54 sessions，含 pyAutomation frontend/backend 别名归并 |
 | `claude-history` | Mac 端 Claude Code 会话历史提炼记忆 | claude-code-mac，2026-08 活跃 |
 | `memory-hub` | memory-hub 项目自身 | pi 端为主 |

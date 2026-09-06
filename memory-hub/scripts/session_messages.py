@@ -357,3 +357,26 @@ def chat_hub_speaker_title_prefix(speakers: List[Dict[str, Any]]) -> str:
     if len(names) == 1:
         return "[%s] " % names[0]
     return "[%s] " % ("+".join(names))
+
+
+_CHAT_HUB_PROJECT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9._:-]{0,127}$")
+
+
+def chat_hub_project_for_speakers(
+    speakers: List[Dict[str, Any]], owner_user_id: str
+) -> Optional[str]:
+    """chat-hub 会话的 project 路由：单一非机主说话人 → 其 profile_id 作为 project。
+
+    机主本人、多人混合、无身份封套（legacy 会话）都返回 None（维持 cwd 派生），
+    避免把可能含机主上下文的混合会话误归到他人 scope（机主私密记忆不外流）。
+    返回的 project 与 profile_id 一致（如 xiaoyingtao），非法字符一律拒判。
+    """
+    owner = (owner_user_id or "").strip().lower()
+    if not owner or len(speakers) != 1:
+        return None
+    profile_id = (speakers[0].get("profile_id") or "").strip().lower()
+    if not profile_id or profile_id == owner:
+        return None
+    if not _CHAT_HUB_PROJECT_ID_RE.match(profile_id):
+        return None
+    return profile_id
