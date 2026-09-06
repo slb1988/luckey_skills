@@ -47,14 +47,14 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 | API 端点、写入流程、Idempotency-Key、错误码、常用 curl | [references/api-notes.md](references/api-notes.md) |
 | Hook 安装/check/身份配置/环境变量/首轮召回/Pi 扩展机制与留痕/低价值过滤 | [references/agent-integration.md](references/agent-integration.md) |
 | 手动批量归档历史 session（upload_sessions.py、漏传回填、project 归属） | [references/upload-sessions.md](references/upload-sessions.md) |
-| 排障：检索 0 命中/hook 验证/spool 积压/feedback 判死/triage 解析/catch-all 误归/chat-hub 信封淹没归档/测试平台坑 | [references/troubleshooting.md](references/troubleshooting.md) |
+| 排障：检索 0 命中/hook 验证/spool 积压/feedback 判死/triage 解析/catch-all 误归/chat-hub 信封淹没归档与人物归档身份/测试平台坑 | [references/troubleshooting.md](references/troubleshooting.md) |
 | 误归档 session 定点清理 runbook | [references/cleanup-misscoped-sessions.md](references/cleanup-misscoped-sessions.md) |
 | 检索 eval（黄金集/存错取错诊断/指标门禁/部署验收 smoke 向量） | [references/retrieval-eval.md](references/retrieval-eval.md) |
 | 检索 scope 选择、已知 project 一览、别名映射 | [references/projects.md](references/projects.md) |
 | 全链路总览（拓扑/写入/检索/观测/隐患） | [references/system-overview.md](references/system-overview.md) |
 | outbox 确认机制/大批量 retry 判读 | [memory-center/references/ingest-performance.md](../../memory-center/references/ingest-performance.md) |
 
-服务端仓库文档（NAS 项目 `docs/`）：`USAGE.md`、`API_CONTRACT.md`、`IMPLEMENTATION.md`、`DASHBOARD.md`、`REVIEW_PIPELINE.md`、`MULTI_USER_AUTH.md`。
+服务端仓库文档（NAS 项目 `docs/`）：`USAGE.md`、`API_CONTRACT.md`、`IMPLEMENTATION.md`、`DASHBOARD.md`、`REVIEW_PIPELINE.md`、`MULTI_USER_AUTH.md`、`GRAPH_CURATION.md`（图谱修订/实体合并）。
 
 关卡 2（抽取审核）队列的批量/自动处置走独立 skill：**memory-review**（`.claude/skills/memory-review/`，含 scan/apply 脚本与审核准则）。
 每日人物洞察走独立 skill：**insight-daily**（`.claude/skills/insight-daily/`）；它在 `daily-report` 生成日记后只上传相关分节，触发/轮询 insight run，并用本地 manifest 做逐字复核，不修改 `daily-report`。
@@ -69,6 +69,28 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 
 <memory category="troubleshooting">
 Dashboard 创建/修改用户报 422（非 400）= Pydantic 请求模型在域逻辑之前拒绝，先查 role 的 `Literal[...]`。role 定义重复散落在四处，新增 role 必须全部同步改：`src/memory_hub/api/schemas.py`（Hub 数据面）、`backend/dashboard_backend/routers.py` 的 `AdminCreateUserBody/AdminUpdateUserBody`（管理面 `:9288/api/v1/admin/users`）、`application/accounts.py` 域校验（`role not in {...}`）、frontend `api/types.ts`——漏 dashboard_backend 那处就是 422。guest=只读角色：禁写数据面、不能签发 agent token。
+</memory>
+
+<memory category="common-patterns">
+同义实体碎片（`memory-hub`/`memory_hub`/`Memory Hub` 多变体并存、事实边分散在各节点）的定点合并走服务端图谱修订管线：`POST /api/v1/graph/edits`（action=merge，需 admin token）或 `PATCH /curate/entity-node`（merge_if_exists）。合并语义：旧节点全部事实边迁移到 canonical（同名同端点边合并、episodes 去重）、episode MENTIONS 迁移、旧↔新之间的边成自环自动丢弃、不调 LLM 完全可预测；**不可自动撤销**，但全部落 `graph_edits` 审计（面板「图谱修订」页可查、before 快照支持人工回滚）。权威文档 `docs/GRAPH_CURATION.md`。合法子实体（文件/环境变量/专题节点）不要合并；跨 group 普遍存在同类双枢纽，可按组如法炮制。合并只是时点修复——归一化缺陷不除变体会再生（根因见 memory-review 记录的 `_normalize_extraction`）。
+</memory>
+
+## 人物画像、Insight 与 review-prompts
+
+Dashboard `#review-prompts` 管 6 个 prompt，改「什么样的人信息进画像」只动其中两个，其余无关：
+
+| prompt | 职责 | 与人物画像的关系 |
+|---|---|---|
+| `intake-filter` | 关卡 1 入库拦截 | 无关 |
+| `extraction-preview` | 关卡 2 抽图谱实体 | 只产图谱 Person 实体（检索可见），不进画像 |
+| `decision-mining` / `profile-synth` | 画像提案 | **画像内容的唯一来源** |
+| `quote-synth` / `memory-evolution` | 语录归纳 / 记忆演化 | 无关 |
+
+画像链路：insight run 把「daily input + 本账号全部 user_id 的记忆」喂给这两个 prompt → 产出**提案** → 人审通过才写入画像 facet。
+
+<memory category="core-rules">
+- **facet 强制 EvidenceRef 校验**：画像事实不能手工空写，必须走「记忆 → 该人物的 insight run → 提案 → 审批」证据链。
+- **创建 person 是 admin-only**（dashboard 人物中心，agent token 无权）：`kind=child` 自动启用 minor_strict；需锚定账号、设 `hub_user_id`，并先把该 id 绑进账号 user_ids——否则它的记忆不会进入自己 insight run 的输入。
 </memory>
 
 ## Hook 集成与批量归档

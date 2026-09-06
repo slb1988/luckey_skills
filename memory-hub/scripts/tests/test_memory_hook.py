@@ -1093,7 +1093,7 @@ class MemoryHookTest(unittest.TestCase):
             store.enqueue(self.profile(), "pi", "session-goal", str(root), transcript)
             job = store.queued(1)[0]
             # 整会话文本从 full 包重取：首条目标必须在，尽管它是 10 条窗口外的旧消息也能取到。
-            user_texts, first_user, last_user, last_assistant = load_session_texts(job)
+            user_texts, first_user, last_user, last_assistant, speakers = load_session_texts(job)
             self.assertEqual(first_user, "帮我排查并修复内存泄漏")
             self.assertEqual(last_user, "commit")
             self.assertEqual(last_assistant, "已提交。")

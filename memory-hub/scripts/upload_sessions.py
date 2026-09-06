@@ -48,7 +48,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from session_messages import extract_session_pairs
+from session_messages import (
+    chat_hub_speaker_note,
+    chat_hub_speaker_title_prefix,
+    chat_hub_speakers_from_pairs,
+    extract_session_pairs,
+    strip_chat_hub_envelope,
+)
 
 MAX_RECENT_MESSAGES = 10
 
@@ -428,6 +434,7 @@ class SessionFile:
     last_user: str = ""
     last_assistant: str = ""
     user_texts: List[str] = field(default_factory=list)
+    speakers: List[Dict[str, Any]] = field(default_factory=list)  # chat-hub 说话人统计
     claude_summary: str = ""
     title: str = ""
     meaningful: bool = True
@@ -578,13 +585,17 @@ def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[Sess
     if not source:
         print("  [skip] cannot detect agent source: %s" % path)
         return None
-    for role, raw_text in extract_session_pairs(events, source=source):
+    pairs = extract_session_pairs(events, source=source)
+    speakers = chat_hub_speakers_from_pairs(pairs)
+    for role, raw_text in pairs:
         text = sanitize_message_text(raw_text)
         if not text:
             continue
         if role == "user":
             # 剥掉 pi skill 注入包装，否则用户目标被 SKILL.md 模板污染。
             text = strip_skill_wrapper(text)
+            # 剥 chat-hub 微信信封（传输行/身份封套/媒体元数据），保留语音转写。
+            text, _speaker = strip_chat_hub_envelope(text)
             if not text:
                 continue
         recent_messages.append({"role": role, "content": text})
@@ -635,6 +646,7 @@ def scan_session_file(path: Path, forced_source: Optional[str]) -> Optional[Sess
         last_assistant=compact_text(last_assistant, 1400),
         user_texts=user_texts,
         claude_summary=claude_summary,
+        speakers=speakers,
         recent_messages=list(recent_messages),
         events=events,
     )
@@ -790,11 +802,16 @@ def ensure_memory(
     client: HubClient, session: "SessionFile", agent_id: str, version: int, file_id: str
 ) -> str:
     topic = session.title or heuristic_title(session.user_texts) or "未命名会话"
+    # chat-hub 会话标记对话主体：distilled 开头标注说话人，标题加 [主体] 前缀。
+    speaker_note = chat_hub_speaker_note(session.speakers)
+    if session.speakers:
+        topic = chat_hub_speaker_title_prefix(session.speakers) + topic
     # 归档摘要只保留会话内容本身，不内嵌来源/标题/日期/工作目录等元数据——
     # 元数据由 Hub 侧 source_description 携带，避免被 Graphiti 抽成噪声实体。
     distilled = (
-        "首个用户目标：%s。最近用户目标：%s。会话结果：%s"
+        "%s首个用户目标：%s。最近用户目标：%s。会话结果：%s"
         % (
+            speaker_note,
             session.first_user or "未提取到用户文本",
             session.last_user or "未提取到用户文本",
             session.last_assistant or "未提取到助手最终文本",

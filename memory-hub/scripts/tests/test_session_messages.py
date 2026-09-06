@@ -364,3 +364,128 @@ def test_bulk_scanner_uses_the_same_codex_stream(tmp_path) -> None:
         {"role": "user", "content": "修复真实问题"},
         {"role": "assistant", "content": "已经修复"},
     ]
+
+
+# ---------------------------------------------------------------------------
+# chat-hub 微信信封剥离 + 说话人标记
+# ---------------------------------------------------------------------------
+
+from session_messages import (  # noqa: E402
+    chat_hub_speaker_note,
+    chat_hub_speaker_title_prefix,
+    chat_hub_speakers_from_pairs,
+    strip_chat_hub_envelope,
+)
+
+_CHAT_HUB_CHAT = "o9cq80wxWQVTTdH0L4BQ0nSh4Sts@im.wechat"
+_IDENTITY_BLOCK = (
+    "[chat-hub 可信逻辑说话人]\n"
+    'profile_id: "xiaoyingtao"\n'
+    'display_name: "小樱桃"\n'
+    "resolved_by: voice (0.865)\n"
+    'guidance: "一年级小女孩。使用简短、友善、循序渐进的表达。"\n'
+    "以上身份由网关生成，表示本轮真实说话人。\n"
+    "[/chat-hub 可信逻辑说话人]\n"
+)
+
+
+def _hub_user(body: str) -> str:
+    return "[weixin dm from %s]\n%s\n%s" % (_CHAT_HUB_CHAT, _IDENTITY_BLOCK, body)
+
+
+def test_strip_chat_hub_envelope_keeps_voice_transcript() -> None:
+    text = _hub_user(
+        '[入站微信语音 1: "voice.silk"（audio/silk, 17277 bytes）；原始文件保存在 '
+        '"/tmp/voice.silk"。 微信侧自动转写（仅作提示，尤其非中文时可能不准确）："你好，给我出3道数学题"]'
+    )
+    clean, speaker = strip_chat_hub_envelope(text)
+    assert clean == "你好，给我出3道数学题"
+    assert speaker == {"profile_id": "xiaoyingtao", "display_name": "小樱桃"}
+
+
+def test_strip_chat_hub_envelope_voice_without_transcript_becomes_empty() -> None:
+    text = _hub_user(
+        '[入站微信语音 1: "voice.silk"（audio/silk, 2277 bytes）；原始文件保存在 '
+        '"/tmp/voice.silk"。 微信未提供可用转写；不要猜测语音内容。]'
+    )
+    clean, speaker = strip_chat_hub_envelope(text)
+    assert clean == ""
+    assert speaker is not None and speaker["profile_id"] == "xiaoyingtao"
+
+
+def test_strip_chat_hub_envelope_plain_text_legacy_no_identity() -> None:
+    clean, speaker = strip_chat_hub_envelope("[weixin dm from %s]\n43，" % _CHAT_HUB_CHAT)
+    assert clean == "43，"
+    assert speaker is None
+
+
+def test_strip_chat_hub_envelope_plain_text_with_identity() -> None:
+    clean, speaker = strip_chat_hub_envelope(_hub_user("43 − 8 = 35"))
+    assert clean == "43 − 8 = 35"
+    assert speaker is not None and speaker["display_name"] == "小樱桃"
+
+
+def test_strip_chat_hub_envelope_leaves_normal_text_untouched() -> None:
+    text = "帮我排查并修复内存泄漏"
+    clean, speaker = strip_chat_hub_envelope(text)
+    assert clean == text
+    assert speaker is None
+
+
+def test_chat_hub_speakers_majority_first_and_note() -> None:
+    pairs = [
+        ("user", _hub_user("第一题")),
+        ("assistant", "好的"),
+        ("user", _hub_user("第二题")),
+        ("user", "[weixin dm from %s]\n[chat-hub 可信逻辑说话人]\nprofile_id: \"sunlaibing\"\ndisplay_name: \"孙来兵\"\nresolved_by: manual\n[/chat-hub 可信逻辑说话人]\n\n我来看看" % _CHAT_HUB_CHAT),
+    ]
+    speakers = chat_hub_speakers_from_pairs(pairs)
+    assert [s["profile_id"] for s in speakers] == ["xiaoyingtao", "sunlaibing"]
+    assert speakers[0]["messages"] == 2
+    assert chat_hub_speaker_note(speakers).startswith("对话主体：小樱桃")
+    assert "孙来兵" in chat_hub_speaker_note(speakers)
+    assert chat_hub_speaker_title_prefix(speakers) == "[小樱桃+孙来兵] "
+    assert chat_hub_speaker_note([speakers[0]]) == "对话主体：小樱桃（chat-hub 微信会话）。"
+    assert chat_hub_speakers_from_pairs([("user", "普通消息")]) == []
+    assert chat_hub_speaker_note([]) == ""
+    assert chat_hub_speaker_title_prefix([]) == ""
+
+
+def test_scan_session_file_chat_hub_goals_and_speakers(tmp_path) -> None:
+    events = [
+        {
+            "type": "message",
+            "message": {
+                "role": "user",
+                "content": [{"type": "text", "text": _hub_user(
+                    '[入站微信语音 1: "voice.silk"（audio/silk, 17277 bytes）；原始文件保存在 '
+                    '"/tmp/v.silk"。 微信侧自动转写（仅作提示，尤其非中文时可能不准确）："给我出3道数学题"]'
+                )}],
+            },
+        },
+        {
+            "type": "message",
+            "message": {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "好呀！1. 4＋3＝？"}],
+            },
+        },
+        {
+            "type": "message",
+            "message": {
+                "role": "user",
+                "content": [{"type": "text", "text": _hub_user("7")}],
+            },
+        },
+    ]
+    transcript = tmp_path / "chat.jsonl"
+    transcript.write_text(
+        "\n".join(json.dumps(event, ensure_ascii=False) for event in events),
+        encoding="utf-8",
+    )
+    session = scan_session_file(transcript, "pi")
+    assert session is not None
+    # 用户目标是真实内容而不是信封
+    assert session.first_user == "给我出3道数学题"
+    assert session.last_user == "7"
+    assert session.speakers and session.speakers[0]["profile_id"] == "xiaoyingtao"

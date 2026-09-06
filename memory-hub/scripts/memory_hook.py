@@ -31,8 +31,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from session_messages import (
+    chat_hub_speaker_note,
+    chat_hub_speaker_title_prefix,
+    chat_hub_speakers_from_pairs,
     extract_role_text,
     extract_session_pairs,
+    strip_chat_hub_envelope,
 )
 
 
@@ -254,6 +258,7 @@ def session_user_texts(pairs: List[Tuple[str, str]]) -> Tuple[List[str], str, st
             continue
         if role == "user":
             text = strip_skill_wrapper(text)
+            text, _speaker = strip_chat_hub_envelope(text)
             if not text:
                 continue
             if not is_noise_user_text(text):
@@ -463,12 +468,14 @@ def _read_gzip_payload(path: Path) -> Optional[Dict[str, Any]]:
         return None
 
 
-def load_session_texts(job: sqlite3.Row) -> Tuple[List[str], str, str, str]:
+def load_session_texts(job: sqlite3.Row) -> Tuple[List[str], str, str, str, List[Dict[str, Any]]]:
     """上传时重取整个会话的用户/助手文本，供 LLM 整会话判定与用户目标提取。
 
     优先 full 包（全量事件，ADR-009 双资产）；老 job 无 full 退到窗口快照；
     最后兑住 job 行的 last_user/last_assistant 列。
-    返回 (user_texts, first_user, last_user, last_assistant)。
+    返回 (user_texts, first_user, last_user, last_assistant, speakers)；
+    speakers 是 chat-hub 会话的说话人统计（按消息数降序，首位为对话主体），
+    非 chat-hub 会话为 []。
     """
     pairs: List[Tuple[str, str]] = []
     job_keys = job.keys() if hasattr(job, "keys") else []
@@ -497,11 +504,13 @@ def load_session_texts(job: sqlite3.Row) -> Tuple[List[str], str, str, str]:
                     if role in ("user", "assistant") and isinstance(content, str):
                         pairs.append((role, content))
     if pairs:
-        return session_user_texts(pairs)
+        texts = session_user_texts(pairs)
+        return texts + (chat_hub_speakers_from_pairs(pairs),)
     last_user = strip_skill_wrapper(job["last_user"] or "")
+    last_user, _speaker = strip_chat_hub_envelope(last_user)
     last_assistant = job["last_assistant"] or ""
     user_texts = [compact_text(last_user, 300)] if last_user else []
-    return user_texts, last_user, last_user, last_assistant
+    return user_texts, last_user, last_user, last_assistant, []
 
 
 def transcript_tail_interrupted(transcript_path: Path) -> bool:
@@ -1069,6 +1078,7 @@ def build_snapshot(
     for message in recent_messages:
         if message["role"] == "user":
             stripped = strip_skill_wrapper(message["content"])
+            stripped, _speaker = strip_chat_hub_envelope(stripped)
             if stripped:
                 last_user = stripped
         else:
@@ -1663,20 +1673,26 @@ class HubClient:
         agent_id = job["source"] or self.config.agent_id
         if texts is None:
             texts = load_session_texts(job)
-        _user_texts, first_user, last_user, last_assistant = texts
+        _user_texts, first_user, last_user, last_assistant, speakers = texts
         # 用户目标必须保留且取整会话的首个真实用户消息（skill 包装已剥）；
         # 尾部例行消息（如「commit」）只能作「最近用户目标」，不能顶掉目标。
         goal = first_user or last_user or title or "未提取到用户文本"
         recent = last_user or goal
         result = last_assistant or "未提取到助手最终文本"
         topic = title or compact_text(goal, TITLE_MAX_CHARS) or "未命名会话"
+        # chat-hub 会话标记对话主体：distilled 开头标注说话人，标题加 [主体] 前缀
+        # （2026-09-06 用户定版：会话要分析对话的人的主体是谁，并做标记记录）。
+        speaker_note = chat_hub_speaker_note(speakers)
+        if speakers:
+            topic = chat_hub_speaker_title_prefix(speakers) + topic
         # 归档摘要只保留会话内容本身（用户目标/会话结果），不内嵌来源、标题、
         # 工作目录等元数据——元数据由 Hub 侧 source_description 携带（参考通道，
         # 不参与事实抽取）。否则 Graphiti 会把「会话标题」「工作目录」抽成实体，
         # 产生噪声节点（见 memory-center 2026-08-20 实体抽取噪声事故报告）。
         distilled = (
-            "首个用户目标：%s。最近用户目标：%s。会话结果：%s"
+            "%s首个用户目标：%s。最近用户目标：%s。会话结果：%s"
             % (
+                speaker_note,
                 compact_text(goal, 700),
                 compact_text(recent, 700),
                 compact_text(result, 1400),

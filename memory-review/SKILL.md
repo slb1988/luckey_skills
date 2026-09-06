@@ -114,6 +114,18 @@ apply 按 (action, content_mode, rationale) 分组批量调用；需要逐条不
 队列内无重复；扫完 packet 后需在同批条目间横向比对 project/正文关键词，重复的二选一
 （通常拒预览更差的那份，拿不准就留队列升级）。
 
+<memory category="core-rules">
+「preview 高频出现图谱已有实体、看似无增量」是机制性噪音而非数据 bug（2026-09-06 线上取证：
+Top10 高频实体 100% 已在图谱）。根因四叠加：① preview 盲抽——LLM 只看 distilled_content，无图谱
+上下文（service.py:2021-2054）；② detail/UI 无 per-entity 存在性标注（store.py:1145-1204）；
+③ novelty 是事实级判定，不查实体增量；④ curated 批准无存在性检查，实体清单渲染成自然语言 episode，
+合并交给 Graphiti 写入侧。审核含义：实体已存在 ≠ 图谱会产生重复，**不要仅因实体眼熟就判 duplicate
+或 reject**；老实体可能是新边/新事实的合法端点。另：`_normalize_extraction` 仅 str.strip()（无
+NFKC/casefold），线上已出现 `Memory Hub`/`memory-hub` 双节点——外科清理改名时优先对齐图谱 canonical
+写法。已否决的方向（勿再提）：全实体名单注入 prompt（token 膨胀+注入风险）、「0 新实体+0 新边」硬判
+duplicate（误杀）。完整排查：`.claude/plans/MemoryHub抽取审核重复实体排查.md`。
+</memory>
+
 ## 服务端接口速查（dashboard BFF 代理，前缀 `/api/v1`）
 
 | 方法 | 路径 | 说明 |

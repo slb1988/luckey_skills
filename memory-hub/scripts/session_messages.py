@@ -231,3 +231,129 @@ def extract_session_pairs(
         if families[2]:
             return [pair for _, pair in families[2]]
     return [pair for record in records if (pair := extract_role_text(record))]
+
+
+# ---------------------------------------------------------------------------
+# chat-hub 微信信封处理
+# ---------------------------------------------------------------------------
+#
+# chat-hub（.pi/extensions/chat-hub）投递的用户消息带三层包装：
+#   [weixin dm from <chatId>]                                   ← 传输行
+#   [chat-hub 可信逻辑说话人] profile_id/display_name/... [/…]   ← 身份封套（新版）
+#   [入站微信语音 1: ... 微信侧自动转写（…）："真实文本"]          ← 媒体信封
+# 不剥离时归档摘要的 700/700/1400 字符预算全被信封占满，真实内容（语音转写、
+# 答题文本）完全丢失（2026-09-06 小樱桃数学测评会话事故）。语音转写是正文的
+# 最佳代理，予以保留；无转写（微信未提供/失败）的语音消息剥离后为空，交由
+# 调用方的噪声过滤处理。
+
+CHAT_HUB_TRANSPORT_RE = re.compile(r"^\[[a-z]+\s+(?:dm|group)\s+from\s+[^\]\n]+\]")
+CHAT_HUB_IDENTITY_BLOCK_RE = re.compile(
+    r"\[chat-hub 可信逻辑说话人\](?P<block>.*?)\[/chat-hub 可信逻辑说话人\]",
+    re.DOTALL,
+)
+CHAT_HUB_PROFILE_ID_RE = re.compile(r'profile_id:\s*"([^"]+)"')
+CHAT_HUB_DISPLAY_NAME_RE = re.compile(r'display_name:\s*"([^"]+)"')
+CHAT_HUB_MEDIA_LINE_RE = re.compile(r"^\[入站微信[^\]\n]*\]$")
+CHAT_HUB_VOICE_TRANSCRIPT_RE = re.compile(r'不准确）："(?P<text>[^"\n]*)"\s*\]?\s*$')
+
+
+def strip_chat_hub_envelope(text: str) -> Tuple[str, Optional[Dict[str, str]]]:
+    """剥掉 chat-hub 微信信封，返回 (clean_text, speaker|None)。
+
+    speaker 从身份封套解析（profile_id/display_name）；旧版无封套消息为 None。
+    非 chat-hub 消息原样返回且 speaker 为 None（零影响普通会话）。
+    """
+    if not text:
+        return text, None
+    speaker: Optional[Dict[str, str]] = None
+    match = CHAT_HUB_IDENTITY_BLOCK_RE.search(text)
+    if match:
+        block = match.group("block")
+        speaker = {}
+        profile = CHAT_HUB_PROFILE_ID_RE.search(block)
+        display = CHAT_HUB_DISPLAY_NAME_RE.search(block)
+        if profile:
+            speaker["profile_id"] = profile.group(1)
+        if display:
+            speaker["display_name"] = display.group(1)
+        text = CHAT_HUB_IDENTITY_BLOCK_RE.sub("\n", text)
+    stripped = text.lstrip()
+    transport = CHAT_HUB_TRANSPORT_RE.match(stripped)
+    if not transport:
+        if speaker is not None:
+            return text.strip(), speaker
+        return text, None
+    text = stripped[transport.end():]
+    kept: List[str] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if CHAT_HUB_MEDIA_LINE_RE.match(line):
+            voice = CHAT_HUB_VOICE_TRANSCRIPT_RE.search(line)
+            if voice:
+                transcript = voice.group("text").strip()
+                if transcript:
+                    kept.append(transcript)
+            continue
+        kept.append(line)
+    return "\n".join(kept).strip(), speaker
+
+
+def chat_hub_speakers_from_pairs(
+    pairs: Iterable[Tuple[str, str]]
+) -> List[Dict[str, Any]]:
+    """统计 chat-hub 会话的说话人（按用户消息数降序）；非 chat-hub 会话返回 []。
+
+    排序首位即「对话主体」（消息数最多的说话人），用于归档标记记录。
+    """
+    order: List[str] = []
+    stats: Dict[str, Dict[str, Any]] = {}
+    for role, raw_text in pairs:
+        if role != "user":
+            continue
+        _clean, speaker = strip_chat_hub_envelope(raw_text)
+        if not speaker:
+            continue
+        key = speaker.get("profile_id") or speaker.get("display_name") or "unknown"
+        entry = stats.get(key)
+        if entry is None:
+            entry = {
+                "profile_id": speaker.get("profile_id") or "",
+                "display_name": speaker.get("display_name") or "",
+                "messages": 0,
+            }
+            stats[key] = entry
+            order.append(key)
+        entry["messages"] += 1
+    speakers = [stats[key] for key in order]
+    speakers.sort(key=lambda item: (-item["messages"], item["profile_id"]))
+    return speakers
+
+
+def chat_hub_speaker_names(speakers: List[Dict[str, Any]]) -> List[str]:
+    return [
+        name
+        for name in (s.get("display_name") or s.get("profile_id") for s in speakers)
+        if name
+    ]
+
+
+def chat_hub_speaker_note(speakers: List[Dict[str, Any]]) -> str:
+    """会话主体标记文本（写入 distilled 开头）。主体 = 消息数最多的说话人。"""
+    names = chat_hub_speaker_names(speakers)
+    if not names:
+        return ""
+    if len(names) == 1:
+        return "对话主体：%s（chat-hub 微信会话）。" % names[0]
+    return "对话主体：%s（chat-hub 微信会话，参与者：%s）。" % (names[0], "、".join(names))
+
+
+def chat_hub_speaker_title_prefix(speakers: List[Dict[str, Any]]) -> str:
+    """标题前缀：单人「[小樱桃] 」，多人「[孙来兵+小樱桃] 」（多数派在前）。"""
+    names = chat_hub_speaker_names(speakers)
+    if not names:
+        return ""
+    if len(names) == 1:
+        return "[%s] " % names[0]
+    return "[%s] " % ("+".join(names))
