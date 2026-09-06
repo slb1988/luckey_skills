@@ -1,6 +1,6 @@
 ---
 name: pi-agent
-description: Pi agent（pi，@earendil-works 的 coding agent）使用与排障指南。记录 pi 使用过程中的各种小问题：扩展加载冲突、插件卸载、配置位置、npm 包管理、启动报错等。当用户提到 pi 报错、pi 扩展冲突、pi 插件卸载、pi-subagents、Tool conflicts、Failed to load extension、pi 配置、pi 启动失败，或排查 pi 的扩展/配置/npm 包问题时触发。即使用户只说"pi 又报错了""pi 启动不了""pi 扩展冲突"也应触发。
+description: Pi agent（pi，@earendil-works 的 coding agent）使用与排障指南，覆盖扩展加载冲突、插件卸载、配置、npm 包、启动错误，以及项目内 chat-hub 微信桥的配置与应答事务。当用户提到 pi 报错、pi 扩展冲突、pi-subagents、Tool conflicts、Failed to load extension、chat-hub、微信客户端“处理失败”、应答超时，或成功返回后又收到失败消息时触发。
 ---
 
 # Pi Agent 使用排障指南
@@ -48,6 +48,23 @@ pi-btw 扩展同步基线：从 narumiruna/pi-extensions 的 commit `0eb67035f39
 
 <memory category="troubleshooting">
 `SessionManager.listAll()` 会**递归扫描** `~/.pi/agent/sessions/` 的所有子目录，凡是 `.jsonl` 结尾的文件都会进会话列表——所以批量清理会话时不能把裸 .jsonl 挪进 `backup/` 之类子目录（会以伪项目 `backup` 重新污染列表）。既定约定：打包成 `.tar.gz` 存 `~/.pi/agent/sessions/backup/`，先校验归档再删原件，并在该目录 `README.md` 的 Records 节登记。auto-skill extraction 子会话曾是主要污染源（累计数千个），2026-08 已修根因：extraction 子会话改用 `SessionManager.inMemory()`，不再落盘；之后再看到 extraction 会话说明扩展是旧版，从 MainDev 同步 auto-skill 即可。
+</memory>
+
+<memory category="common-patterns">
+
+## chat-hub 微信桥事务与外发契约
+
+`TransactionRunner` 以全局 FIFO 串行处理入站消息；`responder.timeoutSeconds` 是 Agent 从 `agent_start` 起的单轮执行硬上限，不包含前方消息的排队时间，默认 1800 秒。实例配置在 `.local/chat-hub/config.json`（`0600`），由 `config.example.json` 生成；`timeoutSeconds` 属于 `HOT_PATHS`，可热加载。数值解析只接受大于 0 的有限数，0/负数会回退默认值，不能表示“关闭”。
+
+同一入站事务有两条独立输出路径，新增路径必须遵守同一持久化契约：
+
+| 输出路径 | 成功后的标记责任 |
+|---|---|
+| 最终应答分段 | `TransactionRunner.sendSegments()` 在每段发送成功后，与 `sent` 进度一起持久化 `QueueRecord.externalReplyDelivered` |
+| `chat_hub_send` 或控制面直接外发 | 控制处理器在渠道确认成功后调用 `TransactionRunner.markExternalDelivery(channel, chatId)` |
+
+`Router.applyOutcome()` 是失败文案的唯一终态闸门：未外发过结果时按 `failed` 落盘并发送 `failText`；已有 `externalReplyDelivered` 时保留内部失败原因、按 `handled` 收口且不再发送通用失败文案。该标记必须写入 durable queue，而不能只放内存，才能让 daemon 重启恢复后仍保持同一裁决。
+
 </memory>
 
 ## 快速排查
