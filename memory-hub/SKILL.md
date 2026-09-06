@@ -47,7 +47,7 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 | API 端点、写入流程、Idempotency-Key、错误码、常用 curl | [references/api-notes.md](references/api-notes.md) |
 | Hook 安装/check/身份配置/环境变量/首轮召回/Pi 扩展机制与留痕/低价值过滤 | [references/agent-integration.md](references/agent-integration.md) |
 | 手动批量归档历史 session（upload_sessions.py、漏传回填、project 归属） | [references/upload-sessions.md](references/upload-sessions.md) |
-| 排障：检索 0 命中/hook 验证/spool 积压/feedback 判死/triage 解析/catch-all 误归/测试平台坑 | [references/troubleshooting.md](references/troubleshooting.md) |
+| 排障：检索 0 命中/hook 验证/spool 积压/feedback 判死/triage 解析/catch-all 误归/chat-hub 信封淹没归档/测试平台坑 | [references/troubleshooting.md](references/troubleshooting.md) |
 | 误归档 session 定点清理 runbook | [references/cleanup-misscoped-sessions.md](references/cleanup-misscoped-sessions.md) |
 | 检索 eval（黄金集/存错取错诊断/指标门禁/部署验收 smoke 向量） | [references/retrieval-eval.md](references/retrieval-eval.md) |
 | 检索 scope 选择、已知 project 一览、别名映射 | [references/projects.md](references/projects.md) |
