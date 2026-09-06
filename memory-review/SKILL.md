@@ -62,6 +62,17 @@ python scripts/review_queue.py apply decisions.json
 - 每条 approve/reject 都带 `rationale`（落 `decision_rationale` 列，服务端 ≥v13），
   写明判断依据，方便事后审计"为什么批/拒"。
 
+<memory category="core-rules">
+`review_queue.py apply` 只保证 removals 排在 actions 前，不提供跨阶段事务或 fail-closed：
+remove 失败时不能假定后续 approve 会停止。批准依赖预览清理时必须拆成两份决策文件；
+先只执行 removals，重拉详情确认清理生效，再单独 dry-run/执行 approve/reject。
+</memory>
+
+<memory category="troubleshooting">
+当前 `sk-...` 敏感模式不接受 token 主体中的 `.`，带点号的明文凭证可能漏报。
+未命中 `sensitive_pattern` 不能证明安全，审核仍须人工检查正文中的凭证。
+</memory>
+
 ## 决策文件格式
 
 ```json
