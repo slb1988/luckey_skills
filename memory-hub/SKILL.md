@@ -76,7 +76,7 @@ Dashboard 创建/修改用户报 422（非 400）= Pydantic 请求模型在域�
 </memory>
 
 <memory category="troubleshooting">
-关卡 2 抽取审核存在性标注「新」= 仅在 review 所属 group 首次出现，不代表全图没有：`_entity_existence()` → `Neo4jClient.resolve_entities(group_id, names)` 只按本 group 过滤做三级匹配（exact→casefold→normalized=NFKC+空白折叠，`backend/dashboard_backend/clients.py:907`）；review 的 group_id 直接继承 memory 的 `project:<pid>`，LLM 二次修正后前端会重拉 detail 重算，但重算仍限本组，结论不变。碎片 group 确认根因：hook `project_id_for_cwd` 只取 cwd 末级目录名（+精确别名表，无父目录/通配规则）——session 跑在 Orca worktree（`~/orca/workspaces/<repo>/<worktree>`）即生成一次性 project（如实锤的 `memory-hub-attribution-project`）→ 全新 graph group，已知实体在新组重建并全部标「新」；碎片组判据是全组实体同一毫秒诞生（随一次 approved 写入）。判读「新」标注先看该 memory 归属哪个 project，再决定是否归因碎片而非真新实体。**根因已修（2026-09-07）**：`project_id_for_cwd` 查别名表前先做两级 worktree 归一（`orca/workspaces/<repo>/` 路径段规则 + git linked worktree 取主检出目录名，`memory_hook.py`/`upload_sessions.py` 各一份相同实现），规则细节见 references/projects.md；存量错归 project 的 memory 仍需人工搬家清理。
+关卡 2 抽取审核存在性标注是 **group 内口径**：`_entity_existence()` → `Neo4jClient.resolve_entities(group_id, names)` 只按 review 所属 group（继承 memory 的 `project:<pid>`）做三级匹配（exact→casefold→normalized=NFKC+空白折叠，`backend/dashboard_backend/clients.py:907`）；LLM 二次修正后前端重拉 detail 重算，但仍限本组——「新」只表示本组首次出现，不代表全图没有。判读「新」先看该 memory 归属 project 是否碎片组（判据：全组实体同一毫秒诞生 = 一次 approved 写入的产物），再决定是真新实体还是归因碎片。project 派生规则见 references/projects.md。
 </memory>
 
 ## 人物画像、Insight 与 review-prompts

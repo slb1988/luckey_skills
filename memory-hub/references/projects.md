@@ -33,21 +33,25 @@ Memory Hub 提供 `GET /v1/projects` 列出已知 project（含 memory/session �
 | `home` | 家庭/个人环境相关记录 | claude-code-mac，少量记忆 |
 | `speech_to_text` / `examples` / `luckey_skills` / `helloworld` | pi 端小型/试验项目 | 各 1-2 sessions |
 
-## Project 派生的 worktree 归一规则（2026-09-07 起）
+## Project 派生链（capture / recall / search / 批量归档同一口径）
 
-`project_id_for_cwd` 在查别名表**之前**先做两级 worktree 归一（`memory_hook.py` 与
-`upload_sessions.py` 各持一份相同实现）：
+派生顺序（`memory_hook.py project_id_for_cwd`）：
 
-1. **Orca 工作区路径段规则**：cwd 含 `orca/workspaces/<repo>/` 段 → 直接派生 `<repo>`。
-   Orca 给编排任务开的 worktree 目录名是一次性任务名（如 `memory-hub-attribution-project`），
-   不归一时每个 worktree 都会生成独立 project / graph group（实体碎片化，审核面板存在性
-   标注随之失真）。
+1. **Orca 工作区路径段规则**：cwd 含 `orca/workspaces/<repo>/` 段 → `<repo>`
+   （零子进程，分隔符归一后跨平台命中）。
 2. **git linked worktree 规则**：`git rev-parse --git-dir --git-common-dir` 两者不同 →
-   linked worktree，派生名取 common-dir 父目录名（主检出目录名）。主检出（含仓库子目录）、
-   非 git 目录、cwd 不存在、git 异常全部 fail-open 回退到 cwd 末级目录名。
+   linked worktree，取 common-dir 父目录名（主检出目录名）；主检出（含仓库子目录）、
+   非 git 目录、cwd 不存在、git 异常全部 fail-open 进入下一级。
+3. **cwd 末级目录名**（小写归一）→ 查别名表 → 未命中用 `"*"` catch-all → 再未命中用派生名。
 
-归一后才查别名表，因此别名仍可覆盖 worktree 归一结果。排查「session 归错了 project」时
-先看该 cwd 是否命中这两条规则。
+改派生逻辑前必读的系统属性：
+
+- **两处实现必须同步**：`memory_hook.py` 与 `upload_sessions.py` 自包含、互不 import，
+  派生/归一逻辑（含别名加载）各持一份副本——改一处漏另一处会造成 capture 与批量归档
+  口径分裂。
+- **存量归属首版固定、不回溯**：upload_sessions 对 hub 已存在的 session 沿用其原 project，
+  派生规则变更只影响新归档；错归的存量只能人工搬家（删 episode 按新 group 重投）。
+- 归一在别名查表之前，别名仍可覆盖 worktree 归一结果。
 
 ## Project 别名定版（assets/project-aliases.json）
 
