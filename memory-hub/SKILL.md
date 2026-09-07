@@ -32,6 +32,10 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 
 其余路径（venv/data/日志/脚本）见 [deploy.md](references/deploy.md) 与各场景文档。
 
+<memory category="troubleshooting">
+公网反代 `https://luckeyhome.site/memory-hub/`（经 sub2api 那台 nginx 中转）实测**只通面板静态页，Hub API 路径全部 404**；同期内网 `http://10.77.77.6:9287` 健康检查正常。给 agent/CI 配接入地址一律先用内网地址——「公网面板能打开」不能当作 API 可用的判据。
+</memory>
+
 ## 环境职能与更新发布
 
 - 先判断机器角色：`.env` 的 `MEMORY_HUB_ENV` = `release`（服务端：部署/重启/迁移）或 `dev`（开发/测试/hook 安装与检索）。**标识不存在时先提醒用户创建添加，不要瞎猜环境**。
@@ -69,6 +73,10 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 
 <memory category="troubleshooting">
 Dashboard 创建/修改用户报 422（非 400）= Pydantic 请求模型在域逻辑之前拒绝，先查 role 的 `Literal[...]`。role 定义重复散落在四处，新增 role 必须全部同步改：`src/memory_hub/api/schemas.py`（Hub 数据面）、`backend/dashboard_backend/routers.py` 的 `AdminCreateUserBody/AdminUpdateUserBody`（管理面 `:9288/api/v1/admin/users`）、`application/accounts.py` 域校验（`role not in {...}`）、frontend `api/types.ts`——漏 dashboard_backend 那处就是 422。guest=只读角色：禁写数据面、不能签发 agent token。
+</memory>
+
+<memory category="troubleshooting">
+outbox `graphiti.add_memory_relation` 事件 HTTP 503 ≠ Graphiti 故障：`POST /memory-relations`（graphiti-0.22.0 overlay）的 Cypher 要求 source/target 两个 episode 都在 payload 的**同一个 group_id** 里，MATCH 不到即返回 503——设计本意是"瞬时可见性漂移，让 outbox 重试"，但永久不匹配配上 `OUTBOX_MAX_ATTEMPTS=100000` 就是无限重试。永久不匹配三类成因：① 演化分析**跨 project 建关系**（出生即跨组，payload 只带单个 group_id）；② 归属回填导致**组漂移**（payload group_id 入队时冻结为旧组，target 后被搬走）；③ target 被**强制忘记**（invalidated，episode 已删）。Dashboard「最近错误为空 + attempts 持续增长」的形态 = 命中 `workers/outbox.py` `_defer_memory_relation_until_indexed` 缺陷：defer 终态集漏了 `invalidated`（terminal 只有 deleted/rejected/failed/hub_only/dry_run），每 5s 无限 defer 且 defer 会把 `last_error` 清成 NULL。另一缺陷：`service.py` 强制忘记 `DELETE FROM outbox WHERE aggregate_id=?` 用的是 memory_id，而 relation 事件的 aggregate_id 是 relation_id → relation 事件漏取消。**关系的权威账本在 Hub SQLite（检索走账本，镜像失败不影响功能），Graphiti 镜像仅图谱可视化/审计用途**——跨组/失效的镜像本就无法落图，处置是置 completed，不要指望跨组落图（端点单组 MATCH 是组隔离语义）。诊断脚本（只读，可复用）：memory-hub 仓库 `scripts/diagnose_relation_outbox.py`。
 </memory>
 
 <memory category="common-patterns">

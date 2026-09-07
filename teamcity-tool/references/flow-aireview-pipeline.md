@@ -20,6 +20,8 @@ REST API 查复合构建只返回直接 snapshot 依赖，**要递归追踪** `s
 - pi CLI 支持 `--thinking low`，大部分 turn 只是验证性工具调用，降档预计砍 40~60% 时长（评审质量需 A/B 对比几次再定）。
 - 每次评审必读 `.claude/skills/pl-review/SKILL.md`，内联进 prompt.md 可省固定 1~2 个 turn 和首轮 context。
 - pi session 文件在 agent workspace 的 `sessions/` 下无限累积，且**每次构建全量上传 artifact**——分析评审过程时直接去 workspace 拿 session JSONL 比翻 TC artifact 快。
+- 评审步的 pi CLI 以 **`--no-extensions` 显式启动**——只往构建机复制 pi 扩展文件（如 memory-hub 首轮预热扩展）不会被加载，必须同步改该步启动参数做显式加载；且构建机上的 memory_hook 客户端版本偏旧，没有 search-v2 召回入口，接记忆召回时客户端也要一并升级。
+- agent-home `p4ws/` 下现有两个评审工作区：`DefaultAgent_MainDev` 与 `DefaultAgent_Stable`。按目录定 memory-hub project 归属时前者=maindev（正确），后者**当前错挂 `auto-server`**——MainDev/Stable 两条流同属 maindev 代码线，做 session/记忆归属映射时不要把 Stable 工作区归到 auto-server。
 
 ## 排队瓶颈（2026-09-07 起已支持多 agent，CL 1499）
 

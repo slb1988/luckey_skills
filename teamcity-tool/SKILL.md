@@ -12,7 +12,8 @@ description: >
   pipeline (PL_BuildProjectWindows / PL_BuildUgsBinaries, UAT cook, MinIO upload)
   and agent checkout-directory auto-clean incidents (DirectoryMap cleaner, 192h expiry),
   the PLN_FlowAiReview AI-review pipeline (Sync/Unshelve/BuildUE_Linux/Pi_Agent_Review)
-  performance profile and queue bottlenecks.
+  performance profile and queue bottlenecks, and the PLN_TaskAiReview failure-notification
+  chain (TeamCityLogParserInformer attribution / feishu routing).
 compatibility: linux, bash, ps, grep, find, curl
 ---
 
@@ -59,6 +60,7 @@ Always read the reference file before acting — it contains the actual paths, p
 | Checkout 目录自动清理事故 (DirectoryMap cleaner, 192h expiry) | `references/checkout-dir-auto-clean.md` |
 | 构建失败排障（UE 构建 UBT mutex 冲突等） | `references/troubleshooting.md` |
 | FlowAiReview 管线耗时画像与瓶颈、编译失败归因（sync HEAD 语义 / adaptive unity 盲区 / workspace reset 机制） | `references/flow-aireview-pipeline.md` |
+| TaskAiReview 失败通知链路（TeamCityLogParserInformer 归因/路由语义、latestCL vs unshelve CL 身份陷阱） | `references/task-aireview-notification.md` |
 
 Read the relevant reference before acting on that topic.
 

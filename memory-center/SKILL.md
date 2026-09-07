@@ -87,6 +87,8 @@ memory-center/
 
 12. **实体抽取负例护栏（`_ENTITY_GUARD`）**：graphiti 默认 extract_nodes prompt 只要求抽 "significant entities"，无任何"什么不该抽"的约束——commit hash、会话标题、路径、uuid 都会被忠实抽成 Entity 节点，且 hash 每次不同、resolve 去重无法吸收（2026-08-20 噪声事故）。补丁按 `response_model.__name__ == 'ExtractedEntities'` 定向注入负例约束（只影响实体抽取，不影响 summary/edge 步骤），负例含 commit hash、分支引用（`origin/main`，首版护栏漏了它导致重建期间被重抽）、会话标题、路径、uuid、job id 等。结构化调用的 response_model 名单：`ExtractedEntities` / `ExtractedEdges` / `NodeResolutions` / `EdgeDuplicate` / `EntityAttributes_<hash>`（属性抽取，每实体动态生成）。事故全文：`incidents/2026-08-20-entity-extraction-noise.md`。
 
+13. **embedding 分批（`_ChunkedOpenAIEmbedder`，2026-09-07）**：百炼 DashScope embedding 单次请求上限 **20 条**，超限报 `400 InternalError.Algo.InvalidParameter: batch size is invalid`；graphiti_core 的 `OpenAIEmbedder.create_batch` 把整个列表塞进单次 HTTP 请求不分批，边数多的 episode 整批 400 → job 失败、抽取落空（episode 只剩 uuid 预建空壳，Hub 侧因 uuid 可见被假 confirm 成 indexed）。补丁在 `_build_embedder()` 内定义 `_ChunkedOpenAIEmbedder(OpenAIEmbedder)` 子类，`create_batch` 按 20 条分片顺序调用拼接。**必须继承而非组合包装**：`GraphitiClients.embedder` 有 pydantic `isinstance EmbedderClient` 校验，组合 + `__getattr__` 透传过不了，容器启动即崩（实测）。
+
 ## LLM 调用复盘 / 监控
 
 ```bash
@@ -172,6 +174,7 @@ curl -X POST http://10.77.77.6:8006/query -H "Authorization: Bearer $TOKEN" \
 - **Kimi k3 / deepseek-v4-flash 默认开思考（reasoning）**：不显式传 `thinking: disabled` 时，reasoning token 会占满 `max_tokens`，导致 `content` 为空、抽取失败。且网关的 `tool_choice specified` 与 thinking 不兼容，必须用 `tool_choice: any`。补丁已统一处理。
 - **group_id 原版不允许冒号（`:`）**：上游 `validate_group_id` 只允许 `[a-zA-Z0-9_-]`，`project:xxx` 会抛 `GroupIdValidationError`。补丁已放宽为额外允许冒号。
 - **ingest worker 只捕获 `CancelledError`，其它异常会让它静默挂掉**：某条消息处理失败（非法 group_id、LLM 抽取失败等）后，worker 停止处理后续所有消息，`/episodes` 永远为空，但 `/healthcheck` 仍是 healthy。排查：看日志最后一次 `Got a job` 之后是否还有新记录，长时间没有就说明 worker 已死，需 `docker compose restart graphiti`。补丁已改为捕获所有异常并继续。
+- **Kimi 网关余额不足（402 Insufficient Balance）会造成「假 indexed」**（2026-09-07 实锤）：网关 402 时抽取 job 批量失败，但因 uuid 预建补丁，episode 节点已被预建 → Memory Hub 按 uuid 查到 episode 存在即判 indexed，**实际内容为空（无实体/边）**。网关恢复后必须审计 402 期间的 episode 并重投。判读：`scripts/llm_stats.py --hours N` 或 `grep '"http_status": 402' logs/graphiti/llm_calls.jsonl`。
 - **`add_episode(uuid=X)` 是「更新」语义，X 必须是已存在的 episode**：新消息传入新 uuid（如 Memory Hub 的 Memory ID）会抛 `NodeNotFoundError`，导致该条记忆永远无法入库。补丁在调用前预建同 uuid 的 episode（MERGE 幂等），保证 `episode.uuid == 传入 uuid`。
 - **`latest` 标签是旧版**：`zepai/graphiti` 只有 `latest` 和 `0.22.0` 两个可用标签，Docker Hub 未跟进 GitHub 0.29.x。
 - **Ollama 已停用但未卸载**：镜像和数据都在，`docker compose start ollama` 可随时切回本地 bge-m3（需同时改 `.env` 的 EMBEDDING_* 指回 `http://ollama:11434/v1`）。
