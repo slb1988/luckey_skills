@@ -50,6 +50,16 @@ py_automation 后端 `service.py` 的评审决策/风险门槛模型，以及 20
 
 **识别特征**：活动流里「锁拒绝 → cannot resolve CL author → auto-submit failed N times → rejected」序列；P4 侧文件已被作者本人 CL 提交（filelog 核实）。
 
+## 分支串行 busy 门：「更新review」点了不触发（trigger_ai 静默 defer）
+
+「更新review」按钮 = `POST /api/ai_review/reviews/<id>/trigger_ai`（api.py）：终态（submitted/rejected/archived）或有 running job 时拒收；否则重置 compile_status='not_started' + 清上轮 AI 产物、job 重新 queued 并 `_kick_ai_job` 秒级点炮。**端点本身不做分支 busy 检查**——拦截在 worker：`process_job` 进 `TRIGGER_COMPILE` stage 前先过 `_branch_compile_busy`（ai_worker.py），命中则本轮静默跳过——job 保持 queued、attempt_count=0、零报错零活动，前端表现就是「点了没反应」。
+
+busy 判定口径：同分支 + 其他 review + status ∈ (pending,reviewing) + compile_status ∈ (pending,running) + update_time 在近 `_BRANCH_BUSY_FRESH_HOURS`（=4h）内。终态 review 卡 running 的行不参与阻塞（2026-12 review #93 僵尸阻塞事故的修复口径）；轮询已死的行（job 重试耗尽 failed / 进程重启残留）不再 bump update_time，最多堵 4h 自愈。
+
+**强制停止 TC 构建后点「更新review」不触发 → 优先查此门**：同分支找 compile_status 卡 pending/running 且 4h 内有更新的活跃 review；后端日志 grep `blocked by review #`（busy 命中会点名 blocker）。修复：按 TC 真实结果直接改库 `UPDATE ai_reviews SET compile_status=..., update_time=update_time WHERE id=<blocker>`（update_time 保持不变，防列表「耗时」被 bump）。
+
+> 该门的完整设计语义（为什么终态行必须豁免、轮询 bump update_time 机制）权威文档在 pyAutomation 仓库 `backend/server/applications/ai_review/SKILL.md`「trigger_compile」段——ai_review 排障先读它再读代码。
+
 ## 已知缺口
 
 「批准后被系统打回」路径**无任何通知**，作者在页面只看到 rejected，不知道发生了什么。
