@@ -42,6 +42,10 @@ LLM 判分读超时 120s。与 v1 的关键差异：
 - **结果不可直接对比**：v1 的输出是未过 LLM 门禁的原始 FTS 结果，跟 hook 预热/召回注入的内容是两条链路。
   排查「检索测试结果跟 hook 召回对不上」时，先确认对比的客户端走的是 v2——dashboard 检索测试的后端代理
   （clients.py）2026-09 起已对齐 v2（若 dashboard 仍返回无门禁结果，先查 NAS 部署是否包含该修复）。
+- **纯关键词堆叠 query 在 v2 门禁下可全灭**（2026-09 project:maindev 盘点实证）：LLM judge 判「无贴合意图」
+  即 0 返回，而纯 FTS 的 v1 同 query 仍返回候选——「v1 有、v2 空」是门禁设计行为，不是写入失败。
+  验证「写入是否可检索」必须用 answer-level 自然语言问句（「X 的最终结论是什么？」），不要用关键词列表；
+  裸标识符 query 只断言 presence，不断言 rank（judge13 实证见 retrieval-eval.md）。
 
 ## 完整写入流程（顺序固定）
 
@@ -120,6 +124,15 @@ curl -sS "$HUB_URL/v1/files/{file_id}/download" -H "X-User-Id: $USER_ID" -H "X-A
 - `submitted`：Graphiti 已接受，等待 episode 可查询确认。
 - `indexed`：对应 group 最近 episodes 中已确认该 memory_id。
 - `failed`：永久错误或重试耗尽（看 `error_code`）。
+
+## 关系（边）没有公开数据面端点
+
+Hub HTTP API（9287）没有任何「给两条 memory 建关系」的端点；边的唯一产生途径是写侧自动管线：
+`POST /v1/memories` 过审核后服务端自动排队 memory-evolution 演化分析，由 LLM 把新 memory 与候选旧记忆
+比对，产出 SUPERSEDES/CONFIRMS 等关系边（账本落 Hub SQLite，镜像到 Graphiti）。客户端想引导建边，
+只能在 `distilled_content` 里写**显式关系句式**（「X 取代了 Y」「X 依赖 Z 的配置」），无法直接指定；
+服务端演化 LLM 网关未配置时关系缺席，但不影响写入与检索。存量同义实体碎片的合并另走 graph edits
+（见 SKILL.md「同义实体碎片」memory 块），与本管线无关。
 
 ## 错误码表
 
