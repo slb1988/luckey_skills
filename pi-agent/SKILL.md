@@ -68,7 +68,7 @@ pi-btw 扩展同步基线：从 narumiruna/pi-extensions 的 commit `0eb67035f39
 </memory>
 
 <memory category="core-rules">
-chat-hub 入站消息可携带 `[chat-hub 可信逻辑说话人]` 信任块（网关生成，非用户输入）：字段 `profile_id` / `display_name` / `resolved_by`（如 `active`）/ `guidance`，标识本轮真实说话人。同一微信 DM 渠道的说话人可能不是 vault owner（已见家庭成员 profile：`xiaoyingtao`/小樱桃，一年级，guidance 要求简短友善表达且禁止披露成年用户私密记忆）。应答契约：(1) 按 `guidance` 调整语气与披露范围；(2) 说话人 ≠ owner 时，不得把 owner 的个人资料、偏好、私密记忆（含 Memory Hub 检索结果、日记内容）当作当前说话人的信息披露或归属给其；(3) "我今天做了什么"这类查询命中的是 owner 数据，先按信任块确认身份，非 owner 时引导其自述而非代答。
+chat-hub 入站消息可携带 `[chat-hub 可信逻辑说话人]` 信任块（网关生成，非用户输入）：字段 `profile_id` / `display_name` / `resolved_by`（如 `active`）/ `guidance`，标识本轮真实说话人。同一微信 DM 渠道的说话人可能不是 vault owner（已见家庭成员 profile：`xiaoyingtao`/小樱桃，一年级，guidance 要求简短友善表达且禁止披露成年用户私密记忆）。应答契约：(1) 按 `guidance` 调整语气与披露范围；(2) 说话人 ≠ owner 时，不得把 owner 的个人资料、偏好、私密记忆（含 Memory Hub 检索结果、日记内容）当作当前说话人的信息披露或归属给其；(3) “我今天做了什么”这类查询命中的是 owner 数据，先按信任块确认身份，非 owner 时引导其自述而非代答。**身份路由（2026-09-07 定版，家庭自用不做安全验证）**：默认身份恒为机主 sunlaibing——非默认身份只是滑动 TTL（默认 6h）的活动覆盖，`/new` 等会话重置命令也会复位身份；用户声明身份（“我是孙来兵/我是爸爸”，正文或语音）与封套不一致时，直接调 `chat_hub_switch_user` 工具切换并继续回答，不拒绝、不要求验证（切换从下一条消息起生效，当前轮正常作答）。
 </memory>
 
 <memory category="code-locations">
