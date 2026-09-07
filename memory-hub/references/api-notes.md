@@ -30,6 +30,8 @@
 
 ## 检索：v2 与 v1 的差异（实测）
 
+**v1 响应结构是图谱边列表**：`{"facts": [{"fact": "<边文本>", "name": "<边类型>", "created_at", ...}], "groups", "query"}`——没有 `results`/`memories` 字段，条目不携带 memory_id（边 uuid 是唯一标识），也不携带 group 标签（搜索自动覆盖可读的 global/user/profile/journal/project 五个组，无法从单条结果区分来源组）。写检索脚本解析错 key 会静默全 0 命中（2026-09-07 Orca worker 实测踩坑）。
+
 三端 hook（memory_hook.py / Pi 扩展预热与 memory_search）实际打的是 `POST /v1/memories/search-v2`，
 schema `memory-search/2`，请求体固定带 `quality_mode=llm` + `session_view=captured` + `scope_mode=current_project`，
 LLM 判分读超时 120s。与 v1 的关键差异：
