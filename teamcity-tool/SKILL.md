@@ -59,7 +59,7 @@ Always read the reference file before acting — it contains the actual paths, p
 | 打包管线 (PL_BuildProjectWindows / PL_BuildUgsBinaries / UAT cook) | `references/package-pipeline.md` |
 | Checkout 目录自动清理事故 (DirectoryMap cleaner, 192h expiry) | `references/checkout-dir-auto-clean.md` |
 | 构建失败排障（UE 构建 UBT mutex 冲突等） | `references/troubleshooting.md` |
-| FlowAiReview 管线耗时画像与瓶颈、编译失败归因（sync HEAD 语义 / adaptive unity 盲区 / workspace reset 机制） | `references/flow-aireview-pipeline.md` |
+| FlowAiReview 管线耗时画像与瓶颈、编译失败归因（sync HEAD 语义 / adaptive unity 盲区 / workspace reset 机制）、后端 busy 门与降级放行缺陷、unshelve 独占锁、队列停摆诊断 | `references/flow-aireview-pipeline.md` |
 | TaskAiReview 失败通知链路（TeamCityLogParserInformer 归因/路由语义、latestCL vs unshelve CL 身份陷阱） | `references/task-aireview-notification.md` |
 
 Read the relevant reference before acting on that topic.

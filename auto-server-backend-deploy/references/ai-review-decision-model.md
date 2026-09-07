@@ -8,6 +8,7 @@ py_automation 后端 `service.py` 的评审决策/风险门槛模型，以及 20
 - approve 的落库门禁（编译 passed + AI 分析 done）与 risk 门槛相互独立，互不影响。
 - `_recalculate_status`：自 2026-12「作者自拒一票否决」起，**author 行的 decision 并入 votes**；此前 author 行不携带有效决策，这是后续 reopen 缺陷的引入点。
 - activity 表记录每个决策与状态迁移（带时间戳），是排障第一手资料。特征识别：**「人工 approve 落库」与「系统 from pending → rejected」同秒相邻** = 被存量否决票当场打回，而非风险分拦截。
+- 排障入口（无需 SSH）：`GET /ai_review/reviews/<id>`（状态/compile_build_url/风险分）+ `GET /ai_review/reviews/<id>/activities`（事件时间线，payload 含 build_id/错误文本）；时间戳为 UTC，与 TC REST 的 +0800 对齐时换算。
 
 ## reopen_review 复位漏 author（review #126 根因）
 
@@ -52,7 +53,7 @@ py_automation 后端 `service.py` 的评审决策/风险门槛模型，以及 20
 
 ## 分支串行 busy 门：「更新review」点了不触发（trigger_ai 静默 defer）
 
-「更新review」按钮 = `POST /api/ai_review/reviews/<id>/trigger_ai`（api.py）：终态（submitted/rejected/archived）或有 running job 时拒收；否则重置 compile_status='not_started' + 清上轮 AI 产物、job 重新 queued 并 `_kick_ai_job` 秒级点炮。**端点本身不做分支 busy 检查**——拦截在 worker：`process_job` 进 `TRIGGER_COMPILE` stage 前先过 `_branch_compile_busy`（ai_worker.py），命中则本轮静默跳过——job 保持 queued、attempt_count=0、零报错零活动，前端表现就是「点了没反应」。
+「更新review」按钮 = `POST /ai_review/reviews/<id>/trigger_ai`（api.py；路由**无 /api 前缀**，2026-09-09 实测带前缀 404，全部路由见 :5000/swagger.json）：终态（submitted/rejected/archived）或有 running job 时拒收；否则重置 compile_status='not_started' + 清上轮 AI 产物、job 重新 queued 并 `_kick_ai_job` 秒级点炮。**端点本身不做分支 busy 检查**——拦截在 worker：`process_job` 进 `TRIGGER_COMPILE` stage 前先过 `_branch_compile_busy`（ai_worker.py），命中则本轮静默跳过——job 保持 queued、attempt_count=0、零报错零活动，前端表现就是「点了没反应」。
 
 busy 判定口径：同分支 + 其他 review + status ∈ (pending,reviewing) + compile_status ∈ (pending,running) + update_time 在近 `_BRANCH_BUSY_FRESH_HOURS`（=4h）内。终态 review 卡 running 的行不参与阻塞（2026-12 review #93 僵尸阻塞事故的修复口径）；轮询已死的行（job 重试耗尽 failed / 进程重启残留）不再 bump update_time，最多堵 4h 自愈。
 
@@ -62,4 +63,5 @@ busy 判定口径：同分支 + 其他 review + status ∈ (pending,reviewing) +
 
 ## 已知缺口
 
-「批准后被系统打回」路径**无任何通知**，作者在页面只看到 rejected，不知道发生了什么。
+- 「批准后被系统打回」路径**无任何通知**，作者在页面只看到 rejected，不知道发生了什么。
+- **非编译单的链级 FAILURE 对自动放行不可见**（2026-09-09 review #197 实锤）：`_auto_approve_check` 只在 `compile_check_required` 为真时要求 compile_status=passed；无代码文件且未勾选编译的单，链 FAILURE（如 Unshelve 独占锁失败）后后端降级「无可分析文件」→ risk 0 → 直接命中 ≤15 自动放行并触发代提交——「链从未跑到评审步」不进准入判定（空清单 fail-closed 已修，链失败变体未堵）。识别特征：活动流 `compile_finished {tc_status: FAILURE, chain_failed: true}` 紧跟 `ai_analysis_done {reason: "no analyzable files"}` + 自动放行评论写「编译验证通过」（comment 模板硬编码，compile skipped 也写「通过」，误导）。

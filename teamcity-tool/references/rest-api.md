@@ -49,6 +49,15 @@ curl -s "http://192.168.2.13:8111/app/rest/builds?locator=agent:(id:<AGENT_ID>),
   -H "Accept: application/json" -H "Authorization: Bearer $TOKEN"
 ```
 Note: date format is `yyyyMMdd'T'HHmmssZ` with the timezone offset URL-encoded (`+0800` → `%2B0800`). Find the agent id via the "List all agents" query below.
+Note: 该窗口 locator 实测**不包含「排队后从未启动就被取消」的构建**（即使其 startDate 字段显示为取消时刻）——重建事件线时对已取消构建要按 id 单独查。
+
+### Find who canceled a build
+`canceledInfo` 的 `user` 必须显式请求子字段，否则返回空 `{}`：
+```bash
+curl -s "http://192.168.2.13:8111/app/rest/builds/id:<ID>?fields=id,status,statusText,canceledInfo(timestamp,user(username,name))" \
+  -H "Accept: application/json" -H "Authorization: Bearer $TOKEN"
+```
+后端不会 cancel 在途评审链（代码明示「不做 cancel 在途链」）——评审链出现 Canceled 一律是人工/TC 侧操作，用此查询定位操作者。
 
 ### List all agents
 ```bash

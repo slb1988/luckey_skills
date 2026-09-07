@@ -49,7 +49,28 @@ Build.bat 编 Linux target，门禁语义不变）。要点：
   （独立上下文不可解析，DryRun/BuildProject 同样空，生产调度正常）——验证路由要手动对
   agent 属性求值 name regex ∩ exists(env)，或直接触发 smoke 构建看调度。
 - 上线前置：WinBuilder 需装 pi CLI + 配 anthropic provider（kimi 网关）——WinBuilder3 已有
-  pi 0.84.3 但 auth.json 只有 deepseek；WinBuilder4 未验证。
+  pi 0.84.3 但 auth.json 只有 deepseek；WinBuilder4 未验证且 disabled。因此改造「名义上线」后
+  评审链实际仍只有 DefaultAgent 能跑，配好 WinBuilder3/4 的 pi provider 前串行瓶颈不消除。
+
+## 后端 busy 门、降级放行与取消归属（2026-09-09 review 197 事故确认）
+
+以下均为 auto-server 后端行为，排查「评审不动 / 评审乱放行」时先对这几条：
+
+- **分支串行 busy 门（静默）**：同分支已有 review 的 DB 状态为 compile running 时，新 review 被压住不入 TC 队——零活动记录、零前端提示，用户视角就是「点了没反应」，刷新 shelve 重触发同样被拦回。注意 **DB running ≠ TC 在跑**：状态由发起时写入、靠回调翻转，链可能只是排在 TC 队列里没起跑。排查先比对该分支其他 review 的 compile_status 与其实际 TC 链状态。
+- **后端永不 cancel 在途 TC 链**：看到链被 cancel，直接查 build 的 `canceledInfo.user`——一定是人（或 TC 侧），可排除后端。
+- **链级 FAILURE → 降级放行缺陷（风险）**：链 FAILURE 后后端降级为「无可分析文件」分析 → risk=0 → 命中 risk≤15 自动放行分支；若代提交恰好成功，CL 将零评审直接进库（197 案例靠代提交也失败才挡住）。且该路径自动评论误写「编译验证通过」（compile skipped 被当通过）。修复方向：链级 FAILURE 禁止走自动放行分支。
+- **review 打回 rejected 后无任何通知**（已知缺口）：作者不主动看 dashboard 就不知道要 reopen，是造成「等了几小时」体感的放大器。
+- **卡死链的自愈预算**：`_poll_compile` 的 TC 等待预算 = `COMPILE_TC_TIMEOUT_POLLS`（默认 180，config/env 可调）× 60s tick ≈ 3h 才超时降级为静态分析；busy 门 fresh 窗口 4h——链卡死又不人工取消时，同分支最长被压 ~3h。
+- **纯二进制资产单默认不跑 TC 链**（`_chain_skippable`）：文件全是不可分析二进制时直落静态分析；若看到二进制单仍触发了链，说明命中 force_ai 路径规则或计数一致性校验 fail-closed（权威口径见 pyAutomation `backend/server/applications/ai_review/SKILL.md`）。
+- **时间戳口径**：后端 activities/DB 是 UTC，TC REST 是 +0800，跨系统对时间线先换算再对齐。
+
+## Unshelve 独占锁失败模式
+
+`can't edit exclusive file already opened`（Unshelve 步秒级失败 → 整链 FAILURE）= 作者本机 client 把 +l 独占文件（典型 uasset）开着。归因：看失败文件 + `p4 opened -a <file>` 查谁持有打开锁。与编译失败归因分开看——这发生在链最前段，Compile 步根本没跑。
+
+## 队列停摆：全 server 零构建但排队链不起（2026-09-09 观测，根因未实锤）
+
+症状：跨所有 agent `running:true` 返回空、agent 在线空闲，排队链 20 分钟一个不起；**取消重触发后秒级恢复**（暂时性故障）。当时构建日志带 `[Checking settings] Cannot use the latest applied settings because some configurations are not read only: <btId>`——项目设置正在 UI 里被编辑，疑似编辑期间排队链 agent 匹配失败（当天正值 CL 1499 多 agent 改造调参，未能实锤到具体哪次编辑）。排查顺序：`running:true` 归零核实全 server 停摆 → 查构建日志该 settings 行 → 取消重触发。
 
 ## 已确认的其他问题
 
