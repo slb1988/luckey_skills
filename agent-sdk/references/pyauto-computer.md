@@ -61,13 +61,45 @@
 install 短链与真实脚本内部都**硬编码 192.168.2.13**；平台默认地址不可达的机器
 （跨网段、异地）按下面来：
 
+### 前置：放行防火墙端口
+
+A2A 注册是**双向握手**：agent → 平台推送注册请求后，平台会回连 agent 的 `public_url`
+抓取 `/.well-known/agent-card.json` 验证可达性。如果 agent 所在机器的防火墙未放行
+agent 端口（默认 9100），平台返回 `agent unreachable: fetch card ... timed out`，
+注册陷入无限指数退避。**装 CLI 之前必须先开端口**：
+
+```bash
+sudo ufw allow 9100/tcp comment "pyauto-computer agent"
+# 或 iptables：sudo iptables -A INPUT -p tcp --dport 9100 -j ACCEPT
+```
+
+多网卡主机（eth0 + wg0 + docker bridges 等）：`pyauto-computer` 用「UDP connect 取
+路由源地址」自动探测 `public_url` 的 IP。如果机器同时有公网网卡和 WireGuard 隧道，
+探测结果可能是 wg0 地址（如 `10.77.77.1`）。平台必须能经此地址 TCP 连到 9100。
+
+### 安装步骤
+
 - **装 CLI**：用可达地址拉真实脚本、sed 替换内嵌 IP 再执行（短链转发目标也是 2.13，直接跑会超时）：
   ```bash
   curl -fsSL --max-time 30 http://<可达IP>:5000/agent_platform/a2a/computer/install.sh \
     | sed 's/192\.168\.2\.13/<可达IP>/g' | sh
   ```
+- **PEP 668 兼容**：Ubuntu 24.04 / Python 3.12 的系统 pip 拒绝 `--user` 安装（
+  `externally-managed-environment`）。install.sh 的 pip 兜底分支需要
+  `--break-system-packages` 标志；如果脚本版本较旧未包含，手动加：
+  ```bash
+  sed -i 's|pip install --user|pip install --user --break-system-packages|g' /tmp/install.sh
+  ```
+  首选 `uv tool install`（自动创建隔离环境，不受 PEP 668 限制）。
+- **代理绕过**：如果 `http_proxy` 指向本地代理（Clash/mihomo），内网地址会被代理转发
+  导致 502。必须把内网 IP 加入 `no_proxy`：
+  ```bash
+  export no_proxy="127.0.0.1,localhost,10.77.77.4,192.168.2.13,.local"
+  ```
 - **setup**：`PYAUTO_PLATFORM_URL=http://<可达IP>:5000 pyauto-computer setup`。setup 会把
   platform_url 持久化进 `~/.pyauto/computer.json`。
+- **owner 覆盖**：`setup` 用 `getpass.getuser()` 获取 owner，该函数读取 `LOGNAME`/
+  `USER` 环境变量。可用 `LOGNAME=<用户名> pyauto-computer setup` 指定 owner。
 - **坑：env 覆盖不能只在 setup 时给**。`agent create/start/...` 子命令只读
   `consts.platform_url()`（= `PYAUTO_PLATFORM_URL` 或内置默认），**不读 computer.json 里
   持久化的 platform_url**——setup 成功后直接 `agent create` 仍报「平台不可达」。跨网段机器
@@ -109,8 +141,7 @@ curl -X POST http://<本机IP>:<port>/ -H "A2A-Version: 1.0" -H "Content-Type: a
 | 机器 | computer | agent | 端口 | workroot | 备注 |
 |---|---|---|---|---|---|
 | WinBuilder3 | #4 | winbuilder3-maindev（agent_id=32） | 9100 | MainDev 仓库根 | 装机细节见 `.team/win-builder/project_pyauto_computer_maindev_agent.md` |
-
-
 | QNAP NAS453Dmini | #5 | nas | 9100 | `/share/CACHEDEV1_DATA/homes/slb1988` | 跨网段（经 10.77.77.4 访问平台），`PYAUTO_PLATFORM_URL` 已写入 `~/.profile`；runtime=pi，平台未配 relay 走本机总线；无 systemd，supervisor 由 crontab 每分钟拉起（条目在 `/etc/config/crontab`，尾部 `# pyauto-computer` 注释，见上「自启模型」） |
 | Sun（admin 工作机） | #2 | sunlaibing（agent_id=30，runtime=pi） | 9100 | `C:\Users\admin` | autostart=on |
 | Sun（admin 工作机） | #2 | sun_maindev（runtime=pi） | 9101 | `D:\MainDev` | autostart=on；本机开机自启 = Startup 文件夹 `pyauto-supervisor.vbs`（域策略拒 schtasks，见上「自启模型」） |
+| VM-0-3-ubuntu (腾讯云 VPS) | #6 | vps-agent | 9100 | `/home/ubuntu` | 跨网段（经 10.77.77.4 访问平台），wg0 网卡；ufw 需显式 `allow 9100/tcp`；runtime=pi |

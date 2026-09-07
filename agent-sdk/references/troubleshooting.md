@@ -2,16 +2,19 @@
 
 > 从主 SKILL.md 移出（长度控制）。注册/心跳/代理/协议版本/Windows 进程坑都在这里。
 
-- **注册一直重试失败**：平台回抓不到 card。查 `public_url` 是否平台可达、防火墙是否放行端口。
+- **注册一直重试失败**：日志反复报 `register rejected: agent unreachable: fetch card http://<IP>:<port>/.well-known/agent-card.json: timed out`。A2A 注册是双向握手——agent 推送注册后平台回连 `public_url` 拉 card 验证可达性。根因几乎总是**防火墙未放行 agent 端口**（默认 9100）。跨网段机器（WireGuard/隧道）尤其常见：`public_url` 探测到的可能是隧道接口 IP（如 `10.77.77.1`），平台需经此 IP TCP 连到 9100。修法：`sudo ufw allow 9100/tcp` 后 `agent restart`。
 - **register rejected: invalid register_key**：平台配了 `AGENT_PLATFORM_REGISTER_KEY`，`AgentApp(register_key=...)` 要一致。
 - **名称冲突 already registered with a different url**：换 name，或在原机器用同一 url 重注册。
-- **平台/agent 互调走了系统代理被 502**：开发机 Clash 等代理会劫持内网/回环流量。SDK 内所有 httpx
-  已 `trust_env=False`；自己写 httpx 调用也要加，否则注册/心跳/派发全 502。
+- **平台/agent 互调走了系统代理被 502**：开发机 Clash/mihomo 等代理会劫持内网流量。
+  SDK 内所有 httpx 已 `trust_env=False`；自己写 httpx 调用也要加，否则注册/心跳/派发全 502。
+  **curl/install 脚本同样受影响**：`http_proxy` 存在时内网地址也被代理转发。修法：
+  `export no_proxy="127.0.0.1,localhost,10.77.77.4,192.168.2.13,.local"` 或 `curl --noproxy '*'`。
 - **装不上/升级失败（公共 PyPI 不通）**：内网机器常态。有 Clash 先 `set HTTPS_PROXY=http://127.0.0.1:7897`
   再试；无代理的国内机器改用镜像：`UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple/`
-  （腾讯云/清华源亦可）再跑 install 脚本——注意脚本的 pip 兜底分支在 uv 管理的 Python 上会撞
-  PEP 668 `externally-managed-environment` 直接失败，uv 主路径必须一次成功。两条路都不行用
-  离线 playbook——从平台托管 wheel 页 curl 两个 wheel 到本地，
+  （腾讯云/清华源亦可）再跑 install 脚本。**PEP 668 兼容**：Ubuntu 24.04 / Python 3.12 的
+  系统 pip 拒绝 `--user` 安装（`externally-managed-environment`）。install.sh 的 pip 兜底
+  分支需要 `--break-system-packages` 标志。首选 `uv tool install`（自动隔离环境，不受 PEP 668
+  限制）。两条路都不行用离线 playbook——从平台托管 wheel 页 curl 两个 wheel 到本地，
   `uv tool install --force --offline --with <本地 agent wheel> <本地 computer wheel>`
   （公共依赖走 uv 缓存，装过的机器缓存齐全；首次全新机器则必须先解决 PyPI 可达性）。
 - **install.ps1 假成功**：已修复（v2026-08 起显式查 `$LASTEXITCODE`）——原生命令非零退出不触发
