@@ -1,0 +1,23 @@
+{
+  "skill_name": "jira",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我今天早些时候已经查过 Jira 了，再看看当前待办和今天的计划。",
+      "expected_output": "应读取当天同范围缓存而不是再次访问 Jira，标注缓存来源和原始拉取时间，并展示未完成任务、容量风险及已保存的 daily_plan。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "帮我分析这个 BigPicture 链接里的当前待办：http://old-jira.example/plugins/servlet/softwareplant-bigpicture/box/ITER-33/scope/ITER-33",
+      "expected_output": "应从 URL 提取 ITER-33，但优先使用 .env 中配置的 JIRA_BASE_URL；通过 box() JQL查询 currentUser，按 statusCategory 判断完成态，并且不泄露 Token。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "刚才的报告里 1 是 PL-123、2 是 PL-456、3 是 PL-789。今天处理 1、2，3 只辅助看看有没有需要配合的工作。",
+      "expected_output": "应将 focus 保存为 PL-123/PL-456、assist 保存为 PL-789，不按 Jira Rank 猜序号；协作结论只依据报告人、他人评论、关联项或子任务等证据，自动化机器人不当作协作人。",
+      "files": []
+    }
+  ]
+}
