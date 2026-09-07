@@ -117,7 +117,7 @@ apply 按 (action, content_mode, rationale) 分组批量调用；需要逐条不
 | `orca` 实体不一定是污染：正文真实主题就是 orca 本身（如 Orca Arguments 配置机制）时合法 | 看正文主题而非实体名，勿误删 |
 | 同一编码规则在多个 Linear 工单上被重复验证（换工单重述同一事实）、或正文只含单张工单的完成状态 | novelty 看不到同队列条目，须跨条目横向比对：通用规则只留最佳一份主记录，其余 reject；单工单完成状态按短期状态 reject |
 | 正文/预览含事实性错误（校验条件写反、结论已被线上最终版本证伪或取代） | reject；需要留存时以修正版重投，勿批带病版本——错误事实入图谱比丢记忆危害大 |
-| project/user 归属错误（worker 误标对话主体、记忆落错 project） | 不能原地带病批准：先用正确归属重投干净摘要并检索验证成功，再 reject 原条 |
+| project/user 归属错误（worker 误标对话主体、记忆落错 project） | 不能原地带病批准：先向目标**物理 group** 重投干净摘要并验证 memory/episode 的 `group_id`；原条仍待审则 reject，已 indexed 则走 admin invalidate |
 | 非 canonical 实体写法成对出现（`Memory Hub`/`memory-hub`、`xiaoyingtao`/`小樱桃`、`Chat Hub`） | 机制已接管大部分：preview 落库前机械规范化（NFKC+空白折叠+重名合并），casefold/normalized 唯一候选自动进别名管理页待审（approved 后批准重验自动改写）；漏网的仍按外科清理统一改到图谱 canonical 写法后再 approve |
 
 **novelty 候选的可见范围**：比对候选 = 已入图谱记忆 + 严格更早的同队列在途条目（最多
@@ -125,6 +125,22 @@ apply 按 (action, content_mode, rationale) 分组批量调用；需要逐条不
 的 worker 侧 + 编排侧两个会话可能都被判 novel。判了 novel 不代表
 队列内无重复；扫完 packet 后需在同批条目间横向比对 project/正文关键词，重复的二选一
 （通常拒预览更差的那份，拿不准就留队列升级）。
+
+<memory category="core-rules">
+错 scope 搬迁必须区分**物理写入组**与**逻辑检索 family**：exact content 去重只看同一物理
+`group_id`，但 novelty 候选与检索会展开 project merge family。因此
+`memory_search(project=target)` 命中、甚至 novelty=duplicate，都不能证明目标物理组已有副本；
+以 `GET /memories/{id}` 的 `group_id` 和 Graphiti `/episodes/{group}` 为准。若 duplicate 来自
+family 内的错误源组，只有在人工明确确认“这是 scope 修复”后才可带
+`acknowledge_novelty_warning=true` 批准目标组副本，再处理原条。
+
+已 indexed 的错误记忆用 admin memory invalidate：Hub 会置 `invalidated`、撤销未完成 outbox、
+调用 Graphiti `DELETE /episode/{uuid}` 并写 `graph_edits`。响应中的 `episode_deleted=true` 只表示
+删除调用成功，不证明关系级联完整；curated episode 实测可能出现 Episodic 节点已消失，但
+`RELATES_TO` 仍保留失效 UUID（包括只由该 episode 支撑的边）。失效后必须分别验证：① episode
+不在 `/episodes/{group}`；②图快照中没有仅引用失效 UUID 的边；③共享边仍有存活 episode 支撑。
+独占残留边与共享边的 provenance 污染是两类问题，不能把共享事实随独占边一起删除。
+</memory>
 
 <memory category="core-rules">
 「preview 高频出现图谱已有实体、看似无增量」是机制性噪音而非数据 bug（2026-09-06 线上取证：
