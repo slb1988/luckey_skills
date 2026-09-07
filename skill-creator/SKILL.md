@@ -70,6 +70,10 @@ Based on the user interview, fill in these components:
 
 **Frontmatter pitfall — folded `description` blocks:** if `description` uses a YAML folded block (`description: >`), every continuation line must stay indented. A line starting at column 1 silently ends the block and gets parsed as a new mapping key, failing with "Implicit keys need to be on a single line" — which the harness surfaces at load time as a skill-conflict error pointing at that line, not as an indentation problem. This bites when editing long multi-line descriptions (common for trigger-rich descriptions); fix by re-indenting the stray lines, and after any frontmatter edit, sanity-check by loading the `---` block with a YAML parser.
 
+<memory category="core-rules">
+`description` has a **1024-character hard limit** — over-limit descriptions get truncated and `scripts/quick_validate.py` rejects them. When trimming an over-limit description, trigger recall lives in terms, not prose: keep every proper noun, pipeline/build-config name, and bilingual trigger phrase; instead compress functional verb lists, drop duplicate keywords/case variants, and merge trigger clauses ("Also trigger when the user reports…" → "or reports…"). Always re-parse the YAML frontmatter after the edit.
+</memory>
+
 ### Security Check: Scan .claude/ for Sensitive Information
 
 Before finalizing a new or updated skill, check the `.claude/` directory for accidentally committed sensitive information. Skills and their references live under `.claude/skills/`, but the check should cover the whole `.claude/` tree because supporting files (plans, docs, hooks, settings) may also be affected.
