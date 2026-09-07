@@ -1,16 +1,16 @@
 ---
 name: teamcity-tool
 description: >
-  TeamCity server administration toolkit — manage service lifecycle, inspect/edit configuration,
-  set up LDAP/authentication, verify runtime health, troubleshoot issues, and operate the REST API.
-  Use when the user mentions TeamCity, teamcity, TC server, teamcity-server,
+  TeamCity server administration toolkit — manage service lifecycle, inspect/edit config,
+  LDAP/auth setup, health checks, troubleshooting, and REST API operations.
+  Use when the user mentions TeamCity, TC server, teamcity-server,
   "restart TeamCity", "check TeamCity logs", "TeamCity config", "LDAP TeamCity",
-  "TeamCity agent", "build agent", "teamcity data directory", "build chain", "build queue",
+  "build agent", "teamcity data directory", "build chain", "build queue",
   "no compatible agents", "reverse.dep", "snapshot dependency", or any TeamCity
-  admin/ops/API task. Also trigger when the user reports problems with the TeamCity
-  web UI, login, builds, or agent assignment on this host. Covers the PL packaging
-  pipeline (PL_BuildProjectWindows / PL_BuildUgsBinaries, UAT cook, MinIO upload)
-  and agent checkout-directory auto-clean incidents (DirectoryMap cleaner, 192h expiry),
+  admin/ops/API task, or reports problems with the TeamCity web UI, login, builds,
+  or agent assignment on this host. Covers the PL packaging pipeline
+  (PL_BuildProjectWindows / PL_BuildUgsBinaries, UAT cook, MinIO upload), agent
+  checkout-directory auto-clean incidents (DirectoryMap cleaner, 192h expiry),
   the PLN_FlowAiReview AI-review pipeline (Sync/Unshelve/BuildUE_Linux/Pi_Agent_Review)
   performance profile and queue bottlenecks, and the PLN_TaskAiReview failure-notification
   chain (TeamCityLogParserInformer attribution / feishu routing).
