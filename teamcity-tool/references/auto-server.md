@@ -162,7 +162,7 @@ LLDAP has no TLS/LDAPS support — TeamCity's "insecure" warning is cosmetic and
 
 Query users directly with Python:
 ```bash
-python3 -c "import ldap3; s=ldap3.Server('192.168.2.13',port=3890); c=ldap3.Connection(s,'uid=admin,ou=people,dc=example,dc=com','admin123!',auto_bind=True); c.search('ou=people,dc=example,dc=com','(objectClass=*)',attributes=['*']); [print(e.entry_dn) for e in c.entries]"
+python3 -c "import getpass, ldap3; s=ldap3.Server('192.168.2.13',port=3890); c=ldap3.Connection(s,'uid=admin,ou=people,dc=example,dc=com',getpass.getpass('LLDAP admin password: '),auto_bind=True); c.search('ou=people,dc=example,dc=com','(objectClass=*)',attributes=['*']); [print(e.entry_dn) for e in c.entries]"
 ```
 
 ## Plugins

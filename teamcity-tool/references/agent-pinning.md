@@ -50,6 +50,49 @@ Behavior:
 
 Use `matches` (regex) instead of `equals` so the `.*` fallback matches every agent name.
 
+## Allow-listing several exact agent names
+
+All agent requirements on a build configuration, including inherited requirements, are combined with **AND**. Two `equals` requirements therefore cannot express `WinBuilder1 OR WinBuilder4`; no agent can equal both names. Represent a finite allow-list with one anchored regex requirement:
+
+| Field | Value |
+|---|---|
+| Parameter | `teamcity.agent.name` |
+| Condition | `matches` |
+| Value | `^(?:WinBuilder1|WinBuilder4)$` |
+
+Anchors prevent similarly prefixed names from matching. A broader inherited requirement such as `system.agent.name starts-with WinBuilder` can remain: the local exact-name allow-list intersects with it and narrows compatibility to the named agents.
+
+Kotlin DSL equivalent:
+
+```kotlin
+requirements {
+    matches("teamcity.agent.name", "^(?:WinBuilder1|WinBuilder4)$")
+}
+```
+
+To update an existing requirement through REST, `PUT` the requirement entity rather than adding multiple conditions:
+
+```http
+PUT /app/rest/buildTypes/id:<BT_ID>/agent-requirements/<REQUIREMENT_ID>
+Content-Type: application/json
+
+{
+  "type": "matches",
+  "properties": {
+    "property": [
+      {"name": "property-name", "value": "teamcity.agent.name"},
+      {"name": "property-value", "value": "^(?:WinBuilder1|WinBuilder4)$"}
+    ]
+  }
+}
+```
+
+TeamCity may implement the update by replacing the requirement and assigning a new `RQ_*` ID. Use the ID returned by the response or re-read the collection; do not assume the previous ID remains valid. Verify the effective result, including inherited requirements, through:
+
+```text
+GET /app/rest/agents?locator=compatible:(buildType:(id:<BT_ID>))&fields=agent(id,name,connected,enabled,authorized)
+```
+
 ## Lesson: Never use `%teamcity.agent.name%` in `reverse.dep.*`
 
 **Problem:** If you set `reverse.dep.*.DefaultAgent = %teamcity.agent.name%` on the pipeline, the pipeline has no agent yet when it enters the queue. `%teamcity.agent.name%` resolves to empty string. Every downstream build gets `DefaultAgent = ""`, and their agent requirement matches nothing.
