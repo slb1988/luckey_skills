@@ -192,3 +192,7 @@ bash ~/.pi/skills/git-tool/git-tool-commit.sh   # 提交所有有改动的 submo
 - **`index.lock` / `shallow.lock` 残留**：除 `index.lock` 外，`--depth` 浅克隆中断会在 `.git/` 留下 `shallow.lock`，清理命令：`rm -f .git/index.lock .git/shallow.lock`
 
 - **提交 skills submodule 前检查未追踪的 scratch 测试文件是否硬编码了密钥**：`git-tool commit` 会扫描并提交 submodule 内所有改动，若误用 `add -A` 会把含硬编码 API Key 的临时文件（如 `memory-hub/scripts/zep_test.py`，内含真实 Zep Key）提交进 git 历史，密钥将永久泄露且无法通过删除文件清除。这类 `zep_test.py`/`*_test.py` 调试残留应直接删除而非提交；若只是临时验证工具，改用环境变量读取密钥。提交前对扫描到的未追踪文件先 `cat` 检查是否含 `sk-`/`z_`/`key=` 等敏感串。
+
+<memory category="core-rules">
+- ObsidianVault 主仓库没有 master 分支（本地/远端均只有 main，GitHub 默认分支即 main；`.claude/skills` submodule 同样在 main 上）。用户说「在 master 分支操作」时一律指 main，不要找或新建 master。
+</memory>

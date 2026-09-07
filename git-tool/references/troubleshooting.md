@@ -22,3 +22,4 @@
   ```
   若 update 脚本已 auto-stash，merge 成功后记得 `git stash pop`。
 - **脚本定位仓库根的多级 fallback（2026-08 起）**：早期版本仅用 `git rev-parse --show-toplevel` 以 cwd 定位，从仓库外执行会 exit 128 静默失败。现已改为三级探测：cwd 仓库 → 脚本自身所在仓库（脚本固定位于 `<repo>/git-tool/` 内）→ 候选路径 `./skills`、`~/.pi/skills`、`~/.claude/skills`。任意目录下执行均可；全部失败才报错并列出已尝试位置。
+- **开工前先查未收尾的 rebase/merge 中间态**（2026-08 实测）：主库曾卡在 `rebase main onto origin/d5b50398` 中间态——pick 已应用但从未 `--continue`（`git status` 显示 rebase in progress，`.git/rebase-merge/` 存在）。此时直接走 update 脚本的 stash→pull 或 commit 流程会出错/混乱。先 `git rebase --continue` 收尾（autostash 会自动恢复；确认不要该 rebase 才 `--abort`），再执行 update/commit。
