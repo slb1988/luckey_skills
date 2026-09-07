@@ -76,6 +76,15 @@ remove 失败时不能假定后续 approve 会停止。批准依赖预览清理�
 </memory>
 
 <memory category="troubleshooting">
+apply 返回 `already_processed` = 该条已被并发处理（通常是用户在 dashboard 上手动批/拒）。
+属良性竞态而非错误：跳过即可，不要重试或改判；apply 前先 rescan 可减少撞上。
+</memory>
+
+<memory category="troubleshooting">
+多条停留 `preview_pending` 且 `preview_attempts=0`（从未被处理）+ outbox 积压 = hub-worker 进程已死（无自愈），不是审核/LLM 问题——重启 worker 后队列自动消化，详见 memory-hub skill。单条反复 preview 失败的已知成因：LLM 返回带 ```json 围栏的输出，解析不剥 code fence 直接失败并烧次数；`preview_attempts` 上限 3，到限后不再自动重试，需人工处置（重置 attempts 重试 / 正文有价值时 approve `original` 跳过预览 / reject）。
+</memory>
+
+<memory category="troubleshooting">
 当前 `sk-...` 敏感模式不接受 token 主体中的 `.`，带点号的明文凭证可能漏报。
 未命中 `sensitive_pattern` 不能证明安全，审核仍须人工检查正文中的凭证。
 </memory>
@@ -118,6 +127,9 @@ apply 按 (action, content_mode, rationale) 分组批量调用；需要逐条不
 | 同一编码规则在多个 Linear 工单上被重复验证（换工单重述同一事实）、或正文只含单张工单的完成状态 | novelty 看不到同队列条目，须跨条目横向比对：通用规则只留最佳一份主记录，其余 reject；单工单完成状态按短期状态 reject |
 | 正文/预览含事实性错误（校验条件写反、结论已被线上最终版本证伪或取代） | reject；需要留存时以修正版重投，勿批带病版本——错误事实入图谱比丢记忆危害大 |
 | project/user 归属错误（worker 误标对话主体、记忆落错 project） | 不能原地带病批准：先向目标**物理 group** 重投干净摘要并验证 memory/episode 的 `group_id`；原条仍待审则 reject，已 indexed 则走 admin invalidate |
+| 演进链兄弟条目对同一对象的归属事实矛盾（同批 c85 记备份任务建在 HBS 3，c94 实体写成 AList 托管且 `alist -RUNS-> 任务`） | novelty 演进分析（SUPERSEDES/REFINES）不标矛盾，须横向核对链条内事实一致性；删带病条目的错误归属实体（级联清边）后 approve，保留该条核心增量事实——两条都带病批会同时制造矛盾事实 + 同对象双节点 |
+| preview 从正文提及的前身/参考链接脑补派生关系（正文是“替换/不更新了”，却抽成 `songloft -BASED_ON-> xiaomusic`） | 删幻觉源实体级联清边（或按三元组 remove）；顺带避免与同批同名异型实体（如 xiaomusic Project vs Service）被合并 |
+| 同一对象的实体名变体横跨同批多条目（`project-lungfish`/`projectlungfish`/`ProjectLungfish`），且变体是预览的主实体 | 不要用 removals 删主实体（会掏空预览）；正常 approve，把变体列为 `/graph/edits` merge 候选交人工确认归并 |
 | 非 canonical 实体写法成对出现（`Memory Hub`/`memory-hub`、`xiaoyingtao`/`小樱桃`、`Chat Hub`） | 机制已接管大部分：preview 落库前机械规范化（NFKC+空白折叠+重名合并），casefold/normalized 唯一候选自动进别名管理页待审（approved 后批准重验自动改写）；漏网的仍按外科清理统一改到图谱 canonical 写法后再 approve |
 
 **novelty 候选的可见范围**：比对候选 = 已入图谱记忆 + 严格更早的同队列在途条目（最多
