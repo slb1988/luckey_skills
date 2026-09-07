@@ -34,6 +34,15 @@ cd /data/py_automation/frontend && npm run build
 
 构建产物生成后即可完成前端发布。
 
+## AI Review Markdown 渲染
+
+<memory category="common-patterns">
+AI Review 的标题、评论和编译分析是分散在 `ReviewDetail.vue`、`components/CommentBubble.vue`
+与 `components/AISummaryPanel.vue` 的独立展示面，但 Markdown 链接策略统一放在
+`src/views/ai_review/markdown.ts`。新增展示面时应复用该入口；`[label](url)` 必须渲染为
+带 `target="_blank"` 和安全 `rel` 的 `<a>`，避免 Jira 等外链覆盖当前 review 页面。
+</memory>
+
 ## 注意事项
 
 - 确保在 `dev@auto-server` 主机上执行（当前机器就是 auto-server，直接本地执行即可）
