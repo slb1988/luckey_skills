@@ -113,6 +113,7 @@ curl -sS "$HUB_URL/v1/files/{file_id}/download" -H "X-User-Id: $USER_ID" -H "X-A
 
 ## Memory 索引状态
 
+- `pending_intake` / `pending_extraction`：在审核管线里（关卡 1 / 关卡 2），手工 POST 的记忆也走这里；需 review approve 才出队进 Graphiti，不是卡住。
 - `pending`：已可靠落库，尚未投递 Graphiti。
 - `submitted`：Graphiti 已接受，等待 episode 可查询确认。
 - `indexed`：对应 group 最近 episodes 中已确认该 memory_id。
@@ -133,3 +134,21 @@ curl -sS "$HUB_URL/v1/files/{file_id}/download" -H "X-User-Id: $USER_ID" -H "X-A
 | `GRAPHITI_UNAVAILABLE` | 检查 `10.77.77.6:8005/healthcheck`；≠空结果 |
 
 所有错误返回 `error.code/message/request_id/retryable/details`，`request_id` 同时出现在 `X-Request-Id` 响应头。
+
+## 删除/失效的三种路径（按粒度选择）
+
+| 场景 | 路径 | 效果 |
+|---|---|---|
+| memory 还在审核队列（pending_intake/pending_extraction） | review reject（memory-review skill） | 终态，不进图谱；此时调 invalidate 会 409 |
+| memory 已 indexed，但其 session 仍要保留 | `POST /v1/memories/{id}/invalidate`（admin） | status=invalidated、在途 outbox 取消、Graphiti episode 级联删除、`graph_edits` 审计留痕；检索不再命中；同内容可重新学习 |
+| 整个 session 归错 scope / 整体移除 | `POST /v1/sessions/batch-delete` | 软删 session + 级联清 memories/episodes/files，幂等；返回逐 session 的 `episodes_deleted/memories_affected/files_removed` |
+
+服务器侧 SQLite 手术（cleanup-misscoped-sessions.md runbook）只在以上端点都不够用时才需要。
+
+## 滚动档案模式（动态信息的推荐载体）
+
+动态变化的主题（如孩子的学习进度——「现在不会，过段时间就会」）不适合落静态笔记文件；推荐用
+**确定性 session id 的手工容器**（如 `manual:xiaoyingtao:profile`）：首版 `update_mode=replace`，
+后续更新 `base_version=latest, update_mode=append` 追加不可变版本，检索始终命中 latest，
+物理上保留全部历史版本可溯源。归档身份仍归机主 user_id，信息主体写在 distilled 的「对话主体」
+标记里（见 agent-integration.md「chat-hub 微信会话特殊处理」）。
