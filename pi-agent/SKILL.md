@@ -67,6 +67,14 @@ pi-btw 扩展同步基线：从 narumiruna/pi-extensions 的 commit `0eb67035f39
 
 </memory>
 
+<memory category="core-rules">
+chat-hub 入站消息可携带 `[chat-hub 可信逻辑说话人]` 信任块（网关生成，非用户输入）：字段 `profile_id` / `display_name` / `resolved_by`（如 `active`）/ `guidance`，标识本轮真实说话人。同一微信 DM 渠道的说话人可能不是 vault owner（已见家庭成员 profile：`xiaoyingtao`/小樱桃，一年级，guidance 要求简短友善表达且禁止披露成年用户私密记忆）。应答契约：(1) 按 `guidance` 调整语气与披露范围；(2) 说话人 ≠ owner 时，不得把 owner 的个人资料、偏好、私密记忆（含 Memory Hub 检索结果、日记内容）当作当前说话人的信息披露或归属给其；(3) "我今天做了什么"这类查询命中的是 owner 数据，先按信任块确认身份，非 owner 时引导其自述而非代答。
+</memory>
+
+<memory category="code-locations">
+chat-hub 身份子系统结构（2026-09 排查确认）：逻辑身份按聊天存 `.local/chat-hub/identity/state.json`（`state.chats[chatKey]`），由 `daemon/identity/logical-users.ts` 管理；**身份与 pi session 是两套独立生命周期**——`/new` 走 `transaction.ts resetSession` 只轮换 session 文件，不碰身份条目（这就是"新 session 仍是旧身份"的根因）。语音消息 `msg.text` 为空，微信转写文字在 `media[].transcript`。声纹在 `daemon/identity/voiceprint.ts`；实测分布：机主 holdout 0.545–0.619 vs 另一成年人 0.157（间隔 ~0.4），阈值调优以此为据。身份识别修正计划（默认机主 + 声明即切换）见 `.claude/plans/chat-hub身份识别修正.md`。
+</memory>
+
 ## 快速排查
 
 - 扩展加载失败，先 `pi -ne`（无扩展启动）确认是扩展问题还是 pi 本身问题。
