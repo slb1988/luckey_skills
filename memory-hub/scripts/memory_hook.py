@@ -20,6 +20,7 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import time
@@ -188,10 +189,78 @@ def project_aliases() -> Dict[str, str]:
     return aliases
 
 
+def _orca_workspaces_repo_name(cwd: str) -> str:
+    """Orca 工作区路径段规则：``<root>/orca/workspaces/<repo>/<worktree>/...`` → ``<repo>``。
+
+    Orca 给编排任务开 git worktree（目录名=任务名）跑 worker，cwd 末级是一次性
+    worktree 名；若按末级目录派生，每个 worktree 都会生成独立 project（图谱里
+    对应独立 group，实体碎片化——2026-09-07 memory-hub-attribution-project
+    事故）。按路径段判定并统一分隔符，Windows 路径串在任意平台都能命中。
+    """
+    parts = [
+        part.lower()
+        for part in cwd.replace("\\", "/").split("/")
+        if part and part != "."
+    ]
+    for index in range(len(parts) - 2):
+        if parts[index] == "orca" and parts[index + 1] == "workspaces":
+            return parts[index + 2]
+    return ""
+
+
+def _git_main_checkout_name(cwd: str) -> str:
+    """linked worktree → 主检出的工作目录名；主检出 / 非 git / 任何异常 → ""。
+
+    判定：`git rev-parse --git-dir --git-common-dir` 两者不同即 linked
+    worktree（主检出两者相同，含从仓库子目录调用的情况）。common-dir 形如
+    ``<main>/.git``，取其父目录名作为主仓派生名。fail-open：git 缺失、超时、
+    报错、cwd 已删除一律返回 ""，绝不影响归档/检索链路。
+    """
+    if not cwd or not os.path.isdir(cwd):
+        return ""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", cwd, "rev-parse", "--git-dir", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    if proc.returncode != 0:
+        return ""
+    lines = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    if len(lines) < 2:
+        return ""
+
+    def _abs(value: str) -> str:
+        if not os.path.isabs(value):
+            value = os.path.join(cwd, value)
+        return os.path.normpath(os.path.abspath(value))
+
+    git_dir, common_dir = _abs(lines[0]), _abs(lines[1])
+    if git_dir == common_dir:
+        return ""  # 主检出：维持既有 cwd 末级派生
+    name = os.path.basename(os.path.dirname(common_dir))
+    # 防御：submodule 的 linked worktree 等布局 common-dir 落在 .git/modules 下，
+    # 取到 "modules"/隐藏目录时放弃，回退 cwd 派生。
+    if not name or name.startswith(".") or name.lower() == "modules":
+        return ""
+    return name
+
+
 def project_id_for_cwd(cwd: str, fallback: str) -> str:
     # 按工作根目录名分类归档（小写归一，避免 MainDev/maindev 分裂）；
     # 命中不到具体条目时用 "*" catch-all（本机级映射可设 {"*": "nas"}）。
-    name = normalize_identifier(Path(cwd).name if cwd else "", fallback).lower()
+    # Orca worktree（…/orca/workspaces/<repo>/<wt>）与 git linked worktree 先
+    # 归一到主仓名，避免每个 worktree 生成独立 project（图谱 group 碎片化）。
+    derived = (
+        _orca_workspaces_repo_name(cwd)
+        or _git_main_checkout_name(cwd)
+        or (Path(cwd).name if cwd else "")
+    )
+    name = normalize_identifier(derived, fallback).lower()
     aliases = project_aliases()
     return aliases.get(name, aliases.get("*", name))
 

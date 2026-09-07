@@ -2,7 +2,9 @@ import gzip
 import io
 import json
 import os
+import shutil
 import stat
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -419,6 +421,84 @@ class MemoryHookTest(unittest.TestCase):
             )
             self.assertEqual(project_id_for_cwd("/home/sun/My App", "agent-history"), "my-app")
             self.assertEqual(project_id_for_cwd("", "agent-history"), "agent-history")
+
+    def test_project_id_for_orca_worktree_derives_repo_name(self):
+        # Orca worktree（…/orca/workspaces/<repo>/<worktree>）归并到主仓 project，
+        # 防止每个一次性 worktree 生成独立 project/图谱 group（2026-09-07
+        # memory-hub-attribution-project 碎片事故）。路径段规则统一分隔符，
+        # Windows 风格路径串在任意平台都应命中。
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            os.environ, {"MEMORY_HOOK_STATE_DIR": directory}, clear=True
+        ):
+            self.assertEqual(
+                project_id_for_cwd(
+                    "/Users/sun/orca/workspaces/memory-hub/memory-hub-attribution-project",
+                    "agent-history",
+                ),
+                "memory-hub",
+            )
+            self.assertEqual(
+                project_id_for_cwd(
+                    "/Users/sun/orca/workspaces/ObsidianVault/luc-56-stage-1-typescript",
+                    "agent-history",
+                ),
+                "obsidianvault",
+            )
+            self.assertEqual(
+                project_id_for_cwd(
+                    "D:\\orca\\workspaces\\ObsidianVault\\wt-1", "agent-history"
+                ),
+                "obsidianvault",
+            )
+
+    def test_project_id_for_linked_worktree_derives_main_repo_name(self):
+        # git linked worktree（不在 orca/workspaces 下的）归并到主检出目录名；
+        # 主检出与非 git 目录维持 cwd 末级派生。git 不可用时跳过。
+        if shutil.which("git") is None:
+            self.skipTest("git not available")
+        with tempfile.TemporaryDirectory() as directory, patch.dict(
+            os.environ, {"MEMORY_HOOK_STATE_DIR": directory}, clear=True
+        ):
+            main = Path(directory) / "memory-hub"
+            worktree = Path(directory) / "elsewhere" / "memory-hub-fix-1"
+            subprocess.run(
+                ["git", "init", str(main)], check=True, capture_output=True
+            )
+            subprocess.run(
+                [
+                    "git", "-C", str(main),
+                    "-c", "user.email=test@test", "-c", "user.name=test",
+                    "commit", "--allow-empty", "-m", "init",
+                ],
+                check=True,
+                capture_output=True,
+            )
+            worktree.parent.mkdir()
+            subprocess.run(
+                ["git", "-C", str(main), "worktree", "add", str(worktree), "--detach"],
+                check=True,
+                capture_output=True,
+            )
+            self.assertEqual(
+                project_id_for_cwd(str(worktree), "agent-history"), "memory-hub"
+            )
+            # 主检出：--git-dir == --git-common-dir，维持 cwd 末级派生
+            self.assertEqual(
+                project_id_for_cwd(str(main), "agent-history"), "memory-hub"
+            )
+            # 非 git 目录：git 快速失败，维持 cwd 末级派生
+            plain = Path(directory) / "plain-dir"
+            plain.mkdir()
+            self.assertEqual(
+                project_id_for_cwd(str(plain), "agent-history"), "plain-dir"
+            )
+            # worktree 已删除（清理后归档补传场景）：isdir 短路，回退末级派生
+            self.assertEqual(
+                project_id_for_cwd(
+                    str(Path(directory) / "gone" / "deleted-wt"), "agent-history"
+                ),
+                "deleted-wt",
+            )
 
     def test_machine_project_overrides_cwd_derivation(self):
         # 本机级 project 别名一旦写入 state dir/project-aliases.local.json，
