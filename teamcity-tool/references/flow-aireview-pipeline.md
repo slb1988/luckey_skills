@@ -21,11 +21,33 @@ REST API 查复合构建只返回直接 snapshot 依赖，**要递归追踪** `s
 - 每次评审必读 `.claude/skills/pl-review/SKILL.md`，内联进 prompt.md 可省固定 1~2 个 turn 和首轮 context。
 - pi session 文件在 agent workspace 的 `sessions/` 下无限累积，且**每次构建全量上传 artifact**——分析评审过程时直接去 workspace 拿 session JSONL 比翻 TC artifact 快。
 
-## 排队瓶颈
+## 排队瓶颈（2026-09-07 起已支持多 agent，CL 1499）
 
 `DefaultAgent` 是唯一 Linux agent，AiReview 链与 CodeGraph 链共享它，串行执行。
 review 步是 LLM/IO 等待型（编译才吃 CPU），**同机加第二个 agent 即可消除串行**；
 workspace 命名 `{agent}_{stream}` 原生支持多 agent 共存。
+
+**2026-09-07 CL 1499 多 agent 改造已上线**：Flow 级 `DefaultAgent` 参数改为锚定正则
+`^(?:DefaultAgent|WinBuilder3|WinBuilder4)$`（经 `override.dep.*` 下发），链可调度到
+WinBuilder3/4（Windows 11 + 同款 v26 Linux 交叉工具链 `env.LINUX_MULTIARCH_ROOT`，用
+Build.bat 编 Linux target，门禁语义不变）。要点：
+
+- bash 步骤全部改为 python-runner 内联脚本（Verify Client Root / Build UE / Pi Agent Review /
+  两个 Log Analysis Notification）；`|| true` 在 cmd 下无效，全部改为步骤内吞错。
+- pi 评审步：prompt 以 `@Saved/ai_review/prompt.md` @file 传参（cmd 8191 上限 + 重解析风险），
+  1800s 超时杀进程树（Windows taskkill /F /T，POSIX killpg）。
+- WinBuilder3/4 上 `{agent}_{stream}` client 是 DryRun 链时代建的（Root 在 E:/D: 独立盘），
+  与 agent-home p4ws 硬编码不符——TaskBuildUELinux/TaskAiReview 首步 Resolve_Workspace_Root
+  从 client spec 实时解析真实 Root 写 env.WORKSPACE_ROOT，后续步骤跟随（DefaultAgent 上
+  Root==checkoutDir 行为等价）。
+- 能力门 exists(env.LINUX_MULTIARCH_ROOT) 只加在 TaskBuildUELinux（AiReview 链独占），
+  **不要加在共享的 TaskUnshelve/TaskSyncCyanCookDepot**——会把 WinBuilder1 从 DryRun 链踢出去（回归）。
+- WinTest1 也带 LINUX_MULTIARCH_ROOT，靠 name regex 排除；WinBuilder1 无双条件满足。
+- 已知假象：REST `compatible:()` locator 对带 `%reverse.dep.*.X|...%` 参数的链内配置恒返回空
+  （独立上下文不可解析，DryRun/BuildProject 同样空，生产调度正常）——验证路由要手动对
+  agent 属性求值 name regex ∩ exists(env)，或直接触发 smoke 构建看调度。
+- 上线前置：WinBuilder 需装 pi CLI + 配 anthropic provider（kimi 网关）——WinBuilder3 已有
+  pi 0.84.3 但 auth.json 只有 deepseek；WinBuilder4 未验证。
 
 ## 已确认的其他问题
 
