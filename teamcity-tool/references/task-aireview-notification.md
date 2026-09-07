@@ -26,3 +26,11 @@
 
 后端 ai_review 对链尾失败本就有兜底：后端 LLM 静态分析 → `notify_ai_done` 私聊作者。
 因此构建级 informer 群通知与后端私聊并存时，群卡既是错误归因又是冗余噪音——评估「是否保留 informer 步骤」时先知道这个兜底存在。
+
+## 修复进展（2026-09-07）
+
+已按「有 env.unshelve 就直接私聊该 CL 作者」定稿实现并验证（admin_sun_depot_7184 CL 1503，待用户提交）：
+kts 按 `%env.unshelve%` 分支传 `--cl=<shelved CL> --notify-cl-author`；informer 新开关
+`--notify-cl-author`（opt-in，默认路径零变化）——跳过 find_modifiers 归因，`changelist_authors`
+直查 CL 作者（shelved CL 已实测无权限问题，回退 `get_userinfo/<p4_userid>`），bot 私聊发送，
+群 webhook 全抑制，`--feishu-env test` 仍路由 xuzhiyang 私聊用于安全验证。排障以 CL 1503 后的代码为准。
