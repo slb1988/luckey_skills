@@ -93,7 +93,7 @@ LLM 判分读超时 120s。与 v1 的关键差异：
 ## 常用接口速查
 
 ```bash
-HUB_URL=http://10.77.77.6:9287
+HUB_URL=https://luckeyhome.site/memory-hub/agent-api
 # 请求头：X-User-Id / X-Agent-Id / X-Project-Id（生产另需 Bearer token；写操作另需 Idempotency-Key）
 # 2026-08-22 起 Hub(:9287) 与 dashboard(:9288) 都强制 Bearer MEMORY_HUB_API_KEY（enabled outside development），
 # 缺失返回 UNAUTHENTICATED；dashboard 报 “requires DASHBOARD_API_KEY” 但用的是同一把 key 值。

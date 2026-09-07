@@ -81,7 +81,7 @@ SKILL_DIR="<本 SKILL.md 所在目录的绝对路径>"
 
 必须将占位符替换为加载本 Skill 时获得的实际目录，不得相对当前工作目录猜测。`auto` 配置本机检测到的
 Claude Code、Codex、Pi；用户明确要求全部安装时改用 `--agents all`。不得手工拼装 Hook JSON。
-install 同时会把进程环境里的 `MEMORY_HUB_API_KEY` 一并持久化，所以生产环境应先 export key 再跑 install。
+install 同时会把 `MEMORY_HUB_API_KEY` 与解析后的 `MEMORY_HUB_URL` 一并持久化（保留已有值），所以生产环境应先 export key 再跑 install；要切换已有入口，先显式 export 新 URL。重装不会从身份标记块中抹掉 URL。
 
 > 全新机器无法自助生成 token：dashboard 的 `POST /api/v1/auth/tokens` 本身也要求
 > `DASHBOARD_API_KEY`，首次接入必须有人在面板 UI 手工生成 agent token（mhu_...）。
@@ -322,8 +322,12 @@ install 复制/渲染到仓库外；复制出去的就必须让 check 能感知�
 
 ## 环境变量
 
+客户端默认入口为 `https://luckeyhome.site/memory-hub/agent-api`，不要求客户端加入 WireGuard；NAS 内部监听/服务间通信端口不变。
+Hook、安装器 health/auth check 与 insight-daily 的地址解析优先级为：**进程环境 > 用户持久化配置 > HTTPS 默认值**（insight 另兼容 `BASE_URL`）。因此父 agent 尚未加载新 profile、且未显式设置旧 URL 时，下一次 hook 子进程即可切换，无需重装扩展。父进程若显式持有旧 URL，需修改该环境并重启父进程；不覆盖用户显式指定的私网/测试服务。
+历史归档与漏传工具按 **`--hub-url` > `MEMORY_HUB_URL` > HTTPS 默认值**；Dashboard 基址从公共 `/agent-api` 的父路径推导，不能把 BFF 调到 Hub 数据面。`--dashboard-url` / `MEMORY_HUB_DASHBOARD_URL` 可显式覆盖。
+
 ```bash
-export MEMORY_HUB_URL=http://10.77.77.6:9287
+export MEMORY_HUB_URL=https://luckeyhome.site/memory-hub/agent-api
 export MEMORY_HUB_AGENT_ID=claude-code-mac
 export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 #   ↑ 仅空 cwd 时的兜底；真正的本机级 project 是 state dir 的 project-aliases.local.json
@@ -332,7 +336,7 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # 可用环境变量指定全局用户身份
 # （install_hooks.py install 会把它持久化到用户级环境变量，全局生效）：
 # MEMORY_HUB_CLIENT_USER_ID=internal-user-id
-# MEMORY_HUB_API_KEY=...          # 生产必填（mhu_ agent token，面板 http://10.77.77.6:9288/ 生成）；
+# MEMORY_HUB_API_KEY=...          # 生产必填（mhu_ agent token，面板 https://luckeyhome.site/memory-hub/ 生成）；
 #                                  # 可手工写进 profile 标记块；install 没有 --api-key 参数
 #                                  # （install_hooks.py 全部参数只有 --agents/--home/--codex-bin/--cwd/
 #                                  # --user-id/--project），而是自动沿用进程环境/profile 里已有的 key

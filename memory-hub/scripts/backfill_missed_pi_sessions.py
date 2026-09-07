@@ -28,6 +28,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 UPLOAD = os.path.join(HERE, "upload_sessions.py")
 HUB_DB = "/share/Container/memory-hub/data/memory-hub.sqlite3"
 PI_SESS_ROOT = os.path.expanduser("~/.pi/agent/sessions")
+DEFAULT_HUB_URL = "https://luckeyhome.site/memory-hub/agent-api"
 
 # 与 memory_hook.py 保持同步：auto-skill extraction 子 session 首条 user 消息签名
 EXTRACTION_PREFIX = "You are the Skill extraction sub-agent."
@@ -85,8 +86,8 @@ def main() -> int:
     ap.add_argument("--project", default="nas")
     ap.add_argument("--sess-dir", default=os.path.join(
         PI_SESS_ROOT, "--share-CACHEDEV1_DATA-homes-slb1988--"))
-    ap.add_argument("--hub-url", default="http://10.77.77.6:9287")
-    ap.add_argument("--dashboard-url", default="http://10.77.77.6:9288")
+    ap.add_argument("--hub-url", default=os.environ.get("MEMORY_HUB_URL") or DEFAULT_HUB_URL)
+    ap.add_argument("--dashboard-url", default=os.environ.get("MEMORY_HUB_DASHBOARD_URL"))
     ap.add_argument("--user-id", default=os.environ.get("MEMORY_HUB_CLIENT_USER_ID", "sunlaibing"))
     ap.add_argument("--api-key", default=os.environ.get("MEMORY_HUB_API_KEY", ""))
     ap.add_argument("--dry-run", action="store_true")
@@ -127,8 +128,9 @@ def main() -> int:
            "--hook-namespace",
            "--project-id", args.project,
            "--user-id", args.user_id,
-           "--hub-url", args.hub_url,
-           "--dashboard-url", args.dashboard_url]
+           "--hub-url", args.hub_url]
+    if args.dashboard_url:
+        cmd += ["--dashboard-url", args.dashboard_url]
     if args.api_key:
         cmd += ["--api-key", args.api_key]
     cmd += upload

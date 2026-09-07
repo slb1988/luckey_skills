@@ -42,6 +42,7 @@ from session_messages import (
 )
 
 
+DEFAULT_HUB_URL = "https://luckeyhome.site/memory-hub/agent-api"
 IDENTIFIER_RE = re.compile(r"[^A-Za-z0-9._:-]+")
 FENCED_CODE_RE = re.compile(
     r"(?:^|\n)[ \t]*(?:```|~~~).*?(?:\n[ \t]*(?:```|~~~)[ \t]*(?=\n|$)|$)",
@@ -993,7 +994,12 @@ class Config:
             stored_profile and stored_profile.user_id == normalized_user_id
         )
         return cls(
-            hub_url=os.environ.get("MEMORY_HUB_URL", "http://10.77.77.6:9287").rstrip("/"),
+            # Hook 子进程每次重读持久化地址，已启动的父 agent 也能切换入口。
+            hub_url=(
+                os.environ.get("MEMORY_HUB_URL")
+                or read_persisted_env_var("MEMORY_HUB_URL")
+                or DEFAULT_HUB_URL
+            ).rstrip("/"),
             default_user_id=normalized_user_id,
             agent_id=agent_id,
             archive_project_id=os.environ.get(

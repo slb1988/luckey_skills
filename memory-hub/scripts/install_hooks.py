@@ -31,6 +31,7 @@ ALIAS_FILENAME = "project-aliases.json"
 PROJECT_FILENAME = "project-aliases.local.json"
 PROJECT_ID_RE = re.compile(r"[^A-Za-z0-9._:-]+")
 MANAGED_COMMAND_MARKER = "memory-hub/scripts/memory_hook.py"
+DEFAULT_HUB_URL = "https://luckeyhome.site/memory-hub/agent-api"
 
 PROFILE_BLOCK_BEGIN = "# >>> memory-hub identity >>>"
 PROFILE_BLOCK_END = "# <<< memory-hub identity <<<"
@@ -655,8 +656,16 @@ def apply_machine_project(args: argparse.Namespace, home: Path) -> Dict[str, Any
     return status
 
 
-def health_check() -> Dict[str, Any]:
-    url = os.environ.get("MEMORY_HUB_URL", "http://10.77.77.6:9287").rstrip("/")
+def resolve_hub_url(home: Path) -> str:
+    return (
+        os.environ.get("MEMORY_HUB_URL")
+        or _read_persisted_env_var(home, "MEMORY_HUB_URL")
+        or DEFAULT_HUB_URL
+    ).rstrip("/")
+
+
+def health_check(home: Optional[Path] = None) -> Dict[str, Any]:
+    url = resolve_hub_url(home or Path.home())
     try:
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         with opener.open(url + "/health/ready", timeout=5) as response:
@@ -944,11 +953,7 @@ def auth_status(home: Path, cwd: Path) -> Dict[str, Any]:
     source = "environment" if env_key else ("profile" if persisted_key else "missing")
     user_id = _check_user_id(home, cwd)
     # Hub 地址同样可能是持久化在 profile 里的（进程未加载新 profile 时 env 缺失）
-    hub_url = (
-        os.environ.get("MEMORY_HUB_URL")
-        or _read_persisted_env_var(home, "MEMORY_HUB_URL")
-        or "http://10.77.77.6:9287"
-    )
+    hub_url = resolve_hub_url(home)
     anonymous_status, probe_error = _hub_probe(hub_url, "/v1/projects", None, user_id)
     if anonymous_status is None:
         warnings = [
@@ -1007,7 +1012,7 @@ def auth_status(home: Path, cwd: Path) -> Dict[str, Any]:
                 "MEMORY_HUB_API_KEY is not set, but the server requires authentication; "
                 "captures still queue locally but every upload fails with HTTP 401. "
                 "Generate an agent token (mhu_...) from the dashboard "
-                "(http://10.77.77.6:9288/), then " + remedy + ", "
+                "(https://luckeyhome.site/memory-hub/), then " + remedy + ", "
                 "restart the agents and run memory_hook.py flush"
             ],
         }
@@ -1191,6 +1196,8 @@ def main() -> int:
                 api_key = entered.strip() or None
             if api_key:
                 identity["MEMORY_HUB_API_KEY"] = api_key
+            # 重建托管标记块时保留 URL，避免升级安装静默丢失用户入口配置。
+            identity["MEMORY_HUB_URL"] = resolve_hub_url(args.home)
             result["identity"] = persist_identity(identity, args.home)
             result["project_aliases"] = install_project_aliases(args.home)
             result["project"] = apply_machine_project(args, args.home)
@@ -1203,7 +1210,7 @@ def main() -> int:
             result["ok"] = False
         if not result.get("auth", {}).get("ok", True):
             result["ok"] = False
-        result["service"] = health_check()
+        result["service"] = health_check(args.home)
         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         return 0 if result["ok"] else 1
     except InstallError as error:

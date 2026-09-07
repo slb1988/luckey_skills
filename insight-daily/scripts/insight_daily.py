@@ -29,7 +29,7 @@ MANIFEST_SCHEMA = "insight-daily-manifest/1"
 INPUT_SCHEMA = "insight-daily-input/1"
 RUN_SCHEMA = "insight-daily-run/1"
 EXTRACTOR_VERSION = "1"
-DEFAULT_HUB_URL = "http://10.77.77.6:9287"
+DEFAULT_HUB_URL = "https://luckeyhome.site/memory-hub/agent-api"
 DEFAULT_TIMEOUT_SECONDS = 120.0
 DEFAULT_POLL_SECONDS = 1.0
 STATE_SUBDIR = Path("insight-daily") / "manifests"
@@ -522,6 +522,11 @@ def derive_dashboard_url(base_url: str) -> str:
     if explicit:
         return explicit.rstrip("/") + "/"
     parsed = urllib.parse.urlsplit(base_url)
+    path = parsed.path.rstrip("/")
+    if path.endswith("/agent-api"):
+        return urllib.parse.urlunsplit(
+            (parsed.scheme, parsed.netloc, path[: -len("agent-api")], "", "")
+        )
     try:
         port = parsed.port
     except ValueError:

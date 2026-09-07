@@ -141,7 +141,7 @@ NOISE_USER_TEXTS = {
     "继续", "continue", "ok", "okay", "好的", "好", "嗯", "嗯嗯",
     "test", "测试", "go", "yes", "是", "对", "谢谢", "thanks",
 }
-DEFAULT_HUB_URL = "http://10.77.77.6:9287"
+DEFAULT_HUB_URL = "https://luckeyhome.site/memory-hub/agent-api"
 SOURCE_AGENT_DEFAULTS = {"claude": "claude-code", "pi": "pi", "codex": "codex"}
 # 历史目录名归并：E:\sununity 的归档统一进 unity2018 project。
 DEFAULT_PROJECT_ALIASES = {"sununity": "unity2018"}
@@ -1269,6 +1269,13 @@ def upload_session_dual(
     )
 
 
+def derive_dashboard_url(hub_url: str) -> str:
+    base = hub_url.rstrip("/")
+    if base.endswith("/agent-api"):
+        return base[: -len("/agent-api")]
+    return re.sub(r":9287(/|$)", r":9288\1", base)
+
+
 def fetch_session_inventory(
     dashboard_url: str, api_key: Optional[str] = None
 ) -> Dict[str, Dict[str, Any]]:
@@ -1376,7 +1383,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--hub-url",
-        default=os.environ.get("MEMORY_HUB_URL", DEFAULT_HUB_URL),
+        default=os.environ.get("MEMORY_HUB_URL") or DEFAULT_HUB_URL,
         help="Memory Hub base URL",
     )
     parser.add_argument(
@@ -1405,8 +1412,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dashboard-url",
         default=os.environ.get("MEMORY_HUB_DASHBOARD_URL"),
-        help="Dashboard BFF base URL for the session inventory (default: hub URL "
-        "with port 9288, e.g. http://nas:9288)",
+        help="Dashboard BFF base URL for the session inventory (default: remove "
+        "the Hub /agent-api suffix, or map private port 9287 to 9288)",
     )
     parser.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout seconds")
     parser.add_argument("--limit", type=int, default=0, help="Process at most N files")
@@ -1464,9 +1471,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     # 与真实归属 project 解析（避免探测式 404/403）。dry-run 也拉（纯只读 GET）。
     inventory: Dict[str, Dict[str, Any]] = {}
     if args.backfill_full:
-        dashboard_url = args.dashboard_url or re.sub(
-            r":9287(/|$)", r":9288\1", args.hub_url
-        )
+        dashboard_url = args.dashboard_url or derive_dashboard_url(args.hub_url)
         try:
             inventory = fetch_session_inventory(dashboard_url, args.api_key)
             print("inventory: %d sessions on hub (from %s)" % (len(inventory), dashboard_url))

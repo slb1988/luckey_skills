@@ -27,7 +27,7 @@ python3 "$SKILL_DIR/scripts/insight_daily.py" run --date YYYY-MM-DD
 
 - `MEMORY_HUB_API_KEY`（缺失时读取 install 已写入的用户级持久配置）；
 - `MEMORY_HUB_CLIENT_USER_ID`（兼容 `CLIENT_USER_ID`，再回退 `.team/settings.local.json` 与既有 client profile）；
-- `MEMORY_HUB_URL`（兼容 `BASE_URL`，缺省沿用 Hub 默认地址）；
+- `MEMORY_HUB_URL`（兼容 `BASE_URL`，缺省为 `https://luckeyhome.site/memory-hub/agent-api`；仍允许显式私网覆盖）；
 - `MEMORY_HOOK_STATE_DIR`（manifest 写到其 `insight-daily/manifests/` 下）。
 
 不要读取、打印或写入 `.env`，也不要把 token 放进命令行或 manifest。
@@ -58,7 +58,7 @@ python3 "$SKILL_DIR/scripts/insight_daily.py" verify \
 ```text
 Insight Daily done: 4 proposal(s), run run_01...
 Manifest: ~/.local/state/memory-hub-hook/insight-daily/manifests/ab12....json
-Dashboard: http://10.77.77.6:9288/#persona?person=person_01...&section=proposals
+Dashboard: https://luckeyhome.site/memory-hub/#persona?person=person_01...&section=proposals
 ```
 
 ## 可操作错误

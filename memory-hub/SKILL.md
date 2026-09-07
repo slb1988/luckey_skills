@@ -26,14 +26,15 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 | 项目 | 值 |
 |------|-----|
 | 项目目录（NAS） | `/share/Container/memory-hub` |
-| Hub API | `http://10.77.77.6:9287` |
-| Dashboard（观测面板） | `http://10.77.77.6:9288/` |
+| Hub API（客户端默认） | `https://luckeyhome.site/memory-hub/agent-api` |
+| Dashboard（公网面板） | `https://luckeyhome.site/memory-hub/` |
+| Hub / Dashboard 内网调试 | `http://10.77.77.6:9287` / `http://10.77.77.6:9288/` |
 | 上游 Graphiti | `http://10.77.77.6:8005` |
 
 其余路径（venv/data/日志/脚本）见 [deploy.md](references/deploy.md) 与各场景文档。
 
 <memory category="troubleshooting">
-公网反代 `https://luckeyhome.site/memory-hub/`（经 sub2api 那台 VPS 的 nginx 中转）的 Hub API 已打通（2026-09-08 起）：**Agent API base = `https://luckeyhome.site/memory-hub/agent-api`**（nginx 剥前缀转发到 `10.77.77.6:9287/`；健康检查与带凭证 `/v1/projects` 均 200、匿名 401，原前端不受影响）。不能用 `/memory-hub/api`——那是 dashboard 前端既有 BFF 路由，抢占会冲突。访问者**无需 WireGuard**（仅 VPS→NAS 段走隧道）；客户端把 `MEMORY_HUB_URL` 设为该 base 即可，API Key 与三个身份头不变（`memory_hook.py` 用 `hub_url + path` 拼接，兼容带前缀 base）。历史教训仍成立：「公网面板能打开」不能当作 API 可用的判据（该反代曾长期只通面板静态页、API 全 404）。
+公网反代 `https://luckeyhome.site/memory-hub/`（经 sub2api 那台 VPS 的 nginx 中转）的 Hub API 已打通（2026-09-08 起）：**Agent API base = `https://luckeyhome.site/memory-hub/agent-api`**（nginx 剥前缀转发到 `10.77.77.6:9287/`；健康检查与带凭证 `/v1/projects` 均 200、匿名 401，原前端不受影响）。不能用 `/memory-hub/api`——那是 dashboard 前端既有 BFF 路由，抢占会冲突。访问者**无需 WireGuard**（仅 VPS→NAS 段走隧道）；客户端默认使用该 base，`MEMORY_HUB_URL` 仍可显式覆盖；API Key 与三个身份头不变（`memory_hook.py` 用 `hub_url + path` 拼接，兼容带前缀 base）。历史教训仍成立：「公网面板能打开」不能当作 API 可用的判据（该反代曾长期只通面板静态页、API 全 404）。
 </memory>
 
 ## 环境职能与更新发布
