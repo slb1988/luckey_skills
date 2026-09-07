@@ -116,6 +116,10 @@ grep -i "plugin" <log-file> | grep -i "load\|init\|fail"
 Agent config: `<data-dir-adjacent>/buildAgent/conf/buildAgent.properties`
 Check `serverUrl` is correct and agent is connected.
 
+<memory category="common-patterns">
+To allow exactly several named agents, use one `teamcity.agent.name` `matches` requirement with anchored alternation, e.g. `^(?:WinBuilder1|WinBuilder4)$`. Separate TeamCity requirements are ANDed, so two `equals` requirements cannot express this OR. Replace any existing name requirement rather than stacking another; for versioned settings, make the equivalent Kotlin DSL change (`requirements { matches(...) }`) so a UI-only edit is not overwritten.
+</memory>
+
 ## Troubleshooting build failures
 
 构建失败排障条目（UE 构建 UBT mutex 冲突等）见 [references/troubleshooting.md](references/troubleshooting.md)。
