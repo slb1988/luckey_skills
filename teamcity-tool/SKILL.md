@@ -118,6 +118,12 @@ grep -i "plugin" <log-file> | grep -i "load\|init\|fail"
 Agent config: `<data-dir-adjacent>/buildAgent/conf/buildAgent.properties`
 Check `serverUrl` is correct and agent is connected.
 
+<memory category="troubleshooting">
+TeamCity 的 Agent 兼容性还取决于构建参数引用能否解析，并非只看 Agent 名称要求。
+`PLN_FlowAiReview` 的 `Task_Sync_CyanCook_Depot` 收到 `P4Stream=%env.p4_stream%` 而缺少 `env.p4_stream` 时，符合名称要求的 Agent 仍会被 Sync 判为不兼容，阻塞整链；放宽名称正则无效。
+Flow→Sync 的分支透传必须保证 `P4Stream` 在 Sync 自身上下文中解析为实际 stream（如 `MainDev`）；诊断以排队 Sync 的实际参数为准。
+</memory>
+
 <memory category="common-patterns">
 To allow exactly several named agents, use one `teamcity.agent.name` `matches` requirement with anchored alternation, e.g. `^(?:WinBuilder1|WinBuilder4)$`. Separate TeamCity requirements are ANDed, so two `equals` requirements cannot express this OR. Replace any existing name requirement rather than stacking another; for versioned settings, make the equivalent Kotlin DSL change (`requirements { matches(...) }`) so a UI-only edit is not overwritten.
 </memory>
