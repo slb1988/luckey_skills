@@ -1,0 +1,26 @@
+{
+  "removals": [],
+  "approvals": [
+    {
+      "review_id": "01a07f6d-cf92-72ff-92fa-a67eef1c9207",
+      "content_mode": "curated",
+      "rationale": "auto-review: Jira 复刻数据库设计（38表/297字段/ER图/PGlite 验证），实体边均有正文支撑；scan 的 sensitive_pattern 系 sk- 子串误报（已修），dry-run 决策一致；novelty=novel。用户已确认。"
+    },
+    {
+      "review_id": "01a07f69-223f-7f8b-974d-7b951d7f4d6a",
+      "content_mode": "original",
+      "rationale": "auto-review: 空预览但正文有实质长期内容（D盘占用结构、ue-gitdeps 依赖缓存性质、清理候选代价），按 original 入库；dry-run 决策一致；novelty=novel。用户已确认。"
+    },
+    {
+      "review_id": "01a07f66-35a7-7979-a136-8bb086047b21",
+      "content_mode": "original",
+      "rationale": "auto-review: 迁移完成记录含长期事实（requeue_requested 字段、迁移版本演进、先于迁移启动的运维边界），预览薄（1实体0边）按 original；dry-run 决策一致；novelty=evolution。用户已确认。"
+    },
+    {
+      "review_id": "01a07f63-f1e6-7db5-9b05-1115cdd91d66",
+      "content_mode": "curated",
+      "rationale": "auto-review: AI 评审会话续接与 .6 直连决定（演进链），计划未实施状态如实标注，实体边均可溯源；dry-run 决策一致；novelty=evolution。用户已确认。"
+    }
+  ],
+  "rejections": []
+}

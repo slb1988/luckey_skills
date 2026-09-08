@@ -1,94 +1,97 @@
 [
  {
-  "review_id": "01a06cff-e22c-72fb-a4bd-9dac8d06bac1",
-  "project_id": "memory-hub",
+  "review_id": "01a07e95-0d98-763d-ace1-8a23df74eec8",
+  "project_id": "obsidianvault",
   "memory_type": "session_summary",
-  "summary": "我作为 sunlaibing admin账号登录，创建 user 账号，报错 index-CPq-jitj.js:1790 POST https://lucke",
-  "created_at": "2026-09-04T15:18:24.035303Z",
-  "entity_count": 7,
-  "edge_count": 6,
+  "summary": "Astra 上下文扩容至1M",
+  "created_at": "2026-09-08T01:14:52.686293Z",
+  "entity_count": 0,
+  "edge_count": 0,
+  "novelty": {
+   "status": "processing",
+   "admission": null,
+   "rationale": "历史知识比对进行中"
+  },
+  "distilled_content": "首个用户目标：为什么 本地的 pi astra 上下文只有 272k, 如何修改为 1M。最近用户目标：修改。会话结果：已修改 `C:\\Users\\admin\\.pi\\agent\\models.json`。 验证结果：**`openai-codex/gpt-6-astra` 上下文已显示 1M**，其他配置未变，原文件已备份。 当前会话请打开 `/model` 重新选择 Astra，或重启 Pi 生效。",
+  "proposed": {},
+  "flags": [
+   {
+    "check": "empty_preview",
+    "severity": "escalate",
+    "detail": "预览为空；curated 不可用，只能 original 或人工看正文"
+   },
+   {
+    "check": "novelty_not_completed",
+    "severity": "escalate",
+    "detail": "novelty 分析未完成：processing（批准会 fail-closed）"
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "预览为空；curated 不可用，只能 original 或人工看正文",
+    "novelty 分析未完成：processing（批准会 fail-closed）"
+   ],
+   "removals": []
+  }
+ },
+ {
+  "review_id": "01a07e94-3d52-7978-8732-e6de6a465690",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "修改Pi模型上下文为1M",
+  "created_at": "2026-09-08T01:13:59.367635Z",
+  "entity_count": 2,
+  "edge_count": 2,
   "novelty": {
    "status": "completed",
-   "admission": "evolution",
-   "rationale": "新记忆不仅修复并显式改变了候选2描述的『BFF 框架校验失败返回 422』行为（改为全局 400 INVALID_ARGUMENT 信封），还新增了错误信封格式、前端校验规则、协议互锁测试与 codex review 迭代结果等历史候选未覆盖的事实。"
+   "admission": "novel",
+   "rationale": "新记忆包含历史候选未覆盖的长期事实：Pi 0.85.1 模型目录中 gpt-6-astra 默认 contextWindow 为 272000、这是配置值而非内存限制、改 1M 需编辑 ~/.pi/agent/models.json 新增 provider 项并重选模型、不应改 models-store.json 和 maxTokens、且该设置不解除服务端限制。候选 1/2 虽也谈 pi models.json 的 contextWindow 配置，但主体是本地 vLLM/Ollama provider（16K/128K），与 astra/Codex 不是同一可复用事实，不构成替代、矛盾或细化关系。"
   },
-  "distilled_content": "首个用户目标：我作为 sunlaibing admin账号登录，创建 user 账号，报错 index-CPq-jitj.js:1790 POST https://luckeyhome.site/memory-hub/api/v1/admin/users 422 (Unprocessable Content) ，什么原因，fix ，然后 orca 编排 codex review，针对结果继续求改迭代。最近用户目标：我作为 sunlaibing admin账号登录，创建 user 账号，报错 index-CPq-jitj.js:1790 POST https://luckeyhome.site/memory-hub/api/v1/admin/users 422 (Unprocessable Content) ，什么原因，fix ，然后 orca 编排 codex review，针对结果继续求改迭代。会话结果：完成。总结： ## 根因 你创建 user 账号时的 **422 来自 dashboard BFF（FastAPI）的请求体校验**——最可能是初始密码 < 8 位（或用户名 < 2 位）。链路问题有两个： 1. **BFF 泄漏了 FastAPI 原生 422**（`{detail: [...]}` 数组），而不是 hub 风格的 `{error: {code, message}}` 信封；前端 `parseOrThrow` 把 `detail` 数组直接 `String()`，错误提示变成 `[object Object]`，所以你只能在 console 里看到裸 422。 2. **创建用户表单零客户端校验**，非法输入直接打后端。 ## 修复（6 文件） | 文件 | 改动 | |---|---| | `backend/dashboard_backend/main.py` | 全局 `RequestValidationError` → **400 INVALID_ARGUMENT 信封**（message 为 `字段: 原因` 可读文本） | | `frontend/src/api/client.ts` | `formatDetail` 防御性格式化 + 严格类型守卫（`isRecord`，畸形整体回退） | | `frontend/src/views/UsersView.vue` | 创建前置校验：用户名 `^[a-z0-9][a-z0-9._-]{1,31}$`、密码 8–256（按 code point 计）、显示名 ≤64 | | `protocol/openapi.yaml` | 新增 `InvalidArgument`(400)/`DomainInvalidArgument`(422) 可复用响应，30+ operation 补齐声明，password 补 `maxLength: 256`，措辞明确「框架级 400 / 领域校验按端点声明」 | | `backend/tests/` | 新增 4 个用例（信封完整性、loc 语义、多错误拼接、非法 JSON）+ **协议互锁强化**：以 FastAPI 生成 schema 为基准，凡可触发框架校验的 operation 必须声明解析到 Error 的 400（已做两类负向验证） | ## Orca 编排 codex review：4 轮迭代 - **R1**（非 LGTM）：1 major（全局 422→400 只同步了 1 个端点的协议）+ 3 minor（loc 过滤误删业务字段 `query`/`path`、信封伪称与 hub 一致、password maxLength 三方不一致）+ 1 nit（类型退化） - **R2**（非 LGTM）：发现互锁不解析 `$ref` 参数导致 `GET /outbox` 漏声明、既有裸 400 缺 schema - **R3**（非 LGTM）：仅剩 5 个 GET 端点的显式领域 422 未声明 - **R4**（终审）：**LGTM** ✅ 小插曲：第一轮 codex 被 hooks 信任弹窗卡住导致 dispatch capability 被吊销，`worker_done` 送达失败，已通过回收其 `/tmp` 报告 + 手动 t",
+  "distilled_content": "首个用户目标：为什么 本地的 pi astra 上下文只有 272k, 如何修改为 1M。最近用户目标：为什么 本地的 pi astra 上下文只有 272k, 如何修改为 1M。会话结果：查到了：你当前用的是 **`openai-codex/gpt-6-astra`**，本机 Pi 0.85.1 的模型目录将 `contextWindow` 默认设为 **272000**。这是 Pi 的配置值，不是电脑内存限制；272K 同时也是模型元数据里的长上下文计价分界。 ### 改成 1M 编辑 **`C:\\Users\\admin\\.pi\\agent\\models.json`**，在现有 `providers` 内新增以下项，保留其他配置： 然后打开 `/model` 重新选择 Astra，或重启 Pi。验证： **注意：** - 不要修改 `models-store.json`，它是会被刷新的缓存。 - 不用改 `maxTokens`，那是最大输出长度。 - 此设置调整 Pi 的上下文显示和自动压缩阈值，**不能解除服务端限制**；当前 Codex 账号是否接受 1M 请求尚未实测，长上下文也可能消耗更多额度。 目前只检查了配置，**尚未修改**。",
   "proposed": {
    "entities": [
     {
-     "name": "memory-hub",
-     "type": "Project",
-     "summary": "部署在 luckeyhome.site 的记忆中枢项目，含 dashboard 前端（vue）与 FastAPI BFF（backend/dashboard_backend），管理接口路径 /memory-hub/api/v1/admin/*"
+     "name": "pi-agent",
+     "type": "Tool",
+     "summary": "本机智能体 CLI Pi 0.85.1；模型上下文窗口等配置通过 C:\\Users\\admin\\.pi\\agent\\models.json 的 providers 项定义，models-store.json 是会被刷新的缓存不应手改；maxTokens 表示最大输出长度而非上下文窗口；contextWindow 设置影响上下文显示与自动压缩阈值，但不能解除服务端限制。"
     },
     {
-     "name": "dashboard bff",
+     "name": "openai-codex/gpt-6-astra",
      "type": "Service",
-     "summary": "memory-hub 的 FastAPI 后端（backend/dashboard_backend/main.py），曾把 FastAPI 原生 422 校验错误直接泄漏给前端"
-    },
-    {
-     "name": "dashboard frontend",
-     "type": "Service",
-     "summary": "memory-hub 的 vue 前端（frontend/src），api client.ts 的 parseOrThrow 曾把 detail 数组渲染成 [object Object]"
-    },
-    {
-     "name": "error envelope convention",
-     "type": "Convention",
-     "summary": "memory-hub 统一错误信封 {error:{code,message}}：框架级请求校验错误（FastAPI RequestValidationError）须全局转为 400 INVALID_ARGUMENT，message 为「字段: 原因」可读文本；领域校验错误按端点在 openapi.yaml 声明为 422 DomainInvalidArgument"
-    },
-    {
-     "name": "protocol interlock test",
-     "type": "Convention",
-     "summary": "协议互锁测试以 FastAPI 生成 schema 为基准（须解析 $ref 参数）：凡可触发框架校验的 operation 必须在 openapi.yaml 声明解析到 Error schema 的 400 响应"
-    },
-    {
-     "name": "user creation validation rules",
-     "type": "Convention",
-     "summary": "创建用户的校验规则：用户名 ^[a-z0-9][a-z0-9._-]{1,31}$，密码 8–256（按 code point 计），显示名 ≤64；前端创建表单须前置校验，三方（前端/BFF/openapi）保持一致"
-    },
-    {
-     "name": "orca codex review loop",
-     "type": "Convention",
-     "summary": "用 orca 编排 codex review 的工作流：逐轮修复 major/minor/nit 直至终审 LGTM（本次 4 轮）；注意 codex 可能被 hooks 信任弹窗卡住导致 dispatch capability 被吊销、worker_done 送达失败，可回 /tmp 回收报告"
+     "summary": "Codex 账号下的 Astra 模型；Pi 模型目录中其 contextWindow 默认为 272000，272K 同时是模型元数据里的长上下文计价分界；该账号是否接受 1M 上下文请求尚未实测，长上下文可能消耗更多额度。"
     }
    ],
    "edges": [
     {
-     "source": "dashboard bff",
-     "target": "memory-hub",
-     "name": "PART_OF",
-     "fact": "dashboard bff（FastAPI, backend/dashboard_backend）是 memory-hub 的后端服务，向 dashboard 前端提供 /memory-hub/api/v1/admin/* 接口"
+     "source": "pi-agent",
+     "target": "openai-codex/gpt-6-astra",
+     "name": "SETS_DEFAULT_CONTEXT_WINDOW",
+     "fact": "Pi 0.85.1 的模型目录将 openai-codex/gpt-6-astra 的 contextWindow 默认设为 272000，这是 Pi 的配置值而非电脑内存限制。"
     },
     {
-     "source": "dashboard frontend",
-     "target": "dashboard bff",
-     "name": "CALLS",
-     "fact": "dashboard 前端通过 client.ts 的 parseOrThrow 调用 dashboard bff；曾因 BFF 泄漏 FastAPI 原生 422 detail 数组导致错误提示显示为 [object Object]"
-    },
-    {
-     "source": "dashboard bff",
-     "target": "error envelope convention",
-     "name": "FOLLOWS",
-     "fact": "dashboard bff 注册全局 RequestValidationError 处理器，把框架级 422 转为 400 INVALID_ARGUMENT 的 {error:{code,message}} 信封，message 为「字段: 原因」可读文本"
-    },
-    {
-     "source": "memory-hub",
-     "target": "protocol interlock test",
-     "name": "ENFORCES",
-     "fact": "memory-hub 以协议互锁测试强制 openapi.yaml 与 FastAPI 实现一致：可触发框架校验的 operation 必须声明 400 Error 响应，领域 422 也须按端点显式声明"
-    },
-    {
-     "source": "dashboard frontend",
-     "target": "user creation validation rules",
-     "name": "IMPLEMENTS",
-     "fact": "创建用户表单在提交前做客户端校验：用户名 ^[a-z0-9][a-z0-9._-]{1,31}$、密码 8–256（code point 计）、显示名 ≤64，避免非法输入直接打后端产生 422"
-    },
-    {
-     "source": "orca codex review loop",
-     "target": "memory-hub",
-     "name": "APPLIED_TO",
-     "fact": "memory-hub 的修复流程采用 orca 编排 codex review：非 LGTM 结果逐轮修复再评审，直到终审 LGTM（422 修复案例共 4 轮）"
+     "source": "pi-agent",
+     "target": "openai-codex/gpt-6-astra",
+     "name": "CONTEXT_WINDOW_OVERRIDE",
+     "fact": "要将 Astra 上下文改为 1M，可在 C:\\Users\\admin\\.pi\\agent\\models.json 的现有 providers 内新增配置项（保留其他配置），然后通过 /model 重新选择 Astra 或重启 Pi 生效；截至会话结束仅完成排查、尚未修改配置，且 Codex 账号是否接受 1M 请求未实测。"
     }
-   ]
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "pi-agent",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "openai-codex/gpt-6-astra",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
   },
   "flags": [],
   "suggestion": {
@@ -102,56 +105,2207 @@
   }
  },
  {
-  "review_id": "01a06cfb-4e63-7750-a049-ba57f1ab9891",
-  "project_id": "admin_sun_depot_7184",
+  "review_id": "01a07e4d-4a6c-7705-a06f-e08120a0f4e7",
+  "project_id": "auto-server",
   "memory_type": "session_summary",
-  "summary": "RequestReview.py 控制台闪烁优化",
-  "created_at": "2026-09-04T15:13:24.057844Z",
-  "entity_count": 4,
+  "summary": "排查下 pyautomation 为啥服务挂掉了",
+  "created_at": "2026-09-07T23:56:29.666016Z",
+  "entity_count": 3,
   "edge_count": 2,
   "novelty": {
    "status": "completed",
    "admission": "evolution",
-   "rationale": "新记忆包含历史候选未覆盖的长期事实：p4.exe 子进程绕过 pythonw 静默机制产生控制台闪烁，及统一 P4 入口增加 CREATE_NO_WINDOW 的修复方案；该事实对候选4中『watcher 脱离控制台即静默』的隐含结论构成边界补充，形成 REFINES 演进关系。"
+   "rationale": "新记忆包含历史候选未覆盖的长期事实：binlog 保留期已被 SET PERSIST 改为 1 天（替代旧 7 天配置）、9月5日为爆发点的逐日增量时间线、72 个文档需在 UI 重新解析、Redis 队列变空的未根治根因、LLM 网关 ConnectError 隐患线，存在 SUPERSEDES 与 REFINES 关系。"
   },
-  "distilled_content": "首个用户目标：为什么 RequestReview.py 在单子提交成功后，弹出最终的结果dialog窗口前，会频繁刷新控制台之类的窗口，有点晃眼，能不能静默无感知，或者优化下代码，记得更新同步另一个同名文件。最近用户目标：为什么 RequestReview.py 在单子提交成功后，弹出最终的结果dialog窗口前，会频繁刷新控制台之类的窗口，有点晃眼，能不能静默无感知，或者优化下代码，记得更新同步另一个同名文件。会话结果：已优化完成。 **原因** - watcher 虽由 `pythonw.exe` 启动，但内部连续调用的 `p4.exe` 仍会创建临时控制台。 - 提交成功后的收尾会执行多条 `opened/diff/revert/sync/change`，因此黑框连续闪烁。 **修复** - `DevOps/RequestReview.py` 的统一 P4 入口增加 Windows `CREATE_NO_WINDOW`。 - 输出仍静默捕获到日志，错误诊断不受影响。 - 最终结果 Dialog 保留，前面的控制台闪烁将消失。 - 已同步： - dist 镜像 `//depot/DevOps/dist/RequestReview.py` - 本机 P4VUtils 运行副本，并保持只读属性 **验证** - RequestReview 单测：`83 passed` - 后端全量：`1866 passed, 11 skipped` - 源文件与 dist 镜像逐字节一致 待人工提交： - 源 CL **1477** - dist CL **129333** 新启动的 Request Review watcher 即会使用修复版。",
+  "distilled_content": "首个用户目标：排查下 pyautomation 为啥服务挂掉了。最近用户目标：ragflow 就这几天出的么？之前有没有这个问题，帮我细察究竟是什么导致的。会话结果：**止血成功**：binlog 连续 2 分钟零增长（卡在 905MB 不动），磁盘从 5.2G → **394G 可用**。以下是完整调查报告： --- # RAGFlow binlog 风暴调查报告 ## 是不是这几天才出的？ **是，9月5日爆发的。** binlog 每日增量曲线： | 日期 | binlog 量 | 状态 | |------|----------|------| | 09-01 | 13 GB | ✅ 正常基线 | | 09-02 ~ 09-04 | 31~48 GB | ⚠️ 轻度异常（恰逢 LLM ConnectError 开始出现，约500次/天） | | **09-05** | **586 GB** | 🔴 爆炸（10倍跳变） | | 09-06 | 712 GB | 🔴 | | 09-07 | 697 GB | 🔴 → 09-08 05:55 磁盘写满，MySQL 全崩 | 之前没有这个问题——8 月初的 executor 日志、9/1 的基线都正常。 ## 究竟是什么导致的（完整链条） ## 已执行的处置 | 操作 | 效果 | |------|------| | 取消 72 个卡死文档（`run=1→2`），73 个孤儿 task 标记失败 | ✅ 心跳洪水立即停止（07:46 起零增长） | | `PURGE BINARY LOGS` + 保留期改为 **1 天**（SET PERSIST） | ✅ 释放 ~370G，磁盘 394G 可用 | | 重启 ragflow 容器 | ✅ 服务正常（9380 已就绪） | ## 遗留问题（需要你关注） 1. **那 72 个文档需要在 RAGFlow UI 里重新点\"解析\"**——数据没丢，只是解析状态被取消了。建议先拿 1 个验证能正常走完。 2. **根因未除**：Redis 队列为什么是空的还没查清（疑似 9/5 前后 Redis 数据被清/重建）。**明天凌晨 04:30 自动同步后请留意是否有新文档再次卡住**——若再现，同样方式取消即可止血，但要根治需查 data_sync/Redis 这条线。 3. LLM 网关从 9/2 起每天有几百次 ConnectError，这是另一条隐患线，建议单独查。 要不要我顺便把之前说好的 ②opencode 70G 日志、③悬空镜像 清掉？",
   "proposed": {
    "entities": [
     {
-     "name": "requestreview.py",
-     "type": "Tool",
-     "summary": "DevOps 下的提交评审工具脚本，由 pythonw.exe 启动 watcher 并内部调用 p4.exe 执行 P4 操作"
+     "name": "ragflow",
+     "type": "Service",
+     "summary": "RAGFlow 文档解析服务（端口 9380），组件包括 MySQL（binlog）、Redis 任务队列和 executor。2025-09-05 起发生 binlog 风暴：72 个文档解析卡死后产生心跳写入洪水，binlog 日增量从 9/1 的 13GB 基线暴增至 586GB（9/5）、712GB（9/6），09-08 05:55 磁盘写满导致 MySQL 崩溃。已通过取消 72 个卡死文档（run=1→2）、标记 73 个孤儿 task 失败并重启容器止血。根因未除：Redis 队列为何为空尚未查清，疑似 9/5 前后 Redis 数据被清或重建（未确认）；被取消的 72 个文档需在 UI 重新解析，且需观察每日 04:30 自动同步后是否有新文档再次卡住。"
     },
     {
-     "name": "create_no_window fix",
-     "type": "Decision",
-     "summary": "在 RequestReview.py 的统一 P4 入口为 Windows 子进程增加 CREATE_NO_WINDOW 标志，消除 p4.exe 频繁创建临时控制台导致的黑框闪烁，输出仍静默捕获到日志"
-    },
-    {
-     "name": "requestreview dist 同步约定",
+     "name": "ragflow-mysql-binlog-retention",
      "type": "Convention",
-     "summary": "修改 DevOps/RequestReview.py 后必须同步 dist 镜像 //depot/DevOps/dist/RequestReview.py 及本机 P4VUtils 运行副本（保持只读属性），并保证源文件与 dist 逐字节一致"
+     "summary": "RAGFlow 的 MySQL binlog 保留期配置：2025-09-08 磁盘写满事件后通过 SET PERSIST 将 binlog 保留期改为 1 天，并执行 PURGE BINARY LOGS 释放约 370G 磁盘。"
     },
     {
-     "name": "p4.exe 控制台闪烁问题",
-     "type": "Concept",
-     "summary": "watcher 虽由 pythonw.exe 启动，但内部连续调用的 p4.exe 仍会创建临时控制台；提交成功后收尾执行多条 opened/diff/revert/sync/change 命令导致黑框连续闪烁"
+     "name": "llm-gateway",
+     "type": "Service",
+     "summary": "LLM 网关服务。自 2025-09-02 起每天出现约数百次 ConnectError，与 RAGFlow binlog 风暴是并行的独立隐患线，原因尚未排查。"
     }
    ],
    "edges": [
     {
-     "source": "create_no_window fix",
-     "target": "p4.exe 控制台闪烁问题",
-     "name": "FIXES",
-     "fact": "RequestReview.py 通过在统一 P4 入口增加 Windows CREATE_NO_WINDOW 标志，修复了 p4.exe 子进程频繁弹出临时控制台导致结果 Dialog 前黑框闪烁的问题"
+     "source": "ragflow-mysql-binlog-retention",
+     "target": "ragflow",
+     "name": "APPLIES_TO",
+     "fact": "2025-09-08 磁盘写满事件后，RAGFlow 的 MySQL 通过 SET PERSIST 将 binlog 保留期改为 1 天，并执行 PURGE BINARY LOGS 释放约 370G，磁盘恢复至 394G 可用。"
     },
     {
-     "source": "requestreview dist 同步约定",
-     "target": "requestreview.py",
-     "name": "APPLIES_TO",
-     "fact": "每次修改 DevOps/RequestReview.py 都必须同步更新 dist 镜像 //depot/DevOps/dist/RequestReview.py 和本机 P4VUtils 运行副本（保持只读属性），并验证逐字节一致"
+     "source": "ragflow",
+     "target": "llm-gateway",
+     "name": "DEPENDS_ON",
+     "fact": "RAGFlow 使用的 LLM 网关自 2025-09-02 起每天出现约数百次 ConnectError，截至调查时原因尚未排查，被列为独立于 binlog 风暴的另一条隐患线。"
     }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "ragflow",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "ragflow-mysql-binlog-retention",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "llm-gateway",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
    ]
+  }
+ },
+ {
+  "review_id": "01a07e44-7cc5-7d03-8057-84598fbdc1ef",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "AI评审流中stream不匹配问题排查",
+  "created_at": "2026-09-07T23:46:52.731743Z",
+  "entity_count": 3,
+  "edge_count": 2,
+  "novelty": {
+   "status": "completed",
+   "admission": "novel",
+   "rationale": "新记忆的核心事实——STREAM_MISMATCH 报错实际发生在 AiReviewContextCollect.py 的 collect_diff() 而非 Unshelve 步、触发条件是 CL 混合 MainDev 与 WwiseProject_main 文件、以及 in-stream/outside 分区过滤的修复方案——在所有历史候选中均无覆盖。候选1是 depot 主干污染导致编译失败，候选2是 Stable 流缺失评审脚本导致 exit 2，候选4是工作区基座迁移，候选10是评审触发锁问题，均为不同根因的不同事实，不构成版本演进关系。"
+  },
+  "distilled_content": "首个用户目标：pyautomation ai review ws:autoserver-deveops 调用 ai 分析时，在第一步 unshelve 的时候，会出现问题 in directory: /mnt/disk2/TeamCity/buildAgent/p4ws/DefaultAgent_MainDev 00:40:43 Error: STREAM_MISMATCH: CL 129591 has files outside //CyanCookOfficialDepot/MainDev/: ['//CyanCookOfficialDepot/WwiseProject_main/Actor-Mixer Hierarchy/Hit.wwu', '//CyanCookOfficialDepot/WwiseProject_main/Events/Default Work Unit.wwu', '//CyanCookOfficialDepot/WwiseProject_main/Events/Hit.wwu'] 00:40:43 Process exited with code 3 针对不是 //CyanCookOfficialDepot/{stream-name} 的资源，unshelve会报错，这个对于此类错误应该要兼容，要么在unshelve的时候就要做过滤，你自己判断修改，修改前分发给 orca 编排 codex review，最后先给我方案，再执行。最近用户目标：pyautomation ai review ws:autoserver-deveops 调用 ai 分析时，在第一步 unshelve 的时候，会出现问题 in directory: /mnt/disk2/TeamCity/buildAgent/p4ws/DefaultAgent_MainDev 00:40:43 Error: STREAM_MISMATCH: CL 129591 has files outside //CyanCookOfficialDepot/MainDev/: ['//CyanCookOfficialDepot/WwiseProject_main/Actor-Mixer Hierarchy/Hit.wwu', '//CyanCookOfficialDepot/WwiseProject_main/Events/Default Work Unit.wwu', '//CyanCookOfficialDepot/WwiseProject_main/Events/Hit.wwu'] 00:40:43 Process exited with code 3 针对不是 //CyanCookOfficialDepot/{stream-name} 的资源，unshelve会报错，这个对于此类错误应该要兼容，要么在unshelve的时候就要做过滤，你自己判断修改，修改前分发给 orca 编排 codex review，最后先给我方案，再执行。会话结果：方案已出，先给你审（存在 `.claude/plans/AiReview混合stream_CL兼容.md`）： ## 问题定位（已实证） **报错不在真正的 Unshelve 步**，而在 PLN_TaskAiReview 的第一个内容步 **\"Collect Review Context\"**： - 报错文案精确匹配 `Tools/AiReview\\AiReviewContextCollect.py` 的 `collect_diff()`（**MainDev depot**，不在 DevOps 仓） - TeamCity 记录佐证：CL 129591 的上游 **Task_Unshelve #571 成功**（00:40:31），**Task_AiReview #308 失败**（00:41，exit 3） - 触发条件：CL 混合了 `//CyanCookOfficialDepot/MainDev/` 和 `//CyanCookOfficialDepot/WwiseProject_main/` 的文件（音频同事把 Wwise 工程改动和游戏改动放一个 CL）。脚本取到首个文件的 stream 后，把其余不在前缀下的文件当致命错误 ## 修改方案（只改 1 个文件） `D:\\MainDev\\Tools\\AiReview\\AiReviewContextCollect.py` 的 `collect_diff()`，stream 校验从硬失败改为**分区过滤**： 1. 按目标 stream 前缀把文件分 in-stream / outside 两组 2. in-stream 为空 → 维持 exit 3（整 CL 属于别的 stream，评审对象错了，仍该 fail） 3. in-stream 非空 → outside 文件不进 diff，在 `shelved_diff.txt` 头部写 `SKIPPED: N files outside <prefix>` 节并列前 ~20 个路径（评审 agent 和人都知情） 4. self_touched / diff 统计只基于 in-stream；docstring 退出码语义同步更新 **不动**：DevOps 仓的 `P4UnshelveStage.py`（实证对混合 CL 正常）、任何 kts。 ## 验证 - 本地用 CL 129591 直跑采集脚本（236 服务器，非 unicode）：exit 0、diff 只含 MainDev 文件、头部有 SKIPPED 节 - 回归纯 MainDev CL（129672）：输出与现状一致 ## 执行编排（你确认后） 1. Orca Run → pi worker 在 `path:D:\\MainDev` 改码 + 本地验证（P4 管理，不动 git） 2. codex worker 对 pending CL 做 review 3. 收敛后**留 pending CL 给你 submit**，不自动提交 一个提示：你说的是 `ws:autoserver-deveops`（DevOps 仓），但实际要改的文件在 **MainDev depot**——DevOps 仓的 unshelve 脚本没有问题。确认方案 OK 的话我就建 Orca Run 开始执行。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "pyautomation-ai-review",
+     "type": "Service",
+     "summary": "pyautomation 的 AI 评审流水线（PLN_TaskAiReview），TeamCity 上依次为 unshelve 步与首个内容步 Collect Review Context；Collect Review Context 实际调用 MainDev depot 的 Tools/AiReview/AiReviewContextCollect.py 采集 CL diff"
+    },
+    {
+     "name": "aireviewcontextcollect-collect-diff",
+     "type": "Tool",
+     "summary": "MainDev depot Tools/AiReview/AiReviewContextCollect.py 中的 collect_diff()：采集 shelved CL 的 diff 并做 stream 前缀校验，当前实现对混合 stream CL（如同时含 //CyanCookOfficialDepot/MainDev/ 与 //CyanCookOfficialDepot/WwiseProject_main/ 文件）把前缀外文件当致命错误，报 STREAM_MISMATCH 并以 exit 3 退出"
+    },
+    {
+     "name": "mixed-stream-cl-filtering",
+     "type": "Concept",
+     "summary": "待用户确认的兼容方案（存于 .claude/plans/AiReview混合stream_CL兼容.md，尚未实施）：collect_diff() 按目标 stream 前缀把文件分 in-stream/outside 两组，in-stream 为空维持 exit 3，非空时 outside 文件不进 diff 并在 shelved_diff.txt 头部写 SKIPPED 节列前约 20 个路径；本地用 CL 129591 验证通过、纯 MainDev CL 129672 回归一致"
+    }
+   ],
+   "edges": [
+    {
+     "source": "pyautomation-ai-review",
+     "target": "aireviewcontextcollect-collect-diff",
+     "name": "IMPLEMENTS",
+     "fact": "PLN_TaskAiReview 流水线的 Collect Review Context 步通过 MainDev depot Tools/AiReview/AiReviewContextCollect.py 的 collect_diff() 采集 diff；CL 129591 的 STREAM_MISMATCH（exit 3）实证发生在该步而非 unshelve 步——上游 Task_Unshelve #571 成功、Task_AiReview #308 失败，DevOps 仓（ws:autoserver-deveops）的 P4UnshelveStage.py 对混合 stream CL 验证正常、无需改动"
+    },
+    {
+     "source": "mixed-stream-cl-filtering",
+     "target": "aireviewcontextcollect-collect-diff",
+     "name": "APPLIES_TO",
+     "fact": "针对 collect_diff() 的待确认修改方案：stream 校验从硬失败改为按 //CyanCookOfficialDepot/{stream-name}/ 前缀分区过滤，in-stream 为空时仍 exit 3（评审对象错误应 fail），in-stream 非空时 outside 文件不进 diff、self_touched 与 diff 统计只基于 in-stream，并在 shelved_diff.txt 头部写 SKIPPED 节；该方案尚未获用户确认、未实施"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "pyautomation-ai-review",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "aireviewcontextcollect-collect-diff",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "mixed-stream-cl-filtering",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07e43-2084-7e23-9511-5907962f1580",
+  "project_id": "auto-server",
+  "memory_type": "session_summary",
+  "summary": "停服，但不要启动",
+  "created_at": "2026-09-07T23:45:23.578138Z",
+  "entity_count": 4,
+  "edge_count": 3,
+  "novelty": {
+   "status": "completed",
+   "admission": "novel",
+   "rationale": "新记忆包含多个历史候选未覆盖的长期事实：通过 `db upgrade 43db9912612e` 定向升级绕过多头冲突的迁移状态、`ai_review_jobs.claim_token` 列已验证存在、以及 `7a0c333004f0`（ugs_pcb_manifest）仍是悬空 head 并需补 merge revision 的遗留决策建议。候选 1-10 均为后端发布、P4 署名修正、TeamCity 构建修复、磁盘排查等无关会话，无一涉及该迁移状态或双头问题，故不存在 SUPERSEDES/CONTRADICTS/REFINES/CONFIRMS 关系。"
+  },
+  "distilled_content": "首个用户目标：停服，但不要启动。最近用户目标：跑!。会话结果：迁移完成 ✅ - **执行**：`db upgrade 43db9912612e`（定向升级，绕过多头冲突） - **验证**： - `alembic_version` → `43db9912612e` - `ai_review_jobs.claim_token` → `varchar(36)` 已存在 ✅ - 后端 HTTP 200，运行正常（SQLAlchemy 运行时生成 SQL，无需重启即可用上新列） ⚠️ **遗留问题**：`7a0c333004f0`（ugs_pcb_manifest）仍是悬空 head（表已手动建过，但其分支从旧 init `823315f9b643` 分叉）。今后任何人跑裸 `db upgrade head` 都会再撞 \"Multiple head revisions\"。建议在 depot 里补一个 merge revision（`down_revision = ('43db9912612e', '7a0c333004f0')`）收编它，并同步更新 migration_log.md 的硬性要求记录。需要我写这个 merge 迁移文件的话说一声。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "ai_review_jobs",
+     "type": "Concept",
+     "summary": "数据库表，含 claim_token 列（varchar(36)），由 Alembic 迁移 43db9912612e 添加；SQLAlchemy 运行时生成 SQL，后端无需重启即可使用新列。"
+    },
+    {
+     "name": "ugs_pcb_manifest",
+     "type": "Concept",
+     "summary": "数据库表，其对应迁移 7a0c333004f0 为悬空 head：表已手动建过，但该迁移分支从旧 init 823315f9b643 分叉，未收编进主链。"
+    },
+    {
+     "name": "alembic-migrations",
+     "type": "Project",
+     "summary": "项目 Alembic 迁移链；当前已通过定向 `db upgrade 43db9912612e` 绕过多头冲突，但仍存在一个未收编的悬空 head 分支。"
+    },
+    {
+     "name": "merge-revision-proposal",
+     "type": "Concept",
+     "summary": "建议（助手提出、用户尚未批准、未实施）：在 depot 补一个 merge revision 收编悬空 head，并同步更新 migration_log.md 的硬性要求记录。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "alembic-migrations",
+     "target": "ai_review_jobs",
+     "name": "APPLIES_TO",
+     "fact": "迁移 43db9912612e 已通过定向 `db upgrade 43db9912612e` 应用（绕过多头冲突），ai_review_jobs.claim_token 列确认为 varchar(36) 且已存在。"
+    },
+    {
+     "source": "ugs_pcb_manifest",
+     "target": "alembic-migrations",
+     "name": "HAS_DANGLING_HEAD",
+     "fact": "ugs_pcb_manifest 对应的迁移 7a0c333004f0 仍是悬空 head（表已手动建过，分支从旧 init 823315f9b643 分叉）；今后任何人跑裸 `db upgrade head` 都会再撞 \"Multiple head revisions\"。"
+    },
+    {
+     "source": "merge-revision-proposal",
+     "target": "alembic-migrations",
+     "name": "APPLIES_TO",
+     "fact": "建议（待用户确认，尚未实施）：新增一个 merge revision，down_revision = ('43db9912612e', '7a0c333004f0')，以收编悬空 head，并同步更新 migration_log.md 的硬性要求记录。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "ai_review_jobs",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "ugs_pcb_manifest",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "alembic-migrations",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "merge-revision-proposal",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07e36-90b2-75e4-a26b-ba4eea54c4a5",
+  "project_id": "admin_sun_depot_7184",
+  "memory_type": "session_summary",
+  "summary": "时区不一致问题修复",
+  "created_at": "2026-09-07T23:31:40.328626Z",
+  "entity_count": 3,
+  "edge_count": 2,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "存在 SUPERSEDES：候选 1 与候选 3 均将「存量数据回填 / 确认 MySQL 时区」列为部署后待办，新记忆明确报告回填已 COMMIT 完成、时区已核实，任务状态被替代；此外还新增了幂等收尾脚本的运行时机、CL 1514 待提交、ai_review_jobs.claim_token 迁移为发版硬性前置等历史候选未覆盖的长期事实。"
+  },
+  "distilled_content": "首个用户目标：http://192.168.2.13/dashboard/branch-enter 显示的时间，跟时区不一致。最近用户目标：你自己整理好prompt ，后续直接访问数据库来操作修复数据库里的相关日期吧,我已经要准备停服更新了，你直接帮我操作数据库修复， 现在服务器没有啥任务了，没问题后我再重启服务器。会话结果：数据库修复已完成。总结： ## 已执行（生产库 192.168.2.13:13306 / py_automation） 1. **先核实 MySQL 时区**：`@@system_time_zone = UTC` ✓ —— 所以 ai_review（`server_default=func.now()`）、api_tokens（`utcnow`）的时间列本来就是 UTC，无需处理；tapd_* 是外部 TAPD 时间也不动 2. **全量备份**：25 张受影响表全部 `CREATE TABLE <t>_bak_tzfix_20260907 AS SELECT *`（备份表仍在库里，确认没问题后可手工 DROP） 3. **主回填已 COMMIT**：25 张表共 **7940 行**全部 `- INTERVAL 8 HOUR`（NULL 自动跳过） - 抽验：`branch_settings` Stable 行 `16:37:50 CST → 08:37:50 UTC` ✓；`users.groups_updated_at` 最大值与 UTC now 对齐 ✓ 4. **收尾脚本已跑过一次**：修了 11 行（旧代码在我回填后继续写入的心跳漂移：a2a_agent 6 + a2a_computer 5） ## 重启前只剩一件事 旧代码在停服前会一直以 CST 写入（心跳、组缓存刷新等）。**停服后、启动新代码前**，在服务器上跑一次幂等收尾脚本： 它只修「比 UTC now 晚 1 小时以上」的行（CST 写入的特征），幂等，新代码部署后跑也安全。如果你停服后告诉我一声，我也可以直接远程跑。 ## 重启后验证 - branch-enter「最后更新」保存一次配置后应显示当前本地时间 - AgentMonitor 心跳时间正常；agent 离线判定不会出现 8 小时\"幽灵在线\" ## 两个提醒 - **CL 1514**（2 个迁移脚本 + migration_log + 任务文档）已建好待提交，按规则我没提交 - 你们自己的 `migration_log.md` 里记着一条**发版前硬性要求**：`ai_review_jobs.claim_token` 迁移（CL 1513 刚提交的代码依赖它）——发码前先跑 `python -m flask --app manage.py db upgrade`（Env=prod），否则 AI 评审 pipeline 会因缺列全停",
+  "proposed": {
+   "entities": [
+    {
+     "name": "py-automation",
+     "type": "Project",
+     "summary": "Dashboard 后端项目，生产 MySQL 位于 192.168.2.13:13306，库名 py_automation；数据库 @@system_time_zone 为 UTC，ai_review 系列表时间列用 server_default=func.now()、api_tokens 用 utcnow，均原生写入 UTC；含 ai_review_jobs、branch_settings、users、a2a_agent、a2a_computer、tapd_* 等表。"
+    },
+    {
+     "name": "utc-timestamp-convention",
+     "type": "Convention",
+     "summary": "py_automation 库时间列统一按 UTC 存储的约定；历史旧代码曾以 CST 写入，2026-09-07 已对 25 张表约 7940 行做 - INTERVAL 8 HOUR 回填并留有 _bak_tzfix_20260907 备份表，另配幂等收尾脚本（只修比 UTC now 晚 1 小时以上的 CST 特征行），停服后、新代码启动前需再跑一次。"
+    },
+    {
+     "name": "claim-token-migration-requirement",
+     "type": "Convention",
+     "summary": "migration_log.md 中记录的发版前硬性要求：部署依赖 ai_review_jobs.claim_token 列的代码前，必须先执行迁移，否则 AI 评审 pipeline 因缺列全部停摆。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "utc-timestamp-convention",
+     "target": "py-automation",
+     "name": "APPLIES_TO",
+     "fact": "py_automation 库时间列统一按 UTC 存储：MySQL @@system_time_zone=UTC，ai_review 用 server_default=func.now()、api_tokens 用 utcnow；历史 CST 写入数据已通过 - INTERVAL 8 HOUR 回填修复，停服后需再跑一次幂等收尾脚本清理旧代码残留的 CST 心跳写入。"
+    },
+    {
+     "source": "claim-token-migration-requirement",
+     "target": "py-automation",
+     "name": "APPLIES_TO",
+     "fact": "py_automation 发版前硬性要求：部署依赖 ai_review_jobs.claim_token 列的代码前，必须先执行 python -m flask --app manage.py db upgrade（Env=prod），否则 AI 评审 pipeline 会因缺列全部停止。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "py-automation",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "utc-timestamp-convention",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "claim-token-migration-requirement",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07e33-963d-7117-826c-ebd74afcf7ac",
+  "project_id": "auto-server",
+  "memory_type": "session_summary",
+  "summary": "排查下 pyautomation 为啥服务挂掉了",
+  "created_at": "2026-09-07T23:28:25.138857Z",
+  "entity_count": 5,
+  "edge_count": 2,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆包含历史候选未覆盖的长期事实：/var/lib/docker 809G 的详细占用分布、磁盘写满的根因（ragflow MySQL binlog 过期7天×每天几十GB写入）以及清理方案；同时对 rank 10 的故障诊断构成根因层面的细化。"
+  },
+  "distilled_content": "首个用户目标：排查下 pyautomation 为啥服务挂掉了。最近用户目标：1. 可以，minio旧文件是啥意思，得谨慎，暂时不要操作，/var/lib/docker 为什么这么大，需要细排查原因。会话结果：排查完成。`/var/lib/docker` 的 809G 去向全部定位： # 📊 /var/lib/docker 809G 详细分布 | # | 占用者 | 实际大小 | 内容 | 性质 | |---|--------|---------|------|------| | 1 | `docker_mysql_data`（ragflow 的 MySQL） | **431G** | **2346 个 binlog 文件**（每个最大 1.1G） | 🟢 可安全清理 | | 2 | `relay-data`（build-api-proxy） | **234G**（逻辑366G） | 单个 SQLite 文件 `history.db` = 366G | 🟡 需你决策 | | 3 | `opencode-srv` 容器可写层 | **70G~270G** | opencode 日志目录 70G，另有约 200G 疑似容器 stdout json 日志 | 🟢 日志可清 | | 4 | 142 个镜像 | 53G | build-api-proxy 有 30+ 个 rollback tag（每个仅增几百 KB，不多） | 🟢 34G 悬空可清 | | 5 | langfuse/ES/mongo 等其他卷 | ~50G | clickhouse 31G、minio-data 9.5G 等 | ⚪ 正常使用 | ## 根因分析：为什么磁盘会被写满 **头号元凶是 ragflow 的 MySQL binlog**： - binlog 过期时间设为 **7 天**（`binlog_expire_logs_seconds=604800`） - 但 ragflow 的 task executor 写入极其频繁，**每天产生几百 GB binlog**（9/5 到 9/8 三天就攒了 2000+ 个文件） - 7 天 × 每天几十 GB = 431G 稳态占用，且随业务量持续增长 → 9/8 05:55 磁盘撑满 → 三个 MySQL 全崩 ## 建议的清理动作（按收益排序，等你确认） | 操作 | 预计释放 | 风险 | |------|---------|------| | ① purge ragflow mysql 7天前的 binlog + 把过期时间改为 **1天** | **~370G** | 极低：无主从复制，binlog 仅用于时间点恢复；保留最近1天足够 | | ② 清 opencode 容器内 70G 日志 | ~70G | 低：纯日志文件 | | ③ `docker image prune`（只清悬空镜像，不动 rollback tag） | ~30G | 低 | | ④ build-api-proxy 的 `history.db`（366G SQLite） | 最大 200G+ | ⚠️ 这是你的业务数据（API 代理历史记录），需要确认保留策略后做删数据+VACUUM，**我先不动** | | ⑤ minio 229G | — | ❌ 按你要求不碰 | ①②③ 合计可释放 **~470G**，是否执行？④ 需要你先告诉我 history.db 里的历史记录要保留多久。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "ragflow",
+     "type": "Service",
+     "summary": "RAG 服务，其 MySQL 数据卷 docker_mysql_data 在 /var/lib/docker 中占用 431G（2346 个 binlog 文件，每个最大 1.1G）。task executor 写入极其频繁，每天产生几十 GB binlog。binlog 无主从复制，仅用于时间点恢复。"
+    },
+    {
+     "name": "binlog_expire_logs_seconds",
+     "type": "Convention",
+     "summary": "ragflow MySQL 的 binlog 过期时间配置，当前值为 604800 秒（7 天）。高频写入下该保留期导致 binlog 稳态占用约 431G 并持续增长。"
+    },
+    {
+     "name": "build-api-proxy",
+     "type": "Service",
+     "summary": "API 代理服务，relay-data 卷中含单个 SQLite 文件 history.db（逻辑 366G，占用 234G），保存 API 代理历史记录业务数据；保留策略尚未确定，在确认前不做删数据或 VACUUM 操作。"
+    },
+    {
+     "name": "minio",
+     "type": "Service",
+     "summary": "对象存储服务，存有旧文件数据；用户明确要求对其保持谨慎，暂不进行任何操作。"
+    },
+    {
+     "name": "minio-data-no-touch",
+     "type": "Decision",
+     "summary": "用户明确指示：minio 旧文件需要谨慎对待，暂时不要操作；未经用户确认不得清理或改动 minio 数据。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "binlog_expire_logs_seconds",
+     "target": "ragflow",
+     "name": "CONFIGURES",
+     "fact": "ragflow 的 MySQL binlog 过期时间 binlog_expire_logs_seconds=604800（7 天），叠加 task executor 高频写入（9/5 至 9/8 三天产生 2000+ 个 binlog 文件），形成约 431G 稳态占用，是 /var/lib/docker 磁盘写满的头号元凶，并导致 9/8 05:55 磁盘撑满、三个 MySQL 全部崩溃。"
+    },
+    {
+     "source": "minio-data-no-touch",
+     "target": "minio",
+     "name": "APPLIES_TO",
+     "fact": "用户明确要求对 minio 旧文件保持谨慎、暂时不要操作，清理方案中 minio 数据（约 229G）按用户要求不触碰。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "ragflow",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "binlog_expire_logs_seconds",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "build-api-proxy",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "minio",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "minio-data-no-touch",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07e27-b393-7e71-b84e-7fc125da0c99",
+  "project_id": "auto-server",
+  "memory_type": "session_summary",
+  "summary": "排查下 pyautomation 为啥服务挂掉了",
+  "created_at": "2026-09-07T23:15:26.217189Z",
+  "entity_count": 3,
+  "edge_count": 2,
+  "novelty": {
+   "status": "completed",
+   "admission": "novel",
+   "rationale": "新记忆包含多个此前未被覆盖的长期事实：MySQL 数据存于 Docker volume 与宿主机目录而非容器内（docker rm 不加 -v 不丢数据）、容器损坏状态（进程死但 daemon 认为存活、网络端点残留）的唯一解法是删容器用原 volume 原地重建、以及该次 pyautomation 500 故障的恢复结论；所有候选均为常规发布部署记录或 PATH/署名问题，主题不同，不构成同一可复用事实的版本关系。"
+  },
+  "distilled_content": "首个用户目标：排查下 pyautomation 为啥服务挂掉了。最近用户目标：你为啥删了啊，我里面的数据别丢了！。会话结果：数据完好无损，解释一下刚才的操作： ## 为什么「删容器」≠「删数据」 MySQL 的数据**不存在容器里**，而是存在 Docker volume 和宿主机目录里： | 数据 | 位置 | 状态 | |------|------|------| | 数据库文件 (`/var/lib/mysql`) | Docker volume `29ed47ee...` | ✅ 保留，已挂回新容器 | | 配置 (`/etc/mysql/conf.d`) | 宿主机 `/data/mysql/conf` | ✅ 保留，已挂回 | | 日志 (`/logs`) | 宿主机 `/data/mysql/logs` | ✅ 保留，已挂回 | | 额外数据 (`/mysql_data`) | 宿主机 `/data/mysql/data` | ✅ 保留，已挂回 | `docker rm` 只删容器外壳，不加 `-v` 参数就不会碰 volume。新容器挂载的是**原来同一个 volume**，所以： - ✅ 所有库都在：`py_automation`、`teamcity_db` 等 - ✅ 业务数据在：`py_automation.users` 128 条记录 - ✅ root 密码、配置全部照旧 - ✅ 端口映射、重启策略（unless-stopped）都和原容器一致 ## 为什么必须重建容器 原容器进入了 Docker 的损坏状态：**进程死了但 daemon 认为它还活着，网络端点残留清不掉**（`start` 报 \"endpoint already exists\"，disconnect 也清不掉）。这是 Docker 的已知 bug，唯一的解法就是删掉坏容器、用原 volume 原地重建——相当于\"换个壳，数据原封不动\"。 现在 pyautomation 后端已恢复正常（接口从 500 全部回到 200）。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "pyautomation",
+     "type": "Project",
+     "summary": "pyautomation 后端服务，数据存储依赖 MySQL Docker 容器，包含 py_automation、teamcity_db 等数据库。"
+    },
+    {
+     "name": "pyautomation-mysql",
+     "type": "Service",
+     "summary": "pyautomation 使用的 MySQL Docker 容器；数据不存于容器本体：/var/lib/mysql 存于 Docker volume，配置挂载宿主机 /data/mysql/conf，日志挂载 /data/mysql/logs，额外数据挂载 /data/mysql/data；重启策略 unless-stopped。"
+    },
+    {
+     "name": "docker-stale-endpoint-bug",
+     "type": "Concept",
+     "summary": "Docker 已知损坏状态：容器进程已死但 daemon 认为其仍存活，网络端点残留清不掉，start 报 \"endpoint already exists\"，disconnect 也无法清除；唯一解法是 docker rm（不加 -v，不影响 volume）删除坏容器后用原 volume 原地重建。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "pyautomation",
+     "target": "pyautomation-mysql",
+     "name": "DEPENDS_ON",
+     "fact": "pyautomation 后端的数据存储依赖 pyautomation-mysql 容器，其中包含 py_automation、teamcity_db 等数据库。"
+    },
+    {
+     "source": "docker-stale-endpoint-bug",
+     "target": "pyautomation-mysql",
+     "name": "APPLIES_TO",
+     "fact": "pyautomation-mysql 曾进入进程已死但 daemon 认为存活、网络端点残留的 Docker 损坏状态，通过 docker rm（不加 -v）删除坏容器并用原 volume 原地重建解决，volume 与宿主机挂载目录中的数据不受影响。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "pyautomation",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "pyautomation-mysql",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "docker-stale-endpoint-bug",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07e18-c78a-782c-81e3-2b003bfeab84",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "[http://192.168.50.2:5244/share/Cloud119](http://192.168.50.2:5244/share/Cloud11",
+  "created_at": "2026-09-07T22:59:08.279025Z",
+  "entity_count": 3,
+  "edge_count": 3,
+  "novelty": {
+   "status": "completed",
+   "admission": "duplicate",
+   "rationale": "新记忆中的所有长期事实（AList 天翼云盘 405 根因、升级到 v3.64.0、单向复制语义、重试指引）均已被候选1完整覆盖，未增加任何新条件、边界、原因、步骤或决策。"
+  },
+  "distilled_content": "用户目标：通过 http://192.168.50.2:5244/share/Cloud119 （账号 admin，口令 <REDACTED>）将本机文件单向备份到云盘（不用同步盘，本地可能删除）。会话结果：原因已定位——AList 旧版天翼云盘驱动无法解析返回的日期格式，导致上传报 405。已升级到包含该修复的 v3.64.0，原配置已备份。小文件上传、覆盖和下载回读校验均已通过。任务为手动单向复制，本地删除不会删除云端文件。可在 'ArchivedDocuments - Cloud119' 点击“立即同步”重试；页面当前的“错误”是上次运行记录，尚未启动正式备份。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "alist",
+     "type": "Service",
+     "summary": "部署在局域网 http://192.168.50.2:5244 的 AList 网盘服务，挂载天翼云盘 share/Cloud119 路径，用于把本机文件手动单向备份到云盘（非同步盘模式）。旧版天翼云盘驱动无法解析接口返回的日期格式导致上传报 405，已升级到包含修复的 v3.64.0，升级前原配置已备份。管理账号密码不记入图谱。"
+    },
+    {
+     "name": "cloud189",
+     "type": "Service",
+     "summary": "天翼云盘（Cloud189），通过 AList 以 share/Cloud119 路径挂载，作为本机文件的云端备份目标。"
+    },
+    {
+     "name": "archiveddocuments-cloud119",
+     "type": "Tool",
+     "summary": "AList 中名为 'ArchivedDocuments - Cloud119' 的手动单向备份任务，点击“立即同步”触发；页面上显示的“错误”只是上一次运行的历史记录，不代表当前已启动正式备份。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "alist",
+     "target": "cloud189",
+     "name": "CONNECTS_TO",
+     "fact": "AList 旧版天翼云盘驱动无法解析云盘接口返回的日期格式，导致上传到 Cloud189 时报 405；升级到 v3.64.0 后该问题已修复。"
+    },
+    {
+     "source": "archiveddocuments-cloud119",
+     "target": "alist",
+     "name": "RUNS_ON",
+     "fact": "'ArchivedDocuments - Cloud119' 是 AList 上的手动单向备份任务，需手动点击“立即同步”运行，截至会话结束时正式备份尚未启动，页面显示的“错误”为上次运行遗留记录。"
+    },
+    {
+     "source": "archiveddocuments-cloud119",
+     "target": "cloud189",
+     "name": "BACKS_UP_TO",
+     "fact": "'ArchivedDocuments - Cloud119' 将本机文件单向手动复制到天翼云盘 Cloud119，采用复制而非同步模式，本地删除文件不会删除云端副本。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "alist",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "4be26154-4ba2-41d3-85bc-349f6b5d6084",
+        "canonical_name": "alist",
+        "match_basis": "exact",
+        "created_at": "2026-09-07T16:20:45.106217000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "alist 是一个自托管的网盘聚合/文件管理服务，用于将本地文件备份到天翼云盘。旧版天翼云盘驱动无法解析接口返回的日期格式导致上传报 405，已升级到包含修复的 v3.64.0（升级前备份了原配置），升级后小文件上传、覆盖与下载回读校验通过。"
+       }
+      ]
+     },
+     {
+      "input_name": "cloud189",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "archiveddocuments-cloud119",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [
+   {
+    "check": "novelty_duplicate",
+    "severity": "escalate",
+    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   ],
+   "removals": []
+  }
+ },
+ {
+  "review_id": "01a07d23-fd9d-71db-b6d6-90f9bd78e828",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "AI Review流程触发异常排查",
+  "created_at": "2026-09-07T18:31:44.119790Z",
+  "entity_count": 2,
+  "edge_count": 2,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆确认了rank 8方案的实施结果（REFINES），并包含历史候选未覆盖的长期事实：claim_token CAS分布式锁设计、fence→HTTP毫秒窗口的理论边界结论与接受残留建议、CL 1510待办清单、migration-first部署顺序及prod DB当前未迁移状态。"
+  },
+  "distilled_content": "首个用户目标：http://192.168.2.13/dashboard/ai-review 最近几个提交，ai review teamcity 的任务被我强制结束了，点击 更新review 并没有触发 ai review 排查下原因并修复 ws:autoserver-deveops 服务器 @auto-server。最近用户目标：ok,修复，然后用 codex review 修改。会话结果：R6 的这最后一条，需要你来决策——我们已经打到分布式锁的理论边界了。 ## 当前状态 | 项 | 状态 | |---|---| | CL 1508（代码修复主体） | ✅ 已提交（你 23:58 提交的）：跳过逻辑 + 空清单 fail-closed + 自动放行非空准入 + claim_token CAS + alembic migration + 首批测试 | | CL 1510（跟进） | ⏳ pending：token fence + 真双 claimant ABA 测试 + CRLF 规范化 + 文档 | | 测试 | 559 passed（基线 531 + 新增 28） | | codex 评审 | 已 6 轮，累计修复 9 个发现项 | ## 最后的 P2（fence→HTTP 毫秒窗口） codex R6：`_still_holds_claim` 的 fence UPDATE 在 commit 释锁后、`_trigger_compile` 的 TC HTTP 调用前，仍存在毫秒级窗口——refresh 恰好落在这个窗口内重置 job 并让 B 用新 token 重 claim，A 拿着已过期的 fence 结果继续触发 → 同 CL 双 TC Flow。 **这是「锁无法跨 HTTP 调用持有」的理论边界**，修复 worker 当时已标注为已知残留： - 持锁跨 TC HTTP → 与 refresh 形成 AB-BA 死锁（MySQL 会杀一边，更丑） - 要彻底消除只能让 refresh 也参与 token-CAS 协议（改动 reset 语义，更大手术，还可能再引出新一轮发现） - 触发条件：人工点「更新 Review」精确落进 fence-commit → TC 调用的毫秒窗口；后果上限 = 构建机多跑一条重复链（tc_callback 重放是幂等的，poll 兜底收敛，无数据损坏） ## 我的建议 **接受残留、收敛交付**：窗口是毫秒级 + 需人工精确时机，后果可自愈。在 SKILL.md 留档即可。 **如果你要求理论完备**：下一轮让 refresh/reopen/trigger_ai 的 job 重置改为 token-CAS 协议（预计再 1-2 轮评审，改动面扩大）。 另外两件待办等你指示： 1. **CL 1510 是否提交**（含 fence + 测试 + 文档；其中 `.GUI` 索引混入了本机 skills 树漂移的 karpathy-guidelines 无关条目，提交前可裁量剔除） 2. **部署**：需按 migration-first 顺序——先 `python -m flask --app manage.py db upgrade` 再加列，然后走后端 deploy（worker 已在 prod 验证过 migration 上下往返并恢复，当前 prod DB 在未迁移状态，与旧代码一致） 你定：接受残留直接交付，还是继续加固？",
+  "proposed": {
+   "entities": [
+    {
+     "name": "ai-review",
+     "type": "Service",
+     "summary": "dashboard 后端的 AI review 服务（/dashboard/ai-review），负责向 TeamCity 触发编译链；包含跳过逻辑、空清单 fail-closed、非空准入自动放行、claim_token CAS 防重复触发及配套 alembic migration；部署需 migration-first（先 flask db upgrade 再走后端 deploy）"
+    },
+    {
+     "name": "claim-token-cas",
+     "type": "Convention",
+     "summary": "ai-review 的分布式认领仲裁机制：通过 claim_token 的 CAS 更新防止多个 claimant 重复触发同一 CL 的 TC Flow；已知残留为 fence UPDATE 提交后到 TC HTTP 调用前的毫秒窗口，彻底消除需让 refresh/reopen/trigger_ai 的 job 重置也参与 token-CAS（是否加固尚待决策）"
+    }
+   ],
+   "edges": [
+    {
+     "source": "ai-review",
+     "target": "claim-token-cas",
+     "name": "IMPLEMENTS",
+     "fact": "ai-review 后端通过 claim_token CAS 仲裁防止同一 CL 被重复触发 TeamCity Flow，修复内容含跳过逻辑、空清单 fail-closed、非空准入自动放行及 alembic migration，修复主体经 codex 多轮评审后已提交，跟进项（fence、双 claimant ABA 测试、CRLF 规范化、文档）仍 pending。"
+    },
+    {
+     "source": "claim-token-cas",
+     "target": "ai-review",
+     "name": "APPLIES_TO",
+     "fact": "claim-token-CAS 存在理论残留：_still_holds_claim 的 fence UPDATE 提交释锁后到 _trigger_compile 发起 TC HTTP 调用前有毫秒级窗口，refresh 恰落入窗口可致同 CL 双 TC Flow；后果上限为构建机重复跑一条链（tc_callback 重放幂等、poll 兜底收敛），接受残留交付还是让 refresh 参与 token-CAS 协议尚待用户决策。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "ai-review",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "claim-token-cas",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07d14-c819-77fd-801b-2377e9e250ac",
+  "project_id": "admin_sun_depot_7184",
+  "memory_type": "session_summary",
+  "summary": "修复 claim_token 争用问题",
+  "created_at": "2026-09-07T18:15:07.703139Z",
+  "entity_count": 2,
+  "edge_count": 1,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆引入了历史候选未覆盖的新事实：`_still_holds_claim` 所有权 fence 及其对 'refresh reset to queued before B claims' 旁路的封堵，是在既有 claim_token 机制上的演进，而非简单重复。"
+  },
+  "distilled_content": "首个用户目标：You are working inside Orca, a multi-agent IDE. You are a dispatched worker. Your coordinator's terminal handle is: term_9041b883-64ad-4694-93cc-40e0bac3b593 Your task ID is: task_a767ed75b7df You talk to the coordinator only through the CLI commands below. Do not use Slack, GitHub comments, or any other channel to reach a human during the run. === CLI COMMANDS === # Report the terminal task outcome (REQUIRED exactly once). # # RULE: --body must be a 3-sentence executive summary (what you did, # what you found, what's left). Never send an empty body; the coordinator # reads the body first and only opens artifacts if it needs more detail. # If you produced a long-form artifact, include its pa。最近用户目标：You are working inside Orca, a multi-agent IDE. You are a dispatched worker. Your coordinator's terminal handle is: term_9041b883-64ad-4694-93cc-40e0bac3b593 Your task ID is: task_a767ed75b7df You talk to the coordinator only through the CLI commands below. Do not use Slack, GitHub comments, or any other channel to reach a human during the run. === CLI COMMANDS === # Report the terminal task outcome (REQUIRED exactly once). # # RULE: --body must be a 3-sentence executive summary (what you did, # what you found, what's left). Never send an empty body; the coordinator # reads the body first and only opens artifacts if it needs more detail. # If you produced a long-form artifact, include its pa。会话结果：Worker done. Summary of the completed work: **Fix (codex R5, last P2 on CL 1508+1510 merged state):** claim_token ownership fence before the non-idempotent TC trigger — - `ai_worker.py`: new `_still_holds_claim(job)` — one UPDATE (`{'status': 'running'}` pure touch; current-read + row lock; verified the venv's SQLAlchemy MySQL dialect sets `CLIENT_FOUND_ROWS` by default so rowcount = matched rows even on no-op writes) atomically checking `id + status='running' + claim_token=<executor token>`. Called in `_advance`'s TRIGGER_COMPILE non-skip branch immediately before `_trigger_compile`. The `status='running'` condition blocks the \"refresh reset to queued before B claims\" bypass. Fence loss → info log + zero-write silent return (never `_handle_failure`); fence success commits immediately (no lock held across the TC HTTP call — avoids AB-BA deadlock with refresh). The residual ms-level fence→TC-call window is documented in the code and was flagged in the report. - `test_chain_skip.py`: +3 tests — process_job-level ABA counterexample on the \"no other blocker\" branch (refresh+B reclaim interleaved inside A's claim commit hook under a fixed same-second clock; asserts zero `_trigger_compile` calls, zero side-effect writes, no failure handling, B's running row untouched, fence WHERE locked to the 3 conditions), positive path (token intact → triggers normally), and the no-token defensive",
+  "proposed": {
+   "entities": [
+    {
+     "name": "ai-worker",
+     "type": "Service",
+     "summary": "ai_worker.py 实现的作业 worker。其 `_advance` 在 TRIGGER_COMPILE 非 skip 分支触发 TC 编译前，先通过 `_still_holds_claim(job)` 做 claim_token 所有权栅栏检查；栅栏失败时仅 info 日志并零写入静默返回（不调用 `_handle_failure`），成功时立即提交，不在 TC HTTP 调用期间持锁以避免与 refresh 形成 AB-BA 死锁。fence 成功到 TC 调用之间残留的毫秒级窗口已在代码注释和报告中记录。"
+    },
+    {
+     "name": "_still_holds_claim",
+     "type": "Tool",
+     "summary": "ai_worker.py 新增的方法：用单条 UPDATE（`{'status': 'running'}` 纯 touch，当前读 + 行锁）原子检查 `id + status='running' + claim_token=<executor token>` 三个条件；利用 venv 中 SQLAlchemy MySQL 方言默认开启 CLIENT_FOUND_ROWS，使 no-op 写入时 rowcount 仍等于匹配行数。`status='running'` 条件用于阻断“refresh 重置为 queued 后被 B 认领”的绕过路径。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "ai-worker",
+     "target": "_still_holds_claim",
+     "name": "IMPLEMENTS",
+     "fact": "ai_worker.py 的 `_advance` 在 TRIGGER_COMPILE 非 skip 分支调用 `_trigger_compile` 之前，先调用 `_still_holds_claim(job)` 做 claim_token 所有权栅栏：原子 UPDATE 校验 `id + status='running' + claim_token`，栅栏丢失时 info 日志并零写入静默返回，成功时立即提交且不在 TC HTTP 调用期间持锁。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "ai-worker",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "_still_holds_claim",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07cef-03a7-79cb-b03c-b9b1b6494d34",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "https://luckeyhome.site/memory-hub/#review-extraction 怎么 抽取 审核感觉卡住了，什么原因 @nas",
+  "created_at": "2026-09-07T17:33:52.639095Z",
+  "entity_count": 3,
+  "edge_count": 4,
+  "novelty": {
+   "status": "completed",
+   "admission": "novel",
+   "rationale": "新记忆包含历史候选未覆盖的长期事实：hub-worker 无 supervisor 自愈导致 database is locked 后四个后台线程（review/evolution/insight/outbox）永久退出、preview_pending 积寻根因与恢复结果，以及两个遗留隐患（worker 无守护重试机制、preview JSON 解析不剥 code fence 白烧重试）。候选 1-4、6-7 讨论的是重复实体机制与修复方案，候选 3 是 novelty 门禁存量回填，候选 5/8/9/10 主题无关，均未涉及本次故障根因，不存在纠正或冲突关系。"
+  },
+  "distilled_content": "首个用户目标：https://luckeyhome.site/memory-hub/#review-extraction 怎么 抽取 审核感觉卡住了，什么原因 @nas。最近用户目标：https://luckeyhome.site/memory-hub/#review-extraction 怎么 抽取 审核感觉卡住了，什么原因 @nas。会话结果：✅ 已恢复，队列在动了。 ## 最终结论 **卡住原因**：不是审核页面或 LLM 的问题——NAS 上 memory-hub 的 **hub-worker 进程在凌晨 00:44 遭遇 SQLite 写锁风暴（`database is locked`）后，四个后台线程（review/evolution/insight/outbox）于 00:45 全部退出死亡，且没有守护机制拉起重来**。review worker 是生成抽取预览的唯一执行者，它死后新到的记忆永远停在 `preview_pending`，页面自然看起来\"卡住\"。Hub API、Dashboard、Graphiti、LLM 网关当时全都健康。 **恢复结果**（@nas 已执行 stop/start 重启）： | 项目 | 状态 | |---|---| | hub-worker | ✅ 已拉起（新 pid 32348），日志正常 tick，无新锁错误 | | preview_pending | 6 → 4，已在消化（2 条已生成预览流出） | | outbox 积压 | 11 条 → 0，全部投递完成 | ## 遗留两件事 1. **「任务197耗时异常排查」那条**（obsidianvault）：preview 已连续 3 次因 LLM 返回内容带 ` ```json ` 围栏解析失败，`preview_attempts` 到上限不再自动重试。需要人工处置——要么重置 attempts 重试，要么直接 reject（正文有价值的话也可以 approve `original` 跳过预览）。你定。 2. **两个未根治的隐患**（值得后续修）： - worker 无 supervisor 自愈，`database is locked` 直接致命——建议加重试退避或守护； - preview 的 JSON 解析不剥 code fence，白烧重试次数。 排查经验已记入 `.team/sunlaibing/feedback_memory-review-queue.md`（hits: 2）。你现在刷新 #review-extraction 页面应该能看到预览陆续出来了。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "memory-hub",
+     "type": "Project",
+     "summary": "个人记忆中枢项目，包含 review-extraction 审核页与记忆抽取预览流水线；审核页可见性依赖后台预览生成链路。"
+    },
+    {
+     "name": "hub-worker",
+     "type": "Service",
+     "summary": "memory-hub 的后台 worker 进程，运行 review/evolution/insight/outbox 四类后台线程；其中 review 线程负责生成抽取预览。已知无 supervisor 自愈，SQLite `database is locked` 写锁可导致后台线程退出且不自动拉起。"
+    },
+    {
+     "name": "preview-pipeline",
+     "type": "Concept",
+     "summary": "memory-hub 的抽取预览机制：新记忆进入 preview_pending 后由 review worker 生成预览；LLM 返回 JSON 若带 ```json code fence，当前解析不剥围栏会失败并消耗 preview_attempts，达上限后不再自动重试。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "memory-hub",
+     "target": "hub-worker",
+     "name": "CONTAINS",
+     "fact": "memory-hub 的审核预览链路依赖后台 hub-worker 进程，页面“卡住”可由 worker 死亡而非审核页或 LLM 网关异常导致。"
+    },
+    {
+     "source": "hub-worker",
+     "target": "preview-pipeline",
+     "name": "IMPLEMENTS",
+     "fact": "hub-worker 的 review 后台线程是 preview-pipeline 中生成 review-extraction 抽取预览的执行者，review 线程退出会使新记忆停在 preview_pending。"
+    },
+    {
+     "source": "hub-worker",
+     "target": "preview-pipeline",
+     "name": "HAS_FAILURE_MODE",
+     "fact": "hub-worker 没有 supervisor 自愈机制，遭遇 SQLite `database is locked` 写锁后 review/evolution/insight/outbox 线程可能退出且不被拉起，从而造成 preview_pending 积压。"
+    },
+    {
+     "source": "preview-pipeline",
+     "target": "preview-pipeline",
+     "name": "HAS_FAILURE_MODE",
+     "fact": "preview-pipeline 的 LLM JSON 解析未剥 ```json code fence，围栏会导致解析失败并消耗 preview_attempts，达到上限后不再自动重试。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "memory-hub",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "8e3b322d-6995-4a53-9f2f-58b0865dfc37",
+        "canonical_name": "memory-hub",
+        "match_basis": "exact",
+        "created_at": "2026-08-18T13:44:40.441816000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "memory-hub is a multi-user memory hub service (based on graphiti) deployed on NAS (hub :9287 / worker / dashboard :9288), frontend at https://luckeyhome.site/memory-hub. It serves as the long-term mem"
+       }
+      ]
+     },
+     {
+      "input_name": "hub-worker",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "preview-pipeline",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [
+   {
+    "check": "self_loop_edge",
+    "severity": "remove",
+    "detail": "preview-pipeline -[HAS_FAILURE_MODE]-> preview-pipeline",
+    "remove_edge": {
+     "source": "preview-pipeline",
+     "name": "HAS_FAILURE_MODE",
+     "target": "preview-pipeline"
+    }
+   }
+  ],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [
+    {
+     "source": "preview-pipeline",
+     "name": "HAS_FAILURE_MODE",
+     "target": "preview-pipeline"
+    }
+   ],
+   "reasons": [
+    "清除自环边后批准"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07ced-8f9e-74d4-917f-5f8e3330b6c0",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "api 接口也要使用 https://luckeyhome.site/memory-hub/api 的方式访问，就跟 https://luckeyhome.si",
+  "created_at": "2026-09-07T17:32:17.136876Z",
+  "entity_count": 3,
+  "edge_count": 2,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆在确认历史结论之外，新增了历史候选未覆盖的事实：旧内网 :9287 仍返回 503 RETRIEVAL_CORRECTION_RESOLVER_UNAVAILABLE、故障指向服务端检索纠错环节的间歇性失败而非 nginx 地址问题，因此不是 duplicate。"
+  },
+  "distilled_content": "首个用户目标：api 接口也要使用 https://luckeyhome.site/memory-hub/api 的方式访问，就跟 https://luckeyhome.site/memory-hub 可以访问前端页面一样可以不， 或者应该是 https://api.memory-hub.luckeyhome.site 之类，帮我想一个，通过 @vps-agent 去修改它的 nignix，看看是否可行，我的目的是确保 10.77.77.4 内部或外部网络的人都能访问这个服务。最近用户目标：{\"type\":\"message\",\"id\":\"b01c46c3\",\"parentId\":\"c13f61db\",\"timestamp\":\"2026-09-07T17:04:27.572Z\",\"message\":{\"role\":\"toolResult\",\"toolCallId\":\"call_rjNYQm3AVrz5Uz0LZ5BhjJoZ|fc_0090c0e621944419016a9eee71401887d0afc4cd2315f0824b\",\"toolName\":\"memory_search\",\"content\":[{\"type\":\"text\",\"text\":\"Memory Hub is unavailable or no matching memory was found.\"}],\"details\":{\"exitCode\":0,\"project\":\"memory-hub\",\"quality\":{\"candidates\":10,\"kept\":0,\"min_rating\":2,\"mode\":\"llm\"}},\"isError\":false,\"timestamp\":1788800667572}} {\"type\":\"message\",\"id\":\"80ccfe2b\",\"parentId\":\"b01c46c3\",\"timestamp\":\"2026-09-07T17:04:27.572Z\",\"message\":{\"role\":\"toolResult\",\"toolCallId\":\"call_ASnhyvfn5hS3S8JEVnKFVdNW|fc_0090c0e621944419016a9e。会话结果：查到微信会话对应的记录了。**目前证据不支持是 HTTPS 地址修改导致的。** - **第一条**：检索成功，10 个候选经审核后保留 0 条，不是连接失败。 - **第二条**：确实失败。我用相同查询对照复测： - 新 HTTPS 地址：成功，返回 4 条。 - 旧内网 `:9287`：仍失败，返回 **503 `RETRIEVAL_CORRECTION_RESOLVER_UNAVAILABLE`**。 这指向**服务端检索纠错环节的间歇性失败**，而不是 nginx 地址问题。不过原始那次调用没有留下具体错误，不能完全确认它与复现是同一原因。 另外，扩展把“正常零结果”和“请求失败”显示成同一句提示，确实容易误判。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "memory-hub",
+     "type": "Service",
+     "summary": "基于 Web 的记忆管理服务，部署在 VPS 上，前端页面经 nginx 反向代理以 https://luckeyhome.site/memory-hub 访问，API 也通过 HTTPS 公网地址（/memory-hub/api 路径方式）提供；用户要求 10.77.77.4 内网和外网的用户都能访问该服务。另有内网直连 :9287 地址，实测新 HTTPS 地址检索成功时旧地址曾返回 503。"
+    },
+    {
+     "name": "memory-search-extension",
+     "type": "Tool",
+     "summary": "调用 memory_search 工具检索 memory-hub 的客户端扩展；已知显示问题：把“正常零结果”和“请求失败”显示为同一句提示，容易将零结果误判为服务不可用。"
+    },
+    {
+     "name": "retrieval-correction-resolver",
+     "type": "Service",
+     "summary": "memory-hub 服务端的检索纠错环节，对应错误码 RETRIEVAL_CORRECTION_RESOLVER_UNAVAILABLE；2026-09 排查中疑似存在间歇性失败，但未完全确认。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "memory-hub",
+     "target": "retrieval-correction-resolver",
+     "name": "IMPLEMENTS",
+     "fact": "memory-hub 服务端包含检索纠错环节；排查中旧内网 :9287 地址曾返回 503 RETRIEVAL_CORRECTION_RESOLVER_UNAVAILABLE，而同查询在新 HTTPS 地址成功返回 4 条，这指向该环节疑似间歇性失败而非 nginx 地址问题，但原始失败未留具体错误，不能完全确认与复现是同一原因。"
+    },
+    {
+     "source": "memory-search-extension",
+     "target": "memory-hub",
+     "name": "USES",
+     "fact": "memory-search-extension 通过 memory_search 工具检索 memory-hub，并把“正常零结果”和“请求失败”显示为同一句提示，容易误判。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "memory-hub",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "8e3b322d-6995-4a53-9f2f-58b0865dfc37",
+        "canonical_name": "memory-hub",
+        "match_basis": "exact",
+        "created_at": "2026-08-18T13:44:40.441816000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "memory-hub is a multi-user memory hub service (based on graphiti) deployed on NAS (hub :9287 / worker / dashboard :9288), frontend at https://luckeyhome.site/memory-hub. It serves as the long-term mem"
+       }
+      ]
+     },
+     {
+      "input_name": "memory-search-extension",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "retrieval-correction-resolver",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07cea-75a9-71cb-9c8a-21e52672e300",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "[孙来兵] Chat Hub 用户请求：分析我的会话，看我今天做了哪些事情 [weixin dm from o9cq80wxWQVTTdH0L4BQ0nSh4Sts@im.",
+  "created_at": "2026-09-07T17:28:54.171527Z",
+  "entity_count": 9,
+  "edge_count": 6,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆既确认了 Chat Hub 身份修复、小樱桃回填、outbox 清理等既有事实，又将 SongLoft 迁移状态从'未部署'演进为'已部署验证'（SUPERSEDES），并新增 NAS 释放 58GB、Cloud119 备份、AList 405 修复、Memory Hub 公网 Agent API 上线、22 条记忆审核等历史候选未覆盖的长期事实。"
+  },
+  "distilled_content": "对话主体：孙来兵（chat-hub 微信会话）。首个用户目标：Chat Hub 用户请求：分析我的会话，看我今天做了哪些事情 [weixin dm from o9cq80wxWQVTTdH0L4BQ0nSh4Sts@im.wechat] 分析我的会话，看我今天做了哪些事情。最近用户目标：Chat Hub 用户请求：分析我的会话，看我今天做了哪些事情 [weixin dm from o9cq80wxWQVTTdH0L4BQ0nSh4Sts@im.wechat] 分析我的会话，看我今天做了哪些事情。会话结果：你昨晚 21:29 问过一次，当时被 Chat Hub 身份误判挡住了。现在已经是 **9 月 8 日凌晨**，下面按你当时想问的 **9 月 7 日**总结。 我扫描到当天 **34 个活跃会话线程**：18 个直接/微信会话、16 个编排实施或评审线程。主要做了这些事： 1. **集中完善 Memory Hub** - 完成图谱实体显式 UUID 合并、事务原子性、dry-run、快照防漂移等改造。 - 经历 4 轮实现—Codex 评审—修复，最终 LGTM 并上线。 - 改善图谱搜索：服务端搜索入口、一跳邻居展示、旧节点可发现性。 - 修复生产 merge 500、跨组 relation 毒消息；最终 outbox `retry=0`。 - 修正 Orca worktree 导致 project 名碎片化的问题。 2. **完善小樱桃的记忆与画像** - 将归属策略定为 `project:xiaoyingtao`，而不是修改主账号 user_id。 - 回填约 **32 条**相关记忆，小樱桃已有 **5 条画像 facet**。 - 数学练习确认薄弱点是退位减法和跨整点时间；同时纠正了“胡萝卜题未回答”的错误记录——她实际答对了。 3. **搭好儿童音乐系统** - 打通小米触屏音箱 LX04 的自定义音乐播放。 - 将 SongLoft 部署到 QNAP，验证了 NAS 本地 MP3、自动切歌、停止播放和重启恢复。 - 后续可以直接往 NAS 的“中文儿歌”目录添加音乐。 4. **处理 NAS 存储与备份** - 安全清理缓存、回收站和旧备份，共释放约 **58GB**，CACHEDEV1 从 66% 降到 59%。 - 配置 `/share/ArchivedDocuments` 到 Cloud119 的手动单向备份。 - 修复 AList 天翼云盘上传 405，上传、覆盖、下载回读测试均通过。 5. **其他推进** - 排查 Chat Hub 身份被永久固化、文字声明和短语音切换失效的问题，并形成修正方案。 - 研究 Amphetamine，让 Mac 熄屏后继续运行任务。 - 用 DIKW 模型复盘 Memory Hub 两层提炼体系，结论是保留两道关卡，重点加强原始证据和可复用知识之间的转换。 **零点以后你又继续完成了三件事：** - 已实施 Chat Hub 身份修复；当前新会话已正确识别你为孙来兵。 - Memory Hub 公网 Agent API 已上线，并完成本机三端 hook 切换验证。 - 审核了 22 条记忆，清空队列，并完成 5 个重复实体归并。 整体看，9 月 7 日是一个明显的 **“Memory Hub 稳定性建设 + 家庭 AI 场景落地 + NAS 运维”**日，而且多数事项已经真正部署和验证，不只是停留在方案阶段。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "memory-hub",
+     "type": "Service",
+     "summary": "个人记忆图谱服务。图谱侧已完成实体显式 UUID 合并、事务原子性、dry-run 与快照防漂移改造；提供服务端图谱搜索入口和一跳邻居展示以改善旧节点可发现性；曾修复生产 merge 500 与跨组 relation 毒消息；采用两层提炼体系（两道关卡）；公网 Agent API 已上线，本机三端 hook 已切换验证。"
+    },
+    {
+     "name": "chat-hub",
+     "type": "Service",
+     "summary": "微信会话接入服务。曾出现用户身份被永久固化、文字声明和短语音切换失效的问题，修复后新会话可正确识别用户身份。"
+    },
+    {
+     "name": "孙来兵",
+     "type": "Person",
+     "summary": "Chat Hub 微信会话用户。"
+    },
+    {
+     "name": "小樱桃",
+     "type": "Person",
+     "summary": "家庭场景中的儿童用户；其在 Memory Hub 中的记忆归属 project:xiaoyingtao，已回填约 32 条相关记忆并积累 5 条画像 facet。"
+    },
+    {
+     "name": "xiaoyingtao-memory-attribution",
+     "type": "Decision",
+     "summary": "小樱桃相关记忆通过 project:xiaoyingtao 标签归属，而不是修改主账号 user_id。"
+    },
+    {
+     "name": "memory-hub-two-gate-distillation",
+     "type": "Decision",
+     "summary": "用 DIKW 模型复盘 Memory Hub 两层提炼体系后，结论是保留两道关卡，重点加强原始证据与可复用知识之间的转换。"
+    },
+    {
+     "name": "songloft",
+     "type": "Service",
+     "summary": "儿童音乐播放服务，部署在 QNAP NAS 上，打通了小米触屏音箱 LX04 的自定义音乐播放，已验证 NAS 本地 MP3、自动切歌、停止播放与重启恢复；后续可直接向 NAS 的“中文儿歌”目录添加音乐。"
+    },
+    {
+     "name": "qnap-nas",
+     "type": "Service",
+     "summary": "家庭 QNAP NAS（卷 CACHEDEV1）；承载 SongLoft 与“中文儿歌”目录；已配置 /share/ArchivedDocuments 到 Cloud119 的手动单向备份；曾通过清理缓存、回收站和旧备份释放约 58GB。"
+    },
+    {
+     "name": "cloud119",
+     "type": "Service",
+     "summary": "备份目标服务，接收 QNAP NAS /share/ArchivedDocuments 的手动单向备份。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "xiaoyingtao-memory-attribution",
+     "target": "memory-hub",
+     "name": "APPLIES_TO",
+     "fact": "小樱桃在 Memory Hub 中的记忆归属策略定为使用 project:xiaoyingtao 标签，而不是修改主账号 user_id。"
+    },
+    {
+     "source": "memory-hub",
+     "target": "小樱桃",
+     "name": "MAINTAINS_MEMORY_FOR",
+     "fact": "Memory Hub 已为小樱桃回填约 32 条相关记忆，并积累 5 条画像 facet。"
+    },
+    {
+     "source": "memory-hub-two-gate-distillation",
+     "target": "memory-hub",
+     "name": "APPLIES_TO",
+     "fact": "基于 DIKW 模型对 Memory Hub 两层提炼体系的复盘结论是保留两道关卡，重点加强原始证据与可复用知识之间的转换。"
+    },
+    {
+     "source": "songloft",
+     "target": "qnap-nas",
+     "name": "DEPLOYED_ON",
+     "fact": "SongLoft 部署在 QNAP NAS 上，已验证 NAS 本地 MP3 播放、自动切歌、停止播放和重启恢复。"
+    },
+    {
+     "source": "qnap-nas",
+     "target": "cloud119",
+     "name": "BACKS_UP_TO",
+     "fact": "QNAP NAS 的 /share/ArchivedDocuments 配置了到 Cloud119 的手动单向备份。"
+    },
+    {
+     "source": "chat-hub",
+     "target": "孙来兵",
+     "name": "IDENTIFIES",
+     "fact": "Chat Hub 身份被永久固化、文字声明和短语音切换失效的问题修复后，新会话已正确将用户识别为孙来兵。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "memory-hub",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "8e3b322d-6995-4a53-9f2f-58b0865dfc37",
+        "canonical_name": "memory-hub",
+        "match_basis": "exact",
+        "created_at": "2026-08-18T13:44:40.441816000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "memory-hub is a multi-user memory hub service (based on graphiti) deployed on NAS (hub :9287 / worker / dashboard :9288), frontend at https://luckeyhome.site/memory-hub. It serves as the long-term mem"
+       }
+      ]
+     },
+     {
+      "input_name": "chat-hub",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "09c0fa48-88d9-4fce-9697-a7d79410c22f",
+        "canonical_name": "chat-hub",
+        "match_basis": "exact",
+        "created_at": "2026-09-05T15:06:55.351417000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "chat-hub 是孙来兵自用的微信 Chat Hub 系统，供其与女儿小樱桃的学习生活使用，位于 .pi/extensions/chat-hub。经人工审核确认的最新知识：\n\n身份存储机制（chat-hub-identity-store）：state.json 按聊天保存身份，不过期、与 session 无关——/new 只换 pi session 文件，身份不动，因此新会话首条消息封装仍写 p"
+       }
+      ]
+     },
+     {
+      "input_name": "孙来兵",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "eaf523b1-9653-4069-b364-1ccc43df285f",
+        "canonical_name": "孙来兵",
+        "match_basis": "exact",
+        "created_at": "2026-09-06T10:54:59.163662000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "孙来兵是chat-hub系统的机主与默认身份，系统为其本人和女儿小樱桃的学习生活搭建的自用微信Chat Hub系统。用户已批准身份策略为\"声明即可信、直接切换\"：文本句首或语音转写中的显式身份声明当轮立即切换且优先于声纹识别，不加安全验证。孙来兵是chat-hub默认身份，身份滑动TTL（默认6h）超时或/new会话重置触发resetToDefault后均回落到孙来兵。小樱桃是孙来兵的女儿，系统对"
+       }
+      ]
+     },
+     {
+      "input_name": "小樱桃",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "e13620f7-5f70-483e-a512-d68edc220916",
+        "canonical_name": "小樱桃",
+        "match_basis": "exact",
+        "created_at": "2026-09-06T10:54:41.852310000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "小樱桃是孙来兵的女儿，chat-hub的另一逻辑用户。经人工审核确认的最新知识：chat-hub默认身份为机主孙来兵，身份滑动TTL（默认6h）超时或/new会话重置触发resetToDefault后均回落到孙来兵。用户已批准身份策略为\"声明即可信、直接切换\"：文本句首或语音转写中的显式身份声明当轮立即切换且优先于声纹识别，不加安全验证；声纹识别走独立提取路径，可处理短至1.5s的语音。chat-"
+       }
+      ]
+     },
+     {
+      "input_name": "xiaoyingtao-memory-attribution",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "memory-hub-two-gate-distillation",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "songloft",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "81a539a0-584d-4b03-be18-9672820f2011",
+        "canonical_name": "songloft",
+        "match_basis": "exact",
+        "created_at": "2026-09-07T16:21:52.268584000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "SongLoft 是一个持续维护更新的音乐服务（github.com/songloft-org/songloft），最新正式版为 v2.12.0（8月31日发布），提供 Docker 镜像、Web 页面和 SQLite 数据库，适合部署到 QNAP NAS。SongLoft 的配套智能音箱插件为 songloft-plugin-miot，该插件源码明确支持 LX04 音箱，其云端下发控制方式与已验"
+       }
+      ]
+     },
+     {
+      "input_name": "qnap-nas",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "cloud119",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07ce8-b402-7298-9d90-c56a2fd1a034",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "针对 chat-hub 当我已经new 了一个全新的session后， /Users/sun/Library/Containers/com.tencent.xi",
+  "created_at": "2026-09-07T17:26:59.311139Z",
+  "entity_count": 4,
+  "edge_count": 3,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆包含历史候选未覆盖的新事实：提交哈希 1a69d1c3、与远端 submodule 指针更新 merge（c84ab699）、验证远端 skills 指针 3c351a5 包含 f656c73、daemon 已运行新代码及回放验证预期；同时对旧候选中的任务状态与口头声明切换行为构成替代。"
+  },
+  "distilled_content": "首个用户目标：针对 chat-hub 当我已经new 了一个全新的session后， /Users/sun/Library/Containers/com.tencent.xinWeChat/Data/Library/Application Support/com.tencent.xinWeChat/2.0b4.0.9/53ab0300a9e50d60de292d46d2fe4135/Message/MessageTemp/9e20f478899dc29eb19741386f9343c8/Image/9141788791681_.pic.jpg 发送消息，还是认为我是 小樱桃，主动说切换都没用，这是不对的，不应该固化，默认应该是 孙来兵，但识别音色或者文字主动说切换时就自觉切换，不要扭扭捏捏、加什么安全验证，本身这个系统就是我自己和女儿学习生活用的，不用追求安全心这个东西，制订好修正计划，我来 review。最近用户目标：commit。会话结果：完成，全部入库： - **`1a69d1c3`** chat-hub 身份路由修正（12 文件，+519/−61）——扩展代码、测试、计划、`.team` 记忆 - 推送时远端正好有另一个会话的 submodule 指针更新，已 merge 无冲突（`c84ab699`），并验证远端 `.claude/skills` 指针 `3c351a5` 包含我的 pi-agent 契约提交 `f656c73` - 工作区剩余的未提交改动（其他 plans、AutomationDocs、memory-hub/memory-review 的 submodule 内部改动）都是别的会话的，未动 daemon 已在跑新代码，微信端随时可以回放验证：「我是小樱桃，给我出道题」应一条内切换+作答；语音「我是爸爸」走转写切换；`/new` 后回机主身份。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "chat-hub",
+     "type": "Service",
+     "summary": "微信 Chat Hub 系统，供机主孙来兵与女儿小樱桃学习生活使用；含身份路由机制，负责识别消息发送者身份。"
+    },
+    {
+     "name": "chat-hub-identity-routing",
+     "type": "Decision",
+     "summary": "chat-hub 身份路由规则：新 session 默认机主身份孙来兵，不沿用上轮身份；当语音转写或文字显式声明身份（如“我是小樱桃”“我是爸爸”）时在同一条消息内直接切换并作答，不增加安全验证流程。已由用户 review 并实施。"
+    },
+    {
+     "name": "孙来兵",
+     "type": "Person",
+     "summary": "chat-hub 的机主与默认身份，系统的主要用户（本人）。"
+    },
+    {
+     "name": "小樱桃",
+     "type": "Person",
+     "summary": "孙来兵的女儿，chat-hub 的另一使用者身份；可通过显式声明切换为该身份。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "chat-hub-identity-routing",
+     "target": "chat-hub",
+     "name": "APPLIES_TO",
+     "fact": "chat-hub 身份路由规则：/new 新 session 后默认回机主身份孙来兵，不固化上一轮身份；语音识别转写或文字中显式声明身份时一条消息内完成切换并作答，不加安全验证。"
+    },
+    {
+     "source": "孙来兵",
+     "target": "chat-hub",
+     "name": "DEFAULT_IDENTITY",
+     "fact": "孙来兵是 chat-hub 的机主，新 session 的默认身份应为孙来兵。"
+    },
+    {
+     "source": "小樱桃",
+     "target": "chat-hub",
+     "name": "USES",
+     "fact": "小樱桃是孙来兵的女儿，是 chat-hub 供父女学习生活使用的另一身份。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "chat-hub",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "09c0fa48-88d9-4fce-9697-a7d79410c22f",
+        "canonical_name": "chat-hub",
+        "match_basis": "exact",
+        "created_at": "2026-09-05T15:06:55.351417000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "chat-hub 是孙来兵自用的微信 Chat Hub 系统，供其与女儿小樱桃的学习生活使用，位于 .pi/extensions/chat-hub。经人工审核确认的最新知识：\n\n身份存储机制（chat-hub-identity-store）：state.json 按聊天保存身份，不过期、与 session 无关——/new 只换 pi session 文件，身份不动，因此新会话首条消息封装仍写 p"
+       }
+      ]
+     },
+     {
+      "input_name": "chat-hub-identity-routing",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "孙来兵",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "eaf523b1-9653-4069-b364-1ccc43df285f",
+        "canonical_name": "孙来兵",
+        "match_basis": "exact",
+        "created_at": "2026-09-06T10:54:59.163662000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "孙来兵是chat-hub系统的机主与默认身份，系统为其本人和女儿小樱桃的学习生活搭建的自用微信Chat Hub系统。用户已批准身份策略为\"声明即可信、直接切换\"：文本句首或语音转写中的显式身份声明当轮立即切换且优先于声纹识别，不加安全验证。孙来兵是chat-hub默认身份，身份滑动TTL（默认6h）超时或/new会话重置触发resetToDefault后均回落到孙来兵。小樱桃是孙来兵的女儿，系统对"
+       }
+      ]
+     },
+     {
+      "input_name": "小樱桃",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "e13620f7-5f70-483e-a512-d68edc220916",
+        "canonical_name": "小樱桃",
+        "match_basis": "exact",
+        "created_at": "2026-09-06T10:54:41.852310000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "小樱桃是孙来兵的女儿，chat-hub的另一逻辑用户。经人工审核确认的最新知识：chat-hub默认身份为机主孙来兵，身份滑动TTL（默认6h）超时或/new会话重置触发resetToDefault后均回落到孙来兵。用户已批准身份策略为\"声明即可信、直接切换\"：文本句首或语音转写中的显式身份声明当轮立即切换且优先于声纹识别，不加安全验证；声纹识别走独立提取路径，可处理短至1.5s的语音。chat-"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07ce7-fe18-743f-822b-8d17fee430d9",
+  "project_id": "admin_sun_depot_7184",
+  "memory_type": "session_summary",
+  "summary": "claim_token 读回防护问题",
+  "created_at": "2026-09-07T17:26:12.256734Z",
+  "entity_count": 0,
+  "edge_count": 0,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆对 rank 8 仅笼统描述的 CL 1510『test/doc edits』给出具体内容（claim_token 读回禁止、ABA 交错移入 commit 钩子），并新增历史候选未覆盖的事实：scratch 反向验证方法与结论、.GUI 索引 LF→CRLF 规范化细节，构成 REFINES 与新增事实。"
+  },
+  "distilled_content": "首个用户目标：You are working inside Orca, a multi-agent IDE. You are a dispatched worker. Your coordinator's terminal handle is: term_9041b883-64ad-4694-93cc-40e0bac3b593 Your task ID is: task_4cf202b0fba4 You talk to the coordinator only through the CLI commands below. Do not use Slack, GitHub comments, or any other channel to reach a human during the run. === CLI COMMANDS === # Report the terminal task outcome (REQUIRED exactly once). # # RULE: --body must be a 3-sentence executive summary (what you did, # what you found, what's left). Never send an empty body; the coordinator # reads the body first and only opens artifacts if it needs more detail. # If you produced a long-form artifact, include its pa。最近用户目标：You are working inside Orca, a multi-agent IDE. You are a dispatched worker. Your coordinator's terminal handle is: term_9041b883-64ad-4694-93cc-40e0bac3b593 Your task ID is: task_4cf202b0fba4 You talk to the coordinator only through the CLI commands below. Do not use Slack, GitHub comments, or any other channel to reach a human during the run. === CLI COMMANDS === # Report the terminal task outcome (REQUIRED exactly once). # # RULE: --body must be a 3-sentence executive summary (what you did, # what you found, what's left). Never send an empty body; the coordinator # reads the body first and only opens artifacts if it needs more detail. # If you produced a long-form artifact, include its pa。会话结果：任务完成，worker_done 已发送。 ## 处置摘要（CL 1510，未 submit） **发现项 1（P2）— claim_token commit 后读回防护** - `test_kick_job.py`：`_ForbidGenerationReadback.__getattr__` 禁止集合补入 `claim_token`，读即 `AssertionError`，docstring 同步说明。 - `test_chain_skip.py`：ABA 用例（`test_late_release_after_refresh_reclaim_misses_new_claimant`）的 refresh 重置 + B 重 claim 从「A 的 `_claim_job` 完整返回后」移入 A claim 的 fake commit 钩子内（单次交错、防重入），交错正好落在 commit 释放行锁与任何读回之间；模块头注释补四轮修复记录。 - **反向验证**：临时 scratch 测试模拟 readback 回退版 `_claim_job`，证实钩子交错下 A 读回拿到 B 的 token、迟到 release 误命中 B 的 running 行（`matched=True`）——正式用例断言 `matched is False` 必然抓获；验证通过（2 passed）后已删除 scratch 文件。 **发现项 2（P3）— .GUI 索引 LF churn** - 两个文件由纯 LF 规范化为 CRLF（内容与 depot 行尾约定一致），`p4 diff -ds` 从整块 4024/4083、3008/3043 行收敛到真实索引变化（karpathy-guidelines 条目：59/59 与 42+9+4 行）。 **验证** - `pytest tests/unit/ai_review/ -x -q`：**556 passed**（基线 556，改动为既有用例强化、无新增用例数）。 - 其余 CL 内文件（2 个测试 .py 为 LF，与 depot head 一致；3 个 md/SKILL）diff 均比例化，行尾未被翻动；default CL 为空。",
+  "proposed": {
+   "entities": [],
+   "edges": [],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": []
+   }
+  },
+  "flags": [
+   {
+    "check": "empty_preview",
+    "severity": "escalate",
+    "detail": "预览为空；curated 不可用，只能 original 或人工看正文"
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "预览为空；curated 不可用，只能 original 或人工看正文"
+   ],
+   "removals": []
+  }
+ },
+ {
+  "review_id": "01a07ce6-0864-7cca-b447-2112ee714dc7",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "AI评审任务延迟排查",
+  "created_at": "2026-09-07T17:24:05.051444Z",
+  "entity_count": 4,
+  "edge_count": 4,
+  "novelty": {
+   "status": "completed",
+   "admission": "novel",
+   "rationale": "新记忆包含多个历史候选均未覆盖的长期事实：卡死链自愈预算（180 polls × 60s ≈ 3h + busy 门 4h 窗口）、_chain_skippable 纯二进制单跳链口径、后端 UTC vs TC +0800 换算、TC REST canceledInfo 需显式请求子字段、sinceDate/untilDate 漏掉未启动即取消的构建、_auto_approve_check 对非编译单链 FAILURE 不可见的新缺口、trigger_ai 错误的 /api 前缀实测 404。rank1（Pi 评审步是耗时主因）针对 08-24~08-31 常规构建画像，与本次事故（队列停摆/busy 门）是不同条件不同结论，证据不足以判定矛盾或替代；rank4 修复的是 compile_status 误标，新记忆揭示的 _auto_approve_check 缺口是不同决策项，仅属相邻领域的新事实而非同一事实的演进。"
+  },
+  "distilled_content": "首个用户目标：http://192.168.2.13/dashboard/ai-review/197 这个 任务 分析 花了好久，其他人反馈等了1个小时，排查下原因。最近用户目标：http://192.168.2.13/dashboard/ai-review/197 这个 任务 分析 花了好久，其他人反馈等了1个小时，排查下原因。会话结果：知识收割完成，已提交推送。汇总： ## 收割结果 **发现已有平行收割**：`flow-aireview-pipeline.md` 里已存在本次事故的三个新段落（busy 门/降级放行缺陷、Unshelve 独占锁、队列停摆），但其配套改动（`teamcity-tool/SKILL.md` 索引行 + 主库 `SKILL.index.json`）一直未提交——本次一并收口。 **本次增量写入**（只写既有收割未覆盖的实证知识）： | 文件 | 增量内容 | |---|---| | `teamcity-tool/references/flow-aireview-pipeline.md` | 卡死链自愈预算（180 polls × 60s tick ≈ 3h + busy 门 4h fresh 窗口）；`_chain_skippable` 纯二进制单跳链口径；后端 UTC vs TC +0800 时间戳换算 | | `teamcity-tool/references/rest-api.md` | `canceledInfo(user(...))` 必须显式请求子字段否则返回空 `{}`；sinceDate/untilDate 窗口查询漏掉「未启动即取消」的构建 | | `auto-server-backend-deploy/references/ai-review-decision-model.md` | **新缺口**：`_auto_approve_check` 只在 `compile_check_required` 时卡 compile_status——非编译单链 FAILURE 对自动放行完全不可见（空清单 fail-closed 已修、链失败变体未堵）；修正 trigger_ai 路径错误的 `/api` 前缀（实测 404）；补排障入口 API 路径 | 按 skill-harvest 过滤器跳过的：事件叙事、SSH 不通等运维摩擦、临时代理状态（WinBuilder3/4 pi 配置缺口会随时间变化，且已有记录）。 **提交状态**： - skills submodule `3c351a5` 已推送（中途遇远端新提交，rebase 后推成功） - 主库 `63ecdc39` 已推送（指针 + SKILL.index 同步；期间与远端 memory-hub 指针更新冲突，已按新指针解决；你本地 `.team/` 与 `.claude/plans/` 的无关改动 stash 往返后原样恢复，未被卷入）",
+  "proposed": {
+   "entities": [
+    {
+     "name": "ai-review-pipeline",
+     "type": "Service",
+     "summary": "AI review 分析流水线（文档 teamcity-tool/references/flow-aireview-pipeline.md）。卡死链自愈预算为 180 polls × 60s tick ≈ 3h，另有 busy 门 4h fresh 窗口；`_chain_skippable` 采用纯二进制单跳链口径；后端存储 UTC 时间戳，与 TeamCity 的 +0800 时间戳存在时区换算问题。曾出现任务分析耗时约 1 小时的排队/卡死类事故，相关根因（busy 门降级放行缺陷、Unshelve 独占锁、队列停摆）已另行收割。"
+    },
+    {
+     "name": "teamcity",
+     "type": "Service",
+     "summary": "JetBrains TeamCity CI 服务器，服务端时间戳为 +0800 时区，ai-review 排查时需与后端 UTC 时间戳换算。",
+     "suggested_canonical": "TeamCity"
+    },
+    {
+     "name": "teamcity-rest-api",
+     "type": "Concept",
+     "summary": "TeamCity REST API 使用要点：部分子字段必须显式请求，时间窗口查询存在漏数据边界（详见 teamcity-tool/references/rest-api.md）。"
+    },
+    {
+     "name": "_auto_approve_check",
+     "type": "Tool",
+     "summary": "ai-review 决策模型中的自动放行检查函数（文档 auto-server-backend-deploy/references/ai-review-decision-model.md）。排障入口 trigger_ai 接口的正确路径不含 /api 前缀（带 /api 前缀实测 404）。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "ai-review-pipeline",
+     "target": "_auto_approve_check",
+     "name": "IMPLEMENTS",
+     "fact": "ai-review 的自动放行检查 `_auto_approve_check` 只在 compile_check_required 时卡 compile_status，非编译单链 FAILURE 对自动放行完全不可见；空清单 fail-closed 已修，但链失败变体截至收割时仍未堵，属于已确认的新缺口。"
+    },
+    {
+     "source": "ai-review-pipeline",
+     "target": "teamcity",
+     "name": "DEPENDS_ON",
+     "fact": "排查 ai-review 任务耗时时需将后端存储的 UTC 时间戳与 TeamCity 的 +0800 时间戳进行换算。"
+    },
+    {
+     "source": "teamcity",
+     "target": "teamcity-rest-api",
+     "name": "IMPLEMENTS",
+     "fact": "TeamCity REST API 的 canceledInfo(user(...)) 必须显式请求子字段，否则返回空 {}。"
+    },
+    {
+     "source": "ai-review-pipeline",
+     "target": "teamcity-rest-api",
+     "name": "USES",
+     "fact": "ai-review 使用 TeamCity REST API 的 sinceDate/untilDate 窗口查询时会漏掉「未启动即取消」的构建。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "ai-review-pipeline",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "teamcity",
+      "status": "casefold",
+      "candidates": [
+       {
+        "uuid": "bcab1c3e-be70-44a7-a2ff-93477155a9ed",
+        "canonical_name": "TeamCity",
+        "match_basis": "casefold",
+        "created_at": "2026-08-18T13:09:48.786314000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "TeamCity 是团队的 CI 构建服务，地址 http://192.168.2.13:8111，token 存放于 /d/Github/ObsidianVault/.env。位于公司网段 192.168.2.0/23（与家庭网段 192.168.50.0/24 是两个不同网络，勿混淆）。\n\n在2026-07-30的会话中（工作目录：D:\\Github\\ObsidianVault），首个用户目标"
+       }
+      ]
+     },
+     {
+      "input_name": "teamcity-rest-api",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "_auto_approve_check",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07ce4-b896-7d3b-bb6b-f3e9a560b656",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "api 接口也要使用 https://luckeyhome.site/memory-hub/api 的方式访问，就跟 https://luckeyhome.si",
+  "created_at": "2026-09-07T17:22:37.983348Z",
+  "entity_count": 2,
+  "edge_count": 1,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "除确认既有 API Base 结论外，新记忆增加了本机 hook URL 从特定端口切换到 agent-api 的完成状态、三端共用 hook/安装器/工具同步、16 项新测试通过、推送 commit 以及会话下载 403 属既有问题等历史候选未覆盖的事实"
+  },
+  "distilled_content": "首个用户目标：api 接口也要使用 https://luckeyhome.site/memory-hub/api 的方式访问，就跟 https://luckeyhome.site/memory-hub 可以访问前端页面一样可以不， 或者应该是 https://api.memory-hub.luckeyhome.site 之类，帮我想一个，通过 @vps-agent 去修改它的 nignix，看看是否可行，我的目的是确保 10.77.77.4 内部或外部网络的人都能访问这个服务。最近用户目标：你先把本地的记忆 hook 对应的url 原先对应的是特定端口的修改测试通过下，没问题的话同步到其他类似的地方。会话结果：已完成，统一使用： `https://luckeyhome.site/memory-hub/agent-api` - 本机 `~/.profile`、`~/.zprofile`、`~/.bash_profile` 已更新并备份。 - 已同步三端共用 hook、安装器、历史归档、漏传工具和每日洞察。 - 三端检查、真实检索、双资产上传及 SHA-256 校验通过。 - 新增 16 项测试全过；原有 2 项失败保持不变。 已推送：skills `abfbb0d`，主库指针 `d22c843d`。其他机器尚未远程修改。 另外，完整会话下载的新旧地址均返回 403，属于既有服务端问题，本次未改。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "memory-hub",
+     "type": "Service",
+     "summary": "记忆中枢服务，前端经 VPS 上的 nginx 以 https://luckeyhome.site/memory-hub 暴露，API 统一经 https://luckeyhome.site/memory-hub/agent-api 访问；目标是确保 10.77.77.4 所在内部和外部网络均可访问该服务。注意：完整会话下载接口在新旧地址均返回 403，属既有服务端问题，本次未改动。"
+    },
+    {
+     "name": "memory-hub-agent-api-url",
+     "type": "Convention",
+     "summary": "约定记忆 hook 及相关工具统一使用 https://luckeyhome.site/memory-hub/agent-api 作为 API 入口，替代原先带特定端口的 URL。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "memory-hub-agent-api-url",
+     "target": "memory-hub",
+     "name": "APPLIES_TO",
+     "fact": "记忆 hook、安装器、历史归档、漏传工具和每日洞察统一使用 https://luckeyhome.site/memory-hub/agent-api 作为 memory-hub 的 API 地址；本机 shell profile 与三端共用 hook 已更新并通过校验，其他机器尚未远程修改。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "memory-hub",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "8e3b322d-6995-4a53-9f2f-58b0865dfc37",
+        "canonical_name": "memory-hub",
+        "match_basis": "exact",
+        "created_at": "2026-08-18T13:44:40.441816000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "memory-hub is a multi-user memory hub service (based on graphiti) deployed on NAS (hub :9287 / worker / dashboard :9288), frontend at https://luckeyhome.site/memory-hub. It serves as the long-term mem"
+       }
+      ]
+     },
+     {
+      "input_name": "memory-hub-agent-api-url",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07ce3-34d1-7e60-b416-b2fe298c7534",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "自动帮我处理当前的抽取审核吧",
+  "created_at": "2026-09-07T17:21:00.085358Z",
+  "entity_count": 6,
+  "edge_count": 4,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆确认了 novelty 同批盲区和归一需人工审批等旧结论，同时包含历史候选未覆盖的新长期事实：Graphiti 写入侧自动归并 tianyi-cloud/ai-review-service 等变体的实证发现、三条流水线盲区并集的机制解释、P0 同队列实体交叉索引等新提案，以及 admin 组存量变体 ai_review 的待决项，构成演进而非重复。"
+  },
+  "distilled_content": "首个用户目标：自动帮我处理当前的抽取审核吧。最近用户目标：可以，后面的记忆层要考虑如何避免？ 为啥你现在可以发现。会话结果：## ✅ 归并已执行（5 个 merge 全 applied，`graph_edits` 有审计可回滚） | 组 | 归并 | |---|---| | obsidianvault | `xiaomi-speaker-lx04`、`小爱触屏音箱` → **LX04 音箱**；`cloud119-tianyi` → **天翼云盘**；`alist-cloud119` → **alist** | | admin_sun_depot_7184 | `ai-review-worker` → **ai-review**（degree 17 的既有枢纽） | 执行时的新发现：**Graphiti 写入侧的实体解析比预想的强**——`tianyi-cloud`、`project-lungfish`、`ai-review-service` 这些变体在写入时就被自动归并进了既有 canonical，根本不需要我动手。真正漏网的只有上表 5 个。另外验证时发现 admin 组还有个存量变体 `ai_review`（下划线写法），不在你确认的清单里，没动，要并的话说一声。 ## 为啥我现在可以发现 不是能力强，是**视野是三条流水线的并集**，而每条流水线只看自己的切片： | 环节 | 它看到的 | 盲区 | |---|---|---| | preview LLM | 单条 `distilled_content`（盲抽） | 无图谱上下文、无同批兄弟条目 → 每条记忆独立发明实体名 | | novelty 演进分析 | 图谱已有 + 同队列**严格更早**的最多 2 条 | 同批晚到条目互不可见（c85/c94 就是这么错过的） | | 存在性标注 | 图谱（组内三级匹配） | 不查同队列在途预览；归一化只做 strip/NFKC，连字符/词序变体必然漏 | | **我（审核层）** | 全队列 packet 逐条全文 + 横向比对 + 跨 session 背景 | —— | HBS3 vs AList 的归属矛盾也一样：需要同时读完 c85 和 c94 两条全文才能发现，而没有任何一个管线环节同时看过它们俩。 ## 记忆层如何避免（按 ROI 排序） - **P0 同队列实体交叉索引**（纯字符串、无 LLM 成本，堵最大来源）：preview 落库时对 **open 同组条目的 proposed 实体**做图谱同款三级匹配 + 分隔符折叠，命中就互相标注「同队列 #x 有近似实体」；批准重验的 canonical 候选源从「图谱」扩到「图谱 + 同批已批准条目」。本次观察到的分裂全部源自同批，这一招直接堵死。 - **P1 归一化口径升级**：`_normalize_extraction` 从 strip → NFKC + casefold + 空白/连字符/下划线折叠；加 token-set 词序无关相似度（抓 `cloud119-tianyi` 这类），**只产候选进别名管理页人工审，不自动改**（防过度合并）。 - **P2 preview 后确定性改名 pass**：批准重验已有的「唯一候选改写 canonical」逻辑前置到 preview 落库时，不改 prompt、无注入风险。「全实体名单注入 prompt」维持已否决结论（token 膨胀 + 注入面）。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "ai-review",
+     "type": "Project",
+     "summary": "记忆图谱实体归并审核流水线（admin_sun_depot_7184 组，degree 17 的既有枢纽）。其审核层视野是三条流水线的并集：preview LLM 对单条 distilled_content 盲抽（无图谱上下文、无同批兄弟条目）、novelty 演进分析只能看图谱加同队列严格更早的最多 2 条、存在性标注只查图谱不做同队列在途比对，因此审核层能发现各管线盲区导致的同批实体分裂和跨条目归属矛盾。"
+    },
+    {
+     "name": "graphiti",
+     "type": "Service",
+     "summary": "记忆图谱写入服务。其写入侧的实体解析比预期强：tianyi-cloud、project-lungfish、ai-review-service 等命名变体在写入时会被自动归并进既有 canonical 实体，无需人工处理。",
+     "suggested_canonical": "Graphiti"
+    },
+    {
+     "name": "_normalize_extraction",
+     "type": "Tool",
+     "summary": "ai-review 存在性标注环节的实体名归一化函数，当前仅做 strip/NFKC，连字符、下划线、词序等变体必然漏匹配。建议（未实施）升级为 NFKC + casefold + 空白/连字符/下划线折叠，并加 token-set 词序无关相似度以抓取 cloud119-tianyi 类变体，只产候选进别名管理页人工审，不自动改。"
+    },
+    {
+     "name": "同队列实体交叉索引",
+     "type": "Concept",
+     "summary": "针对实体分裂问题的 P0 建议（未实施，纯字符串无 LLM 成本）：preview 落库时对 open 同组条目的 proposed 实体做图谱同款三级匹配 + 分隔符折叠，命中则互相标注同队列近似实体；批准重验的 canonical 候选源从「图谱」扩到「图谱 + 同批已批准条目」。"
+    },
+    {
+     "name": "preview 落库确定性改名 pass",
+     "type": "Concept",
+     "summary": "P2 建议（未实施）：把批准重验已有的「唯一候选改写 canonical」逻辑前置到 preview 落库时执行，不改 prompt、无注入风险。"
+    },
+    {
+     "name": "否决全实体名单注入 prompt",
+     "type": "Decision",
+     "summary": "已否决的既有结论：不把全实体名单注入 preview prompt，理由是 token 膨胀和注入面扩大，本次讨论维持该否决。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "ai-review",
+     "target": "_normalize_extraction",
+     "name": "IMPLEMENTS",
+     "fact": "ai-review 的存在性标注环节通过 _normalize_extraction 做实体名归一化，当前仅 strip/NFKC，因此连字符和词序变体必然漏匹配。"
+    },
+    {
+     "source": "同队列实体交叉索引",
+     "target": "ai-review",
+     "name": "PROPOSED_FOR",
+     "fact": "建议（未实施）为 ai-review 增加同队列实体交叉索引：preview 落库时对同组 open 条目的 proposed 实体做三级匹配 + 分隔符折叠并互相标注，canonical 候选源扩到同批已批准条目，以堵住全部源自同批的实体分裂。"
+    },
+    {
+     "source": "preview 落库确定性改名 pass",
+     "target": "ai-review",
+     "name": "PROPOSED_FOR",
+     "fact": "建议（未实施）将 ai-review 批准重验中「唯一候选改写 canonical」的确定性改名逻辑前置到 preview 落库时执行，不改 prompt、无注入风险。"
+    },
+    {
+     "source": "否决全实体名单注入 prompt",
+     "target": "ai-review",
+     "name": "APPLIES_TO",
+     "fact": "ai-review 维持已否决结论：不将全实体名单注入 preview prompt，原因是 token 膨胀和注入面扩大。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "ai-review",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "graphiti",
+      "status": "casefold",
+      "candidates": [
+       {
+        "uuid": "0344e282-1c33-4a7b-8889-1000a3de7737",
+        "canonical_name": "Graphiti",
+        "match_basis": "casefold",
+        "created_at": "2026-08-18T13:39:14.202905000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "Graphiti 是 memory-hub 的图谱引擎，以 overlay patches 方式注入 memory-center 容器；仓库 deploy/graphiti-0.22.0 为源码权威且两侧不自动同步；stop_all/start_all 不操作 graphiti 容器；发布流程为备份 patches→拷贝→docker compose restart graphiti→端点冒烟。m"
+       }
+      ]
+     },
+     {
+      "input_name": "_normalize_extraction",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "ada87757-1d72-4b5e-8ece-b685196e69de",
+        "canonical_name": "_normalize_extraction",
+        "match_basis": "exact",
+        "created_at": "2026-09-06T23:33:45.162269000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "_normalize_extraction 是 Memory Hub 的实体名规范化函数，目前只做 strip() 操作，缺乏大小写折叠等保守规范化处理，导致同一实体以不同写法在图谱中形成重复节点。例如 chat-hub/Chat Hub 类双写，线上 obsidianvault 图谱中 Memory Hub 与 memory-hub 已成为两个节点。该函数是 Memory Hub 提取审核机制中"
+       }
+      ]
+     },
+     {
+      "input_name": "同队列实体交叉索引",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "preview 落库确定性改名 pass",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "否决全实体名单注入 prompt",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07ce1-bf0f-75ca-8695-e23301a20033",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "针对 192.168.50.58 我需要安装 指定的 apk 包 ,或者 通过它听自定义的音乐，帮我实现&#x20; 参考 [https://github.co",
+  "created_at": "2026-09-07T17:19:22.946133Z",
+  "entity_count": 2,
+  "edge_count": 1,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "服务入口、账号等部署事实与候选3一致，但新记忆额外提供了候选中未覆盖的长期事实：iPhone 端 Safari/添加到主屏幕的使用方式、主程序与智能音箱插件的出声位置区分、以及微信分享按场景（家人局域网/自己外出VPN/朋友外网HTTPS分享页）的方案和访客账号建议，因此为 evolution。"
+  },
+  "distilled_content": "首个用户目标：针对 192.168.50.58 我需要安装 指定的 apk 包 ,或者 通过它听自定义的音乐，帮我实现&#x20; 参考 [https://github.com/arch3rPro/1Panel-Appstore/blob/main/apps/xiaomusic/README.md](https://github.com/arch3rPro/1Panel-Appstore/blob/main/apps/xiaomusic/README.md)。最近用户目标：我想在ios 上用，或者微信分享给其他人用，怎么做。会话结果：可以，**你自己在 iPhone 上用，现在就能操作；微信分享给外面的朋友，还需要配置分享入口。** 1. iPhone 连接家里的 Wi‑Fi，用 **Safari** 打开 [SongLoft](http://192.168.50.2:58091)。 2. 用 `sun` 登录，密码见[登录信息](/Users/sun/.local/share/songloft-migration/管理登录信息.txt)。 3. 在主程序曲库播放，是 **iPhone 出声**；进入「智能音箱」插件播放，是 **家里的小爱音箱出声**。 4. Safari 点“分享 → 添加到主屏幕”，以后可以从桌面图标进入。[Apple 操作说明](https://support.apple.com/zh-cn/guide/iphone/iphea86e5236/ios) 官方也提供 iOS 客户端，但目前发布的是需要自行签名安装的 IPA；先用 Safari 最省事。[官方下载说明](https://github.com/songloft-org/songloft-player#下载安装) 微信分享取决于对方怎么用： | 使用场景 | 做法 | |---|---| | 家人在家里使用 | 微信发上面的地址，对方连接家里 Wi‑Fi 后打开 | | 自己在外面使用 | 给 iPhone 配置连接家庭网络的 VPN | | 朋友在自己手机上听 | 配置外网 HTTPS 地址，并增加只允许听指定歌单的分享页面 | **现有 `sun` 是管理员账号，不是只听歌的访客账号。** 如果分享给朋友，建议做带访问码、可撤销的儿歌分享链接，让对方点开听歌，同时保留你自己的音箱控制权限。这部分目前尚未部署，微信内播放兼容性也需要实际验证。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "songloft",
+     "type": "Service",
+     "summary": "自建音乐服务，Web 访问地址 http://192.168.50.2:58091；iPhone 可用 Safari 访问并通过“分享 → 添加到主屏幕”从桌面图标进入；在主程序曲库播放时 iPhone 本机出声，进入「智能音箱」插件播放时通过家里的小爱音箱出声；官方提供需自行签名安装的 iOS IPA 客户端。"
+    },
+    {
+     "name": "sun",
+     "type": "Person",
+     "summary": "SongLoft 的现有登录账号，权限为管理员，不是只听歌的访客账号。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "sun",
+     "target": "songloft",
+     "name": "IS_ADMIN_OF",
+     "fact": "SongLoft 现有账号 sun 是管理员账号，不是只听歌的访客账号；若分享服务给朋友，需要另行提供受限的分享方式。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "songloft",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "81a539a0-584d-4b03-be18-9672820f2011",
+        "canonical_name": "songloft",
+        "match_basis": "exact",
+        "created_at": "2026-09-07T16:21:52.268584000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "SongLoft 是一个持续维护更新的音乐服务（github.com/songloft-org/songloft），最新正式版为 v2.12.0（8月31日发布），提供 Docker 镜像、Web 页面和 SQLite 数据库，适合部署到 QNAP NAS。SongLoft 的配套智能音箱插件为 songloft-plugin-miot，该插件源码明确支持 LX04 音箱，其云端下发控制方式与已验"
+       }
+      ]
+     },
+     {
+      "input_name": "sun",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "7e6f4fa0-9e92-48f6-a126-c2f68daa5f68",
+        "canonical_name": "sun",
+        "match_basis": "exact",
+        "created_at": "2026-08-19T09:35:33.965568000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "用户 sun 的身份已切换为 sunlaibing（MEMORY_HUB_CLIENT_USER_ID=sunlaibing 已持久化到 ~/.profile 和 ~/.zprofile），安装器同步更新了 .team/settings.local.json 的 currentMember，client-profile.json 已写入（display name: Sun）。积压 spool 清理"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07cc9-c4e3-78b4-9e51-570f9c23f3af",
+  "project_id": "maindev",
+  "memory_type": "core-knowledge",
+  "summary": "GASExtendedPL 子系统导航：最大玩法插件 60+ 子系统地图、关键类速查、references 分册",
+  "created_at": "2026-09-07T16:53:13.048226Z",
+  "entity_count": 10,
+  "edge_count": 9,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆在确认既有事实（插件规模/定位、Iris 启用、AI 基座类）之外，新增大量未被覆盖的长期事实：60+ 子系统地图、关键类速查表、96 个公开模块依赖与关闭 unity build、30+ 组件/22+ 子系统清单、17 个 references 分册目录、2026-07 业务组件迁出至 PLGameplayCommon/PLEngineExtended/PLEnvironmentDataSystem 及 CoreRedirects 位置，故属演进而非重复。"
+  },
+  "distilled_content": "# 领域记忆：GASExtendedPL 子系统导航（最大玩法插件）\n\n> 种子记忆 D-gasextendedpl ｜ scope: project:maindev ｜ 来源：Main/Plugins/GASExtendedPL/SKILL.md\n\nGASExtendedPL（`Main/Plugins/GASExtendedPL/`）是 ProjectLungfish 最大的玩法系统插件：826+ 头文件、60+ 子系统、96 个公开模块依赖（Build.cs 关闭 unity build、启用 Iris replication 与 Gameplay debugger）。它在 UE5 GAS（GASCompanion 封装层）之上扩展项目全部核心玩法。**改任何玩法能力/伤害/AI/建筑/装备/背包/相变前先读它的 SKILL.md 与 references/ 对应分册。**\n\n## 子系统地图（Public/ 目录）\n\nAbility（GA 基类族）/ Animation / Attribute / AI / Building（建造）/ Camera / Character / Collision（碰撞块弹道/AOE）/ Cooking / Crafting / Damage（DamageFlowGraph 伤害流）/ Debug / Electric（电路）/ Facility（机关）/ Farming（种植）/ Growth / Highlight / Interaction / Item（背包/物品）/ LockOnTarget / Online（多人在线）/ Respawn / Riding / SmartObject / Soul / UI（MVVM）/ WorldGrid（空间网格）等。\n\n## 关键类速查\n\n- Ability：`UPLGameplayAbility`（全项目 GA 基类，extends UGSCGameplayAbility）、`UPLAbilitySystemComponent`（扩展 ASC）、`_MontageAction(_Player)`、`_CharacterBeHit`、`_Charging/_JumpAttack/_Vault/_Ride`。\n- Character：`APLCharacter` / `APLCharacterNPC` / `APLActorGAS`（非角色 GAS actor 基类）/ `APLPlayerController`。\n- Damage：`UPLDamageFlowGraph`（伤害管线数据资产）、`UPLDamageSubsystem`。\n- AI/怪物：`APLAIController`、`UPLAttentionComponent`、`UPLAIBehaviorComponent`、`PLMonsterGroupSubsystem`、`PLAIWorldSubsystem`、`UPLMonsterManagerComponent`（GameMode 活怪注册表）、`UPLAtmosphereMonsterComponent`（氛围怪暗雷）。\n- Building：`UPLBuilderComponent`（操作入口）、`UPLBuildingBlockSubsystem`（协同枢纽）、`UPLBuildingStateManagerComponent`（纯持久化）、`APLBonfireActor`。\n- 装备/背包：`UPLEquipmentManagerComponent`、`UPLEquipmentComponent`、`UPLInventoryComponent`、`UPLInventoryItemDefinition`。\n- **Phase 相变**：`UPLPhaseComponent`（相变引擎）+ `UPLPhaseSetBase`（33 个相变属性集抽象基类）——燃烧/温度/冻结/湿度/腐烂/生长/耐久全部是 Phase 驱动的属性集。\n- 组件 30+（BuffManager/Level/Cook/Eating/Archery/MonsterStatus/弱点三件套…）、子系统 22+（PLDamage/PLBuildingBlock/PLMonsterGroup/PLEquipment/PLWorldGrid/PLTimer/PLUIManager/MVVMRegistry/PLOnline/PLAchievement/PLElectricPairing…）。\n\n## 依赖与分层（2026-07 重排，无环）\n\n向下依赖 ProjectLungfishCore、PLWeatherSystem、GASCompanion、PLTagCountQuery、PLEngineExtended、HazeAudio、PoolManager、AngelScript；2026-07 起业务组件（PLAuraComponent/PLAchievementTypes/PLWaterDataComponent/PLDataAsset_Phase 等）迁出到中层 PLGameplayCommon，中性件迁 PLEngineExtended，流体族迁 PLEnvironmentDataSystem；CoreRedirects 在 Main/Config/DefaultEngine.ini。\n\n## 专题分册（references/）\n\nability-damage / phase-system（相变全量）/ character-animation / ai-monster / building / electric-facility / equipment-inventory（词条 RPC 归属）/ cooking / interaction / collision（过网序列化铁律）/ camera-occlusion / ui / debugging-tools / common-issues（20+ 排障案例）/ atmosphere-monster / uht-build-pitfalls / achievement-system。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "GASExtendedPL",
+     "type": "Project",
+     "summary": "ProjectLungfish 最大的玩法系统插件，位于 Main/Plugins/GASExtendedPL/：826+ 头文件、60+ 子系统、96 个公开模块依赖，Build.cs 关闭 unity build、启用 Iris replication 与 Gameplay debugger。在 UE5 GAS（GASCompanion 封装层）之上扩展项目全部核心玩法，子系统地图覆盖 Ability/Animation/Attribute/AI/Building/Camera/Character/Collision/Cooking/Crafting/Damage/Electric/Facility/Farming/Interaction/Item/Online/Respawn/Riding/UI(MVVM)/WorldGrid 等。向下依赖 ProjectLungfishCore、PLWeatherSystem、GASCompanion、PLTagCountQuery、PLEngineExtended、HazeAudio、PoolManager、AngelScript（2026-07 重排后无环）。关键类：APLCharacter/APLCharacterNPC/APLActorGAS/APLPlayerController、UPLDamageSubsystem、APLAIController、UPLBuilderComponent、UPLEquipmentManagerComponent、UPLInventoryComponent 等，附 references/ 专题分册（ability-damage、phase-system、building、collision 过网序列化铁律、common-issues 等 17 册）。"
+    },
+    {
+     "name": "ProjectLungfish",
+     "type": "Project",
+     "summary": "主项目，最大玩法插件 GASExtendedPL 所属的 UE5 游戏项目。"
+    },
+    {
+     "name": "GASCompanion",
+     "type": "Project",
+     "summary": "UE5 GAS 的封装层插件，GASExtendedPL 在其之上扩展项目全部核心玩法，提供 UGSCGameplayAbility 等基类。"
+    },
+    {
+     "name": "PLGameplayCommon",
+     "type": "Project",
+     "summary": "中层模块，2026-07 依赖重排时从 GASExtendedPL 迁入业务组件（PLAuraComponent/PLAchievementTypes/PLWaterDataComponent/PLDataAsset_Phase 等）。"
+    },
+    {
+     "name": "PLEngineExtended",
+     "type": "Project",
+     "summary": "底层模块，2026-07 依赖重排时承接 GASExtendedPL 迁出的中性件；位于 GASExtendedPL 向下依赖层。",
+     "suggested_canonical": "plengineextended"
+    },
+    {
+     "name": "PLEnvironmentDataSystem",
+     "type": "Project",
+     "summary": "环境数据模块，2026-07 依赖重排时承接 GASExtendedPL 迁出的流体族组件。"
+    },
+    {
+     "name": "UPLGameplayAbility",
+     "type": "Concept",
+     "summary": "GASExtendedPL Ability 子系统中全项目的 Gameplay Ability 基类，继承 UGSCGameplayAbility；配套的扩展 ASC 为 UPLAbilitySystemComponent，GA 族含 _MontageAction(_Player)、_CharacterBeHit、_Charging/_JumpAttack/_Vault/_Ride 等。"
+    },
+    {
+     "name": "UPLDamageFlowGraph",
+     "type": "Concept",
+     "summary": "GASExtendedPL Damage 子系统的伤害管线数据资产，与 UPLDamageSubsystem 一起构成 DamageFlowGraph 伤害流。"
+    },
+    {
+     "name": "UPLPhaseComponent",
+     "type": "Concept",
+     "summary": "GASExtendedPL 的相变引擎，配合 UPLPhaseSetBase（33 个相变属性集抽象基类）；燃烧/温度/冻结/湿度/腐烂/生长/耐久全部为 Phase 驱动的属性集。"
+    },
+    {
+     "name": "gasextendedpl-skill-first",
+     "type": "Convention",
+     "summary": "修改任何玩法能力/伤害/AI/建筑/装备/背包/相变相关代码前，先读 Main/Plugins/GASExtendedPL/SKILL.md 与 references/ 对应专题分册。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "GASExtendedPL",
+     "target": "ProjectLungfish",
+     "name": "PART_OF",
+     "fact": "GASExtendedPL 是 ProjectLungfish 最大的玩法系统插件（826+ 头文件、60+ 子系统、96 个公开模块依赖），位于 Main/Plugins/GASExtendedPL/。"
+    },
+    {
+     "source": "GASExtendedPL",
+     "target": "GASCompanion",
+     "name": "EXTENDS",
+     "fact": "GASExtendedPL 在 UE5 GAS 的 GASCompanion 封装层之上扩展项目全部核心玩法，其 Build.cs 关闭 unity build、启用 Iris replication 与 Gameplay debugger。"
+    },
+    {
+     "source": "GASExtendedPL",
+     "target": "UPLGameplayAbility",
+     "name": "IMPLEMENTS",
+     "fact": "UPLGameplayAbility 是 GASExtendedPL 中全项目的 GA 基类，继承 UGSCGameplayAbility，配套的扩展 ASC 为 UPLAbilitySystemComponent。"
+    },
+    {
+     "source": "GASExtendedPL",
+     "target": "UPLDamageFlowGraph",
+     "name": "IMPLEMENTS",
+     "fact": "UPLDamageFlowGraph 是 GASExtendedPL Damage 子系统的伤害管线数据资产，与 UPLDamageSubsystem 构成 DamageFlowGraph 伤害流。"
+    },
+    {
+     "source": "GASExtendedPL",
+     "target": "UPLPhaseComponent",
+     "name": "IMPLEMENTS",
+     "fact": "UPLPhaseComponent 是 GASExtendedPL 的相变引擎，配合 UPLPhaseSetBase（33 个相变属性集抽象基类），燃烧/温度/冻结/湿度/腐烂/生长/耐久全部由 Phase 驱动。"
+    },
+    {
+     "source": "GASExtendedPL",
+     "target": "PLGameplayCommon",
+     "name": "DEPENDS_ON",
+     "fact": "2026-07 依赖重排后，GASExtendedPL 的业务组件（PLAuraComponent/PLAchievementTypes/PLWaterDataComponent/PLDataAsset_Phase 等）迁出到中层 PLGameplayCommon，CoreRedirects 位于 Main/Config/DefaultEngine.ini，重排后的依赖分层无环。"
+    },
+    {
+     "source": "GASExtendedPL",
+     "target": "PLEngineExtended",
+     "name": "DEPENDS_ON",
+     "fact": "2026-07 依赖重排后，GASExtendedPL 的中性件迁出到底层模块 PLEngineExtended。"
+    },
+    {
+     "source": "GASExtendedPL",
+     "target": "PLEnvironmentDataSystem",
+     "name": "DEPENDS_ON",
+     "fact": "2026-07 依赖重排后，GASExtendedPL 的流体族组件迁出到 PLEnvironmentDataSystem。"
+    },
+    {
+     "source": "gasextendedpl-skill-first",
+     "target": "GASExtendedPL",
+     "name": "APPLIES_TO",
+     "fact": "修改 GASExtendedPL 中任何玩法能力/伤害/AI/建筑/装备/背包/相变相关代码前，必须先读 Main/Plugins/GASExtendedPL/SKILL.md 与 references/ 对应专题分册。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "GASExtendedPL",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "cc1b0bbc-5582-460a-b750-47f2162b61cb",
+        "canonical_name": "GASExtendedPL",
+        "match_basis": "exact",
+        "created_at": "2026-08-18T14:22:08.145234000+00:00",
+        "group_id": "project:maindev",
+        "summary": "GASExtendedPL is the main gameplay systems plugin in the ProjectLungfish project, an Unreal Engine 5 multiplayer survival/crafting game. It contains 826+ headers and 60+ subsystems. The plugin extensi"
+       }
+      ]
+     },
+     {
+      "input_name": "ProjectLungfish",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "c77446d4-1ba2-4201-9c93-920b1f64c8ce",
+        "canonical_name": "ProjectLungfish",
+        "match_basis": "exact",
+        "created_at": "2026-08-18T14:10:54.869258000+00:00",
+        "group_id": "project:maindev",
+        "summary": "ProjectLungfish is a large-scale multiplayer survival/crafting game built on Unreal Engine 5 with a plugin-based architecture, located at D:\\MainDev\\Main\\ProjectLungfish.uproject. It uses Perforce for"
+       }
+      ]
+     },
+     {
+      "input_name": "GASCompanion",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "PLGameplayCommon",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "b2da55f7-1112-49cc-b44b-2ba7c1fe3f62",
+        "canonical_name": "PLGameplayCommon",
+        "match_basis": "exact",
+        "created_at": "2026-09-07T16:40:27.202611000+00:00",
+        "group_id": "project:maindev",
+        "summary": "PLGameplayCommon 是 ProjectLungfish 项目中的一个插件，位于插件分层架构的中间层。在插件分层中，其位置为：PLEngineExtended → ProjectLungfishCore → PLGameplayCommon → GASExtendedPL → 其他业务插件。PLGameplayCommon 属于玩法中间层（play 中層），位于 ProjectLung"
+       }
+      ]
+     },
+     {
+      "input_name": "PLEngineExtended",
+      "status": "casefold",
+      "candidates": [
+       {
+        "uuid": "f5f48d6b-4f81-4ff4-a185-1cd4095429f8",
+        "canonical_name": "plengineextended",
+        "match_basis": "casefold",
+        "created_at": "2026-08-26T00:11:43.364223000+00:00",
+        "group_id": "project:maindev",
+        "summary": "plengineextended 是纯基础设施层插件，分层约束：不得依赖上层模块，上层调试功能不得改它一行代码。包含 plboxcomponent（盒体组件类）和 plstaticmeshcomponent（静态网格组件类）。在 bp_sm_vinethorn_01 上的 objectproperty 属性 aura_barricade 声明类型为 plboxcomponent，但实际序列化了 p"
+       }
+      ]
+     },
+     {
+      "input_name": "PLEnvironmentDataSystem",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "UPLGameplayAbility",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "UPLDamageFlowGraph",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "UPLPhaseComponent",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "72e452bd-45d8-4a0b-9a19-4e3374812389",
+        "canonical_name": "UPLPhaseComponent",
+        "match_basis": "exact",
+        "created_at": "2026-09-07T16:40:27.202823000+00:00",
+        "group_id": "project:maindev",
+        "summary": "UPLPhaseComponent 是 ProjectLungfish 中 GASExtendedPL 插件内的一个组件，属于 Phase 相变系统的一部分。GASExtendedPL 是 ProjectLungfish 最大的玩法插件（826+ 头文件、60+ 子系统），包含 DamageFlowGraph 伤害流、Phase 相变系统、Molecule/Atom GE 与 CollisionB"
+       }
+      ]
+     },
+     {
+      "input_name": "gasextendedpl-skill-first",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07cc9-c4ca-7b4c-baab-4f1b2ecfaf59",
+  "project_id": "maindev",
+  "memory_type": "core-knowledge",
+  "summary": "测试自动化：PLAutomation 七层 Action 分类法、运行时框架、行为测试族、包体烟测",
+  "created_at": "2026-09-07T16:53:13.023685Z",
+  "entity_count": 15,
+  "edge_count": 12,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆对 PLAutomationFramework 运行入口/前端形态构成 SUPERSEDES（编辑器 UI 移除、CLI 化），同时包含大量历史候选未覆盖的长期事实（七层 Action 分类法与裁层规则、Runtime-first 设计原则、行为测试族 skill 名册、包体烟测与数值校验套件等），属于演进并新增事实。"
+  },
+  "distilled_content": "# 领域记忆：测试自动化体系（PLAutomation）\n\n> 种子记忆 D-test-automation ｜ scope: project:maindev ｜ 来源：Main/Plugins/PLAutomationFramework/SKILL.md、Main/Script/Tests/Core/Actions/SKILL.md\n\nProjectLungfish 的自动化测试体系是「C++ 运行时框架 + AngelScript 编写层 + 七层 Action 分类法」，运行入口 CLI 化（`-PLAutoRunTests`，编辑器 UI 已于 2026-07 移除）。写任何用例前必读名册 skill `plautomation-action-family`。\n\n## 框架（PLAutomationFramework 插件）\n\n- 设计原则：Runtime-first（用例跑在真实 PIE 世界，无 mock）、`UPLAutomationRuntimeSubsystem` 驱动、Fluent DSL（`BuildSequence()` 链式 builder，已冻结不再新增 fluent 方法）、步骤回调是普通 UObject UFUNCTION（AS/C++ 经 FName 可达）。\n- 每个步骤类型是 `UPLAutomationAction` 子类，自包含（参数=UPROPERTY，行为在 OnEnter/Tick/OnExit，不回调 subsystem）。\n- 唯一步骤入口：`.Step(<域>Steps::Xxx(...))`。\n- 注意：`Main/Plugins/PLAutomationTests/` 是**无关的 PMR 输入回放插件**（启动编辑器进 PIE 回放键鼠），不是框架测试模块。\n\n## 七层分类法（绝不混层，混层=假信心）\n\n| 层 | 域/namespace | 测什么 |\n|---|---|---|\n| L1 UI 层 | UI/ + <域>UI/（UISteps） | Slate/UMG 真实指针通路（hit-test/拖拽/OnDrop） |\n| L2 输入层 | Input/（InputSteps） | 设备级注入：键事件/InputAction/轴/屏幕坐标 |\n| L3 3C 层 | Player/（PlayerSteps） | 本地玩家 Controller/Pawn/Camera 直改（Arrange） |\n| L4 系统层 | World/Level/Gas/Attr/Inv/Eqp/Interaction/Time/ | 产品组件/GAS 直调，跳过 UI 与输入只测业务规则 |\n| L5 流程层 | builder 核心 | Do/Wait*/Assert/Step 组织步骤 |\n| L6 断言层 | UPLAutomationAssert + 域语义断言 | 只读判定绝不 mutate，失败自带 actual/expected |\n| L7 观测层 | Perf/ Debug/ | 性能采集、日志标记、CVar |\n\n裁层规则：机制定层（执行通路碰到的第一个产品接口）；复合归锚；同业务双层双名（`EqpSteps::EquipItemByEntity` vs `InvUISteps::DragBagSlotToEquipSlot`），**禁止\"UI 失败静默回退系统 API\"**（7009 滚轮假绿教训）。用例标准形态 AAA：Arrange 用系统层 → Act 用被测层 → Assert 语义断言。\n\n## 行为测试族与周边\n\n- 领域用例规范：`plautomation-eat/entry/talent/trait-number4-behavior-tests`（Main/Script/Tests/1000_RuntimeTests/ 下按域分目录）；写新用例工作流：`eat-test-design` / `entry-test-design`。\n- PLAutoTrace→用例转换：`plauto-trace-to-case`；QA 录制工作流：`qa-testcase-workflow`。\n- 包体烟测：`packaged-smoke-test`（ASGameState 补丁双版本 + 判分 + 性能采集）。\n- 引擎侧六模块（engine-automation-controller/worker/messages/driver/window/rpc）+ Gauntlet（C# 编排）+ automated-perf-testing（Insights trace/CSV/FPS）构成底层设施。\n- 数值校验套件：`numeric-suite`（词条切段/权重/池、怪物属性对账）+ `numeric-baseline-sync`。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "plautomation",
+     "type": "Project",
+     "summary": "ProjectLungfish 的自动化测试体系：C++ 运行时框架 + AngelScript 编写层 + 七层 Action 分类法；运行入口为 CLI 参数 -PLAutoRunTests（编辑器 UI 入口已于 2026-07 移除）；用例位于 Main/Script/Tests/1000_RuntimeTests/ 下按域分目录。",
+     "suggested_canonical": "PLAutomation"
+    },
+    {
+     "name": "plautomation-framework",
+     "type": "Project",
+     "summary": "位于 Main/Plugins/PLAutomationFramework/ 的运行时框架插件。Runtime-first（用例跑在真实 PIE 世界，无 mock），由 UPLAutomationRuntimeSubsystem 驱动；提供已冻结不再新增的 Fluent DSL（BuildSequence() 链式 builder）；每个步骤类型是自包含的 UPLAutomationAction 子类（参数=UPROPERTY，行为在 OnEnter/Tick/OnExit，不回调 subsystem），步骤回调是普通 UObject UFUNCTION（AS/C++ 经 FName 可达）；唯一步骤入口为 .Step(<域>Steps::Xxx(...))。"
+    },
+    {
+     "name": "plautomation-tests",
+     "type": "Project",
+     "summary": "位于 Main/Plugins/PLAutomationTests/ 的 PMR 输入回放插件（启动编辑器进 PIE 回放键鼠），与 PLAutomation 框架测试模块无关，需避免混淆。"
+    },
+    {
+     "name": "plautomation-seven-layer-taxonomy",
+     "type": "Convention",
+     "summary": "PLAutomation 的七层 Action 分类法：L1 UI 层（UISteps，Slate/UMG 真实指针通路）、L2 输入层（InputSteps，设备级注入）、L3 3C 层（PlayerSteps，Controller/Pawn/Camera 直改）、L4 系统层（World/Level/Gas/Attr/Inv/Eqp/Interaction/Time 等产品组件直调）、L5 流程层（builder 核心 Do/Wait*/Assert/Step）、L6 断言层（UPLAutomationAssert 只读判定，失败自带 actual/expected）、L7 观测层（Perf/Debug 性能采集与日志）。裁层规则：机制定层、复合归锚、同业务双层双名；用例标准形态 AAA：Arrange 用系统层 → Act 用被测层 → Assert 语义断言；绝不混层。"
+    },
+    {
+     "name": "no-silent-ui-fallback",
+     "type": "Convention",
+     "summary": "PLAutomation 用例编写规则：禁止 UI 层失败时静默回退系统 API（源自 7009 滚轮假绿教训），同业务双层须双名区分（如 EqpSteps::EquipItemByEntity vs InvUISteps::DragBagSlotToEquipSlot）。"
+    },
+    {
+     "name": "plautomation-action-family",
+     "type": "Tool",
+     "summary": "PLAutomation 名册 skill，写任何自动化用例前必读，登记七层各域 Action 家族。"
+    },
+    {
+     "name": "eat-test-design",
+     "type": "Tool",
+     "summary": "PLAutomation 新用例设计工作流 skill，面向 eat 域行为测试（对应 plautomation-eat-behavior-tests 规范）。"
+    },
+    {
+     "name": "entry-test-design",
+     "type": "Tool",
+     "summary": "PLAutomation 新用例设计工作流 skill，面向 entry 域行为测试（对应 plautomation-entry-behavior-tests 规范）。"
+    },
+    {
+     "name": "plauto-trace-to-case",
+     "type": "Tool",
+     "summary": "将 PLAutoTrace 录制转换为 PLAutomation 用例的工具/skill。"
+    },
+    {
+     "name": "qa-testcase-workflow",
+     "type": "Tool",
+     "summary": "QA 录制并产出 PLAutomation 用例的工作流 skill。"
+    },
+    {
+     "name": "packaged-smoke-test",
+     "type": "Tool",
+     "summary": "PLAutomation 包体烟测工具：ASGameState 补丁双版本 + 判分 + 性能采集。"
+    },
+    {
+     "name": "numeric-suite",
+     "type": "Tool",
+     "summary": "PLAutomation 数值校验套件：覆盖词条切段/权重/池与怪物属性对账。"
+    },
+    {
+     "name": "numeric-baseline-sync",
+     "type": "Tool",
+     "summary": "与 numeric-suite 配套的数值基线同步工具。"
+    },
+    {
+     "name": "engine-automation",
+     "type": "Project",
+     "summary": "引擎侧自动化底层设施：engine-automation-controller/worker/messages/driver/window/rpc 六模块，外加 Gauntlet（C# 编排）。"
+    },
+    {
+     "name": "automated-perf-testing",
+     "type": "Tool",
+     "summary": "引擎侧自动化性能测试设施：Insights trace / CSV / FPS 采集。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "plautomation",
+     "target": "plautomation-framework",
+     "name": "USES",
+     "fact": "PLAutomation 测试体系的运行时框架是 PLAutomationFramework 插件，由 UPLAutomationRuntimeSubsystem 驱动，用例经 -PLAutoRunTests CLI 入口运行。"
+    },
+    {
+     "source": "plautomation",
+     "target": "plautomation-seven-layer-taxonomy",
+     "name": "FOLLOWS",
+     "fact": "PLAutomation 用例编写遵循七层 Action 分类法（L1 UI 至 L7 观测），绝不混层，标准形态为 AAA：Arrange 用系统层、Act 用被测层、Assert 用语义断言。"
+    },
+    {
+     "source": "no-silent-ui-fallback",
+     "target": "plautomation-seven-layer-taxonomy",
+     "name": "APPLIES_TO",
+     "fact": "七层分类法下禁止 UI 层失败静默回退系统 API（7009 滚轮假绿教训），同业务双层必须双名区分。"
+    },
+    {
+     "source": "plautomation",
+     "target": "plautomation-action-family",
+     "name": "USES",
+     "fact": "写任何 PLAutomation 用例前必读名册 skill plautomation-action-family。"
+    },
+    {
+     "source": "plautomation",
+     "target": "eat-test-design",
+     "name": "USES",
+     "fact": "PLAutomation 写新 eat 域用例的工作流使用 eat-test-design skill。"
+    },
+    {
+     "source": "plautomation",
+     "target": "entry-test-design",
+     "name": "USES",
+     "fact": "PLAutomation 写新 entry 域用例的工作流使用 entry-test-design skill。"
+    },
+    {
+     "source": "plautomation",
+     "target": "plauto-trace-to-case",
+     "name": "USES",
+     "fact": "PLAutomation 通过 plauto-trace-to-case 将 PLAutoTrace 录制转换为用例。"
+    },
+    {
+     "source": "plautomation",
+     "target": "qa-testcase-workflow",
+     "name": "USES",
+     "fact": "PLAutomation 的 QA 录制产出用例工作流为 qa-testcase-workflow。"
+    },
+    {
+     "source": "plautomation",
+     "target": "packaged-smoke-test",
+     "name": "USES",
+     "fact": "PLAutomation 的包体烟测使用 packaged-smoke-test，包含 ASGameState 补丁双版本、判分与性能采集。"
+    },
+    {
+     "source": "numeric-suite",
+     "target": "numeric-baseline-sync",
+     "name": "USES",
+     "fact": "数值校验套件 numeric-suite 配套 numeric-baseline-sync 进行数值基线同步。"
+    },
+    {
+     "source": "plautomation",
+     "target": "engine-automation",
+     "name": "USES",
+     "fact": "PLAutomation 底层设施包含引擎侧 engine-automation 六模块（controller/worker/messages/driver/window/rpc）与 Gauntlet（C# 编排）。"
+    },
+    {
+     "source": "plautomation",
+     "target": "automated-perf-testing",
+     "name": "USES",
+     "fact": "PLAutomation 底层性能测试设施为 automated-perf-testing（Insights trace/CSV/FPS）。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "plautomation",
+      "status": "casefold",
+      "candidates": [
+       {
+        "uuid": "5a0c874e-3413-4721-a155-f41996a54e2f",
+        "canonical_name": "PLAutomation",
+        "match_basis": "casefold",
+        "created_at": "2026-08-18T13:59:44.815152000+00:00",
+        "group_id": "project:maindev",
+        "summary": "PLAutomation 是 UE 自动化测试框架中的一种测试类型，用于运行 AngelScript 行为测试。在 2026-05-01 的会话中，作为 `pl-auto` agent 在 `d:/MainDev` 的 ProjectLungfish 仓库中执行初始自动化任务，任务文件为 `ClaudeTasks/Agent/20260430-225637/tasks/T004.md`，需求文件为"
+       }
+      ]
+     },
+     {
+      "input_name": "plautomation-framework",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "plautomation-tests",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "plautomation-seven-layer-taxonomy",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "no-silent-ui-fallback",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "plautomation-action-family",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "eat-test-design",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "entry-test-design",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "plauto-trace-to-case",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "qa-testcase-workflow",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "71bd4801-3ed4-4312-95e3-f6c42e97235b",
+        "canonical_name": "qa-testcase-workflow",
+        "match_basis": "exact",
+        "created_at": "2026-08-20T07:45:12.728590000+00:00",
+        "group_id": "project:maindev",
+        "summary": "The qa-testcase-workflow skill is one of the project's skills. Per the skill-md-split-convention, its main file was split and now retains 204 lines (slightly over the 200-line target). Its §0 red line"
+       }
+      ]
+     },
+     {
+      "input_name": "packaged-smoke-test",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "numeric-suite",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "numeric-baseline-sync",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "engine-automation",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "automated-perf-testing",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
   },
   "flags": [],
   "suggestion": {

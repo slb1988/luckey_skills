@@ -1,0 +1,10 @@
+{
+  "removals": [],
+  "approvals": [],
+  "rejections": [
+    {"review_id": "01a07e18-c78a-782c-81e3-2b003bfeab84",
+     "rationale": "人工复核后 reject：① novelty=duplicate，AList 天翼云盘 405 修复与单向备份语义已被既有记忆完整覆盖；② 正文含明文口令（admin/789512），敏感模式漏报，不宜进图谱。用户已确认。"},
+    {"review_id": "01a07ce7-fe18-743f-822b-8d17fee430d9",
+     "rationale": "人工复核后 reject：空预览且正文约 55% 为 Orca 派发模板原文，approve original 会让 Graphiti 重抽灌噪音；其核心机制（claim_token fence）已被 01a07d14 干净覆盖，增量仅为测试方法级细节。用户已确认。"}
+  ]
+}

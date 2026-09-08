@@ -44,6 +44,19 @@ description: Jira 当前待办与每日工作计划分析。通过 .env 中的 J
 - 区分 Jira 事实与建议：字段为空时明确说明，不要把建议排期描述成 Jira 已配置的日期。
 - 用户用“1、2、3”指代任务时，以本会话最近一次展示的编号为准，随后持久化对应的 `PL-*` Key。
 
+<memory category="core-rules">
+此 Jira 实例中，`status.statusCategory.key == "done"` 不保证剩余估算为 0，已完成工单仍可能保留非零剩余估算。
+待办容量只汇总非 `done` 工单的已知剩余估算；完成态残留估算单列为数据质量问题，不计入待办工作量，否则会高估容量压力。
+</memory>
+
+## 登录验证码机制
+
+<memory category="core-rules">
+- 本实例的登录 CAPTCHA 是 Jira 内置的失败次数阈值保护，由“最大身份验证尝试次数”控制，不是新增插件功能。
+- 该项留空表示禁用登录 CAPTCHA；保存后生效，无需重启 Jira。
+- 登录 CAPTCHA 与注册 CAPTCHA、管理员二次验证分开控制；禁用登录 CAPTCHA 不等于关闭密码登录或管理员二次验证。
+</memory>
+
 ## 示例
 
 - “看看今天 Jira 有什么要做” → 当天首次访问 Jira，之后使用缓存。

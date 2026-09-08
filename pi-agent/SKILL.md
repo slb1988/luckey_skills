@@ -12,6 +12,7 @@ description: Pi agent（pi，@earendil-works 的 coding agent）使用与排障�
 | 项目 | 路径 |
 |------|------|
 | 全局配置 | `~/.pi/agent/settings.json` |
+| 全局模型/提供商配置 | `~/.pi/agent/models.json`（`modelOverrides` 覆盖内置模型参数；`models-store.json` 是缓存勿改） |
 | 全局扩展（单文件 .ts） | `~/.pi/agent/extensions/` |
 | 全局 npm 包 | `~/.pi/agent/npm/node_modules/` |
 | 系统全局 npm 包 | `/opt/homebrew/lib/node_modules/` |
@@ -26,6 +27,10 @@ description: Pi agent（pi，@earendil-works 的 coding agent）使用与排障�
 |------|------|
 | 已知问题与解法（扩展冲突、插件卸载、配置与扩展加载源） | [references/troubleshooting.md](references/troubleshooting.md) |
 
+<memory category="common-patterns">
+内置模型目录给每个模型标了默认 `contextWindow`（如 `openai-codex/gpt-6-astra` = 272000，该值同时是长上下文计价分界），这是 pi 侧配置值而非服务端/硬件限制。覆盖入口：`~/.pi/agent/models.json` 的 `providers.<provider>.modelOverrides.<modelId>.contextWindow`（如设 1000000），改完 `/model` 重选或重启生效，`pi --list-models <关键字>` 验证。三个坑：(1) **不要改 `models-store.json`**——会被刷新的缓存；(2) `maxTokens` 是最大输出长度，与上下文窗口无关，别动；(3) override 只影响 pi 的上下文显示和自动压缩阈值，**不能解除服务端实际上下文上限**，超限请求照样被拒，且长上下文消耗更多额度。
+</memory>
+
 <memory category="troubleshooting">
 `ws:` 路由（.pi/extensions/workspace-routing → agentctl.py）解析需要两份数据同时就位：共享 catalog `.claude/agent-control/workspaces.json`（只有名字，可入库）+ 本机注册表 `%LOCALAPPDATA%\agent-control\workspaces.json`（机器路径绑定，不共享）。新机器报 `unknown workspace` 或 `has no local binding or remote route` 时先查本机注册表是否存在——没跑过 add 流程时它根本不存在。
 </memory>
@@ -36,6 +41,17 @@ a2a-mentions 扩展的平台 token 存在全局文件 `~/.pi/agent/a2a-mentions.
 
 <memory category="troubleshooting">
 skill-gateway「skill 未命中/未匹配到」且耗时显示 (0.0s)：先查项目根有没有 `SKILL.index.json`。`serverSelect()` 第一步就是读 `<项目根>/SKILL.index.json`，文件缺失时直接 return null，**根本不发网络请求**，所以耗时恒为 0。判据看审计日志 `.pi/extensions/skill-gateway/.audit/skill-gateway.jsonl` 里是否每轮都是 `index_missing` 事件。索引由生成器产出（MainDev 用 `.claude/build-index-unreal.js` + `skill_index_gen.bat`，v3.0.0 格式；ObsidianVault 长期没有生成器，gateway 从启用起一直空转）。另外两项目的 `.pi/extensions/` 会漂移：同名扩展（skill-gateway、dynamic-workflows、auto-skill、a2a-mentions、plan-mode、team-profile）ObsidianVault 曾落后 MainDev 一个多月；从 MainDev 覆盖同步时**保留 ObsidianVault 独有的 `workspace-routing`**。
+</memory>
+
+<memory category="common-patterns">
+跨仓库 `.pi/extensions/` 对比方法论与漂移现状（2026-09 全量比对，报告见 `.claude/plans/pi-extensions-sync-review-2026-09.md`）：
+(1) **先归一化再 diff**——MainDev（P4）侧全为 CRLF 行尾，裸 diff 会全文假报，须 `--strip-trailing-cr` 归一化；
+dynamic-workflows 还要再归一化 import 后缀（`.js`↔`.ts`），否则假装有差异。
+(2) 漂移方向已反转：本仓库对所有同名扩展持平或领先，不存在应从 MainDev 拉取的项；禁止整目录覆盖，须逐扩展判断。
+(3) 有意分叉勿“修齐”：skill-gateway（本仓库已 config.json 配置化 env>config>兜底 + resume/fork reset；MainDev 仍硬编码；
+地址 10.77.77.4 vs 192.168.2.13 分叉属有意）、a2a-mentions（本仓库领先一代：协议 v2、附件上传、事件日志）、
+dynamic-workflows（显式 .ts 导入启动优化仅本仓库有，见其 SKILL.md 本地 delta 第 9 条——从 MainDev 覆盖即回退）。
+(4) 本仓库独有扩展全量清单：chat-hub、workspace-routing、pi-btw、extension-deps-doctor。
 </memory>
 
 <memory category="common-patterns">

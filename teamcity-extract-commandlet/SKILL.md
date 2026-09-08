@@ -51,6 +51,15 @@ description: 从 TeamCity 构建日志中提取 UE commandlet 命令行（如 WP
 - `Invoke-WebRequest` 在 PowerShell 下会刷一堆"正在写入请求流"进度噪音，是正常的，看末尾结构化输出即可。
 - 不同构建的 commandlet 不一定是 MiniMap：脚本按通用 `*Commandlet` 匹配，WorldPartitionHLOD / Navigation 等同样适用。
 
+<memory category="common-patterns">
+MainDev `PL_WpBuildGrassData` / `WorldPartitionProceduralGrassDataBuilder` 的数据依赖：
+- 输入是 Landscape 组件的 `GrassData`（高度、草密度权重），不是 HLOD 包边石；当前石头碰撞剔除 `ENABLE_BLOCKING_GROWTH=0`，HLOD 不是直接硬前置。
+- WP 下跳过 `bIsEditorOnlyActor=true` 的 `ALandscapeStreamingProxy`，不按 `Landscape` / `Landscape_Biome` 名称排除。父对象内部名或材质名不能确认 Biome 身份，需核对父 Landscape 标签及实际草材质输入。
+- Builder 声明不要求渲染；命令缺少 `-AllowCommandletRendering` 时跳过 GrassMap 刷新，消费已保存的 GrassData。因此即使 PCG 先跑，也不保证读取更新后的草密度。
+- 数据前置应按“实际修改地形/草权重的上游 → 更新、保存、同步 GrassMap → GrassBuild”判断；TeamCity 未配置 snapshot/artifact 依赖不代表数据独立。
+Proxy 筛选入口：`Main/Plugins/ProceduralGrass/Source/ProceduralGrass/Private/GPUDrivenProceduralGrassActor.cpp`；旧说明“按 Biome 名称跳过”已不适用于上述 MainDev 实现。
+</memory>
+
 ## 不要做的事
 - 不要试图从本机 `p4 -c <远程client> sync`：远程 client 的 root 在远程机磁盘上，本地 sync 会写错机器并污染该 client 的 have-list。同步必须在目标机（如 WinBuilder3）本地执行。
 - RDM 内嵌会话当前无法被本工具注入键鼠焦点（输入会落到本机），所以「在 WinBuilder3 上同步 + 改 VS 参数」需用户手动或会话置于全屏聚焦态后再试。本 skill 只负责"提取命令行"这一可靠环节。

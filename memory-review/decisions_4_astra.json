@@ -1,0 +1,8 @@
+{
+  "removals": [],
+  "approvals": [
+    {"review_id": "01a07e95-0d98-763d-ace1-8a23df74eec8", "content_mode": "curated",
+     "rationale": "auto-review: novelty 已完成（evolution，SUPERSEDES 01a07e94 的'尚未修改'状态）；预览已补生成且准确——models.json 已改、1M 已验证、/model 重选生效均有正文支撑。用户已批准按方案执行。"}
+  ],
+  "rejections": []
+}

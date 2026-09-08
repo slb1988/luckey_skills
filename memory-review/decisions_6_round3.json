@@ -1,0 +1,31 @@
+{
+  "removals": [],
+  "approvals": [
+    {
+      "review_id": "01a07f7f-413c-71ac-81c1-c8878adfb79f",
+      "content_mode": "curated",
+      "rationale": "auto-review: P4 shelved filetype 持久化与 unshelve stream mismatch 根因族，预览干净有正文支撑；novelty=novel。用户已确认。"
+    },
+    {
+      "review_id": "01a07f7d-b873-7dc1-b9a3-0c50dcba576f",
+      "content_mode": "original",
+      "rationale": "auto-review: 空预览但正文有实质长期内容（D盘清理释放 188.1GiB、四类安全清理项代价表），按 original；novelty=novel。用户已确认。"
+    },
+    {
+      "review_id": "01a07f78-348e-7a45-ae41-61df07d5b199",
+      "content_mode": "curated",
+      "rationale": "auto-review: 数据库迁移未跟上导致接口 500 的根因知识，预览干净；novelty=evolution。用户已确认。"
+    },
+    {
+      "review_id": "01a07f77-278e-7d16-9b70-2e71252f480d",
+      "content_mode": "curated",
+      "rationale": "auto-review: STREAM_MISMATCH 同族演进（unshelve 冲突排查），预览干净；novelty=evolution。用户已确认。"
+    },
+    {
+      "review_id": "01a07f75-15c2-7bd4-91be-226c40a6ba9d",
+      "content_mode": "curated",
+      "rationale": "auto-review: UE 构建迁 Windows 架构事实（TaskBuildUEWindows 拆分、WinBuilder 约束），含 pending CL 状态但主体为长期决策；novelty=evolution。用户已确认。"
+    }
+  ],
+  "rejections": []
+}

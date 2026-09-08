@@ -8,6 +8,22 @@
 - informer 脚本由构建机在构建失败时**现 sync `//depot/DevOps`** → 提交即生效，无部署环节。
 - informer 被 5+ 构建类型共用（TaskBuildUELinux / BuildProject / TaskAiReview 等）→ 任何行为变更必须做成 opt-in flag，默认行为不能动。
 
+## TaskBuildUEWindows 的 warning 分析链（AS 检查 + always 报告）
+
+`TaskBuildUEWindows.kts` 步骤序：Resolve Workspace Root → Build UE on Windows → **AngelScript Compile Check** → **Log Analysis Report**（ALWAYS）→ Log Analysis Notification（RUN_ONLY_ON_FAILURE）。
+
+- `AngelScript Compile Check`：`UnrealEditor-Cmd.exe <uproject> -run=AngelscriptTest -as-force-preprocess-editor-code -NullRHI -nosplash -unattended`（与 BuildUgsBinaries 同名步一致），条件 `env.need_compile != 0`，非零退出即炸构建；下游 TaskAiReview 对该依赖是 RUN_ADD_PROBLEM，AS error 照常被评审采集。
+- `Log Analysis Report`：复用失败通知步的 DevOps bootstrap，调 informer `--ai-review --no-notify --warning-categories=angelscript,cpp_game --report-file <WORKSPACE_ROOT>/Saved/ai_review/build_log_analysis.txt`，`--cl` 取 `%env.unshelve%`（0/空回落 Saved/latestCL）；整步 try/except + exit 0 兜底，跑 informer 前先删旧报告文件防陈旧。
+- 报告文件与 TaskAiReview 的 collect out_dir 同目录（同机同 workspace），`artifactRules = Saved/ai_review/**` 自动归档；AiReviewContextCollect 的 prompt 将其列为第 3 个参考文件，pi 用 read 工具直读。
+
+## informer 的 AI 评审模式（opt-in）
+
+| flag | 行为 |
+|---|---|
+| `--ai-review` | 强制 `--log-level All`（error+warning 全分析）；跳过 find_modifiers 文件归因查询；若仍发送通知，正文只发摘要（计数 + 每文件一行 ≤10 条 + 指向 report 文件/构建 URL） |
+| `--report-file <path>` | 完整格式化报告写 UTF-8 文件（与 NOTIFICATION MESSAGE PREVIEW 同文）；无发现也写占位报告，防下游读陈旧文件 |
+| `--no-notify` | 抑制所有飞书发送（私聊/群 webhook 全跳过），OpenObserve 采集、CSV 导出、PREVIEW 打印不受影响 |
+
 ## 收件人归因与路由语义（脚本原语）
 
 | 维度 | 行为 |

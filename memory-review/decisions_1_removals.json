@@ -1,0 +1,18 @@
+{
+  "removals": [
+    {
+      "review_id": "01a07cef-03a7-79cb-b03c-b9b1b6494d34",
+      "entities": [],
+      "edges": [
+        {"source": "preview-pipeline", "name": "HAS_FAILURE_MODE", "target": "preview-pipeline"}
+      ]
+    },
+    {
+      "review_id": "01a07ce3-34d1-7e60-b416-b2fe298c7534",
+      "entities": ["ai-review"],
+      "edges": []
+    }
+  ],
+  "approvals": [],
+  "rejections": []
+}

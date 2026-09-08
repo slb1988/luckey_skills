@@ -1,0 +1,427 @@
+[
+ {
+  "review_id": "01a07f7f-413c-71ac-81c1-c8878adfb79f",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "P4 shelved文件+L残留问题分析",
+  "created_at": "2026-09-08T05:30:41.329860Z",
+  "entity_count": 3,
+  "edge_count": 2,
+  "novelty": {
+   "status": "completed",
+   "admission": "novel",
+   "rationale": "新记忆包含有长期价值且未被任何候选覆盖的事实：shelf 会保存 text+l 文件类型导致 +l 反复回流的机制、DevOps/RequestReview.py 在部分成功/去锁失败/已 opened 等场景的四个代码缺口、以及对应的修复方案（核查实际恢复文件、去锁后验证 type、检查源 shelf 类型、只修文本类型不动 binary+l）。候选 1/2 虽同属 ai review unshelve 主题，但结论是 STREAM_MISMATCH 已在 AiReviewContextCollect.py 修复，新记忆未对其提出纠正或补充，仅复述了原始报错作为背景，不构成演进关系。其余候选主题无关。"
+  },
+  "distilled_content": "首个用户目标：pyautomation ai review ws:autoserver-deveops 调用 ai 分析时，在第一步 unshelve 的时候，会出现问题 in directory: /mnt/disk2/TeamCity/buildAgent/p4ws/DefaultAgent_MainDev 00:40:43 Error: STREAM_MISMATCH: CL 129591 has files outside //CyanCookOfficialDepot/MainDev/: ['//CyanCookOfficialDepot/WwiseProject_main/Actor-Mixer Hierarchy/Hit.wwu', '//CyanCookOfficialDepot/WwiseProject_main/Events/Default Work Unit.wwu', '//CyanCookOfficialDepot/WwiseProject_main/Events/Hit.wwu'] 00:40:43 Process exited with code 3 针对不是 //CyanCookOfficialDepot/{stream-name} 的资源，unshelve会报错，这个对于此类错误应该要兼容，要么在unshelve的时候就要做过滤，你自己判断修改，修改前分发给 orca 编排 codex review，最后先给我方案，再执行。最近用户目标：反反复复出现很多次，从shelve里unshelve出来的文本文件 +l 了，排查分析下原因，如何fix。会话结果：**发现了“反复残留”的机制和代码缺口，但还没定位你最近一次是哪条 CL 首先被加了 `+l`。** ### 为什么去掉后又出现 **shelf 保存的不仅是内容，还包括文件类型。** 如果 shelf 已经是 `text+l`： - unshelve 会把 `text+l` 一起恢复； - 本地 `reopen -t text` **不会修改旧 shelf**； - 再次从旧 shelf unshelve，`+l` 又回来。 所以只去一次本地锁不算根治，`p4 unlock` 也不等于去掉类型修饰符。 ### 当前代码确实有漏洞 问题在 **`DevOps/RequestReview.py`**，不是刚改的 collect。我用完全模拟 P4 的隔离测试复现了： | 场景 | 当前结果 | |---|---| | 部分文件 unshelve 成功，整体命令失败 | 跳过去锁，成功恢复的文件残留 `+l` | | unshelve 成功，但去锁失败 | 只记日志，仍可能提示恢复成功 | | 取消恢复时去锁失败 | 仍可能继续清理 shelf | | 上次残留文件已经 opened | 下次被跳过，无法自愈 | ### 建议怎么 fix 1. **无论 unshelve 返回什么，都核查实际恢复的文件**，处理部分成功情况。 2. **去锁后重新读取 type 验证**；失败必须告警、保留恢复状态并可重试，不能假报成功或清理 shelf。 3. **检查源 shelf 的异常文本类型**。确认内容、备份且没有在途评审后，由所属 client 精确刷新 shelf；不能自动把本地新修改混入旧评审。 4. 只修确认异常的文本类型，保留其他修饰符，**不批量修改合法的 `binary+l` 资产**。 本机源码、dist、安装副本目前一致，均已有旧去锁补丁，因此不能简单归因于“没更新”。当前快照也没有文本 `+l` 残留。 **给我一个最近出问题的 shelf CL 号或文件路径**，就能继续对照 shelf/opened/head 三份类型，追查首次加锁来源。本轮未修改类型或 shelf。 方案已保存：`.claude/plans/RequestReview文本文件独占类型回流排查与修复.md`",
+  "proposed": {
+   "entities": [
+    {
+     "name": "pyautomation",
+     "type": "Project",
+     "summary": "自动化评审/DevOps 工具（ws:autoserver-deveops）。模块 DevOps/RequestReview.py 负责评审恢复流程：从 Perforce shelf unshelve 文件并去除 +l 独占锁。当前代码存在去锁缺口（部分成功、去锁失败、已 opened 残留等场景无法自愈），诊断已完成、修复尚未实施；排查方案保存于 .claude/plans/RequestReview文本文件独占类型回流排查与修复.md。",
+     "suggested_canonical": "pyAutomation"
+    },
+    {
+     "name": "p4-shelve-filetype-persistence",
+     "type": "Concept",
+     "summary": "Perforce shelf 除内容外还保存文件类型（含修饰符）：若 shelf 已是 text+l，unshelve 会把 text+l 一并恢复；本地 reopen -t text 不修改旧 shelf，p4 unlock 也不等于去掉类型修饰符，因此再次从旧 shelf unshelve 时 +l 会反复回流。"
+    },
+    {
+     "name": "p4-unshelve-stream-mismatch",
+     "type": "Concept",
+     "summary": "向某 stream 工作区（如 //CyanCookOfficialDepot/MainDev/）unshelve 时，若 shelf 中含有该 stream depot 路径之外的文件（如 //CyanCookOfficialDepot/WwiseProject_main/ 下的 .wwu 资源），会报 STREAM_MISMATCH 并以退出码 3 失败。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "pyautomation",
+     "target": "p4-shelve-filetype-persistence",
+     "name": "AFFECTED_BY",
+     "fact": "经模拟 P4 的隔离测试复现确认，DevOps/RequestReview.py 当前代码存在去锁缺口：部分文件 unshelve 成功但整体命令失败时会跳过去锁，使成功恢复的文件残留 +l；unshelve 成功但去锁失败时仅记日志仍可能提示恢复成功；取消恢复时去锁失败仍可能继续清理 shelf；上次残留文件已 opened 时下次会被跳过无法自愈。修复（无论 unshelve 返回码都核查实际恢复文件、去锁后重读 type 验证、失败告警保留可重试、只修确认异常的文本类型）目前仅为建议方案，尚未实施。"
+    },
+    {
+     "source": "pyautomation",
+     "target": "p4-unshelve-stream-mismatch",
+     "name": "AFFECTED_BY",
+     "fact": "用户报告在 MainDev 工作区 unshelve 时，因 shelf 中含 //CyanCookOfficialDepot/WwiseProject_main/ 下的文件（不在 //CyanCookOfficialDepot/MainDev/ 路径内）触发 STREAM_MISMATCH 报错；用户要求兼容此类错误、在 unshelve 时过滤非本 stream depot 的文件，该修复方案尚未确定或实施。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "pyautomation",
+      "status": "casefold",
+      "candidates": [
+       {
+        "uuid": "ef753cb3-198c-4769-b2ef-524d33d8a455",
+        "canonical_name": "pyAutomation",
+        "match_basis": "casefold",
+        "created_at": "2026-08-21T14:52:31.639271000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "pyAutomation 是一个飞书告警自动化项目（原名 pyVBOuter），源代码在 ws:autoserver-deveops 工作区维护，本地路径 D:\\work\\admin_sun_depot_7184\\pyAutomation，日志在 backend\\.logs\\feishu.log。项目中存在「获取机器人 open_id 失败」告警，唯一触发链是运行进程里 FEISHU_BOT_OP"
+       }
+      ]
+     },
+     {
+      "input_name": "p4-shelve-filetype-persistence",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "p4-unshelve-stream-mismatch",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07f7d-b873-7dc1-b9a3-0c50dcba576f",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "D盘磁盘空间清理优化",
+  "created_at": "2026-09-08T05:29:00.772965Z",
+  "entity_count": 0,
+  "edge_count": 0,
+  "novelty": {
+   "status": "completed",
+   "admission": "novel",
+   "rationale": "新记忆记录的是本机 D:\\ 盘的清理事实（回收站/VS 索引/UE 依赖缓存/DDC 各项释放量、21.3→209.4 GiB 空间变化、保留 10.2 GiB 近期 DDC 等），历史候选中唯一的清理类记忆（rank 1）针对的是 @nas 的 CACHEDEV1/CACHEDEV2 卷，属不同机器不同存储对象，不构成同一可复用事实的版本关系；其余候选均为主题无关会话，无任何候选覆盖本批事实。"
+  },
+  "distilled_content": "首个用户目标：分析 D:\\WizTree_20260908124738.csv WizTree 导出的 磁盘分析结果，看看哪里可以优化清理的？。最近用户目标：回收站 → VS 索引 → UE 依赖下载缓存 → 按需清本地 DDC 清理安全的内容。会话结果：清理完成，**实际释放 188.1 GiB**。 D 盘可用空间：**21.3 → 209.4 GiB**。 | 项目 | 约释放 | |---|---:| | 回收站 | 43.7 GiB | | VS 索引 | 59.9 GiB | | UE 依赖下载缓存 | 58.6 GiB | | 超过 7 天的本地 DDC | 25.8 GiB | 已确认： - 保留约 **10.2 GiB** 近期 DDC。 - 41 个 VS 非清理文件（含个人设置）哈希校验一致。 - 源码、项目资源、`Intermediate`、`Binaries`、自动保存、Git 提交数据均未动。 下次打开 VS 会重新建立索引，部分旧资源缓存会按需重新生成。",
+  "proposed": {
+   "entities": [],
+   "edges": [],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": []
+   }
+  },
+  "flags": [
+   {
+    "check": "empty_preview",
+    "severity": "escalate",
+    "detail": "预览为空；curated 不可用，只能 original 或人工看正文"
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "预览为空；curated 不可用，只能 original 或人工看正文"
+   ],
+   "removals": []
+  }
+ },
+ {
+  "review_id": "01a07f78-348e-7a45-ae41-61df07d5b199",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "数据库迁移遗漏导致接口报错",
+  "created_at": "2026-09-08T05:22:59.332243Z",
+  "entity_count": 2,
+  "edge_count": 2,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆包含历史候选未覆盖的新事实：CL 1530 新增 ai_review_jobs.requeue_requested 字段但部署未执行迁移这一事故根因、受影响状态范围（仅 pending 触发查询）、恢复时间线，以及迁移链缺口 7a0c333004f0；同时对候选1中手动 migration-first 部署建议演进为 deploy.sh 自动化保护（REFINES）。"
+  },
+  "distilled_content": "首个用户目标：http://192.168.2.13/dashboard/ai-review/221 点击怎么出现了服务器内部错误 ws:autoserver-deveops 排查分析 @auto-server。最近用户目标：http://192.168.2.13/dashboard/ai-review/221 点击怎么出现了服务器内部错误 ws:autoserver-deveops 排查分析 @auto-server。会话结果：已通过工作区代码和 @auto-server 日志核对：**不是 #221 数据损坏，而是新代码上线时，数据库迁移没跟上。** ### 为什么报错 CL **1530** 新增了 `ai_review_jobs.requeue_requested` 字段，但部署脚本没有执行数据库迁移。打开 #221 时，详情接口查询该字段，MySQL 报： 异常发生在 `server/applications/ai_review/service.py:1478`，最终返回 HTTP 500。 当时 #221/#222 都是 `pending`，会执行这次查询；`done/running/failed` 会跳过，因此部分详情页仍正常。 ### 当前状态 - **12:54–12:57**：详情接口报错，AI 队列轮询、部分构建回调也受影响。 - **约 12:57:34**：数据库字段被补齐。 - **12:57:51 起**：#221 恢复 **200**，后续任务正常推进；#219 失败回调也已补成功。 ### 防止复发 应在 `/data/py_automation/backend/deploy.sh` 中加入**新服务启动前迁移、迁移失败即中止发布**的保护。 但代码侧还发现迁移链引用了未入库的历史版本 `7a0c333004f0`，需先处理这个缺口，不能简单追加 `db upgrade` 就算完成。 **本轮只排查，未修改代码、数据库或重启服务；上述恢复不是本轮执行的。**",
+  "proposed": {
+   "entities": [
+    {
+     "name": "auto-server",
+     "type": "Project",
+     "summary": "AI review 后端服务（工作区 ws:autoserver-deveops），代码位于 /data/py_automation/backend；AI review 详情查询逻辑在 server/applications/ai_review/service.py，部署脚本为 /data/py_automation/backend/deploy.sh。"
+    },
+    {
+     "name": "auto-server-db-migration",
+     "type": "Concept",
+     "summary": "auto-server 数据库迁移相关问题：CL 1530 新增 ai_review_jobs.requeue_requested 字段但部署未执行迁移曾导致详情接口 HTTP 500；迁移链还引用未入库的历史版本 7a0c333004f0，存在缺口待处理。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "auto-server",
+     "target": "auto-server-db-migration",
+     "name": "HAS_KNOWN_ISSUE",
+     "fact": "auto-server 的 CL 1530 新增了 ai_review_jobs.requeue_requested 字段，但部署脚本未执行数据库迁移，导致 #221 等 pending 状态任务在 server/applications/ai_review/service.py:1478 的详情查询因缺少该列报 MySQL 错误并返回 HTTP 500；done/running/failed 状态会跳过该查询，因此部分详情页不受影响。"
+    },
+    {
+     "source": "auto-server-db-migration",
+     "target": "auto-server",
+     "name": "REQUIRES_FIX",
+     "fact": "针对 auto-server 的迁移问题有尚未实施的建议：应在 /data/py_automation/backend/deploy.sh 中加入新服务启动前执行迁移、迁移失败即中止发布的保护；且迁移链引用了未入库的历史版本 7a0c333004f0，需先处理该缺口，不能简单追加 db upgrade 就算完成。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "auto-server",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "65978cad-ed75-4a25-a10d-92c6a57264d0",
+        "canonical_name": "auto-server",
+        "match_basis": "exact",
+        "created_at": "2026-08-18T13:26:26.817003000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "auto-server（192.168.2.13）是 pyAutomation 后端运行机器，也是 a2a 平台托管的受管机器 agent（工作目录 /home/dev），可远程执行命令。其环境变量 LDAP_BIND_PASSWORD 保存着有效的 LLDAP 绑定密码，但该机器 dev 账号 SSH 登录被 publickey 拒绝。auto-server 全栈部署与日志处理会话（2026-0"
+       }
+      ]
+     },
+     {
+      "input_name": "auto-server-db-migration",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07f77-278e-7d16-9b70-2e71252f480d",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "AI评审unshelve文件冲突排查",
+  "created_at": "2026-09-08T05:21:50.468709Z",
+  "entity_count": 2,
+  "edge_count": 2,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "修复执行结果的事实已被候选2完整覆盖（CONFIRMS），但新记忆相对候选1（方案阶段）补充了执行落地、P2 大小写修复与验证证据（REFINES），且新增了'unshelve 出来的文本文件反复被 +l'这一候选均未覆盖的待排查问题线索，存在新增事实"
+  },
+  "distilled_content": "首个用户目标：pyautomation ai review ws:autoserver-deveops 调用 ai 分析时，在第一步 unshelve 的时候，会出现问题 in directory: /mnt/disk2/TeamCity/buildAgent/p4ws/DefaultAgent_MainDev 00:40:43 Error: STREAM_MISMATCH: CL 129591 has files outside //CyanCookOfficialDepot/MainDev/: ['//CyanCookOfficialDepot/WwiseProject_main/Actor-Mixer Hierarchy/Hit.wwu', '//CyanCookOfficialDepot/WwiseProject_main/Events/Default Work Unit.wwu', '//CyanCookOfficialDepot/WwiseProject_main/Events/Hit.wwu'] 00:40:43 Process exited with code 3 针对不是 //CyanCookOfficialDepot/{stream-name} 的资源，unshelve会报错，这个对于此类错误应该要兼容，要么在unshelve的时候就要做过滤，你自己判断修改，修改前分发给 orca 编排 codex review，最后先给我方案，再执行。最近用户目标：反反复复出现很多次，从shelve里unshelve出来的文本文件 +l 了，排查分析下原因，如何fix。会话结果：完成。全程 Orca 编排（Run `run_3f4bf2bb2484`），收敛于 codex 第二轮评审 `no_findings`： ## 改动（pending CL **129732**，待你 submit） `Tools/AiReview/AiReviewContextCollect.py`（MainDev depot，只改这一个文件）： - `collect_diff()` 从硬失败改为**分区过滤**：in-stream 文件正常进 diff，stream 外文件在 `shelved_diff.txt` 头部写 `SKIPPED: N files outside <prefix>` 节（列前 20 个路径） - 整 CL 不属于目标 stream / 识别不到 stream 两种情形保留 exit 3 硬失败 - `self_touched` 与 `Files: N` 统计只基于 in-stream - stream 名 / 前缀 / SELF_PATH_PREFIX 比较全部大小写不敏感（codex 评审 P2 发现，已修），展示保留原始路径 ## 验证证据（worker 实测） | 用例 | 结果 | |---|---| | CL 129591（45 MainDev + 4 Wwise） | exit 0，SKIPPED 节列出 4 个 Wwise 文件，正文纯 MainDev（修复前 exit 3） | | CL 129672（纯 MainDev） | exit 0，无 SKIPPED，回归一致 | | CL 129672 + `--stream-name=NoSuchStream` | exit 3，报错分支完好 | | CL 129672 + `--stream-name=maindev`（小写） | exit 0（P2 修复生效，修复前会 exit 3） | ## 流程记录 - pi worker 实施 → codex 评审（1 条 P2：大小写敏感）→ pi worker 修复 → codex 复审 `no_findings` - 小插曲：fix worker 汇报后文件实际留在 default changelist，我已 `p4 reopen` 归位到 CL 129732 - 另：我误建了一个空的 Run（objective \"x\"），CLI 没有删除接口，无害忽略即可 确认无误后在 MainDev 提交 CL 129732 即可；提交后下一个混合 stream CL 的 AI review 链就能走通。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "pyautomation-ai-review",
+     "type": "Project",
+     "summary": "pyautomation 中的 AI review 工具链（ws:autoserver-deveops），负责在 TeamCity/Perforce 环境下对 shelve CL 做 unshelve 并收集 diff 供 AI 分析；核心实现位于 MainDev depot 的 Tools/AiReview/AiReviewContextCollect.py。已支持混合 stream CL：对 //CyanCookOfficialDepot/{stream-name}/ 之外的 shelve 文件做兼容过滤而非整体报错。"
+    },
+    {
+     "name": "AiReviewContextCollect.collect_diff",
+     "type": "Tool",
+     "summary": "Tools/AiReview/AiReviewContextCollect.py 中的 diff 收集方法。对 unshelve 的 shelve 文件做分区过滤：in-stream 文件正常进 diff，stream 外文件在 shelved_diff.txt 头部写入 SKIPPED 节（列前 20 个路径）；stream 名、前缀与 SELF_PATH_PREFIX 比较大小写不敏感但展示保留原始路径；整 CL 不属于目标 stream 或识别不到 stream 时保留 exit 3 硬失败。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "pyautomation-ai-review",
+     "target": "AiReviewContextCollect.collect_diff",
+     "name": "IMPLEMENTS",
+     "fact": "pyautomation AI review 的 AiReviewContextCollect.collect_diff 从 STREAM_MISMATCH 硬失败改为分区过滤：in-stream 文件正常进 diff，//CyanCookOfficialDepot/{stream-name}/ 之外的 shelve 文件在 shelved_diff.txt 头部写 SKIPPED 节（列前 20 个路径），self_touched 与 Files 统计只基于 in-stream 文件。"
+    },
+    {
+     "source": "AiReviewContextCollect.collect_diff",
+     "target": "pyautomation-ai-review",
+     "name": "APPLIES_TO",
+     "fact": "collect_diff 在整 CL 不属于目标 stream 或识别不到 stream 两种情形下保留 exit 3 硬失败；stream 名、前缀与 SELF_PATH_PREFIX 的比较全部大小写不敏感（小写 stream 名如 maindev 可通过），展示时保留原始路径大小写。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "pyautomation-ai-review",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "AiReviewContextCollect.collect_diff",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "review_id": "01a07f75-15c2-7bd4-91be-226c40a6ba9d",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "UE构建任务迁移至Windows",
+  "created_at": "2026-09-08T05:19:34.840009Z",
+  "entity_count": 7,
+  "edge_count": 5,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆明确废弃了此前'改造 TaskBuildUELinux 兼任 Windows 构建'的方案，改为新增独立 TaskBuildUEWindows 任务并恢复原 Linux 任务，构成对候选1、2 的替代关系。"
+  },
+  "distilled_content": "首个用户目标：orca 编排 codex 去 ws:autoserver-deveops 先解决 d:\\work\\admin_sun_depot_7184\\Teamcity_PLN\\.teamcity\\patches\\buildTypes\\TaskAiReview.kts p4 resolve 合并冲突，然后将它支持 windows 构建，我要将他们全部迁移到 windows电脑上执行，而不是 linux，另外 agent 使用 WinBuilder*。最近用户目标：应该额外添加一个 TaskBuildUEWindows.kts 的任务吧？替换为这个。会话结果：已拆分完成，改动在 **pending CL 1531**： - 新增 `Teamcity_PLN/.teamcity/patches/buildTypes/TaskBuildUEWindows.kts`，定义独立任务 `PLN_TaskBuildUEWindows`。 - AI Review 改接新任务：`Sync → Unshelve → BuildUEWindows → AiReview`。 - 原 `TaskBuildUELinux` 恢复纯 Linux，继续供 CodeGraph 使用。 - Windows 任务保留你指定的工程生成、单次双 Win64 Target 构建，以及 `WinBuilder*` 限制。 DSL 生成和隔离测试通过。**本轮未提交、未上线、未跑真实 UE 编译。**",
+  "proposed": {
+   "entities": [
+    {
+     "name": "teamcity-pln",
+     "type": "Project",
+     "summary": "TeamCity 配置项目，build type 补丁位于 Teamcity_PLN/.teamcity/patches/buildTypes/ 下，包含 UE 构建任务与 AI Review 任务定义。"
+    },
+    {
+     "name": "TaskBuildUEWindows",
+     "type": "Service",
+     "summary": "新增的 Windows UE 构建任务，任务 ID PLN_TaskBuildUEWindows，定义于 Teamcity_PLN/.teamcity/patches/buildTypes/TaskBuildUEWindows.kts；保留工程生成与单次双 Win64 Target 构建，agent 限定 WinBuilder*。当前改动处于 pending 状态，未提交、未上线、未跑真实 UE 编译。"
+    },
+    {
+     "name": "TaskBuildUELinux",
+     "type": "Service",
+     "summary": "原 Linux UE 构建任务，拆分后恢复为纯 Linux，继续供 CodeGraph 使用。"
+    },
+    {
+     "name": "TaskAiReview",
+     "type": "Service",
+     "summary": "AI Review 任务，拆分后改接 Windows 构建任务，依赖链为 Sync → Unshelve → BuildUEWindows → AiReview。"
+    },
+    {
+     "name": "winbuilder-agent-constraint",
+     "type": "Convention",
+     "summary": "Windows UE 构建限定使用 WinBuilder* 命名的 agent。"
+    },
+    {
+     "name": "windows-build-migration",
+     "type": "Decision",
+     "summary": "用户明确决定将构建任务全部从 Linux 迁移到 Windows 电脑上执行，agent 使用 WinBuilder*。"
+    },
+    {
+     "name": "codegraph",
+     "type": "Service",
+     "summary": "使用 Linux UE 构建任务的服务，TaskBuildUELinux 恢复纯 Linux 后继续供其使用。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "windows-build-migration",
+     "target": "teamcity-pln",
+     "name": "APPLIES_TO",
+     "fact": "用户决定将 teamcity-pln 的构建任务全部从 Linux 迁移到 Windows 电脑上执行，agent 使用 WinBuilder*。"
+    },
+    {
+     "source": "TaskBuildUEWindows",
+     "target": "teamcity-pln",
+     "name": "BELONGS_TO",
+     "fact": "TaskBuildUEWindows 是 teamcity-pln 下新增的 Windows UE 构建任务，文件位于 Teamcity_PLN/.teamcity/patches/buildTypes/TaskBuildUEWindows.kts；改动当前处于 pending 状态，未提交、未上线、未跑真实 UE 编译。"
+    },
+    {
+     "source": "winbuilder-agent-constraint",
+     "target": "TaskBuildUEWindows",
+     "name": "APPLIES_TO",
+     "fact": "TaskBuildUEWindows 保留用户指定的工程生成、单次双 Win64 Target 构建，并限定使用 WinBuilder* 命名的 agent。"
+    },
+    {
+     "source": "TaskAiReview",
+     "target": "TaskBuildUEWindows",
+     "name": "DEPENDS_ON",
+     "fact": "TaskAiReview 改接新增的 Windows 构建任务，依赖链为 Sync → Unshelve → BuildUEWindows → AiReview。"
+    },
+    {
+     "source": "codegraph",
+     "target": "TaskBuildUELinux",
+     "name": "DEPENDS_ON",
+     "fact": "TaskBuildUELinux 在拆分后恢复为纯 Linux 构建任务，继续供 CodeGraph 使用。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "teamcity-pln",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "TaskBuildUEWindows",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "TaskBuildUELinux",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "aa3f21c2-e621-436f-822c-725d0440c176",
+        "canonical_name": "TaskBuildUELinux",
+        "match_basis": "exact",
+        "created_at": "2026-08-29T02:11:56.013475000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "TaskBuildUELinux 是 TeamCity 中的一个构建任务配置。根据已确认的知识，该任务的失败通知步骤通过幂等创建的 TC_devops_<agent> 客户端执行 p4 sync //depot/DevOps 后就地运行解析器。该任务已应用了「P4 同步 + 就地运行」的自举模式：登录 → p4 clients -e 判断 → 幂等创建 TC_devops_<agent> 客户端（"
+       }
+      ]
+     },
+     {
+      "input_name": "TaskAiReview",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "e127c2ff-1f3f-44e2-af5e-9b7c39b83470",
+        "canonical_name": "TaskAiReview",
+        "match_basis": "exact",
+        "created_at": "2026-08-25T07:54:50.058757000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "TaskAiReview 是 TeamCity 上的 AI 评审构建配置（pln_taskaireview），属于 pln_flowaireview 复合构建链中的评审环节，前面依赖 sync/unshelve/build 环节先把工作区准备好。该任务自身不挂 vcs root（checkoutmode=manual），直接在工作区里跑 tools/aireview 的 python 脚本；如果该"
+       }
+      ]
+     },
+     {
+      "input_name": "winbuilder-agent-constraint",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "windows-build-migration",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "codegraph",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ }
+]

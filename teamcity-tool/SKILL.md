@@ -58,7 +58,7 @@ Always read the reference file before acting — it contains the actual paths, p
 | 打包管线 (PL_BuildProjectWindows / PL_BuildUgsBinaries / UAT cook) | `references/package-pipeline.md` |
 | Checkout 目录自动清理事故 (DirectoryMap cleaner, 192h expiry) | `references/checkout-dir-auto-clean.md` |
 | 构建失败排障（UE 构建 UBT mutex 冲突等） | `references/troubleshooting.md` |
-| FlowAiReview 管线耗时画像与瓶颈、编译失败归因（sync HEAD 语义 / adaptive unity 盲区 / workspace reset 机制）、后端 busy 门与降级放行缺陷、unshelve 独占锁、队列停摆诊断 | `references/flow-aireview-pipeline.md` |
+| FlowAiReview 管线耗时画像与瓶颈、编译失败归因（sync HEAD 语义 / adaptive unity 盲区 / workspace reset 机制）、后端 busy 门（设计根因 TC 无链级互斥/取单公平性）与降级放行缺陷、unshelve 独占锁、队列停摆诊断 | `references/flow-aireview-pipeline.md` |
 | TaskAiReview 失败通知链路（TeamCityLogParserInformer 归因/路由语义、latestCL vs unshelve CL 身份陷阱） | `references/task-aireview-notification.md` |
 
 Read the relevant reference before acting on that topic.
@@ -147,6 +147,14 @@ PLN_TaskAiReview 的内容步 "Collect Review Context" 调的是 **MainDev depot
 PLN_TaskAiReview 观测性两个结构性事实（build 18399 实证，2026-09）：
 ① 编译日志采集是**静默降级**——Collect 步 `--tc-dep-suffix` 必须与链上实际编译节点同名（现 `TaskBuildUEWindows`，链定义见 build-chain-parameters.md）；不匹配不报错，`Saved/ai_review/build_log_tail.txt` 只剩 ~94B 说明 stub，AI 在无编译日志下评审。已发根因：脚本默认值滞留 `TaskBuildUELinux`、文档声称已对齐而代码没有。评审输出缺编译证据时先查该文件大小，别怀疑模型。
 ② Pi_Agent_Review 步 pi stdout 全量重定向进 `pi_out.txt`，TC 日志天然只剩一行 exit code——透明化只能靠运行中心跳（pi_out/session 字节增长）+ 结束后回放 `Saved/ai_review/sessions/*.jsonl`（含工具调用序列与 thinking）；该目录跨构建累积，必须按 mtime ≥ 启动时刻过滤本轮会话。模型输出写进 TC 日志前一律 `##teamcity` 转义，防伪造 service message。
+</memory>
+
+<memory category="troubleshooting">
+AI 评审看不到 warning 的采集侧根因（2026-10 查明）：MainDev `Tools/AiReview/AiReviewContextCollect.py` 的 `LOG_ERROR_RE` 只匹配 `error|fatal|failed`，**不含 warning**——`build_log_tail.txt` 结构性漏掉全部警告（informer PREVIEW 里仅 `Summary: 0 Errors, N Warnings` 这行碰巧命中 error 关键字，正文全漏）。只在构建里加 warning 分析没用，AI 侧必须走独立报告文件通道；不要把 warning 扩进 `LOG_ERROR_RE`——tail 有 50KB cap，warning 量大反而挤占 error。
+</memory>
+
+<memory category="code-locations">
+评审链缺 AS 检查的对照实证（build 18686 vs 18708）：`PL_BuildUgsBinaries` Step 11 `AngelScript Compile Check` = `UnrealEditor-Cmd.exe <uproject> -run=AngelscriptTest -as-force-preprocess-editor-code -NullRHI -nosplash -unattended`（非零退出炸构建），Step 17 `Log Analysis Report`（execute_always）调 informer `--log-level All --warning-categories angelscript,cpp_game`；`PLN_TaskBuildUEWindows` 只 3 步、informer 仅 `--job-result=FAILURE` 时跑。TaskAiReview 对 TaskBuildUEWindows 的 snapshot 依赖是 on-failure=`RUN_ADD_PROBLEM`（已 REST 核实）——编译步炸构建**不阻断**评审，评审照跑且 AS error 经日志匹配进 `build_log_tail.txt` 被 AI 看到。
 </memory>
 
 <memory category="common-patterns">

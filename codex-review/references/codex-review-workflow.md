@@ -51,6 +51,19 @@ codex exec review --uncommitted        # 评审 staged+unstaged+untracked 改动
 5. **SQLite 加列三处同步**：主 DDL + 存量库兼容迁移（ALTER TABLE）+ 测试副本
    DDL；位置式 `INSERT INTO t VALUES (...)` 会随列数变化直接 break，迁移后
    优先全局搜一遍。
+6. **内联不可信内容进 prompt 的三件套**：凡把仓库/用户内容内联进模型 prompt，
+   内容源必须取可信版本（如 P4 `#head`，不是 unshelved 工作区版——CL 可篡改
+    SKILL.md/配置注入评审指令）；内联前中和自定分节标记（`<<<XXX>>>` 类）；
+   prompt 里明确声明该内容为不可信数据。同时「存在性探测」也要走同一可信源，
+   否则 CL 增删文件即可操纵注入集合。
+7. **大小上限按 UTF-8 字节计费，且在物化前执行**：`len(str)` 按字符计费，中文
+   内容会让 KB 级上限虚增数倍；`p4.run` 类 API 会把完整输出物化到内存，限长要
+   下沉到 OutputHandler（CANCEL 中止）或有界流，事后截断不省峰值。解码失败用
+   错误通道（`p4.errors`/异常类）判断，不嗅探正文关键词（合法正文可含同样短语）。
+8. **非贪婪正则 `.*?</tag>` 在大量未闭合起始标签下退化为 O(n²)**：提取标记块
+   用单遍扫描（find 循环）；`str.lower()` 对 U+0130 等字符会膨胀码点数导致
+   索引错位，大小写不敏感匹配用 ASCII 限定比较；逐块 decode 会切碎跨块 UTF-8
+   码点，先拼完整字节流再整体 decode。
 
 ## 测试技巧
 
