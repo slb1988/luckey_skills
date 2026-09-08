@@ -228,7 +228,7 @@ AI review 的代提交**不是原子的**。approve 落库后 `_trigger_auto_sub
 - **修复**：`p4 change -f <new_cl>` 把 User 改回作者（需 super）；生产库 SQL 把 review 行改为 `cl=<new_cl>, cl_type='submitted', status='submitted'` 并补一条 `cl_submitted` 活动。
 - **识别类似事故**：CL 提交人是 AutoServer 但内容不像平台行为 → 基本是步骤 3 丢失；"CL 描述与文件清单不符 / BOM 被改"则通常是作者 shelve 时打的大包，`submit -e` 原样落 shelf 内容，平台不做合并或裁剪。
 
-> AI review 决策/风险门槛模型（他人批准无 risk 门槛、作者自拒一票否决）、reopen 复位漏 author（review #126）、approved 门禁放行作者手动提交（review #129）、未勾选编译时链级故障误标 compile_status=failed（review #138；链 2026-09-05 起始终触发、BuildUE 按需进链）、「更新review」(trigger_ai) 被分支串行 busy 门静默拦截（同分支 compile_status 卡 pending/running + 4h 新鲜度窗口）、worker 取单 limit(5) 无 ORDER BY 致 queued job 饿死（review #241；busy 让位无退避，低 id 占位 job 每轮 tick 反复占满候选名额）、代提交 bot client 不映射虚拟流 WwiseProject_main 文件致 `submit -e` 确定性失败（review #213；p4 逐文件明细仅 warning 级，日志只见光秃的 Submit failed）等根因与误打回 DB 恢复手法见 [references/ai-review-decision-model.md](references/ai-review-decision-model.md)。
+> AI review 决策/风险门槛模型（他人批准无 risk 门槛、作者自拒一票否决）、reopen 复位漏 author（review #126）、approved 门禁放行作者手动提交（review #129）、未勾选编译时链级故障误标 compile_status=failed（review #138；链 2026-09-05 起始终触发、BuildUE 按需进链）、「更新review」(trigger_ai) 被分支串行 busy 门静默拦截（同分支 compile_status 卡 pending/running + 4h 新鲜度窗口）、worker 取单 limit(5) 无 ORDER BY 致 queued job 饿死（review #241；busy 让位无退避，低 id 占位 job 每轮 tick 反复占满候选名额）、代提交 bot client 不映射虚拟流 WwiseProject_main 文件致 `submit -e` 确定性失败（review #213；p4 逐文件明细仅 warning 级，日志只见光秃的 Submit failed）、reopen 后失败计数跨轮累计 + 调度器超限 `continue` 跳过致自动拒绝失效（review #246）等根因与误打回 DB 恢复手法见 [references/ai-review-decision-model.md](references/ai-review-decision-model.md)。
 
 ## 注意事项
 

@@ -51,6 +51,18 @@ py_automation 后端 `service.py` 的评审决策/风险门槛模型，以及 20
 
 **识别特征**：活动流里「锁拒绝 → cannot resolve CL author → auto-submit failed N times → rejected」序列；P4 侧文件已被作者本人 CL 提交（filelog 核实）。
 
+## 代提交 bot client 不映射虚拟流目标（review #213 根因，2026-09-08 实锤）
+
+**根因**：代提交 bot client `autoserver-MainDev-review` 绑主流 `MainDev`（`Paths: share ...`），**不映射 `//CyanCookOfficialDepot/WwiseProject_main/`**。作者 client 经虚拟流 `MainDev_Wwise` 的 `import+` 映射可把该 depot 的文件 shelve 进面向 MainDev 的 CL；这种 shelf 平台 `submit -e` 必然失败：p4 要求「files shelved to a stream target may only be submitted by a stream client that is mapped to the target stream」。shelf 内容与 bot client 都不变 → 失败完全确定性，每次重试逐字节相同地失败；attempts 耗尽后 review 停 `approved + submit_failed`，不再自动重试。
+
+**p4 报错层级陷阱（排障关键）**：该场景的逐文件明细（`file not mapped in stream ... client`）只是 **warning 级**，p4python 抛出的异常只携带 error 汇总行——服务端日志和 activity 永远只有光秃秃的 `Submit failed -- fix problems above`。真实原因必须读 `p4.warnings`（`submit_shelved_cl` 未拼进错误日志）或沙盒 1:1 复现才能看到。
+
+**鉴别特征**：失败时刻无 validate/trigger 回调 → 死在 trigger 前的映射检查，可据此与门禁拒绝区分；shelf 基线==head 排除 out-of-date、无 `+l` 锁排除 #129 类锁冲突。
+
+**救单（沙盒已验证）**：另建绑 `//CyanCookOfficialDepot/MainDev_Wwise` 的 client，从它 `submit -e <shelved_cl>`，再把 review 行修平为 submitted；作者手动提交会被 gate 拒（approved 只放行 bot），必须平台侧做。
+
+**防复发（截至 2026-09-08 未实施）**：`submit_shelved_cl` 把 `p4.warnings` 拼进错误日志；新增 `file not mapped in stream` 错误分类 → 自动切换到对应 stream 的 client 或走 `_auto_merge_submit` 兜底。
+
 ## 分支串行 busy 门：「更新review」点了不触发（trigger_ai 静默 defer）
 
 「更新review」按钮 = `POST /ai_review/reviews/<id>/trigger_ai`（api.py；路由**无 /api 前缀**，2026-09-09 实测带前缀 404，全部路由见 :5000/swagger.json）：终态（submitted/rejected/archived）或有 running job 时拒收；否则重置 compile_status='not_started' + 清上轮 AI 产物、job 重新 queued 并 `_kick_ai_job` 秒级点炮。**端点本身不做分支 busy 检查**——拦截在 worker：`process_job` 进 `TRIGGER_COMPILE` stage 前先过 `_branch_compile_busy`（ai_worker.py），命中则本轮静默跳过——job 保持 queued、attempt_count=0、零报错零活动，前端表现就是「点了没反应」。
@@ -60,6 +72,32 @@ busy 判定口径：同分支 + 其他 review + status ∈ (pending,reviewing) +
 **强制停止 TC 构建后点「更新review」不触发 → 优先查此门**：同分支找 compile_status 卡 pending/running 且 4h 内有更新的活跃 review；后端日志 grep `blocked by review #`（busy 命中会点名 blocker）。修复：按 TC 真实结果直接改库 `UPDATE ai_reviews SET compile_status=..., update_time=update_time WHERE id=<blocker>`（update_time 保持不变，防列表「耗时」被 bump）。
 
 > 该门的完整设计语义（为什么终态行必须豁免、轮询 bump update_time 机制）权威文档在 pyAutomation 仓库 `backend/server/applications/ai_review/SKILL.md`「trigger_compile」段——ai_review 排障先读它再读代码。
+
+## worker 取单饿死：queued 查询 limit(5) 无 ORDER BY（review #241 根因，2026-09-08 实锤）
+
+**取单机制**：`create_review`/`trigger_ai` 建 `AIReviewJob(status='queued')` 后 `_kick_ai_job` 秒级点炮；kick 撞 busy 门则让位回 queued，之后只剩 60s 一轮的 worker tick 能捞。tick 取单查询（`ai_worker.py:1417`）`filter(status=='queued').limit(5)` **无 ORDER BY**——MySQL 稳定按主键序返回前 5 个。queued 积压 >5 时，id 大的 job **永久进不了候选集**；排前面的 job 每轮 tick claim → 撞 busy 门 → 让位（`attempt_count` +1/-1 抵消，**无退避无 backoff**），永远占满 5 个名额。
+
+**识别特征**：DB 里 job queued、`attempt_count=0`、无报错无活动，但 tick 日志 `queued=[...]` 列表恒为同一批低 id job、全部 "blocked by review #xxx"——被饿死的 job 在日志里零痕迹。review #241（job 233）即被 181/220/226/229/230 五个 MainDev 占位 job 饿死。
+
+**修复方向（当 Session 未实施）**：① 取单加 `order_by(AIReviewJob.id)` 保证 FIFO；② busy 让位时写 `next_retry_time = now + 60~120s` 退避，被挡 job 让出候选名额。只加 ORDER BY 或只放宽 limit 都不治本（前者仍被占位，后者只是拖延 + 每轮空转 churn）。
+
+**附带两个结构性事实**：
+- tc_inflight 看门狗只覆盖 `tc_inflight` 阶段——`load_diff` 等阶段卡死（job 21 running/load_diff 自 8/31 僵尸）无人收尸。
+- busy 让位路径**刻意不清 claim_token**（queued 却带 token 是良性设计，不是脏数据，不要修）。
+
+## reopen 后失败计数跨轮累计 + 超限 continue 跳过，自动拒绝失效（review #246 根因，2026-09-08 实锤）
+
+**失败计数与拒绝的耦合结构**（service.py）：
+- 重试调度统计该 review 的**全部历史失败**（~2040-2045 行），不区分 reopen 后的新一轮——reopen 后的失败直接在旧计数上累加。
+- 调度循环对 `n >= max_attempts`（=3）的单 `continue` **整体跳过**（~2119-2120 行）——重试、对账、拒绝全都走不到。
+- `_reject_review_for_submit_failure` 只在「调度器亲自执行第 N 次重试且当次失败」的路径上被调用（#129 即此路径：第 3 次重试失败 → rejected）。计数因 reopen/人工重试**越过**上限而非调度器恰好踩中的单，永远到不了这个调用点。
+- 人工重试入口同样没有超限拒绝逻辑，只累加计数。
+
+**#246 时序**：17:14 第一轮 3 败自动拒绝（机制正常）→ 18:51 作者 reopen 同一 review → 20:22 批准后提交失败、累计 4 → 调度器每轮 `continue` 跳过 → 22:45 人工重试再败、累计 5。终态卡 `approved`、失败 5/3、无 next_retry_time，无人收尸。排查时 CL 129911 已不存在（删除或提交后 rename 未定）。
+
+**识别特征**：review 停 `approved` 且失败计数 > max_attempts、无 next_retry_time，活动流含 reopen 记录；与 #213（attempts 耗尽停 approved + submit_failed）同属「计数到顶后无兜底」族。
+
+**修复方向（当 Session 未实施）**：① 失败计数按 reopen 轮次重置/独立计数；② 超限卡单先走幽灵对账（cl_state/rename 追溯，同 #129 缺口），确认未提交再自动拒绝——把拒绝从「调度器执行路径的副作用」改为「计数越限的独立兜底」。
 
 ## 已知缺口
 
