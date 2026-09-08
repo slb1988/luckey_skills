@@ -74,6 +74,12 @@ Build.bat 编 Linux target，门禁语义不变）。要点：
 - **纯二进制资产单默认不跑 TC 链**（`_chain_skippable`）：文件全是不可分析二进制时直落静态分析；若看到二进制单仍触发了链，说明命中 force_ai 路径规则或计数一致性校验 fail-closed（权威口径见 pyAutomation `backend/server/applications/ai_review/SKILL.md`）。
 - **时间戳口径**：后端 activities/DB 是 UTC，TC REST 是 +0800，跨系统对时间线先换算再对齐。
 
+### busy 门的设计根因、取单公平性与前端可见性（2026-09-08 review 257 积压排查确认）
+
+- **为什么必须有 busy 门：TC 队列不提供链级互斥**。AI 评审链是 4 个独立 build config（Sync→Unshelve→BuildUE→AiReview）共享同一 `{agent}_{stream}` workspace；TC 只保证单 agent 一次一个 build。若无后端门，同分支两条链节点可交错（SyncA→SyncB→UnshelveA→UnshelveB）：UnshelveB 把 CL-B 落进链 A 正在编译/评审的树 → 评错 diff、verdict 失真；且链尾 ALWAYS Cleanup 会把另一条链跑到一半的 unshelve 直接 revert 掉。busy 门就是用 DB 状态补 TC 缺失的链级互斥锁（代码内 R6 fence 注释实锤该风险）。**同分支「排队」是设计内行为**：突发积压（实测 ~20 单）时按每链 3~15min 逐单消化，不是卡死。
+- **饿死修复已上线（#241）**：ticker 取单 limit 50 + busy 让位 120s 退避 + 公平排序；终态 review 不参与阻塞（#93 僵尸修复），配合上文 fresh 4h 自愈窗口。
+- **排队态前端可见**（修正上文「零前端提示」口径）：详情页 `aiQueue.blocked_by.review_id` 驱动「等待 Review #N 的评审链完成（TC 构建）」文案；「零提示」仅指被压住时不产生 activities 记录。
+
 ## Unshelve 独占锁失败模式
 
 `can't edit exclusive file already opened`（Unshelve 步秒级失败 → 整链 FAILURE）= 作者本机 client 把 +l 独占文件（典型 uasset）开着。归因：看失败文件 + `p4 opened -a <file>` 查谁持有打开锁。与编译失败归因分开看——这发生在链最前段，Compile 步根本没跑。
@@ -101,6 +107,14 @@ UBT 按 `ISourceFileWorkingSet`（本地修改/可写文件）把 unshelve 进�
 ### 已知小 bug
 
 - Dashboard `编译错误数: 0`：`_analyze_compile_errors()`（auto-server 后端）靠正则 `提取到 **(\d+)** 条` 从日志分析报告抠数字，匹配不上就落 0——实际有错误时飞书通知里的数字是对的，只是 dashboard 归因展示少数字。
+
+### 链失败归因全链路盲区（2026-09-09 review 281 实证根因）
+
+- `_poll_compile` 只认「BuildUE 步骤 SUCCESS」：Sync/Unshelve 失败时一律记 `compile_status=failed`，不带失败阶段信息。
+- `_analyze_compile_errors` 的分析对象是 **composite Flow 日志**（仅链 bookkeeping，~69 行），不是失败步骤（BuildUE/Unshelve）自己的日志 → 必然「提取到 0 条」。抽查全部历史 `failed` 单 `compile_error_count` 均为 0，含真·编译失败单（BuildUE 日志里一堆 clang error 的 #57）——**后端这条分析路一直全瞎**，只有 TC 侧 informer 飞书卡数字是对的。与上文「已知小 bug」是两层缺陷：那层是报告数字正则抠不出，这层是分析对象本身就是错的日志。
+- 后果链：unshelve 独占锁失败 → 前端 tag 误显示「编译失败 ✗」→ AI compile_context 拿到 Flow bookkeeping 废话 → 分析提不到真实原因，必须人翻 TC 日志。
+- 定位链根因失败步骤：沿 snapshot deps 递归展开，排除显示 `Snapshot dependency failed` 的级联步骤，第一个自己跑挂的步骤即根因。
+- 修复方案（ws:autoserver-deveops，未实施）：`.claude/plans/AiReview链失败归因上屏.md`——`_classify_chain_failure` 按 stage 分派日志源、归因结构落 `compile_result['chain_failure']`、前端 tag+失败步骤直链；语义上 unshelve 失败仍记 `failed` 保持批准门禁阻断。
 
 ### 新流首次评审：UnknownCleaner 清工作区 + 工具脚本缺失（2026-09-04 review 157 实例，9/5 查清）
 
