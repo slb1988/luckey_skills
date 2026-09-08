@@ -30,6 +30,8 @@ cd /data/py_automation/backend && ./deploy.sh
 | 5 | 轮转 app.log | `mv logs/app.log logs/app.log.{N}`（自动递增序号，永不覆盖） |
 | 6 | 启动服务 + 修正 PID | 启动后用 `pgrep -f "manage.py runserver"` 获取真实 python PID 写入 `python3_pid.log` |
 
+> 涉及 schema 的发布必读：[数据库迁移约束与缺列根因](references/database-migrations.md)。
+
 ## P4 配置
 
 | 参数 | 值 |
@@ -48,6 +50,7 @@ cd /data/py_automation/backend && ./deploy.sh
 |------|------|------|
 | Flask 进程日志 | `flask_{PID}.log`（根目录） | Flask stdout/stderr，nohup 重定向 |
 | App 应用日志 | `logs/app.log` | 应用程序写入的业务日志 |
+| 飞书助手日志 | `.logs/feishu.log` | feishu 包独立 handler + `propagate=False`，**不进 app.log**；台账在 `.logs/feishu_assistant_transcript.log`（见 [references/feishu-assistant-troubleshooting.md](references/feishu-assistant-troubleshooting.md)） |
 
 ### 日志生命周期
 
@@ -163,6 +166,11 @@ fi
 2. `auto-server-deploy/scripts/deploy.sh` 在 source /etc/environment 后追加 `export PATH="$HOME/.local/share/pnpm:$PATH"` 和 `export FEISHU_ASSISTANT_PI_BIN=$HOME/.local/share/pnpm/pi`（冗余保险）
 3. `/etc/environment` 里写入了 `FEISHU_ASSISTANT_PI_BIN=/home/dev/.local/share/pnpm/pi`（绝对路径兜底，deploy.sh 每次 source 自动带上）
 
+**depot 版 `/data/py_automation/backend/deploy.sh` 启动段同样 `set -a; . /etc/environment; set +a`**
+——/etc/environment 是生产变量 JWT_SECRET 的唯一来源，进程缺它会触发安全硬闸拒绝启动（部署后 curl HTTP 000、
+flask 日志 `RuntimeError: JWT_SECRET 未配置` 即此）；因其 `PATH=` 会整体覆盖，source 之后必须先补回
+npm-global/pnpm 再 activate venv。
+
 **排查命令**：
 ```bash
 PID=$(pgrep -f "manage.py runserver" | head -1)
@@ -170,7 +178,9 @@ tr '\0' '\n' < /proc/$PID/environ | grep -E '^(PATH|FEISHU_ASSISTANT_PI_BIN)='
 grep '"pi_failed"' /data/py_automation/backend/.logs/feishu.log | tail -3
 ```
 
-⚠️ 仓库里的 `/data/py_automation/backend/start.sh` 未修（只加了 npm-global），手动 `./start.sh` 启动仍会踩坑——但 `/etc/environment` 的绝对路径兜底对 start.sh 不生效（它不 source /etc/environment），建议后续把仓库 start.sh 也补上同样两行。
+> `pi_failed` 两种签名的区分（PATH 找不到 pi vs workspace 预检拦截）、feishu 日志为何不在 app.log、workspace 被 TC DirectoryMap 清理器回收的根因，见 [references/feishu-assistant-troubleshooting.md](references/feishu-assistant-troubleshooting.md)。
+
+⚠️ 仓库里的 `start.sh` 未修（不加 pnpm、也不 source /etc/environment），手动 `./start.sh` 启动会同时踩 PATH 和 JWT_SECRET 两个坑——部署/重启一律走 deploy.sh，别用 start.sh。
 
 ### 陷阱 1：不需要 SSH
 
@@ -218,7 +228,7 @@ AI review 的代提交**不是原子的**。approve 落库后 `_trigger_auto_sub
 - **修复**：`p4 change -f <new_cl>` 把 User 改回作者（需 super）；生产库 SQL 把 review 行改为 `cl=<new_cl>, cl_type='submitted', status='submitted'` 并补一条 `cl_submitted` 活动。
 - **识别类似事故**：CL 提交人是 AutoServer 但内容不像平台行为 → 基本是步骤 3 丢失；"CL 描述与文件清单不符 / BOM 被改"则通常是作者 shelve 时打的大包，`submit -e` 原样落 shelf 内容，平台不做合并或裁剪。
 
-> AI review 决策/风险门槛模型（他人批准无 risk 门槛、作者自拒一票否决）、reopen 复位漏 author（review #126）、approved 门禁放行作者手动提交（review #129）、未勾选编译时链级故障误标 compile_status=failed（review #138；链 2026-09-05 起始终触发、BuildUE 按需进链）、「更新review」(trigger_ai) 被分支串行 busy 门静默拦截（同分支 compile_status 卡 pending/running + 4h 新鲜度窗口）等根因与误打回 DB 恢复手法见 [references/ai-review-decision-model.md](references/ai-review-decision-model.md)。
+> AI review 决策/风险门槛模型（他人批准无 risk 门槛、作者自拒一票否决）、reopen 复位漏 author（review #126）、approved 门禁放行作者手动提交（review #129）、未勾选编译时链级故障误标 compile_status=failed（review #138；链 2026-09-05 起始终触发、BuildUE 按需进链）、「更新review」(trigger_ai) 被分支串行 busy 门静默拦截（同分支 compile_status 卡 pending/running + 4h 新鲜度窗口）、worker 取单 limit(5) 无 ORDER BY 致 queued job 饿死（review #241；busy 让位无退避，低 id 占位 job 每轮 tick 反复占满候选名额）、代提交 bot client 不映射虚拟流 WwiseProject_main 文件致 `submit -e` 确定性失败（review #213；p4 逐文件明细仅 warning 级，日志只见光秃的 Submit failed）等根因与误打回 DB 恢复手法见 [references/ai-review-decision-model.md](references/ai-review-decision-model.md)。
 
 ## 注意事项
 
