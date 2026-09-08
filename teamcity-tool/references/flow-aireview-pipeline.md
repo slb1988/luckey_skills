@@ -30,6 +30,14 @@ REST 读取当前链仍需从具体 Flow 递归展开 snapshot dependencies，�
 - 评审步的 pi CLI 以 **`--no-extensions` 显式启动**——只往构建机复制 pi 扩展文件（如 memory-hub 首轮预热扩展）不会被加载，必须同步改该步启动参数做显式加载；且构建机上的 memory_hook 客户端版本偏旧，没有 search-v2 召回入口，接记忆召回时客户端也要一并升级。
 - 历史 Linux 部署的 agent-home `p4ws/` 下有 `DefaultAgent_MainDev` 与 `DefaultAgent_Stable`。当时按目录定 memory-hub project，前者=maindev，后者错挂 auto-server；两条流同属 maindev。此路径不是当前 Windows AI Review 的 Root 公式。
 
+## Pi_Agent_Review 耗时黑洞：裸 grep 全树扫 P4 工作区（2026-09 Windows 链，build 18454 实锤）
+
+Windows 链评审时长呈**双峰分布**：快档 1~6 min（模型全程用带 path 的 find/grep，如 18474 全程 88s），慢档 9~30 min。快慢与 LLM/网关无关（LLM 首响应 5.7s，build-api-proxy 在评审窗口零留痕），瓶颈全在模型首个**无 path 限定的裸 grep/find**：
+
+- **机理**：pi 的 grep 走自带 ripgrep；评审 workspace 是 P4 检出，没有 `.git`/`.ignore`，rg 不应用任何忽略规则 → 全量扫 UE 树（含 Intermediate/Binaries 几十万文件）。冷缓存 + Defender 下 7~30 min，热缓存秒级——所以快慢随机。build 18454 实测首个裸 grep 执行 441.5s，占该 build 评审步 10m05s 的大头。
+- **整 30 min 的 build（18417/18404）= 裸 grep 卡满步骤 1800s taskkill**，verdict=error 白跑——看到 30:00 整 + error 先怀疑这个，别怀疑模型。
+- **修复已落地（2026-09-08）**：评审步 kts `--tools read,grep,find,ls` 收窄为 `read,ls` 物理断搜（CL 1562）+ `AiReviewContextCollect.py` prompt 同步改写禁搜索（CL 130007）——**两处必须同时生效**，否则 prompt 声称有 grep 而工具没有，模型报错浪费轮次。下一步方向是 Collect 步预生成 `codegraph_context.txt`（diff 符号批量过 web codegraph `/callers`+`/impact`），但 web 版 codegraph 当前全挂（1004 = 服务端缺 codegraph CLI 二进制，根因见 codegraph skill），修好前按不可用降级。
+
 ## 排队瓶颈与多 agent 历史方案（2026-09-07 CL 1499，非当前部署状态）
 
 在该历史方案中，`DefaultAgent` 是唯一 Linux agent，AiReview 链与 CodeGraph 链共享它，串行执行。

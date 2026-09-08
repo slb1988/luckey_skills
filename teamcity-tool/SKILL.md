@@ -139,6 +139,19 @@ PLN 的 Win64 AI Review 使用专属 `TaskBuildUEWindows` 与 `TaskAiReview` 收
 CodeGraph 的 Linux 编译链独立保留。同机组靠 snapshot 边取兼容性交集，不给共享节点追加专属能力门。
 </memory>
 
+<memory category="code-locations">
+PLN_TaskAiReview 的内容步 "Collect Review Context" 调的是 **MainDev depot** 的 `Tools/AiReview/AiReviewContextCollect.py`（本机 `D:\MainDev`），不在 DevOps 仓——ws:autoserver-deveops 的 AI review 故障可能要改 MainDev 文件。`STREAM_MISMATCH: CL <n> has files outside //CyanCookOfficialDepot/<stream>/` 报错出自其 `collect_diff()`：取首个文件的 stream 作前缀，其余文件落在前缀外即硬失败 exit 3；触发源是混合 stream CL（如 WwiseProject_main 音频文件与 MainDev 游戏改动同 CL）。上游 Task_Unshelve（DevOps `P4UnshelveStage.py`）对混合 CL 正常——见 STREAM_MISMATCH 先查 collect 步，别查 unshelve。
+</memory>
+
+<memory category="troubleshooting">
+PLN_TaskAiReview 观测性两个结构性事实（build 18399 实证，2026-09）：
+① 编译日志采集是**静默降级**——Collect 步 `--tc-dep-suffix` 必须与链上实际编译节点同名（现 `TaskBuildUEWindows`，链定义见 build-chain-parameters.md）；不匹配不报错，`Saved/ai_review/build_log_tail.txt` 只剩 ~94B 说明 stub，AI 在无编译日志下评审。已发根因：脚本默认值滞留 `TaskBuildUELinux`、文档声称已对齐而代码没有。评审输出缺编译证据时先查该文件大小，别怀疑模型。
+② Pi_Agent_Review 步 pi stdout 全量重定向进 `pi_out.txt`，TC 日志天然只剩一行 exit code——透明化只能靠运行中心跳（pi_out/session 字节增长）+ 结束后回放 `Saved/ai_review/sessions/*.jsonl`（含工具调用序列与 thinking）；该目录跨构建累积，必须按 mtime ≥ 启动时刻过滤本轮会话。模型输出写进 TC 日志前一律 `##teamcity` 转义，防伪造 service message。
+</memory>
+
+<memory category="common-patterns">
+TC Windows runner 上凡打印非 ASCII 的 python 步骤必须配 `env.PYTHONUTF8=1`：runner 已 `chcp 65001`，但 python stdout 走管道时退回系统 locale（cp936），二者错位即中文乱码（TaskAiReview summary 乱码根因）。kts 参数区加一行即对所有 python 内联步生效。
+</memory>
 
 ## Troubleshooting build failures
 
