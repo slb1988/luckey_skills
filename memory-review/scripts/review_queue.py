@@ -34,7 +34,8 @@ DEFAULT_BASE = "https://luckeyhome.site/memory-hub"
 
 # 高置信敏感信息模式（宁漏勿错：命中只升级人工，不自动拒）
 SENSITIVE_PATTERNS = [
-    (re.compile(r"sk-[A-Za-z0-9_\-]{20,}"), "API key 形态字符串"),
+    # sk- key：前置字符守卫防 task-management 类文件名误报；主体允许点号防漏报
+    (re.compile(r"(?<![A-Za-z0-9])sk-[A-Za-z0-9_\-.]{20,}"), "API key 形态字符串"),
     (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"), "私钥材料"),
     (re.compile(r"(?i)\b(password|passwd|secret)\s*[:=]\s*['\"]?\S{6,}"), "口令赋值"),
     (re.compile(r"(?i)\bapi[_-]?key\s*[:=]\s*['\"]?[A-Za-z0-9_\-]{16,}"), "api_key 赋值"),

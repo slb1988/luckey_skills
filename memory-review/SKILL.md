@@ -93,8 +93,11 @@ apply 返回 `already_processed` = 该条已被并发处理（通常是用户在
 </memory>
 
 <memory category="troubleshooting">
-当前 `sk-...` 敏感模式不接受 token 主体中的 `.`，带点号的明文凭证可能漏报。
-未命中 `sensitive_pattern` 不能证明安全，审核仍须人工检查正文中的凭证。
+敏感模式仍未命中 ≠ 安全，审核仍须人工检查正文凭证（2026-09-08 实证：`口令 789512`
+未被任何模式捕获）。sk- 模式 2026-09-08 已修双缺陷：加前置字符守卫
+（`(?<![A-Za-z0-9])`）——否则 `task-management-xxx.md` 这类文件名内的 "sk-" 子串
+会误报（实证：`sk-management-database-design`）；主体允许点号——带点号的
+sk- 凭证此前漏报。
 </memory>
 
 ## 决策文件格式
