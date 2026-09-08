@@ -1,19 +1,17 @@
 ---
 name: teamcity-tool
 description: >
-  TeamCity server administration toolkit — manage service lifecycle, inspect/edit config,
-  LDAP/auth setup, health checks, troubleshooting, and REST API operations.
-  Use when the user mentions TeamCity, TC server, teamcity-server,
+  TeamCity server operations: lifecycle, config, LDAP/auth, health, logs, REST API,
+  agent matching and build chains. Use for TeamCity/TC server, teamcity-server,
   "restart TeamCity", "check TeamCity logs", "TeamCity config", "LDAP TeamCity",
   "build agent", "teamcity data directory", "build chain", "build queue",
-  "no compatible agents", "reverse.dep", "snapshot dependency", or any TeamCity
-  admin/ops/API task, or reports problems with the TeamCity web UI, login, builds,
-  or agent assignment on this host. Covers the PL packaging pipeline
-  (PL_BuildProjectWindows / PL_BuildUgsBinaries, UAT cook, MinIO upload), agent
-  checkout-directory auto-clean incidents (DirectoryMap cleaner, 192h expiry),
-  the PLN_FlowAiReview AI-review pipeline (Sync/Unshelve/BuildUE_Linux/Pi_Agent_Review)
-  performance profile and queue bottlenecks, and the PLN_TaskAiReview failure-notification
-  chain (TeamCityLogParserInformer attribution / feishu routing).
+  "no compatible agents", "No agent", "override.dep", "reverse.dep",
+  "snapshot dependency", unresolved parameters, or TeamCity UI/login/build/agent issues.
+  Covers PL_BuildProjectWindows/PL_BuildUgsBinaries (UAT cook, MinIO),
+  DirectoryMap cleaner/192h checkout expiry, PLN_FlowAiReview
+  (Sync/Unshelve/BuildUE_Windows; historical BuildUE_Linux; Pi_Agent_Review),
+  parameter ownership/resolution, same-agent routing, queue bottlenecks,
+  and PLN_TaskAiReview failure notifications (TeamCityLogParserInformer/feishu).
 compatibility: linux, bash, ps, grep, find, curl
 ---
 
@@ -53,8 +51,9 @@ Always read the reference file before acting — it contains the actual paths, p
 |---|---|
 | LDAP setup / auth | `references/ldap-config.md` |
 | REST API (queries, parameters, queue) | `references/rest-api.md` |
-| Build chain & parameter passing lessons | `references/build-chain-lessons.md` |
-| Agent pinning and `reverse.dep.*` behavior | `references/agent-pinning.md` |
+| Build chain 参数所有权、override/reverse 解析、隐式 Agent 要求、工作区、安全重排与验证（chain 问题先读） | `references/build-chain-parameters.md` |
+| Kotlin DSL、VCS/checkout 与链配置补充 | `references/build-chain-lessons.md` |
+| Agent 名称正则、白名单与 Pool | `references/agent-pinning.md` |
 | Non-obvious traps and gotchas | `references/gotchas.md` |
 | 打包管线 (PL_BuildProjectWindows / PL_BuildUgsBinaries / UAT cook) | `references/package-pipeline.md` |
 | Checkout 目录自动清理事故 (DirectoryMap cleaner, 192h expiry) | `references/checkout-dir-auto-clean.md` |
@@ -118,15 +117,28 @@ grep -i "plugin" <log-file> | grep -i "load\|init\|fail"
 Agent config: `<data-dir-adjacent>/buildAgent/conf/buildAgent.properties`
 Check `serverUrl` is correct and agent is connected.
 
-<memory category="troubleshooting">
-TeamCity 的 Agent 兼容性还取决于构建参数引用能否解析，并非只看 Agent 名称要求。
-`PLN_FlowAiReview` 的 `Task_Sync_CyanCook_Depot` 收到 `P4Stream=%env.p4_stream%` 而缺少 `env.p4_stream` 时，符合名称要求的 Agent 仍会被 Sync 判为不兼容，阻塞整链；放宽名称正则无效。
-Flow→Sync 的分支透传必须保证 `P4Stream` 在 Sync 自身上下文中解析为实际 stream（如 `MainDev`）；诊断以排队 Sync 的实际参数为准。
-</memory>
+### Build chains
+
+先读 [Build chain 参数与验证](references/build-chain-parameters.md)，再修改配置：
+
+1. 从具体 Flow build ID 递归展开依赖，区分单节点兼容性、同机组交集和 Agent 空闲状态。
+2. 为每个参数确定唯一业务入口与解析上下文；Flow 下发分支/CL，目标 Agent 解析本机路径。
+3. 先用 echo-only 链断言实际值，再验证真实 Sync/Unshelve；不拿生产 CL 反复试参数。
+4. 回报实际 Agent、stream/CL/Root、配置 revision 和各阶段状态；匹配成功不等于全链成功。
+
+Composite Flow 不占 Agent；其 Agent 栏为空不是故障结论。显式 requirements 之外，
+还要查看 runner/参数引用的隐式要求。已入队快照与当前配置、业务侧 build ID 关联分别核实。
 
 <memory category="common-patterns">
 To allow exactly several named agents, use one `teamcity.agent.name` `matches` requirement with anchored alternation, e.g. `^(?:WinBuilder1|WinBuilder4)$`. Separate TeamCity requirements are ANDed, so two `equals` requirements cannot express this OR. Replace any existing name requirement rather than stacking another; for versioned settings, make the equivalent Kotlin DSL change (`requirements { matches(...) }`) so a UI-only edit is not overwritten.
 </memory>
+
+<memory category="common-patterns">
+PLN 的 Win64 AI Review 使用专属 `TaskBuildUEWindows` 与 `TaskAiReview` 收窄 Windows/WinBuilder 路由，
+不需要历史 Linux 交叉编译方案的 `env.LINUX_MULTIARCH_ROOT`。共享 Sync/Unshelve 保持通用；
+CodeGraph 的 Linux 编译链独立保留。同机组靠 snapshot 边取兼容性交集，不给共享节点追加专属能力门。
+</memory>
+
 
 ## Troubleshooting build failures
 

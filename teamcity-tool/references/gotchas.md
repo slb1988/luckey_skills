@@ -2,35 +2,14 @@
 
 本文件记录 TeamCity 在 REST API、参数传递、Perforce VCS root、checkout 模式、Kotlin DSL 等方面的非显而易见的行为。读到这些条目时应该主动在相关配置中检查。
 
-## 参数解析：排队时解析 vs 运行时解析
+## Chain 参数、解析上下文与快照
 
-| 参数 | 解析时机 | 在 pipeline 上是否可用 |
-|---|---|---|
-| `%teamcity.agent.name%` | build 实际分配到 agent 后 | **不可用**。pipeline 在排队时还没有 agent，会解析为空字符串 |
-| `%PARAM%`（自定义参数） | 排队时 | 只有当该参数在当前 build 配置自身、父项目或上游 `reverse.dep.*` 注入后可用 |
+权威参考：[build-chain-parameters.md](build-chain-parameters.md)。相关机制集中维护于该文，避免这里复制出第二套规则：
 
-**结论：** `reverse.dep.*.PARAM` 永远不要用 `%teamcity.agent.name%`；用它传递字面量或已解析的自定义参数。
-
-## `reverse.dep.*` 参数的作用域
-
-`reverse.dep.*.PARAM_NAME` 在 parent/pipeline 上定义，会把 `PARAM_NAME` 的值注入到所有下游 build。但它不会把参数名本身“定义”到下游——如果下游本来没有这个参数，`%PARAM_NAME%` 引用会保持为字面字符串。
-
-正确模式：
-```
-Pipeline 参数：
-  DefaultAgent = DefaultAgent
-  reverse.dep.*.DefaultAgent = DefaultAgent   ← 字面量
-
-Downstream 参数：
-  DefaultAgent = DefaultAgent   ← 自己也要定义，供 agent requirement 使用
-
-Agent requirement：
-  teamcity.agent.name == %DefaultAgent%
-```
-
-## 入队后的 build 携带参数快照
-
-build 入队时会快照当前参数值。之后修改 build config 的参数不会影响已经排队的 build。修复参数后必须取消并重新触发 chain。
+- `override.dep` 在声明它的配置中尝试解析，仅覆盖接收方已有键；`reverse.dep` 保留表达式且可以创建接收方参数。
+- Composite 没有自己的 Agent。Agent 名称策略用字面正则；目标 Agent 路径公式可以用定向 reverse.dep 延迟解析，两者不能混为一谈。
+- 项目/模板中的空 env 参数会遮蔽 Agent 值；已入队快照、新配置和实际启动值是三个不同检查对象。
+- 重排需保留业务平台的 build ID 关联并重新检查请求状态，不无条件取消旧链或复活终态请求。
 
 ## Perforce VCS root：`client-mapping` 覆盖 stream view
 
@@ -44,15 +23,12 @@ build 入队时会快照当前参数值。之后修改 build config 的参数不
 
 应使用 `normdir`（Perforce 默认行为，不删除目录）。
 
-## 共享 checkout 目录的三个必要条件
+## 同机状态与 checkout 目录
 
-当 chain 中一个 build sync 代码、下游 build 读取代码时：
-
-1. **相同的 `checkoutDirectory`**（例如 `/mnt/disk2/TeamCity/buildAgent/work/%teamcity.agent.name%_%P4Stream%`）
-2. **snapshot dependency 设置 `run-build-on-the-same-agent = true`**
-3. **下游 build 移除自己的 VCS root，并把 `checkoutMode` 设为 `MANUAL`**
-
-如果下游仍保留 `ON_AGENT` 且没有 VCS root，TeamCity 仍会在 build 开始时清理 checkout 目录，导致上游 sync 的内容丢失。
+同机 snapshot 边保证 Agent 一致，但还需保证消费者使用同一个真实 engine Root 和分支。
+脚本式 Sync 的 DevOps checkout 可以与 engine Root 不同；后续 MANUAL Build/Review 核验的是
+engine Root、P4 client spec 与预期路径一致，不是让所有 checkoutDirectory 字符串机械相等。
+自动 checkout/目录清理不应覆盖这份共享 UE 状态；详细契约见主参考的“工作区公式”。
 
 ## `vcsroot.<ID>.p4client` 参数名与 VCS root ID 强绑定
 
@@ -77,7 +53,9 @@ build 入队时会快照当前参数值。之后修改 build config 的参数不
 
 ## TeamCity 状态同步延迟
 
-通过 REST API 修改配置后，如果 versioned settings 已启用，TeamCity 可能不会立即重新加载 VCS 中的最新 DSL。必要时需在 UI 手动点击 **"Load project settings from VCS"** 强制刷新。
+REST/UI 保存、写回 VCS、服务器应用、某次构建选定 revision 分属不同阶段。
+先看项目 `versionedSettings/status` 与实际 build 的 `versionedSettingsRevision`，再决定是否需要加载已确认的 VCS 版本。
+`not read only` 或 `generated settings from cache` 仅是设置选择信息，不足以单独证明缓存错误，不能据此清缓存/重启服务器。
 
 ## Checkout directory 过期自动清理会整树删除目录（默认 192h）
 

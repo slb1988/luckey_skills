@@ -1,9 +1,16 @@
-# PLN_FlowAiReview 管线性能画像（2026-08-31 基线，14 次构建采样）
+# PLN_FlowAiReview：当前拓扑与历史性能画像
 
-AI Review 复合链：`PLN_SyncDepot → PLN_Unshelve → PLN_BuildUE_Linux → PLN_AiReview`（pi agent 评审）。
-REST API 查复合构建只返回直接 snapshot 依赖，**要递归追踪** `snapshot-dependencies` 才能拿到完整链路。
+## 当前 Windows Win64 链（2026-09-08 配置契约）
 
-## 各环节耗时基线
+`PLN_TaskSyncCyanCookDepot → PLN_TaskUnshelve → PLN_TaskBuildUEWindows → PLN_TaskAiReview`，
+由 composite `PLN_FlowAiReview` 发起。业务参数由 Flow 统一下发；路径在实际 Agent 上解析。
+Windows/WinBuilder 要求放在专属节点，不需要 Linux 交叉工具链变量；共享 Sync/Unshelve 仍服务其他链。
+参数配对、同机组、工作区公式、排障与验收统一见 [build-chain-parameters.md](build-chain-parameters.md)。
+
+## 历史 Linux 链耗时基线（2026-08-31，14 次构建采样）
+
+以下耗时和 Linux/p4ws 现场属于历史方案，不作为当前 Windows 链的配置指令。
+REST 读取当前链仍需从具体 Flow 递归展开 snapshot dependencies，而不是只看直接依赖。
 
 | 环节 | 典型耗时 | 性质 |
 |---|---|---|
@@ -21,15 +28,15 @@ REST API 查复合构建只返回直接 snapshot 依赖，**要递归追踪** `s
 - 每次评审必读 `.claude/skills/pl-review/SKILL.md`，内联进 prompt.md 可省固定 1~2 个 turn 和首轮 context。
 - pi session 文件在 agent workspace 的 `sessions/` 下无限累积，且**每次构建全量上传 artifact**——分析评审过程时直接去 workspace 拿 session JSONL 比翻 TC artifact 快。
 - 评审步的 pi CLI 以 **`--no-extensions` 显式启动**——只往构建机复制 pi 扩展文件（如 memory-hub 首轮预热扩展）不会被加载，必须同步改该步启动参数做显式加载；且构建机上的 memory_hook 客户端版本偏旧，没有 search-v2 召回入口，接记忆召回时客户端也要一并升级。
-- agent-home `p4ws/` 下现有两个评审工作区：`DefaultAgent_MainDev` 与 `DefaultAgent_Stable`。按目录定 memory-hub project 归属时前者=maindev（正确），后者**当前错挂 `auto-server`**——MainDev/Stable 两条流同属 maindev 代码线，做 session/记忆归属映射时不要把 Stable 工作区归到 auto-server。
+- 历史 Linux 部署的 agent-home `p4ws/` 下有 `DefaultAgent_MainDev` 与 `DefaultAgent_Stable`。当时按目录定 memory-hub project，前者=maindev，后者错挂 auto-server；两条流同属 maindev。此路径不是当前 Windows AI Review 的 Root 公式。
 
-## 排队瓶颈（2026-09-07 起已支持多 agent，CL 1499）
+## 排队瓶颈与多 agent 历史方案（2026-09-07 CL 1499，非当前部署状态）
 
-`DefaultAgent` 是唯一 Linux agent，AiReview 链与 CodeGraph 链共享它，串行执行。
+在该历史方案中，`DefaultAgent` 是唯一 Linux agent，AiReview 链与 CodeGraph 链共享它，串行执行。
 review 步是 LLM/IO 等待型（编译才吃 CPU），**同机加第二个 agent 即可消除串行**；
 workspace 命名 `{agent}_{stream}` 原生支持多 agent 共存。
 
-**2026-09-07 CL 1499 多 agent 改造已上线**：Flow 级 `DefaultAgent` 参数改为锚定正则
+**CL 1499 历史多 agent 方案**：Flow 级 `DefaultAgent` 参数改为锚定正则
 `^(?:DefaultAgent|WinBuilder3|WinBuilder4)$`（经 `override.dep.*` 下发），链可调度到
 WinBuilder3/4（Windows 11 + 同款 v26 Linux 交叉工具链 `env.LINUX_MULTIARCH_ROOT`，用
 Build.bat 编 Linux target，门禁语义不变）。要点：
@@ -42,15 +49,10 @@ Build.bat 编 Linux target，门禁语义不变）。要点：
   与 agent-home p4ws 硬编码不符——TaskBuildUELinux/TaskAiReview 首步 Resolve_Workspace_Root
   从 client spec 实时解析真实 Root 写 env.WORKSPACE_ROOT，后续步骤跟随（DefaultAgent 上
   Root==checkoutDir 行为等价）。
-- 能力门 exists(env.LINUX_MULTIARCH_ROOT) 只加在 TaskBuildUELinux（AiReview 链独占），
-  **不要加在共享的 TaskUnshelve/TaskSyncCyanCookDepot**——会把 WinBuilder1 从 DryRun 链踢出去（回归）。
+- 能力门按调用范围落在专属节点，不能全局收窄共享 Sync/Unshelve，也不能把共享 Linux 编译节点认定为 AiReview 独占；当前 Win64 链见本文开头及 chain 主参考。
 - WinTest1 也带 LINUX_MULTIARCH_ROOT，靠 name regex 排除；WinBuilder1 无双条件满足。
-- 已知假象：REST `compatible:()` locator 对带 `%reverse.dep.*.X|...%` 参数的链内配置恒返回空
-  （独立上下文不可解析，DryRun/BuildProject 同样空，生产调度正常）——验证路由要手动对
-  agent 属性求值 name regex ∩ exists(env)，或直接触发 smoke 构建看调度。
-- 上线前置：WinBuilder 需装 pi CLI + 配 anthropic provider（kimi 网关）——WinBuilder3 已有
-  pi 0.84.3 但 auth.json 只有 deepseek；WinBuilder4 未验证且 disabled。因此改造「名义上线」后
-  评审链实际仍只有 DefaultAgent 能跑，配好 WinBuilder3/4 的 pi provider 前串行瓶颈不消除。
+- 配置级兼容性不等同于某次 Flow 的实际候选；旧 `%reverse.dep.*.X|...%` 表达式不能视为通用 fallback。验证应查具体 queued build、单节点隐式要求、同机组交集及实际启动参数，而不是仅手算名称/工具链条件。
+- 历史上线检查：当时 WinBuilder3 的 pi provider 与 WinBuilder4 的启用/安装状态未验证完整。当前机器状态必须现场查询，不能用这份历史清单判断现在的可用 Agent；匹配通过后仍需验证 runner 与 pi 模型配置。
 
 ## 后端 busy 门、降级放行与取消归属（2026-09-09 review 197 事故确认）
 
@@ -70,7 +72,8 @@ Build.bat 编 Linux target，门禁语义不变）。要点：
 
 ## 队列停摆：全 server 零构建但排队链不起（2026-09-09 观测，根因未实锤）
 
-症状：跨所有 agent `running:true` 返回空、agent 在线空闲，排队链 20 分钟一个不起；**取消重触发后秒级恢复**（暂时性故障）。当时构建日志带 `[Checking settings] Cannot use the latest applied settings because some configurations are not read only: <btId>`——项目设置正在 UI 里被编辑，疑似编辑期间排队链 agent 匹配失败（当天正值 CL 1499 多 agent 改造调参，未能实锤到具体哪次编辑）。排查顺序：`running:true` 归零核实全 server 停摆 → 查构建日志该 settings 行 → 取消重触发。
+历史症状：跨所有 agent `running:true` 返回空、Agent 在线空闲，排队链长期不起，重建链后恢复；当时同时出现 `not read only` 设置选择日志，因果关系未确认。
+该日志不能单独说明 UI 编辑或缓存导致无匹配；先核实具体构建的兼容性、参数与 revision，再按 chain 主参考决定是否安全重排，不把“重跑恢复”当成根因证明。
 
 ## 已确认的其他问题
 
@@ -98,5 +101,5 @@ UBT 按 `ISourceFileWorkingSet`（本地修改/可写文件）把 unshelve 进�
 - **次因（已被 CL 129362 修复）**：`Task_AiReview` 是 `checkoutMode=MANUAL` + 不挂 VCS root，`Collect Review Context` 跑 `python Tools/AiReview/AiReviewContextCollect.py` 依赖脚本随 UE 流 sync 进工作区；当时 `Tools/AiReview/` 只在 MainDev 流，Stable HEAD（126068）没有 → 即使没被清也会报 `Errno 2` exit 2。9/5 CL 129362 已把工具合入 Stable。新流首评前确认该流含 `Tools/AiReview/`。
 - **次生症状**：`Validate And Publish Result` 步被跳过 → 回调永远不发 → 后端 review 记录 `compile_status=running` 卡死（dashboard 一直转圈）。查评审卡住先对 `compile_build_url` 的链状态。
 - **清理后现场**：磁盘空目录 + P4 have-table 满（up-to-date 假象）——裸重跑 sync 只拉 delta 秒过、工作区 99% 缺失。恢复必须 `p4 -c {agent}_{stream} clean //CyanCookOfficialDepot/<stream>/...` 或 sync -f 全量补回（.old 会被 cleaner 第二阶段 purge，无法从 .old 抢救）。
-- **根治方向（已实施，见 `.claude/plans/评审工作区迁出TC-work目录.md`）**：工作区基座从 agent `work/` 挪到 **`%teamcity.agent.home.dir%/p4ws/`**（CL 1481+1482）：UnknownCleaner 只扫 work/，agent home 级目录安全（先例：buildAgent/devops）；agent-home 相对路径使多 agent / Windows 扩展不用改配置。改动点：`Teamcity_PLN/.teamcity/patches/buildTypes/` 的 TaskSyncCyanCookDepot.kts `P4SyncRoot` + TaskAiReview/TaskBuildUELinux/TaskBuildCodeGraph/TaskPrintP4Ignore/TaskSyncStreamDepot 五个 checkoutDir。存量 client 迁移：`mv` 目录 + 改 client spec Root 即可（have-table 存的是 depot 路径映射，与本地绝对路径无关，`p4 sync -n` 可验证无损）。另加 `teamcity.agent.checkoutDir.expireHours=never` 防 192h 过期清理误伤低频流。
-- **运维备注**：Task 级配置（Sync/Unshelve/BuildUE/AiReview）**不能脱离复合配置单独触发**——`DefaultAgent` 参数靠复合配置经 `override.dep.*` 下发，standalone 触发会卡在 `%reverse.dep.*.DefaultAgent|DefaultAgent%` 未解析 → "no idle compatible agents"。要手动验证一律触发复合配置 PLN_FlowAiReview。
+- **当时的 Linux 部署方案（见 `.claude/plans/评审工作区迁出TC-work目录.md`；当前 Windows Root 另按 NODE_WORKSPACE 契约）**：工作区基座从 agent `work/` 挪到 **`%teamcity.agent.home.dir%/p4ws/`**（CL 1481+1482）：UnknownCleaner 只扫 work/，agent home 级目录安全（先例：buildAgent/devops）；agent-home 相对路径使多 agent / Windows 扩展不用改配置。改动点：`Teamcity_PLN/.teamcity/patches/buildTypes/` 的 TaskSyncCyanCookDepot.kts `P4SyncRoot` + TaskAiReview/TaskBuildUELinux/TaskBuildCodeGraph/TaskPrintP4Ignore/TaskSyncStreamDepot 五个 checkoutDir。存量 client 迁移：`mv` 目录 + 改 client spec Root 即可（have-table 存的是 depot 路径映射，与本地绝对路径无关，`p4 sync -n` 可验证无损）。另加 `teamcity.agent.checkoutDir.expireHours=never` 防 192h 过期清理误伤低频流。
+- **业务入口契约**：非默认分支/CL 从 `PLN_FlowAiReview` 发起。独立 Task 的默认入口、名称策略与自定义业务参数透传是不同契约，不能相互推断；完整验证要求见 chain 主参考。

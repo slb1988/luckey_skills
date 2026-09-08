@@ -1,68 +1,42 @@
-# Agent Pinning in Build Chains
+# Agent 名称策略、白名单与同机组
 
-## The `reverse.dep.*` parameter mechanism
+> 参数解析、隐式要求、队列诊断和安全重排统一见 [build-chain-parameters.md](build-chain-parameters.md)。
+> 本文仅定义 Agent 选择策略，不把“匹配成功”当作工作区或构建已验证。
 
-`reverse.dep.*.PARAM_NAME` on a **parent/pipeline** build config sets the value of `PARAM_NAME` on all downstream builds in the chain. TeamCity resolves these values **at queue time**, before any build runs.
-
-## Reverse.dep values are passed literally
-
-TeamCity does **not** resolve `%...%` parameter references inside the value of a `reverse.dep.*` parameter before passing it downstream. The child build receives the literal string.
-
-This means:
+## 名称要求是策略，不是运行后反推的值
 
 ```kotlin
-// WRONG: creates a circular reference on the child
-param("reverse.dep.*.DefaultAgent", "%DefaultAgent%")
-```
-
-On the child, if `DefaultAgent` is defined as `%reverse.dep.*.DefaultAgent|.*%`, the resolution becomes:
-- `DefaultAgent` → `%reverse.dep.*.DefaultAgent|.*%`
-- `reverse.dep.*.DefaultAgent` → `%DefaultAgent%` (literal)
-- `%DefaultAgent%` → child's own `DefaultAgent` parameter → circular
-
-Result: the child sees `DefaultAgent` as the unresolved literal `%DefaultAgent%`, and agent requirements fail to match any agent.
-
-## Correct pattern for agent pinning via pipeline
-
-```kotlin
-// Pipeline / composite build config
+// Flow：字面正则下发给已声明 DefaultAgent 的前置任务
 params {
-    param("DefaultAgent", "DefaultAgent")          // user-facing label
-    param("reverse.dep.*.DefaultAgent", "DefaultAgent")  // MUST be literal
+    param("DefaultAgent", "^WinBuilder.*$")
+    param("override.dep.*.DefaultAgent", "^WinBuilder.*$")
 }
 
-// Downstream build config
+// WinBuilder 专属 Task；共享 Task 的默认值按自己的调用方选择
 params {
-    param("DefaultAgent", "%reverse.dep.*.DefaultAgent|.*%")
+    param("DefaultAgent", "^WinBuilder.*$")
 }
-
 requirements {
     matches("teamcity.agent.name", "%DefaultAgent%")
 }
 ```
 
-Behavior:
+- `matches` 消费正则，`equals` 消费字面名称；`WinBuilder*` 的前缀策略写作 `^WinBuilder.*$`。
+- 不用尚未确定的 `%teamcity.agent.name%` 决定 Agent requirement。选定 Agent 后，用它计算路径是另一件事。
+- 新配置显式声明普通默认值，不依赖 `%reverse.dep.*.DefaultAgent|.*%` 作为通用 fallback 语法。
+- `override.dep` 只更新接收方已声明的键；`reverse.dep` 保留表达式且可创建键。
+  名称策略使用字面正则；目标 Agent 路径公式的延迟解析是合法的另一种用途，见主参考。
 
-| Trigger source | `DefaultAgent` resolved value | Agent requirement effect |
-|---|---|---|
-| Pipeline | `DefaultAgent` | pinned to `DefaultAgent` |
-| Standalone | `.*` (fallback) | matches any agent |
+## 多个精确名称用一个 OR 正则
 
-Use `matches` (regex) instead of `equals` so the `.*` fallback matches every agent name.
+同一配置的所有 requirements（含继承的）按 **AND** 合并。
+两个 `equals` 不能表达“WinBuilder1 或 WinBuilder4”。
 
-## Allow-listing several exact agent names
-
-All agent requirements on a build configuration, including inherited requirements, are combined with **AND**. Two `equals` requirements therefore cannot express `WinBuilder1 OR WinBuilder4`; no agent can equal both names. Represent a finite allow-list with one anchored regex requirement:
-
-| Field | Value |
+| 意图 | `teamcity.agent.name` 的 `matches` 值 |
 |---|---|
-| Parameter | `teamcity.agent.name` |
-| Condition | `matches` |
-| Value | `^(?:WinBuilder1|WinBuilder4)$` |
-
-Anchors prevent similarly prefixed names from matching. A broader inherited requirement such as `system.agent.name starts-with WinBuilder` can remain: the local exact-name allow-list intersects with it and narrows compatibility to the named agents.
-
-Kotlin DSL equivalent:
+| 任意 WinBuilder 前缀 | `^WinBuilder.*$` |
+| 只允许两台明确的机器 | `^(?:WinBuilder1|WinBuilder4)$` |
+| 不按名称限制 | 不设名称 requirement；仍保留必要的能力/Pool 边界 |
 
 ```kotlin
 requirements {
@@ -70,11 +44,12 @@ requirements {
 }
 ```
 
-To update an existing requirement through REST, `PUT` the requirement entity rather than adding multiple conditions:
+通过 REST 修改已有 requirement，而不是不断叠加新条件：
 
 ```http
 PUT /app/rest/buildTypes/id:<BT_ID>/agent-requirements/<REQUIREMENT_ID>
 Content-Type: application/json
+Accept: application/json
 
 {
   "type": "matches",
@@ -87,45 +62,34 @@ Content-Type: application/json
 }
 ```
 
-TeamCity may implement the update by replacing the requirement and assigning a new `RQ_*` ID. Use the ID returned by the response or re-read the collection; do not assume the previous ID remains valid. Verify the effective result, including inherited requirements, through:
+更新可能生成新的 `RQ_*` ID，使用返回值或重新读取集合，不复用旧 ID。
+版本化配置还需确认变更已写回并被服务器应用。
+
+## 单节点、同机组与可执行状态
+
+`runOnSameAgent=true` 把相关任务绑定到同一台机器，其候选由各任务的要求取交集。
+专属能力要求放在专属节点，共享任务仍可服务其他链；不能为了扩容而去掉正确性所需的 OS/工具要求。
+
+配置级检查：
 
 ```text
 GET /app/rest/agents?locator=compatible:(buildType:(id:<BT_ID>))&fields=agent(id,name,connected,enabled,authorized)
 ```
 
-## Lesson: Never use `%teamcity.agent.name%` in `reverse.dep.*`
+但配置页不包含某次 Flow 的完整触发上下文；验证运行中的链要查询具体 queued build 的候选，
+并在其 Compatible Agents 页面查看隐式要求。REST 默认过滤、单节点与同机组范围也可能影响列表。
 
-**Problem:** If you set `reverse.dep.*.DefaultAgent = %teamcity.agent.name%` on the pipeline, the pipeline has no agent yet when it enters the queue. `%teamcity.agent.name%` resolves to empty string. Every downstream build gets `DefaultAgent = ""`, and their agent requirement matches nothing.
+有候选但未启动时，检查连接、启用、授权、占用和依赖状态；不能直接归因为参数或旧快照。
+Composite Flow 本身不占 Agent，它的 Agent 空白不能用于判定整条链失败。
 
-**Symptom:** All downstream builds show `waitReason: "There are no idle compatible agents which can run this build"` even though agents are connected and idle.
+## 名称、Pool、能力的职责
 
-**Fix:** Use a literal value or a parameter that is already defined on the pipeline config.
+| 机制 | 描述什么 |
+|---|---|
+| 名称正则 | 用户明确要求的命名范围/机器白名单 |
+| Agent Pool | 项目可使用的资源集合 |
+| 能力 requirement | OS、runner、工具链等执行前提 |
+| 同机 snapshot 关系 | 多个步骤对同一份本地状态的依赖 |
 
-## Lesson: Never use an unresolvable `%PARAM%` reference in `reverse.dep.*`
-
-**Problem:** If you set `reverse.dep.*.DefaultAgent = %SomeParam%` but `%SomeParam%` is not resolvable in the downstream context, the downstream build receives the literal string `%SomeParam%` rather than the resolved value.
-
-**Fix:** Either:
-- Set `reverse.dep.*.DefaultAgent` to a **literal value** (e.g., `DefaultAgent`), OR
-- Define the downstream parameter with a fallback that does not depend on the same parameter name.
-
-## Diagnosing a stuck build chain
-
-1. Check `waitReason` on each queued build.
-2. For `"no idle compatible agents"`: call the compatible-agents endpoint — if agents exist, the issue is parameter resolution, not agent availability.
-3. Inspect the queued build's `properties` — look for unresolved `%PARAM%` or empty values feeding the agent requirement.
-4. Check `agent-requirements` on the build config to see which property it matches on and what value it expects.
-5. Trace back to the pipeline's `reverse.dep.*` parameters to find the source of the bad value.
-
-## Prefer agent pool/compatibility over hardcoded agent names
-
-Hardcoding an agent name (`DefaultAgent`) in parameters and agent requirements is brittle:
-- Renaming the agent breaks the chain
-- You cannot easily migrate to a new agent
-- The parameter plumbing (`DefaultAgent`, `reverse.dep.*.DefaultAgent`) adds noise
-
-**Better approach:**
-- Remove the `DefaultAgent` parameter and all `teamcity.agent.name == %DefaultAgent%` requirements
-- Let TeamCity pick any compatible agent
-- Use `runOnSameAgent = true` on the snapshot dependency when downstream builds must reuse the upstream checkout
-- If only certain agents should run the chain, configure an **Agent Pool** or add a capability-based requirement (e.g., `os.name == Linux`)
+不需要特定名称时可优先用 Pool/能力表达策略；用户明确要求 `WinBuilder*` 时保留这一范围，
+不要为消除“No agent”而擅自放宽到全部机器或启用被其他任务禁用的 Agent。

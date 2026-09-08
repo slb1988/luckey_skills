@@ -146,9 +146,13 @@ curl -s -X POST "http://192.168.2.13:8111/app/rest/buildQueue" \
   -d '<build><buildType id="<BT_ID>"/></build>'
 ```
 
-## Diagnosing "no compatible agents"
+## Chain 诊断与验证
 
-1. Check the queued build's `properties` — look for unresolved `%PARAM%` placeholders in the value that feeds the agent requirement.
-2. Check `agent-requirements` on the build config — find which property it matches on.
-3. Call the compatible-agents endpoint to confirm whether any agent matches.
-4. If compatible agents exist but the build still waits, the build was queued before a parameter fix — cancel and re-trigger.
+完整顺序见 [build-chain-parameters.md](build-chain-parameters.md)，不要从“有候选但未启动”直接推断旧快照并取消构建。
+
+- `buildTypes/.../agent-requirements` 是显式要求；隐式参数/runner 要求还需查具体 queued build 的 Compatible Agents 页面：
+  `/viewQueued.html?itemId=<BUILD_ID>&tab=queuedBuildCompatibilityTab`（Web UI 路径，不在 `/app/rest` 下）。
+- 递归读取每个实际 build 的 `snapshot-dependencies(build(id,buildType(id)))`，区分单节点兼容性和同机组交集。
+- 任务实际启动后读取 `startProperties`；service message 改动再看 `resultingProperties`。只输出白名单字段并脱敏，不把排队状态的公式当成实际执行值。
+- 核实实际 build 的 `versionedSettingsRevision(version)` 以及 `/projects/id:<PROJECT>/versionedSettings/status`，而不只看当前配置页。
+- 临时 echo-only 链的 REST 创建/子资源设置、参数断言以及业务平台安全重排见上述参考。

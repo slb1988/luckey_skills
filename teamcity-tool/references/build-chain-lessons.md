@@ -1,29 +1,24 @@
-# Build Chain & Parameter Passing — Lessons Learned
+# Build Chain — Kotlin DSL 与 Checkout 补充
 
-> For agent pinning patterns and `reverse.dep.*` behavior, see [agent-pinning.md](agent-pinning.md).
+> Chain 参数所有权、解析上下文与验收统一见 [build-chain-parameters.md](build-chain-parameters.md)。
+> 名称策略见 [agent-pinning.md](agent-pinning.md)；本文件保留 DSL、VCS 与 checkout 相关补充。
 
-## Lesson 1: Queued builds carry a parameter snapshot
+## 1. Build 快照与业务关联
 
-When a build enters the queue, TeamCity snapshots the parameter values at that moment. **Fixing the build config parameters does not retroactively update already-queued builds.** The stuck builds must be cancelled and re-triggered.
+已入队的构建有自己的配置/参数快照，不能假定修改当前 buildType 会更新旧构建。
+对需要重排的链，先核实配置 revision、业务记录状态和授权；通过原生入口保留/更新业务侧 build ID，
+而不是一律取消整条队列。具体顺序见主参考的“安全重排”。
 
-**Workflow when fixing a stuck chain:**
-1. Fix the parameter on the build config via REST API or UI.
-2. Cancel all queued builds in the chain (cancel the leaf builds first, or cancel the pipeline — it cascades).
-3. Re-trigger the pipeline.
+## 2. 共享的是实际工作区，不一定是 checkoutDirectory 字符串
 
-## Lesson 2: Shared checkout directory for same-agent builds
+需要读取同一份本地状态的任务必须通过 `run-build-on-the-same-agent=true` 绑定，
+并核验实际 engine Root、分支和 client 一致。
 
-When two builds in a chain must read the same files (e.g., one syncs Perforce, the next reads a file from the workspace), they must share the same checkout directory AND run on the same agent.
-
-**How to configure:**
-- Set `checkoutDirectory` to the same path on both build configs (e.g., `/mnt/disk2/TeamCity/buildAgent/work/%teamcity.agent.name%_%P4Stream%`)
-- Set `run-build-on-the-same-agent = true` on the snapshot dependency
-- Remove the VCS root from the downstream build — it should not do its own checkout
-
-**Why `%teamcity.agent.name%_%P4Stream%` as the directory name:**
-- Makes the path unique per agent+stream combination
-- Matches the Perforce workspace name convention, keeping them in sync
-- Avoids collisions when multiple agents or streams run concurrently
+- 自动 checkout 的构建可以共享受控的 checkoutDirectory。
+- 脚本式 P4 Sync 可在独立 DevOps hashed checkout 中操作 engine Root；后续 MANUAL Build/Review 使用该 engine Root。
+- 不把前者的脚本 checkout 与后者的代码工作区混为一谈，不为追求字符串一致把自动 checkout 指向真实 UE 工作区。
+- `{agent}_{stream}` 隔离机器和分支；同一机器/分支的多个请求仍共享状态，不能据此认定可以并发。
+- 长期工作区的注册与清理策略另见 [checkout-dir-auto-clean.md](checkout-dir-auto-clean.md)。
 
 **The `vcsroot.<ID>.p4client` parameter name is bound to the VCS root ID.** When a VCS root is renamed or copied to a new project (changing its ID), this parameter name must be updated manually — TeamCity does not auto-update it.
 
@@ -73,29 +68,22 @@ Pipeline_StreamDepot_Flow     ← composite orchestrator
 
 Avoid generic names like `SyncStreamDepot` when multiple agents or environments might eventually run similar steps.
 
-## Optimization: auto-trigger the sync build with a VCS trigger
+## Trigger 属于业务入口
 
-Instead of relying solely on the composite pipeline as a manual entry point, add a `vcs` trigger to the sync buildType. This causes the chain to run automatically when Perforce submits new changes.
-
-```kotlin
-triggers {
-    vcs {
-        id = "TRIGGER_1"
-        branchFilter = ""
-    }
-}
-```
-
-The downstream snapshot dependency then pulls the rest of the chain along automatically.
+Snapshot dependency 在消费者被触发时准备其前置构建；只启动 Sync 不会自动反向启动它的所有消费者。
+需要自动运行完整链时，把经用户授权的触发器放在预期入口，或由业务平台调用该入口。
+PLN AI Review 的分支/CL/回调由业务平台经 Flow 发起，不额外给共享 Sync 添加独立 VCS trigger。
 
 ## Optimization: allow successful build reuse in the chain
 
 `reuseBuilds = ReuseBuilds.NO` forces every pipeline run to re-execute the entire chain, even when the same source revision has already been synced and tested. For large depots this is wasteful.
 
-For a validation pipeline, a better balance is:
-- **Sync buildType:** keep `reuseBuilds` default or `SUCCESSFUL` so the same revision is not re-synced
-- **Test buildType:** keep `reuseBuilds` default or `SUCCESSFUL` so the same sync result is not re-tested
-- Only force re-run when the test itself is flaky or when you explicitly want a clean-room run
+复用成立的前提是相同 revision 与参数能够完整标识输入和产物，并且本地工作区仍有相应状态。
+在这一前提下，纯构建/测试可使用 suitable-build 复用。
+
+同一 shelved CL 可以重新 shelve，Sync 也可能读取实时 HEAD；参数值相同不保证文件内容相同。
+因此不要把上述优化直接应用于 AI Review 的 Sync/Unshelve 链，不擅自移除 `ReuseBuilds.NO`；
+需要复用时先设计内容版本/摘要和工作区状态契约。
 
 ```kotlin
 dependencies {
