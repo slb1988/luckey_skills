@@ -60,6 +60,14 @@ python scripts/review_queue.py apply decisions.json
    `ambiguous` 实体的 `llm_verdict`（map/new/uncertain + 置信度）只是建议，拿不准不要强行归并。
    空预览（0 实体 0 边）有 badge；正文有实质价值时仍可 approve `original`。
 
+<memory category="common-patterns">
+`ai-review` 在 pyautomation/TeamCity 语境指代码评审服务，不是 Memory Hub 的抽取/实体归并审核系统。
+正文涉及“审核其他系统实体”时，preview 可能把被审核对象错抽成审核系统本身，继而将
+`_normalize_extraction`、preview/novelty 改进等 Memory Hub 事实挂到 `ai-review`。
+这是实体语义/归属错误，不是名称变体；已有/同名 canonical 不能证明归属正确，
+须结合正文主题、实体摘要及边的实际属主核对，不能直接按别名合并。
+</memory>
+
 **安全红线（不可自动逾越）**：
 - novelty `admission=duplicate` 或分析 `failed` → **升级人工**，不要自动 approve（服务端也
   会拦：需 `acknowledge_novelty_warning=true` 的人工二次确认）。
