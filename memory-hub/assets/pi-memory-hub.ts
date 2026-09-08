@@ -51,7 +51,8 @@ import { Type } from "typebox";
 // v28：chat-hub 身份封套路由——首轮 prompt 的 profile_id 为非机主逻辑用户时，
 //   bootstrap 检索 project 改用该 profile_id（可用 MEMORY_HUB_CHAT_HUB_PROJECT_ROUTING=0
 //   关闭），与 hook capture 的归档归属规则对齐。
-const EXTENSION_VERSION = "28";
+// v29：检索成功零结果与请求失败分离；安全结构化错误含HTTP状态/追踪ID，失败抛工具错误。
+const EXTENSION_VERSION = "29";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -716,6 +717,40 @@ function lastJsonLine(stdout: string): Record<string, unknown> | null {
 		}
 	}
 	return null;
+}
+
+function searchError(result: HubResult): Record<string, unknown> | null {
+	if (result.code === 130) return null;
+	const parsed = lastJsonLine(result.stdout);
+	const error = parsed?.error && typeof parsed.error === "object"
+		? parsed.error as Record<string, unknown> : null;
+	if (result.code === 0 && !error && Array.isArray(parsed?.facts)
+		&& parsed.facts.every((fact) => fact && typeof fact === "object" && !Array.isArray(fact))) {
+		return null;
+	}
+	const diagnostics: Record<string, unknown> = {
+		code: result.code === 124 ? "REQUEST_TIMEOUT"
+			: result.code === 127 ? "HOOK_START_FAILED"
+				: result.code === 0 ? "BAD_RESPONSE" : "HUB_UNAVAILABLE",
+	};
+	// CLI emits allowlisted JSON on failure. Do not echo arbitrary stderr/HTTP bodies.
+	if (error && result.code !== 124) {
+		if (typeof error.code === "string" && /^[A-Z][A-Z0-9_]{0,127}$/.test(error.code)) {
+			diagnostics.code = error.code;
+		}
+		if (typeof error.http_status === "number" && Number.isInteger(error.http_status)
+			&& error.http_status >= 100 && error.http_status <= 599) {
+			diagnostics.http_status = error.http_status;
+		}
+		if (typeof error.retryable === "boolean") diagnostics.retryable = error.retryable;
+		for (const key of ["request_id", "retrieval_id"]) {
+			const value = error[key];
+			if (typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(value)) {
+				diagnostics[key] = value;
+			}
+		}
+	}
+	return diagnostics;
 }
 
 interface PersonaCardResult {
@@ -1727,7 +1762,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				true,
 				signal,
 			);
-			const parsed = result.code === 0 ? lastJsonLine(result.stdout) : null;
+			const error = searchError(result);
+			const parsed = result.code === 0 && !error ? lastJsonLine(result.stdout) : null;
 			const facts = parsed && Array.isArray((parsed as { facts?: unknown }).facts)
 				? (parsed as { facts: unknown[] }).facts.filter(
 					(fact): fact is Record<string, unknown> => Boolean(fact && typeof fact === "object"),
@@ -1746,15 +1782,10 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			const context = parsed && typeof (parsed as { context?: unknown }).context === "string"
 				? (parsed as { context: string }).context.trim()
 				: formatFactsDebug(facts, 12000);
-			const outcome = result.code === 130
-				? "cancelled"
-				: context
-					? "injected"
-					: result.code === 124
-						? "timeout"
-						: result.code === 0
-							? "empty"
-							: "error";
+			const outcome = result.code === 130 ? "cancelled"
+				: error ? (["REQUEST_TIMEOUT", "RETRIEVAL_JUDGE_TIMEOUT"].includes(String(error.code))
+					? "timeout" : "error")
+					: context ? "injected" : "empty";
 			stopRecallIndicator();
 			showRecallOutcome(ctx, {
 				outcome,
@@ -1764,10 +1795,13 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				facts,
 				resultFile,
 			});
-			const text = context
-				|| (result.code === 130
-					? "Memory Hub search was cancelled by the user."
-					: "Memory Hub is unavailable or no matching memory was found.");
+			const text = context || (outcome === "cancelled"
+				? "Memory Hub search was cancelled by the user."
+				: error
+					? `Memory Hub search ${outcome === "timeout" ? "timed out" : "failed"}; this is not a zero-result search. ${JSON.stringify(error)}`
+					: "Memory Hub search completed successfully, but no matching memory was found"
+						+ (quality ? ` after the quality gate (candidates: ${quality.candidates ?? "?"}, kept: ${quality.kept ?? 0}).` : ".")
+						+ " Try different keywords or an explicit project.");
 			trace("search", {
 				session_id: ctx.sessionManager.getSessionId(),
 				cwd: ctx.cwd,
@@ -1780,10 +1814,15 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				result_file: resultFile,
 				result_chars: text.length,
 				result: clip(text),
+				outcome,
+				error,
+				retrieval: parsed?.retrieval ?? null,
 			});
+			// Pi sets isError only when execute throws; a returned isError property is ignored.
+			if (error) throw new Error(text);
 			return {
 				content: [{ type: "text", text }],
-				details: { exitCode: result.code, project: resultProject, quality },
+				details: { exitCode: result.code, project: resultProject, quality, outcome },
 			};
 		},
 	});

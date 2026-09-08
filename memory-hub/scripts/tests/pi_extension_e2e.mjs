@@ -129,7 +129,44 @@ try {
 	assert.ok(commands.has("memory-card"), "extension must register /memory-card");
 	assert.ok(tools.has("memory_persona_card"), "extension must register memory_persona_card");
 
-	if (personaManualMode) {
+	if (process.env.SEARCH_DIAGNOSTICS === "1") {
+		const tool = tools.get("memory_search");
+		process.env.FAKE_SEARCH_MODE = "empty";
+		const empty = await tool.execute("empty", { query: "test" }, undefined, undefined, ctx);
+		assert.equal(empty.details.exitCode, 0);
+		assert.equal(empty.details.outcome, "empty");
+		assert.match(empty.content[0].text, /completed successfully.*no matching memory/);
+		assert.match(empty.content[0].text, /candidates: 10, kept: 0/);
+		assert.doesNotMatch(empty.content[0].text, /unavailable|failed/);
+		for (const [mode, code] of [
+			["error", "RETRIEVAL_CORRECTION_RESOLVER_UNAVAILABLE"],
+			["bad-error", "RETRIEVAL_CORRECTION_RESOLVER_UNAVAILABLE"],
+			["timeout", "REQUEST_TIMEOUT"], ["spawn", "HOOK_START_FAILED"],
+			["bad-json", "BAD_RESPONSE"], ["bad-shape", "BAD_RESPONSE"],
+			["legacy-error", "HUB_UNAVAILABLE"],
+		]) {
+			process.env.FAKE_SEARCH_MODE = mode;
+			await assert.rejects(
+				tool.execute(mode, { query: "test" }, undefined, undefined, ctx),
+				(error) => {
+					assert.match(error.message, /not a zero-result search/);
+					assert.ok(error.message.includes(code));
+					assert.doesNotMatch(error.message, /secret|must not inject/);
+					if (mode === "error") assert.match(error.message, /request-e2e/);
+					return true;
+				},
+			);
+			const trace = traceEntries("search").at(-1);
+			assert.equal(trace.error.code, code);
+			assert.equal(trace.outcome, mode === "timeout" ? "timeout" : "error");
+			assert.doesNotMatch(JSON.stringify(trace), /secret|must not inject/);
+		}
+		delete process.env.FAKE_SEARCH_MODE;
+		const success = await tool.execute("ok", { query: "test" }, undefined, undefined, ctx);
+		assert.equal(success.details.outcome, "injected");
+		assert.equal(traceEntries("search").at(-1).retrieval.retrieval_id, "retrieval-e2e");
+		console.log(JSON.stringify({ ok: true, mode: "search-diagnostics" }));
+	} else if (personaManualMode) {
 		// Default-off only governs automatic first-turn injection. Manual command/tool remain usable.
 		await handlers.get("session_start")({}, ctx);
 		const firstStart = await handlers.get("before_agent_start")(

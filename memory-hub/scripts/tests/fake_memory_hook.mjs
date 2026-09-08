@@ -86,6 +86,29 @@ function respondNow(args) {
 			markdown,
 		}));
 	} else if (args[0] === "search") {
+		const mode = process.env.FAKE_SEARCH_MODE;
+		if (mode === "empty") {
+			console.log(JSON.stringify({ facts: [], context: "", quality: { candidates: 10, kept: 0 } }));
+			return;
+		}
+		if (mode === "error" || mode === "bad-error") {
+			console.log(JSON.stringify({ error: {
+				code: "RETRIEVAL_CORRECTION_RESOLVER_UNAVAILABLE", http_status: 503, retryable: true,
+				request_id: mode === "bad-error" ? "bad\nsecret" : "request-e2e",
+				retrieval_id: "retrieval-e2e", message: "secret upstream body",
+			}, facts: [{ text: "must not inject" }], context: "must not inject" }));
+			console.error("secret stderr");
+			process.exitCode = 1;
+			return;
+		}
+		if (mode === "timeout" || mode === "spawn" || mode === "legacy-error") {
+			process.exitCode = mode === "timeout" ? 124 : mode === "spawn" ? 127 : 1;
+			return;
+		}
+		if (mode === "bad-json" || mode === "bad-shape") {
+			console.log(mode === "bad-json" ? "not JSON" : JSON.stringify({ facts: "bad", context: "must not inject" }));
+			return;
+		}
 		if (args.includes("--json")) {
 			let resultFile;
 			if (args.includes("--write-result-file")) {

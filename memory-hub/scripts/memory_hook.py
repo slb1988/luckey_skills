@@ -1614,10 +1614,16 @@ class HubError(RuntimeError):
         *,
         status_code: Optional[int] = None,
         error_code: Optional[str] = None,
+        request_id: Optional[str] = None,
+        retrieval_id: Optional[str] = None,
+        retryable: Optional[bool] = None,
     ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.error_code = error_code
+        self.request_id = request_id
+        self.retrieval_id = retrieval_id
+        self.retryable = retryable
 
 
 def job_idempotency_key(kind: str, job: sqlite3.Row) -> str:
@@ -1693,8 +1699,9 @@ class HubClient:
         except urllib.error.HTTPError as error:
             if allow_404 and error.code == 404:
                 return None
-            detail = error.read().decode("utf-8", errors="replace")
+            detail = error.read(16 * 1024).decode("utf-8", errors="replace")
             error_code = None
+            error_object: Dict[str, Any] = {}
             try:
                 error_payload = json.loads(detail)
                 error_object = (
@@ -1709,18 +1716,32 @@ class HubClient:
                     error_code = candidate
             except json.JSONDecodeError:
                 pass
+            error_object = error_object if isinstance(error_object, dict) else {}
+            error_details = error_object.get("details")
+            error_details = error_details if isinstance(error_details, dict) else {}
             raise HubError(
                 "HTTP %s: %s" % (error.code, compact_text(detail, 1000)),
                 status_code=error.code,
                 error_code=error_code,
+                request_id=error_object.get("request_id") or (error.headers or {}).get("X-Request-Id"),
+                retrieval_id=error_details.get("retrieval_id"),
+                retryable=error_object.get("retryable"),
             )
         except urllib.error.URLError as error:
-            raise HubError(str(error.reason))
+            raise HubError(
+                str(error.reason),
+                error_code="REQUEST_TIMEOUT" if isinstance(error.reason, TimeoutError) else "NETWORK_ERROR",
+                retryable=True,
+            )
         except OSError as error:
             # http.client 会把对端 RST（WinError 10054 / ECONNRESET）以裸 OSError
             # 抛出（典型场景：服务端在客户端仍在发送大 body 时提前返回错误并关闭
             # 连接）。统一包成 HubError，调用方（如 full 上传降级、重试）才能兜底。
-            raise HubError(str(error))
+            raise HubError(
+                str(error),
+                error_code="REQUEST_TIMEOUT" if isinstance(error, TimeoutError) else "NETWORK_ERROR",
+                retryable=True,
+            )
         if not payload:
             return {}
         try:
@@ -2102,7 +2123,9 @@ class HubClient:
                     "quality_mode": "llm",
                 },
             )
-            results = result.get("results", [])
+            results = result.get("results")
+            if not isinstance(results, list) or any(not isinstance(row, dict) for row in results):
+                raise HubError("invalid search results", error_code="BAD_RESPONSE")
             retrieval = {
                 key: result.get(key)
                 for key in ("retrieval_id", "query_hash", "policy_version")
@@ -2135,9 +2158,11 @@ class HubClient:
                 "session_view": "captured",
             },
         )
-        facts = result.get("facts", [])
+        facts = result.get("facts")
+        if not isinstance(facts, list) or any(not isinstance(row, dict) for row in facts):
+            raise HubError("invalid search facts", error_code="BAD_RESPONSE")
         return {
-            "facts": facts if isinstance(facts, list) else [],
+            "facts": facts,
             "retrieval": None,
             "quality": None,
         }
@@ -2783,7 +2808,27 @@ def command_persona_card(args: argparse.Namespace, config: Config) -> int:
         return 1
 
 
+def search_error_diagnostics(error: Exception) -> Dict[str, Any]:
+    """Allowlist metadata; never expose raw response bodies, HTML, URLs or credentials."""
+    code = getattr(error, "error_code", None)
+    if not isinstance(code, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]{0,127}", code):
+        code = "HTTP_ERROR" if getattr(error, "status_code", None) else "HUB_UNAVAILABLE"
+    result: Dict[str, Any] = {"code": code}
+    status = getattr(error, "status_code", None)
+    if type(status) is int and 100 <= status <= 599:
+        result["http_status"] = status
+    retryable = getattr(error, "retryable", None)
+    if isinstance(retryable, bool):
+        result["retryable"] = retryable
+    for key in ("request_id", "retrieval_id"):
+        value = getattr(error, key, None)
+        if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", value):
+            result[key] = value
+    return result
+
+
 def command_search(args: argparse.Namespace, config: Config) -> int:
+    started = time.monotonic()
     try:
         profile = request_user_profile(
             config,
@@ -2793,12 +2838,11 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
         )
         if not profile_is_ready(profile):
             print(setup_reminder(config, profile), file=sys.stderr)
-            return 2
+            raise HubError("client identity is not configured", error_code="CLIENT_NOT_CONFIGURED")
         assert profile is not None
         project_id = args.project or project_id_for_cwd(
             os.getcwd(), config.archive_project_id
         )
-        started = time.monotonic()
         # 在线召回包含同步 LLM 审核，不能沿用 capture/upload 的 8 秒网络预算。
         response = HubClient(
             replace(config, timeout_seconds=ONLINE_SEARCH_TIMEOUT_SECONDS)
@@ -2866,8 +2910,23 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
         )
         return 0
     except Exception as error:
-        print("memory hook search: %s" % error, file=sys.stderr)
-        return 1
+        diagnostics = search_error_diagnostics(error)
+        outcome = "timeout" if diagnostics["code"] == "REQUEST_TIMEOUT" else "error"
+        payload = {"outcome": outcome, "error": diagnostics}
+        if args.json:
+            print(json.dumps(payload, ensure_ascii=False))
+        print("memory hook search failed: %s" % json.dumps(diagnostics, ensure_ascii=False), file=sys.stderr)
+        exit_code = 2 if diagnostics["code"] == "CLIENT_NOT_CONFIGURED" else 1
+        trace_event(config, "search", {
+            "source": getattr(args, "source", None),
+            "session_id": getattr(args, "session_id", None),
+            "project_id": args.project,
+            "outcome": outcome,
+            "exit_code": exit_code,
+            "duration_ms": int((time.monotonic() - started) * 1000),
+            "error": diagnostics,
+        })
+        return exit_code
 
 
 def _recall_marker_path(config: Config, source: str, session_id: str) -> Path:

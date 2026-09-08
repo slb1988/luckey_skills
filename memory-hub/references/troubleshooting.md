@@ -8,11 +8,13 @@
 
 编辑器内 `memory_search` 0 命中时，绕过扩展用 CLI 复现：pi/claude 的记忆扩展只是薄封装，实际检索全部在 `scripts/memory_hook.py search`（扩展源码里 grep 不到 project/检索逻辑属正常）。`/usr/bin/python3 scripts/memory_hook.py search "<query>" --project <id> --limit 20 --json` 与编辑器内走同一链路，且 `--project` 可探测当前 cwd 派生 scope 之外的项目（如 agent-history、maindev），`--json` 可看原始返回结构排除展示层问题。
 
-### 「Memory Hub is unavailable or no matching memory was found」= 三态统一文案，不等于服务挂了
+### 检索零结果与请求失败：v29 已分离，旧统一文案不代表服务挂了
 
-<memory category="troubleshooting">
-**`memory_search` 返回给 agent 的文本把 timeout / empty / error 三种 outcome 统一成同一句 "Memory Hub is unavailable or no matching memory was found."**（pi 扩展 search 工具文本分支，`assets/pi-memory-hub.ts` ~1505；widget 的 `showRecallOutcome` 有三态区分但只给人看，agent 只看到统一文案）。已实证的误判模式：agent 见此文案断言「Memory search is unavailable」、放弃检索转凭印象回答。三态中 empty 其实是**检索成功**、judge fail-closed 把全部候选正确过滤（真阴性），恰恰证明链路健康；kept=0 是常态而非异常信号（2026-09-03 本机 111 次在线召回抽样 43 次 kept=0，38.7%）。判别要看客观层而非这句文案：recall 详情文件 / pi-trace 的 outcome 字段（injected/empty/timeout/error/cancelled），或 CLI 同 query 复现 + known-good 向量（retrieval-eval.md）。
-</memory>
+- Pi v28及更早把 timeout / empty / error 统一成 `Memory Hub is unavailable or no matching memory was found.`；旧日志不能仅凭这句话归因，必须看 exitCode/quality 或 CLI 同 query 复现。
+- **v29**：成功零结果明确 `completed successfully ... no matching memory`，附候选/保留数；真正失败/超时抛 Pi 工具错误（isError=true），不会当作空结果。取消仍单独报告，不自动重试。
+- CLI `search --json` 失败以非零退出码输出 `{outcome, error}`；error 仅含 code、http_status、retryable、request_id、retrieval_id 的安全字段。Pi 与 hook trace 均保留该诊断，不输出原始stderr/HTML/响应正文/凭据。子进程启动失败为 HOOK_START_FAILED；坏成功响应为 BAD_RESPONSE，不能伪装成 empty。
+- `kept=0` 只表示本次没有被质量门禁放行的候选，不等于没有相关记忆，也不保证判分正确。先换关键词/显式 project，必要时按 [retrieval-eval.md](retrieval-eval.md) 排查。
+- 固定约30秒的 `RETRIEVAL_CORRECTION_RESOLVER_UNAVAILABLE` 曾由服务端 `min(30, remaining)` 截断正常慢模型引起。修复后 resolver/judge/格式重试共用可配置的110秒预算；耗尽返回可重试 RETRIEVAL_JUDGE_TIMEOUT，仍 fail-closed。用 request_id/retrieval_id 对照服务端阶段、耗时与异常类型，不能归咎于 HTTPS 或改走 v1 绕过。
 
 ### 首轮预热 0 命中的时序类根因：目标记忆「尚未归档」；search 无查询缓存是设计
 

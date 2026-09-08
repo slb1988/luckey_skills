@@ -73,6 +73,8 @@ class PiExtensionE2ETest(unittest.TestCase):
             "FAKE_PERSONA_CARD_FAIL",
             "FAKE_PERSONA_OVERSIZE",
             "FAKE_PERSONA_CARD_DELAY_MS",
+            "FAKE_SEARCH_MODE",
+            "SEARCH_DIAGNOSTICS",
         ):
             env.pop(key, None)
         env["MEMORY_HOOK_PI_CAPTURE_DELAY_MS"] = "300"
@@ -214,9 +216,14 @@ class PiExtensionE2ETest(unittest.TestCase):
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "persona-oversize")
 
-    def test_pi_template_is_v28(self):
+    def test_search_empty_error_timeout_and_malformed_responses_are_distinct(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(Path(directory), {"SEARCH_DIAGNOSTICS": "1"})
+            self.assertEqual(summary["mode"], "search-diagnostics")
+
+    def test_pi_template_is_v29(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
-        self.assertIn('const EXTENSION_VERSION = "28";', template)
+        self.assertIn('const EXTENSION_VERSION = "29";', template)
 
     def test_project_bootstrap_default_timeout_is_two_minutes(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")

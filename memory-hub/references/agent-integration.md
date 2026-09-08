@@ -183,6 +183,12 @@ system prompt。被拒候选、理由、证据、冲突和错误只写服务端 
 agent 上下文。单次候选上限 10，首轮仍取 6 条/最多 4000 字符，客户端等待预算 120 秒，服务端
 审核调用预算 110 秒。
 
+**v29 检索诊断**：手工 `memory_search` 的 empty 明确表示成功零结果（含候选/保留数）；
+error/timeout 抛真正的 Pi 工具错误，取消保持独立。CLI `search --json` 失败同时输出非零退出码
+与安全结构化 error（code/http_status/retryable/request_id/retrieval_id）；这些字段进入 hook/Pi trace，
+不回显原始响应体/HTML/凭据。旧扩展必须重跑 `install --agents pi` 部署模板；已有 Pi 会话需
+`/reload` 或新进程，chat-hub 长驻 RPC 同样需要在空闲时重载/重启才使用新工具实现。
+
 **v19 起 Pi TUI 对召回结果可感知**：首轮 bootstrap 和手工 `memory_search` 都改用结构化 JSON
 响应。阻塞等待期间顶部 widget 显示“正在检索并审核”与累计耗时；完成后清理 widget，在状态栏
 保留 `识别数/候选数 · project · 耗时`，并用 notification 展示最多 3 条已放行记忆的摘要。空结果、
