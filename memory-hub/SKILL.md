@@ -116,6 +116,14 @@ Dashboard `#review-prompts` 管 6 个 prompt，改「什么样的人信息进画
 
 三端（Claude Code / Codex / Pi）共用 `scripts/memory_hook.py`（仅标准库）：capture 先落本地 spool（fail-open 不丢）再上传；首轮自动召回 + 按需检索（Pi 用 `memory_search`，Claude/Codex 用 `search` CLI）。人物卡可手工运行 `memory_hook.py persona-card [--person-id ID]`（默认输出 Hub canonical Markdown，`--json` 输出原始结构）；Pi 另提供 `/memory-card` 与 `memory_persona_card`。安装、check、身份、环境变量、Pi 扩展机制 → [agent-integration.md](references/agent-integration.md)。**改 `assets/` 下的安装副本（pi 扩展模板、project-aliases.json）必须递增版本号并重跑 install**。
 
+<memory category="core-rules">
+Hook 链路有三个独立验收层级：① installer/check 只证明配置就绪；② trace/SQLite spool 持久记录证明本机已捕获并入队；③ Hub session version + full-session 文件证明远端上传完成。不得把 `check ok` 当作端到端收集成功；memory 尚在审核态不等于上传失败，只要 file/session 已入 Hub 即表示收集链路完成。
+</memory>
+
+<memory category="core-rules">
+MainDev `Tools/AiReview` 内的 Memory Hub 客户端是 CI 专用分支，只做受控召回并关闭普通 capture；地址、超时、重定向和凭证策略也为 CI 特化。它与本 skill 的通用 Claude/Codex/Pi 会话采集客户端是两个兼容面，不可互相覆盖或拿 AIReview 副本作为开发者安装源，尤其不得把 CI 凭证策略带到用户机器。
+</memory>
+
 Pi 扩展 v22+：用户用 `/skill:name` 显式指定 skill 的首轮 prompt **跳过自动预热检索**——pi 会把 skill 展开为 `<skill name="…" location="…">` 块注入 prompt 开头（裸 `/skill:` 未展开命令作兜底匹配），扩展检测到即跳过，trace outcome 记 `skipped_skill_invocation` 并照常写 bootstrap-done 标记（同 session 后续不补检索）。排查「首轮预热没跑」先认这个 outcome，是设计行为不是故障；`memory_search` 工具不受影响，skill 内仍可主动检索。
 
 Pi 扩展 v25+：首轮预热（“正在检索并审核历史记忆…” widget）与 `memory_search` 检索**可按 Esc/Ctrl+C 中断**——取消即杀检索子进程、本轮不注入、agent 立即开始；trace outcome 记 `cancelled`，本会话不重试。Ctrl+C 只取消检索并照常透传给 pi（连按两次仍退出 pi）。
