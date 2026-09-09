@@ -22,6 +22,7 @@ memory → pending_intake → [关卡 1 intake 过滤] → pending_extraction �
 | 脚本 | `scripts/review_queue.py`（仅标准库，Python 3.11+） |
 | 认证 | `MEMORY_HUB_API_KEY` + `MEMORY_HUB_CLIENT_USER_ID`（本机注册表已持久化） |
 | 服务端代码 | 本机副本 `D:/Github/memory-hub`（改动 push 后经 @nas 部署） |
+| 自动决策开关与决策留样 | v20 起三态 `off\|shadow\|auto`（默认 off，off 不产生影子 LLM 请求）；人工决策留样独立于影子 → [references/auto-review-modes-and-decision-samples.md](references/auto-review-modes-and-decision-samples.md) |
 
 ## 标准工作流
 
