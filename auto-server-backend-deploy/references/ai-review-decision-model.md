@@ -99,6 +99,20 @@ busy 判定口径：同分支 + 其他 review + status ∈ (pending,reviewing) +
 
 **修复方向（当 Session 未实施）**：① 失败计数按 reopen 轮次重置/独立计数；② 超限卡单先走幽灵对账（cl_state/rename 追溯，同 #129 缺口），确认未提交再自动拒绝——把拒绝从「调度器执行路径的副作用」改为「计数越限的独立兜底」。
 
+## 幽灵对账误认他单提交 + 失败事务未回滚（review #73 根因，批准 500 假象）
+
+**触发场景**：approve 已落库后，代提交发现原 shelved CL 不存在，转幽灵对账（`_finalize_submitted`）。
+
+**根因（两缺陷叠加）**：
+1. 对账候选 CL 只按「作者 + 描述」匹配，**不校验目标 CL 是否已被其他 review 占用**。#73（原 CL 128548）与 #96（原 CL 128794）作者、描述相同；#96 提交后 rename 为 128834，对账把 128834 误认成 #73 的提交结果 → UPDATE #73 的 `cl` → 撞 `ai_reviews.cl` 唯一约束 `Duplicate entry '128834' for key 'ai_reviews.cl'`。
+2. 异常路径（service.py ~1959）IntegrityError 后**未先 `rollback()`** 就读 ORM 属性 → 二次抛 `PendingRollbackError` 掩盖原始冲突，前端只见光秃 500。另有误导日志：service.py ~2242「收敛成功」打印在事务 commit **之前**。
+
+**识别特征**：批准其实已生效（status=approved 早已落库），500 发生在批准后的对账阶段，反复点批准重复报同一错；排查先查撞约束的 CL 号实际归属哪条 review（找同作者同描述的另一单）。
+
+**修复方向（当 Session 未实施）**：`_finalize_submitted` 写入前查目标 CL 是否已被别的 review 行占用（占用则跳过/告警而非 UPDATE）；异常路径先 `rollback()` 再读 ORM。**不要删 `ai_reviews.cl` 唯一约束**——它是此类误认的最后防线。同作者同描述的双单先与作者确认旧单是否已被新单替代再归档，不要直接把 cl 改成新号。
+
+**排障入口提示**：ai_review 源码在 pyAutomation 仓库 `backend/server/applications/ai_review/`（本机工作区 `D:/work/admin_sun_depot_7184/pyAutomation/`），**不在 MainDev 游戏 depot**——别去 MainDev 采集器代码里找。
+
 ## 已知缺口
 
 - 「批准后被系统打回」路径**无任何通知**，作者在页面只看到 rejected，不知道发生了什么。
