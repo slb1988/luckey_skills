@@ -29,6 +29,7 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 | Hub API（客户端默认） | `https://luckeyhome.site/memory-hub/agent-api` |
 | Dashboard（公网面板） | `https://luckeyhome.site/memory-hub/` |
 | Hub / Dashboard 内网调试 | `http://10.77.77.6:9287` / `http://10.77.77.6:9288/` |
+| Hub LAN 转发（经 auto-server） | `http://192.168.2.13:9287` 或 `http://10.77.77.4:9287`，见 [references/auto-server-forward.md](references/auto-server-forward.md) |
 | 上游 Graphiti | `http://10.77.77.6:8005` |
 
 其余路径（venv/data/日志/脚本）见 [deploy.md](references/deploy.md) 与各场景文档。
@@ -57,6 +58,7 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 | 检索 eval（黄金集/存错取错诊断/指标门禁/部署验收 smoke 向量） | [references/retrieval-eval.md](references/retrieval-eval.md) |
 | 检索 scope 选择、已知 project 一览、别名映射 | [references/projects.md](references/projects.md) |
 | 全链路总览（拓扑/写入/检索/观测/隐患） | [references/system-overview.md](references/system-overview.md) |
+| auto-server 上的 Hub LAN 转发（:9287→10.77.77.6:9287）、无 sudo 时用 docker 特权容器代办 root 操作 | [references/auto-server-forward.md](references/auto-server-forward.md) |
 | outbox 确认机制/大批量 retry 判读 | [memory-center/references/ingest-performance.md](../../memory-center/references/ingest-performance.md) |
 
 服务端仓库文档（NAS 项目 `docs/`）：`USAGE.md`、`API_CONTRACT.md`、`IMPLEMENTATION.md`、`DASHBOARD.md`、`REVIEW_PIPELINE.md`、`MULTI_USER_AUTH.md`、`GRAPH_CURATION.md`（图谱修订/实体合并）。
