@@ -157,6 +157,14 @@ AI 评审看不到 warning 的采集侧根因（2026-10 查明）：MainDev `Too
 评审链缺 AS 检查的对照实证（build 18686 vs 18708）：`PL_BuildUgsBinaries` Step 11 `AngelScript Compile Check` = `UnrealEditor-Cmd.exe <uproject> -run=AngelscriptTest -as-force-preprocess-editor-code -NullRHI -nosplash -unattended`（非零退出炸构建），Step 17 `Log Analysis Report`（execute_always）调 informer `--log-level All --warning-categories angelscript,cpp_game`；`PLN_TaskBuildUEWindows` 只 3 步、informer 仅 `--job-result=FAILURE` 时跑。TaskAiReview 对 TaskBuildUEWindows 的 snapshot 依赖是 on-failure=`RUN_ADD_PROBLEM`（已 REST 核实）——编译步炸构建**不阻断**评审，评审照跑且 AS error 经日志匹配进 `build_log_tail.txt` 被 AI 看到。
 </memory>
 
+<memory category="troubleshooting">
+TaskAiReview 的"停用"实为占位放行（2026-09 核实）：`paused=false`、6 步全 enabled，但 `Pi_Agent_Review` 的 18 行脚本不启动 Pi，固定写 `verdict=approve, risk_score=0`（摘要自称 temporarily disabled）；前一版还带 300 秒超时放行。绿色构建（如 #18820）只证明占位链跑通，**不证明 AI 评审过**——验收以 `Saved/ai_review/sessions/*.jsonl` 出现真实会话为准，不看构建颜色。恢复真实评审必须同时删掉占位脚本与超时放行，不能裸回退到带超时放行的旧 CL。
+</memory>
+
+<memory category="troubleshooting">
+构建机跑真实 Pi_Agent_Review 的两个逐机环境前置（WinBuilder3 当时两者都缺）：① 本机配置 A2A token；② 经 VPN 直连 Memory Hub `http://10.77.77.6:9287`（VPN-only，无域名/中转/公网兜底）。扩展单测通过 ≠ TC headless agent 内可用——单测不覆盖 token 注入与 VPN 连通，灰度必须逐机实测；兼容机共三台 WinBuilder1/3/4，只验一台不能宣称全可用。
+</memory>
+
 <memory category="common-patterns">
 TC Windows runner 上凡打印非 ASCII 的 python 步骤必须配 `env.PYTHONUTF8=1`：runner 已 `chcp 65001`，但 python stdout 走管道时退回系统 locale（cp936），二者错位即中文乱码（TaskAiReview summary 乱码根因）。kts 参数区加一行即对所有 python 内联步生效。
 </memory>
