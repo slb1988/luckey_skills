@@ -95,6 +95,10 @@ chat-hub 入站消息可携带 `[chat-hub 可信逻辑说话人]` 信任块（�
 chat-hub 身份子系统结构（2026-09 排查确认）：逻辑身份按聊天存 `.local/chat-hub/identity/state.json`（`state.chats[chatKey]`），由 `daemon/identity/logical-users.ts` 管理；**身份与 pi session 是两套独立生命周期**——`/new` 走 `transaction.ts resetSession` 只轮换 session 文件，不碰身份条目（这就是"新 session 仍是旧身份"的根因）。语音消息 `msg.text` 为空，微信转写文字在 `media[].transcript`。声纹在 `daemon/identity/voiceprint.ts`；实测分布：机主 holdout 0.545–0.619 vs 另一成年人 0.157（间隔 ~0.4），阈值调优以此为据。身份识别修正计划（默认机主 + 声明即切换）见 `.claude/plans/chat-hub身份识别修正.md`。
 </memory>
 
+<memory category="core-rules">
+编程式续接 Pi 会话（按 UUID resume）时，调用方必须自行预校验 session 文件存在且非空：文件缺失或为空会被 Pi **静默**当作全新会话启动——不报错、不警告，历史上下文直接丢失，无法靠 Pi 的错误信号发现 resume 失败。本地无网络探针 24 项断言验证（2026-09，AI Review 会话续接调研）；应用实例：DevOps AI Review Runner 的 `Review.id ↔ Pi session UUID` 一对一绑定，方案见 `.claude/plans/AIReview会话续接与MemoryHub接入.md` §10。
+</memory>
+
 ## 快速排查
 
 - 扩展加载失败，先 `pi -ne`（无扩展启动）确认是扩展问题还是 pi 本身问题。
