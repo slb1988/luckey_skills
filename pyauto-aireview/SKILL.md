@@ -59,6 +59,12 @@ P4V Request Review
 却会满足 self-approve 的 AI done/风险条件。system auto-approve 仍受“无指定 reviewer”等独立门限制。
 </memory>
 
+<memory category="common-patterns">
+`RequestReview.py` 的本地 watcher 只靠 HTTP 轮询发现 Review 状态变化；飞书卡片/消息只是通知副作用，
+不会唤醒 watcher 或触发本地拉新。因此“飞书已送达”不能作为作者 workspace 已刷新/收口的证据，
+仍应以后端 Review 状态及 watcher state/log 为准。
+</memory>
+
 ## 标准排障流程
 
 ### 1. 建身份表
