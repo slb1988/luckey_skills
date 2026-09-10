@@ -44,6 +44,10 @@ User ── Agent ── MCP / HTTP ──> Memory Hub ── HTTP ──> Graph
 - 「更新发布前后端」= 完整流程（不是单纯重启）：① `git pull` → ② 修冲突 → ③ 本地改动及时 commit → ④ `cd frontend && npm run build` → ⑤ `stop_all.sh && start_all.sh && status.sh` 验证；纯「重启」只做 ⑤。细节与验证见 [deploy.md](references/deploy.md)。
 - Hub(:9287)=后端、dashboard(:9288)=前端。不要误跳 auto-server-deploy——那是 py_automation 平台（192.168.2.13）的部署，与 memory-hub 无关。
 
+<memory category="common-patterns">
+Dashboard 抽取审核在手机竖屏上以信息完整性优先：实体、边、摘要、存在性和审核操作必须全部保留并改用纵向卡片，不能隐藏字段或继续压缩桌面多列表格。桌面表格留在 390px 抽屉内会把摘要列压到约 30px，造成中文逐字竖排；这是布局模型不适合窄容器，不是文案换行问题。
+</memory>
+
 ## 按场景导航（references/）
 
 | 场景 | 文件 |
