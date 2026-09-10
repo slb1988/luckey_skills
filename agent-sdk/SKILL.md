@@ -146,6 +146,13 @@ pypiserver 宿主 `192.168.2.13`（包存储 `/home/dev/pypi-server/packages/`�
 4. **验证**：`curl --noproxy 192.168.2.13 http://192.168.2.13:8080/simple/pyauto-agent/` 列出新版本。
 5. 版本号与源码改动走正常 P4 流程提交。
 
+<memory category="troubleshooting">
+派发方视角：a2a_send 后「中断/无结果」≠ 平台任务失败。平台任务一旦派发成功即独立运行至完成，
+与发起进程生命周期解耦——发起派发的进程（如 Pi）在派发后退出或被新会话替换，只丢失本地
+结果回传（新会话文件里不会再有原 A2A 结果记录），平台侧任务照常成功。排查顺序：先按任务 ID
+在平台侧核对真实状态（**绝不重复派发**，会生成重复任务），再回头查旧进程退出原因。
+</memory>
+
 ## 深入参考（按需查阅，正文不再展开）
 
 - [troubleshooting](references/troubleshooting.md) — 注册/心跳/代理 502/删除复活/锁排障/Windows subprocess 坑

@@ -22,6 +22,14 @@ UE 构建报 `A conflicting instance of Global\UnrealBuildTool_Mutex_<hash> is a
 
 背景机制备忘：链为 Task_Sync_CyanCook_Depot（P4SyncWorkspace.py 脚本 sync）→ Task_Unshelve（revert+unshelve，不 sync）→ TaskBuildUELinux，两链共用工作区 `DefaultAgent_MainDev`。注意两个同名文件：脚本 marker 曾是 `<workspace>/Saved/Build.version`；UBT 追踪的是 `Engine/Build/Build.version`。
 
+## PLN_TaskBuildUEWindows 重编归因（Windows 链）
+
+判定增量缓存是否健康**不能看构建颜色或时长**：该链秒级（~11s）绿色构建实际是跳过编译步，不是缓存命中。只能下载日志 grep `Invalidating makefile|Creating makefile|to run N action`，以 action 数为准（数百=增量、数千=全量），UBT 会直接给出失效原因。
+
+**已实锤的失效源——构建机 Windows SDK 漂移**：构建日志出现 SDK 版本切换记录（26100 → 22621）后紧跟全量重编（#18930，6129 actions，WinBuilder4）；UBT makefile 对 toolchain/SDK 版本敏感，升降级即整树失效。预防方向是固定各 WinBuilder 的 SDK 版本；漂移后的第一次全量属预期，不应算作 regression。
+
+**不要套用单一根因**：SDK 切换不能解释全部历史重编——5226 actions 的全量在 SDK 切换前就有（#18332），且反复出现 200–800 actions 的部分重编，根因未闭合，逐次按日志失效原因定位。另外编译期内存压力只是待验证线索：#18930 的异常退出带有服务端 Stop 指令与人工取消记录，不能引为 OOM 崩溃证据。
+
 ## Task_AiReview 评审结果恒为陈旧 verdict（2026-08-25，已修复）
 
 现象：result.json 报 `pi review unavailable: no parseable JSON in pi output`，tail 是 pi 模型歧义错误——但同构建的 pi_out.txt 里其实是完整有效的评审 JSON。排查路径：build 日志（pi exit 0、跑了 2m23s）→ artifacts 里的 pi_out.txt（有效）→ 发版本脚本逻辑。

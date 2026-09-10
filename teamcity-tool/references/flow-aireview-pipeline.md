@@ -77,12 +77,24 @@ Build.bat 编 Linux target，门禁语义不变）。要点：
 ### busy 门的设计根因、取单公平性与前端可见性（2026-09-08 review 257 积压排查确认）
 
 - **为什么必须有 busy 门：TC 队列不提供链级互斥**。AI 评审链是 4 个独立 build config（Sync→Unshelve→BuildUE→AiReview）共享同一 `{agent}_{stream}` workspace；TC 只保证单 agent 一次一个 build。若无后端门，同分支两条链节点可交错（SyncA→SyncB→UnshelveA→UnshelveB）：UnshelveB 把 CL-B 落进链 A 正在编译/评审的树 → 评错 diff、verdict 失真；且链尾 ALWAYS Cleanup 会把另一条链跑到一半的 unshelve 直接 revert 掉。busy 门就是用 DB 状态补 TC 缺失的链级互斥锁（代码内 R6 fence 注释实锤该风险）。**同分支「排队」是设计内行为**：突发积压（实测 ~20 单）时按每链 3~15min 逐单消化，不是卡死。
+- **同 agent FIFO 实证与残余风险**（2026-09-09 实测，builds 18710/18724/18729 + review 268/273/278）：三条并行同 stream 链（A→WinBuilder4，B/C→WinBuilder1）严格 FIFO 干净收口——链 C 完整排在链 B 之后，连无依赖的 Sync(C) 也排在 Unshelve(B) 之后入队，无交错、无串单；多 WinBuilder 时链按 `{agent}_{stream}` workspace 按机隔离自然并行。即 busy 门缺位时 TC 排队**事实上**按触发顺序串行同 agent 链。但 FIFO 连续性是调度惯例而非硬保证：队列重排（优先级类/人工插队/优化器）仍可把后链 Sync 插进前链节点空档 → 同 workspace 串单 → 评错 diff → risk≤15 自动放行+代提交把错误直接落库（低概率高后果）。硬互斥修法（方向已定、未实施）：链首 Sync 加 workspace 锁文件（带 Flow build id，非本链持有即等待/失败），链尾 Cleanup 释放，约 20 行 python；配套把 `ai_queue_info` 排队展示改读 TC buildQueue 位置。
 - **饿死修复已上线（#241）**：ticker 取单 limit 50 + busy 让位 120s 退避 + 公平排序；终态 review 不参与阻塞（#93 僵尸修复），配合上文 fresh 4h 自愈窗口。
 - **排队态前端可见**（修正上文「零前端提示」口径）：详情页 `aiQueue.blocked_by.review_id` 驱动「等待 Review #N 的评审链完成（TC 构建）」文案；「零提示」仅指被压住时不产生 activities 记录。
 
 ## Unshelve 独占锁失败模式
 
 `can't edit exclusive file already opened`（Unshelve 步秒级失败 → 整链 FAILURE）= 作者本机 client 把 +l 独占文件（典型 uasset）开着。归因：看失败文件 + `p4 opened -a <file>` 查谁持有打开锁。与编译失败归因分开看——这发生在链最前段，Compile 步根本没跑。
+
+`RequestReview.py` 的请求动作是 workspace 交接边界：`p4 shelve -f -Af -c <CL>` 成功后，shelf 成为评审和代提交的内容源，作者 client 不应继续保留该 CL 的本地改动、opened 状态或 `+l` 锁。清理必须覆盖 `revert -a -c <CL>` 未处理的剩余文件；执行破坏性 revert 前先预检文件占用及其他阻塞并明确提示，清理不完整时不得静默报成功。
+
+## Unshelve 吞掉他人已提交代码：have 回退 + `resolve -am` 空跑/假成功（2026-09 review 315 查明）
+
+排查「unshelve 后好像没合并、直接用了某一方内容」先对这几条（隔离 P4 测试库 11 断言复现确认）：
+
+- **P4 语义根因**：旧 shelf unshelve 到未 opened 的文件时，会把该文件的 **have revision 退回 shelf 的基线**——链前面已 `p4 sync` 到 HEAD 也白费。此时直接 `p4 resolve -am` 报 `No file(s) to resolve`（空跑而非合并失败），工作区里编译的是旧 shelf 全文，他人新提交被静默吞掉。315 实例：他人 CL 130289 给 `PLSaveSubsystem.cpp` 新增 `ClearSpawnedActorsByNames`，build 19071 unshelve 后无待合并项，19072 编译 LNK2019 缺该实现。不是用了 `-at` 强收远程，是根本没发生合并。
+- **`resolve -am` 假成功**：同一区域有冲突时 `-am` 跳过冲突但**仍可能返回 0**——退出码不能当合并成功判据，必须 `p4 resolve -N` 复查剩余 unresolved，有残留即报错打回（通知作者解冲突后重 shelve）；禁止 `-at/-ay/-af` 强行放行。
+- 正确顺序：**Unshelve → 再 sync 到本轮固定基线 → `resolve -am` → `resolve -N` 复查**。代提交路径缺同一次 sync，要一并修；diff 口径也要同步修正（否则他人新增代码被显示成「作者删除」）。
+- 修复方案（未实施）：`.claude/plans/AiReviewUnshelve自动合并与冲突打回.md`。
 
 ## 队列停摆：全 server 零构建但排队链不起（2026-09-09 观测，根因未实锤）
 

@@ -1,0 +1,64 @@
+{
+  "skill_name": "pyauto-aireview",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我查这个为什么跑了二十多分钟：TeamCity http://192.168.2.13:8111/buildConfiguration/PLN_TaskAiReview/20001 和 dashboard http://192.168.2.13/dashboard/ai-review/501。源码在 ws:autoserver-deveops，必要时问 @winbuilder4_maindev。",
+      "expected_output": "先验证两个链接是否通过 callback review_id 对应，再分别拆 backend 与 TeamCity 时间线；用 session/manifest 区分模型请求超时、Memory、工具调用和 chain sequencing，并只在缺机器证据时派构建机。",
+      "files": [],
+      "expectations": [
+        "在归因前建立 Review、CL、Flow、Task、Agent 和 callback review_id 映射",
+        "不会把完整 callback URL、token 或 nonce 回显",
+        "区分真正排队、snapshot 前置等待、Pi/provider 请求和 backend fallback",
+        "说明 ws:autoserver-deveops 与 @winbuilder4_maindev 的不同责任"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "AI Review 详情页一直说排队，但 TeamCity 根本没有新 build，点重新分析也没反应。查 review 620，给我证据和安全恢复步骤，不要直接改库。",
+      "expected_output": "从 Review API/activity/AIReviewJob/kick/ticker/tc_inflight/终态和纯二进制跳链逐层核实，不套用已退役 branch busy 门；提出只读证据和原生恢复入口。",
+      "files": [],
+      "expectations": [
+        "优先检查 ai_review_jobs 的 stage、status、next_retry_time 和 claim",
+        "明确 branch busy 门与 ai_queue blocked_by 是退役语义，需以当前源码和运行时为准",
+        "不在未核 P4/Review/worker 状态前执行 SQL 或手工触发孤立 Flow",
+        "把源码调查路由到 ws:autoserver-deveops，生产日志路由到 @auto-server"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "TeamCity 编译里有很多 AngelScript warning，但 AI Review 报告完全没提。要定位是 informer、Collect 还是模型漏看，并给修改和验证范围。",
+      "expected_output": "核对 TaskBuildUEWindows 的 ALWAYS report、报告 meta/provenance、Collect 认证和同目录 SameFileError，再看 review_input 与 Pi session；把 DevOps DSL/informer 与 MainDev Collect 修复分仓。",
+      "files": [],
+      "expectations": [
+        "不会建议把所有 warning 直接加入 50KiB error tail",
+        "检查 build_log_analysis.txt 及 meta/provenance 与本轮 build ID",
+        "识别 source==destination copyfile 的已知缺口但先要求真实 build 证据",
+        "跨 DevOps/MainDev 改动分别建立专用 P4 CL并分层测试"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "review 703 已经 approved 两小时，原 shelved CL 查不到，页面提交进度是 manual_required。能不能直接找一个同作者同描述的新 CL 写回去？",
+      "expected_output": "拒绝猜测 CL；按当前 approved round、submit job/activity、P4明确回执与cl_state/filelog做只读对账，唯一证明后才收敛，否则保持manual并交人工。",
+      "files": [],
+      "expectations": [
+        "明确 approved 不等于 submitted",
+        "拒绝按作者、描述或最近 CL 猜 rename结果",
+        "区分明确失败、SubmitOutcomeUnknown、P4成功但DB未落地",
+        "未经授权不 retry、reject、改库或 submit"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "这个 TeamCity build 跑的 WorldPartition commandlet 是什么？帮我提取成 VS Debugging 参数。链接恰好也是 PLN 项目。",
+      "expected_output": "识别为 TeamCity commandlet提取而不是 pyAutomation AI Review，转用 teamcity-extract-commandlet；不加载或套用 AI Review 状态机。",
+      "files": [],
+      "expectations": [
+        "明确任务不属于 AI Review业务流程",
+        "建议使用 teamcity-extract-commandlet",
+        "不无谓查询 AI Review API、DB或A2A机器"
+      ]
+    }
+  ]
+}

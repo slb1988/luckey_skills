@@ -57,9 +57,10 @@ Always read the reference file before acting — it contains the actual paths, p
 | Non-obvious traps and gotchas | `references/gotchas.md` |
 | 打包管线 (PL_BuildProjectWindows / PL_BuildUgsBinaries / UAT cook) | `references/package-pipeline.md` |
 | Checkout 目录自动清理事故 (DirectoryMap cleaner, 192h expiry) | `references/checkout-dir-auto-clean.md` |
-| 构建失败排障（UE 构建 UBT mutex 冲突等） | `references/troubleshooting.md` |
-| FlowAiReview 管线耗时画像与瓶颈、编译失败归因（sync HEAD 语义 / adaptive unity 盲区 / workspace reset 机制）、后端 busy 门（设计根因 TC 无链级互斥/取单公平性）与降级放行缺陷、unshelve 独占锁、队列停摆诊断 | `references/flow-aireview-pipeline.md` |
+| 构建失败排障与重编归因（UE 构建 UBT mutex、Linux/Windows 链全量重编、增量缓存健康判定） | `references/troubleshooting.md` |
+| FlowAiReview 管线耗时画像与瓶颈、编译失败归因（sync HEAD 语义 / adaptive unity 盲区 / workspace reset 机制）、后端 busy 门（设计根因 TC 无链级互斥/取单公平性）与降级放行缺陷、unshelve 独占锁、unshelve 吞他人提交（have 回退 + `resolve -am` 空跑/假成功，须 `resolve -N` 复查）、队列停摆诊断 | `references/flow-aireview-pipeline.md` |
 | TaskAiReview 失败通知链路（TeamCityLogParserInformer 归因/路由语义、latestCL vs unshelve CL 身份陷阱） | `references/task-aireview-notification.md` |
+| AiReview 工具链本地模拟测试（Collect/Runner/Publish 分工、Runner cwd 硬性前置、copyfile SameFileError 根因） | `references/aireview-local-test.md` |
 
 Read the relevant reference before acting on that topic.
 
@@ -140,7 +141,7 @@ CodeGraph 的 Linux 编译链独立保留。同机组靠 snapshot 边取兼容�
 </memory>
 
 <memory category="code-locations">
-PLN_TaskAiReview 的内容步 "Collect Review Context" 调的是 **MainDev depot** 的 `Tools/AiReview/AiReviewContextCollect.py`（本机 `D:\MainDev`），不在 DevOps 仓——ws:autoserver-deveops 的 AI review 故障可能要改 MainDev 文件。`STREAM_MISMATCH: CL <n> has files outside //CyanCookOfficialDepot/<stream>/` 报错出自其 `collect_diff()`：取首个文件的 stream 作前缀，其余文件落在前缀外即硬失败 exit 3；触发源是混合 stream CL（如 WwiseProject_main 音频文件与 MainDev 游戏改动同 CL）。上游 Task_Unshelve（DevOps `P4UnshelveStage.py`）对混合 CL 正常——见 STREAM_MISMATCH 先查 collect 步，别查 unshelve。
+PLN_TaskAiReview 的内容步 "Collect Review Context" 调的是 **MainDev depot** 的 `Tools/AiReview/AiReviewContextCollect.py`（本机 `D:\MainDev`），不在 DevOps 仓——ws:autoserver-deveops 的 AI review 故障可能要改 MainDev 文件。`STREAM_MISMATCH` 报错出自其 `collect_diff()`。**2026-09 起混合 stream CL 不再硬失败**：目标 stream 外文件不进 diff、只在 diff 头部记 SKIPPED 节（列前 20 条；实测 CL 130205 目标 MainDev 时 Wwise 的 a.cpp 被跳过），整 CL 都在目标 stream 外才 exit 3。上游 Task_Unshelve（DevOps `P4UnshelveStage.py`）对混合 CL 正常——见 STREAM_MISMATCH 先查 collect 步，别查 unshelve。
 </memory>
 
 <memory category="troubleshooting">
@@ -161,12 +162,24 @@ AI 评审看不到 warning 的采集侧根因（2026-10 查明）：MainDev `Too
 TaskAiReview 的"停用"实为占位放行（2026-09 核实）：`paused=false`、6 步全 enabled，但 `Pi_Agent_Review` 的 18 行脚本不启动 Pi，固定写 `verdict=approve, risk_score=0`（摘要自称 temporarily disabled）；前一版还带 300 秒超时放行。绿色构建（如 #18820）只证明占位链跑通，**不证明 AI 评审过**——验收以 `Saved/ai_review/sessions/*.jsonl` 出现真实会话为准，不看构建颜色。恢复真实评审必须同时删掉占位脚本与超时放行，不能裸回退到带超时放行的旧 CL。
 </memory>
 
+<memory category="code-locations">
+TaskAiReview 旁路/开关设计依赖的 Publish 契约（2026-10 读码核实）：Publish 步脚本 `Tools/AiReview/AiReviewResultPublish.py`（MainDev）只校验 `pi_out.txt` 里 JSON 的 verdict ∈ {approve, reject, needs_discussion}，并强制覆盖 cl/stream/url 元数据——占位 verdict=approve 的 pi_out.txt 与真实评审输出走完全相同的已验证解析发布路径。因此加 review/bypass 模式开关只需在 Pi_Agent_Review 步内分支（bypass 写占位 pi_out.txt 后 exit 0），Publish/Collect/Cleanup 零改动；开关做成 select 参数时，TC UI 改参数值（patches 模式）或 Run Custom Build 覆盖即时生效，回滚不需要紧急 P4 提交。
+</memory>
+
 <memory category="troubleshooting">
 构建机跑真实 Pi_Agent_Review 的两个逐机环境前置（WinBuilder3 当时两者都缺）：① 本机配置 A2A token；② 经 VPN 直连 Memory Hub `http://10.77.77.6:9287`（VPN-only，无域名/中转/公网兜底）。扩展单测通过 ≠ TC headless agent 内可用——单测不覆盖 token 注入与 VPN 连通，灰度必须逐机实测；兼容机共三台 WinBuilder1/3/4，只验一台不能宣称全可用。
 </memory>
 
 <memory category="common-patterns">
 TC Windows runner 上凡打印非 ASCII 的 python 步骤必须配 `env.PYTHONUTF8=1`：runner 已 `chcp 65001`，但 python stdout 走管道时退回系统 locale（cp936），二者错位即中文乱码（TaskAiReview summary 乱码根因）。kts 参数区加一行即对所有 python 内联步生效。
+</memory>
+
+<memory category="troubleshooting">
+Log Analysis Report 步静默放行的 P4 优先级根因（build 18869 查明，2026-09）：DevOps bootstrap 用 **env** `P4PORT=192.168.2.13:1666`（unicode 服务器）+ 命令行 `-C utf8` sync informer，但步骤 cwd 是 checkout 根（如 `F:\WinBuilder1_MainDev`），**其中躺着游戏工作区的 `.p4config`（`P4PORT=192.168.2.236:1666`，非 unicode）——P4 优先级：命令行 > P4CONFIG 文件 > 环境变量**，于是 p4 连到 .236 带 `-C utf8` 被拒（"Unicode clients require a unicode enabled server"），全部 p4 命令失败 → `devops_root` 落兜底空目录 → informer 缺失 → `skip report` → 整步按设计 exit 0 放行。后果链：`Saved/ai_review/build_log_analysis.txt` 不生成 → TaskAiReview 的 AI 无 warning 证据判过（AS Compile Check 只拦 error，warning 唯一捕获通道就是该报告）。识别：meta sidecar `report_present:false` + 报告文件缺失/stale。正确修法是 `p4 -p <port>` 提到命令行（优先级最高），同款 bootstrap 块有 3 处（TaskBuildUEWindows.kts 的 Report+Notification 步、TaskAiReview.kts 通知引导段）。
+</memory>
+
+<memory category="troubleshooting">
+「构建结束不掉」通常是 TC 两阶段停止机制的延迟，不是僵尸进程（build 18808 实证，2026-09）：第一次点 Stop 只发优雅取消请求，UE commandlet 不响应中断时构建卡在「statusText=Canceled 但 state=running」可达数分钟；第二次点 Stop 才触发 agent 侧强制杀进程。处置顺序：REST 查 `state`/`running`/`statusText` → 登 agent 机查残留进程（UnrealEditor/UnrealBuildTool/ShaderCompileWorker）→ 两者都干净就不要重启 server/agent 服务，再点一次 Stop 或等其落地即可。
 </memory>
 
 ## Troubleshooting build failures
