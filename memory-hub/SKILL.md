@@ -91,7 +91,9 @@ outbox `graphiti.add_memory_relation` 事件 HTTP 503 ≠ Graphiti 故障：`POS
 </memory>
 
 <memory category="common-patterns">
-同义实体碎片（`memory-hub`/`memory_hub`/`Memory Hub` 多变体并存、事实边分散在各节点）的定点合并走服务端图谱修订管线：`POST /api/v1/graph/edits`（action=merge，需 admin token）或 `PATCH /curate/entity-node`（merge_if_exists）。合并语义：旧节点全部事实边迁移到 canonical（同名同端点边合并、episodes 去重）、episode MENTIONS 迁移、旧↔新之间的边成自环自动丢弃、不调 LLM 完全可预测；**不可自动撤销**，但全部落 `graph_edits` 审计（面板「图谱修订」页可查、before 快照支持人工回滚）。权威文档 `docs/GRAPH_CURATION.md`。合法子实体（文件/环境变量/专题节点）不要合并；跨 group 普遍存在同类双枢纽，可按组如法炮制。合并只是时点修复——归一化缺陷不除变体会再生（根因见 memory-review 记录的 `_normalize_extraction`）。
+同义实体碎片（`memory-hub`/`memory_hub`/`Memory Hub` 多变体并存、事实边分散在各节点）的定点合并走服务端图谱修订管线。推荐 `POST /api/v1/graph/edits` 显式指定 `merge_into_uuid`：先 `dry_run` 获取 `snapshot_hash`，确认执行时以 `expected_snapshot_hash` 锁定完整图状态。
+合并会把源节点事实边迁移到 canonical（同名同端点边合并、episodes 去重）、迁移 episode MENTIONS，并丢弃源↔目标合并形成的自环；全程不调 LLM。**节点摘要不会自动拼接或重总结**：默认保留目标 summary、源 summary 随源节点删除，选 canonical 时须同时核对摘要，必要时在 merge 请求中显式提供目标 summary。
+合并不可自动撤销，但全部落 `graph_edits` 审计（before 快照支持人工回滚）；合法子实体（文件/环境变量/专题节点）不要合并，跨物理 group 也不能合并。权威文档 `docs/GRAPH_CURATION.md`。合并只是时点修复——归一化缺陷不除变体会再生（根因见 memory-review 记录的 `_normalize_extraction`）。
 </memory>
 
 <memory category="troubleshooting">
