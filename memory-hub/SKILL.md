@@ -130,6 +130,11 @@ Hook 链路有三个独立验收层级：① installer/check 只证明配置就�
 MainDev `Tools/AiReview` 内的 Memory Hub 客户端是 CI 专用分支，只做受控召回并关闭普通 capture；地址、超时、重定向和凭证策略也为 CI 特化。它与本 skill 的通用 Claude/Codex/Pi 会话采集客户端是两个兼容面，不可互相覆盖或拿 AIReview 副本作为开发者安装源，尤其不得把 CI 凭证策略带到用户机器。
 </memory>
 
+<memory category="troubleshooting">
+Pi v29 首轮预热使用提炼后的 intent；当 `intent.length < 4` 时，不检索原文，而是将 query 完全替换为 `${projectHint} ${bootstrapTopics}`（项目概况/架构/决策/进展/待办/约定）。因此 `hi`/`你好` 触发的是宽泛项目召回和同步 LLM 门禁，不是连通性探针；直接 search 原始短词是另一条语义不同的请求。
+TUI 的「已识别 kept/candidates」来自服务端 quality 聚合，不等于模型可见条数：响应 facts 先受 result limit（默认 6），context 再按顺序加入整条 fact，下一条会突破 `max_chars`（默认 4000）时即停止。`recall-results` 文件列出全部已返回 facts，也不是注入子集；实际 recall 正文长度看 `project_bootstrap.result_chars`。
+</memory>
+
 Pi 扩展 v22+：用户用 `/skill:name` 显式指定 skill 的首轮 prompt **跳过自动预热检索**——pi 会把 skill 展开为 `<skill name="…" location="…">` 块注入 prompt 开头（裸 `/skill:` 未展开命令作兜底匹配），扩展检测到即跳过，trace outcome 记 `skipped_skill_invocation` 并照常写 bootstrap-done 标记（同 session 后续不补检索）。排查「首轮预热没跑」先认这个 outcome，是设计行为不是故障；`memory_search` 工具不受影响，skill 内仍可主动检索。
 
 Pi 扩展 v25+：首轮预热（“正在检索并审核历史记忆…” widget）与 `memory_search` 检索**可按 Esc/Ctrl+C 中断**——取消即杀检索子进程、本轮不注入、agent 立即开始；trace outcome 记 `cancelled`，本会话不重试。Ctrl+C 只取消检索并照常透传给 pi（连按两次仍退出 pi）。
