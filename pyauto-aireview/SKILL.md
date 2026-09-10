@@ -51,6 +51,14 @@ P4V Request Review
 5. **编译、AI、审批、提交彼此独立。** BuildUE 失败后 Pi 仍可分析；AI 结论不是人工票；`approved` 只是等待代提交的过渡态，只有 P4 与 DB 都收口才是 `submitted`。
 6. **源码事实与运行时事实分开。** P4 head/当前源码只能说明实现；线上参数、部署版本、Agent 用户、Pi 版本、网络和 artifact 必须在实际服务或构建机核实。
 
+<memory category="core-rules">
+两个容易混淆的准入语义：① `make_decision` 的作者分支先于指定 reviewer 授权校验，
+所以指定他人 reviewer 不会禁用 self-approve；开关开启且当前轮 AI done、风险低于门槛时，
+作者仍能自批。② 纯二进制/无文本 diff 可不调用 LLM 而短路为
+`ai_status=done, risk_score=0, ai_verdict=null`；这表示“无可分析内容”，不是模型批准，
+却会满足 self-approve 的 AI done/风险条件。system auto-approve 仍受“无指定 reviewer”等独立门限制。
+</memory>
+
 ## 标准排障流程
 
 ### 1. 建身份表
