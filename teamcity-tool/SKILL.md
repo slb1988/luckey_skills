@@ -118,6 +118,13 @@ grep -i "plugin" <log-file> | grep -i "load\|init\|fail"
 Agent config: `<data-dir-adjacent>/buildAgent/conf/buildAgent.properties`
 Check `serverUrl` is correct and agent is connected.
 
+Agent-level environment variables: any `env.X=value` line in `buildAgent.properties`
+is exported as env var `X` to all build processes on that agent. The agent watches the
+file and hot-reloads it; after reload it pushes updated parameters to the server
+(`Updating agent parameters on the server` in teamcity-agent.log). A manual restart is
+the deterministic path for picking up changes: `bin/agent.sh stop` (graceful, exits
+when idle) then `nohup bin/agent.sh start`.
+
 ### Build chains
 
 先读 [Build chain 参数与验证](references/build-chain-parameters.md)，再修改配置：

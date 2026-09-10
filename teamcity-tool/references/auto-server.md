@@ -12,6 +12,13 @@ Machine: `auto-server` (192.168.2.13, Ubuntu 22.04)
 | DB | MySQL via docker container `mysql` (port 13306) |
 | Upgrade backup | `/mnt/disk2/TeamCity/.BuildServer/backup/TeamCity_Before_Upgrade_20260811_184822.zip` + manual mysqldump `/data/backup/teamcity_upgrade_20260811/teamcity_db.sql` |
 
+## Path aliasing: `/data` → `/mnt/disk2`
+
+`/data` is a symlink to `/mnt/disk2`. Every path below can be written either way
+(`/data/TeamCity/...` and `/mnt/disk2/TeamCity/...` are the same files). Agent scripts
+canonicalize to `/mnt/disk2/...`, so logs and `Agent home directory` messages always
+show the `/mnt/disk2` form even when you invoked them under `/data`.
+
 ## Directory layout
 
 | Path | Purpose |
@@ -25,6 +32,31 @@ Machine: `auto-server` (192.168.2.13, Ubuntu 22.04)
 | `/mnt/disk2/TeamCity/.BuildServer/system/artifacts/` | Build artifacts storage |
 | `/mnt/disk2/TeamCity/buildAgent/` | Default build agent |
 | `/mnt/disk2/TeamCity/buildAgent/conf/buildAgent.properties` | Agent config |
+
+## DefaultAgent (auto-server's local agent)
+
+| Property | Value |
+|---|---|
+| Name / ID | `DefaultAgent` / AgentId=1 |
+| Home / conf / logs | `/mnt/disk2/TeamCity/buildAgent/{,conf/buildAgent.properties,logs/}` |
+| Control port | 9090 (`agent.sh stop` posts shutdown to `http://localhost:9090`) |
+| JVM | Corretto 21 via `env.JAVA_HOME` |
+
+Current agent-level `env.*` exports in `buildAgent.properties` (apply to every build on this agent):
+
+| Key | Value | Purpose |
+|---|---|---|
+| `env.JAVA_HOME` / `env.JAVA_EXE` | `/data/tools/amazon-corretto-21.0.9.11.1-linux-x64` | Pin agent/build Java |
+| `env.LINUX_MULTIARCH_ROOT` | `/data/v26_clang-20.1.8-rockylinux8` | Linux cross-compile toolchain root |
+| `env.NODE_WORKSPACE` | `/data/TeamCity/buildAgent/p4ws` | P4 workspace root for build steps (use as `%env.NODE_WORKSPACE%` / `$NODE_WORKSPACE`) |
+
+Also set: `teamcity.agent.checkoutDir.expireHours=never` (checkout dirs never auto-expire;
+see `references/checkout-dir-auto-clean.md` for the DirectoryMap cleaner that still applies).
+
+Restart only the agent: `cd /mnt/disk2/TeamCity/buildAgent && bash bin/agent.sh stop`
+(graceful — exits when idle), then `nohup bash bin/agent.sh start &`. Verify re-registration
+in `logs/teamcity-agent.log`: `Registered on server with id 1` + `Updating agent parameters
+on the server`.
 
 ## Data directory
 
