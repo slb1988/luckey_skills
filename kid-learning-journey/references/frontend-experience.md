@@ -6,6 +6,19 @@ The frontend uses Vue 3, TypeScript, Vite, Pinia, and PWA support. The API clien
 
 The API base defaults to `/api/v1` and may be overridden by `VITE_API_BASE_URL`. Requests include credentials; browser writes attach the CSRF token and business writes may attach an idempotency key.
 
+## Cross-device browser capability boundary
+
+The frontend is used across devices, including LAN HTTP origins. `localhost` and loopback are potentially trustworthy browser contexts, but a LAN HTTP address is not; successful cookie/CSRF authentication does not change this distinction.
+
+| Browser API | Availability relevant to this frontend |
+| --- | --- |
+| `crypto.randomUUID()` | Requires a secure context and browser support. |
+| `crypto.getRandomValues()` | Also available outside secure contexts; provides cryptographic randomness for UUID generation over LAN HTTP. |
+
+Both HTTP idempotency keys and attempt/completion IDs in JSON bodies use the API service's common client-ID generator. This gives all business-write flows the same browser capability baseline while retaining cryptographic UUID entropy. These identifiers correlate and deduplicate writes; they do not authorize them.
+
+Journey tests use loopback, so ordinary E2E success does not establish LAN capability compatibility. Exercise this boundary by disabling only `crypto.randomUUID` before page startup, retaining `getRandomValues` and the real API, and covering both guardian publication and child writes.
+
 ## Routes
 
 Public:
