@@ -71,6 +71,22 @@ P4V Request Review
 backend LLM fallback 汇聚到同一出口；非 strict 不扩展 jury 收件人，通知失败仍只记日志而不影响业务状态。
 </memory>
 
+<memory category="core-rules">
+混合 Stream shelf 的提交映射不能由 Review branch、文件多数派或 depot 前缀推导；stream client 的
+`import+` 可让同一 shelf 跨多个 depot 根。权威解析链是 `change -o <CL>` 的 Client →
+`client -o <source_client>` 的完整 Stream，再创建或复用绑定同一 Stream 的 bot client；只设置
+`Stream`、不手写 `View`，并用该 client 的 `p4 where` 校验全部 shelf 文件。client 存在性要用
+`clients -e` 判断，因为 `client -o` 对不存在的名称也返回模板；生产 236 是非 Unicode server，
+连接 charset 必须留空。`submit -e` 直接消费 shelf、无需 sync，此 client 只是 Stream 映射载体。
+</memory>
+
+<memory category="troubleshooting">
+P4Python 执行 `submit -e` 时，逐文件原因可能只在 `run()` 返回的 info 字符串中，`errors/warnings`
+和默认异常对象只保留汇总，抛出后还会丢失返回值。需要临时使用 `exception_level=0`，同时采集
+返回值、`errors`、`warnings`，以 `errors` 非空判失败，并在 `finally` 恢复原级别；stream fallback
+不能只匹配异常文本中的 `file not mapped in stream`。
+</memory>
+
 ## 标准排障流程
 
 ### 1. 建身份表
