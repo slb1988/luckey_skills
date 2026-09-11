@@ -33,13 +33,15 @@
 **v1 响应结构是图谱边列表**：`{"facts": [{"fact": "<边文本>", "name": "<边类型>", "created_at", ...}], "groups", "query"}`——没有 `results`/`memories` 字段，条目不携带 memory_id（边 uuid 是唯一标识），也不携带 group 标签（搜索自动覆盖可读的 global/user/profile/journal/project 五个组，无法从单条结果区分来源组）。写检索脚本解析错 key 会静默全 0 命中（2026-09-07 Orca worker 实测踩坑）。
 
 三端 hook（memory_hook.py / Pi 扩展预热与 memory_search）实际打的是 `POST /v1/memories/search-v2`，
-schema `memory-search/2`，请求体固定带 `quality_mode=llm` + `session_view=captured` + `scope_mode=current_project`，
-LLM 判分读超时 120s。与 v1 的关键差异：
+schema `memory-search/2`，请求体固定带 `quality_mode=llm` + `session_view=captured` + `scope_mode=current_project`
++ `include_audit=true`；任务意图中显式 `ws:<id>` / `project:<id>` 另作为 `referenced_project_ids`（最多 8 个）
+追加到当前 project，同一候选池统一判定，不发多次请求。LLM A/B 总读超时 120s。与 v1 的关键差异：
 
-- **质量门禁**：v2 用 LLM 对候选逐条判分（fail-closed），只返回过门禁的结果，并带审计元数据
-  （`retrieval_id` / `policy_version` / quality 摘要：候选数→保留数、min_rating）；v1 是纯 FTS，**无门禁**，返回原始候选。
-- **回退方向只有一条路**：仅 v2 返回 404 才回退 v1；**503 / 坏响应绝不回退**（fail-closed，错误原样透传调用方）。
-- **结果不可直接对比**：v1 的输出是未过 LLM 门禁的原始 FTS 结果，跟 hook 预热/召回注入的内容是两条链路。
+- **两阶段质量门禁**：Stage A 生成必要信息槽位并判候选证据；Stage B 只综合最终放行 evidence，返回模型可直接使用的 `injection_context`。`results` 仅供兼容/审计，不进入模型。
+- **空失败原则**：Stage A 请求级故障仍 fail-closed 503；Stage B 不可用、超时、非法或无可靠输出时 HTTP 可保留 `results`，但 `injection_context=""` 且 `quality.stage_b.status=suppressed_*`。客户端不得拼接 results、旧 `injection_results` 或原记忆兜底。
+- **跨 project**：`referenced_project_ids` 不替换当前 project；服务端去重、验证存在性与可读权限。未知返回 `REFERENCED_PROJECT_NOT_FOUND`，无权返回 `REFERENCED_PROJECT_FORBIDDEN`，不静默缩窄。
+- **详细审计**：`include_audit=true` 返回解析后的 `audit.scope/stage_a/stage_b`（slots、judgments、来源、model、attempts、format_retries、elapsed/status/reason），不返回 raw thinking/CoT；同一结构按 `retrieval_id` 持久化。
+- **结果不可直接对比**：v1 的输出是未过 LLM 门禁的原始 FTS 结果；v2 的 `results` 是 Stage A 放行结果，真正注入内容是 Stage B 的 `injection_context`，三者不能混算。
   排查「检索测试结果跟 hook 召回对不上」时，先确认对比的客户端走的是 v2——dashboard 检索测试的后端代理
   （clients.py）2026-09 起已对齐 v2（若 dashboard 仍返回无门禁结果，先查 NAS 部署是否包含该修复）。
 - **纯关键词堆叠 query 在 v2 门禁下可全灭**（2026-09 project:maindev 盘点实证）：LLM judge 判「无贴合意图」

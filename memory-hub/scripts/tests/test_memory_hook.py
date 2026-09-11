@@ -860,7 +860,15 @@ class MemoryHookTest(unittest.TestCase):
                 return {"memory_id": "memory-1", "status": "pending"}
 
             client.request = fake_request
-            self.assertEqual(client.search("query", "project-a", 5, "user-b"), [])
+            response = client.search_response(
+                "query",
+                "project-a",
+                5,
+                "user-b",
+                referenced_project_ids=["project-b"],
+                include_audit=True,
+            )
+            self.assertEqual(response["facts"], [])
             client.ensure_memory(job, 1, "file-1")
 
             search_call = calls[0]
@@ -869,6 +877,10 @@ class MemoryHookTest(unittest.TestCase):
             self.assertEqual(search_call[1], "/v1/memories/search-v2")
             self.assertEqual(search_call[4]["json_body"]["schema_version"], "memory-search/2")
             self.assertEqual(search_call[4]["json_body"]["quality_mode"], "llm")
+            self.assertEqual(
+                search_call[4]["json_body"]["referenced_project_ids"], ["project-b"]
+            )
+            self.assertTrue(search_call[4]["json_body"]["include_audit"])
             self.assertNotIn("user_id", search_call[4]["json_body"])
             memory_call = calls[1]
             self.assertEqual(memory_call[3], "user-b")
@@ -901,6 +913,39 @@ class MemoryHookTest(unittest.TestCase):
                 [{"fact": "legacy exact fact"}],
             )
             self.assertEqual(paths, ["/v1/memories/search-v2", "/v1/memories/search"])
+
+    def test_search_does_not_treat_cross_project_404_as_missing_v2_endpoint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=Path(directory),
+            )
+            client = HubClient(config)
+            paths = []
+
+            def fake_request(method, path, project_id, user_id, **kwargs):
+                paths.append(path)
+                raise HubError(
+                    "HTTP 404: referenced project not found",
+                    status_code=404,
+                    error_code="REFERENCED_PROJECT_NOT_FOUND",
+                )
+
+            client.request = fake_request
+            with self.assertRaisesRegex(HubError, "referenced project not found"):
+                client.search_response(
+                    "query",
+                    "project-a",
+                    5,
+                    "user-a",
+                    referenced_project_ids=["missing-project"],
+                )
+            self.assertEqual(paths, ["/v1/memories/search-v2"])
 
     def test_search_does_not_bypass_llm_gate_on_v2_failure(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1040,6 +1085,62 @@ class MemoryHookTest(unittest.TestCase):
             self.assertEqual(context, "")
             self.assertEqual(count, 0)
             self.assertEqual(source, "suppressed_no_server_context")
+
+    def test_search_response_preserves_explicit_empty_stage_b_without_fallback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=Path(directory),
+            )
+            client = HubClient(config)
+            client.request = lambda *args, **kwargs: {
+                "results": [{"result_id": "memory-1", "text": "raw answer"}],
+                "injection_context": "",
+                "scope": {"project_ids": ["project-a"]},
+                "audit": {
+                    "scope": {"project_ids": ["project-a"]},
+                    "stage_a": {"status": "completed"},
+                    "stage_b": {
+                        "status": "suppressed_invalid",
+                        "suppression_reason": "synthesis_invalid",
+                        "items": [],
+                        "input_sources": [],
+                    },
+                },
+                "retrieval_id": "retrieval-1",
+                "query_hash": "a" * 64,
+                "policy_version": "v2-fts-stage-ab-slots-llm",
+                "quality": {
+                    "mode": "llm",
+                    "candidates": 1,
+                    "kept": 1,
+                    "stage_a": {"status": "completed"},
+                    "stage_b": {
+                        "status": "suppressed_invalid",
+                        "suppression_reason": "synthesis_invalid",
+                    },
+                },
+            }
+
+            response = client.search_response("query", "project-a", 5, "user-a")
+            context, count, source = format_recall_context(
+                response["facts"],
+                response["injection_results"],
+                4000,
+                injection_context=response["injection_context"],
+                injection_context_status=response["injection_context_status"],
+            )
+
+            self.assertEqual(response["injection_context"], "")
+            self.assertEqual(response["injection_context_status"], "suppressed_invalid")
+            self.assertEqual(response["injection_suppression_reason"], "synthesis_invalid")
+            self.assertIsNone(response["injection_context_error"])
+            self.assertEqual((context, count, source), ("", 0, "server_suppressed_invalid"))
 
     def test_search_response_rejects_injection_mapping_that_cannot_be_audited(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1340,19 +1441,44 @@ class MemoryHookTest(unittest.TestCase):
         self.assertIn("删除 10 条，最终 214 行", output)
 
     def test_extract_referenced_projects_from_intent_only(self):
-        query = (
-            "obsidianvault 任务: 联动 ws:autoserver-deveops 和 project:maindev，"
-            "再次引用 ws:autoserver-deveops\n上下文:\n日志里出现 project:noise"
-        )
-        self.assertEqual(
-            extract_referenced_project_ids(query, "obsidianvault"),
-            ["autoserver-deveops", "maindev"],
-        )
-        with self.assertRaisesRegex(HubError, "too many referenced projects"):
-            extract_referenced_project_ids(
-                "任务: " + " ".join("ws:p%d" % index for index in range(9)),
-                "obsidianvault",
+        with tempfile.TemporaryDirectory() as directory:
+            registry = Path(directory) / "workspaces.json"
+            registry.write_text(
+                json.dumps(
+                    {
+                        "bindings": {
+                            "autoserver-deveops": {
+                                "memoryProject": "admin_sun_depot_7184",
+                                "localAliases": ["devops-main"],
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
             )
+            query = (
+                "obsidianvault 任务: 联动 ws:autoserver-deveops 和 project:maindev，"
+                "再次引用 ws:autoserver-deveops\n上下文:\n日志里出现 project:noise"
+            )
+            with patch.dict(
+                os.environ,
+                {"AGENT_CONTROL_REGISTRY_PATH": str(registry)},
+            ):
+                self.assertEqual(
+                    extract_referenced_project_ids(query, "obsidianvault"),
+                    ["admin_sun_depot_7184", "maindev"],
+                )
+                self.assertEqual(
+                    extract_referenced_project_ids(
+                        "任务: ws:devops-main", "obsidianvault"
+                    ),
+                    ["admin_sun_depot_7184"],
+                )
+                with self.assertRaisesRegex(HubError, "too many referenced projects"):
+                    extract_referenced_project_ids(
+                        "任务: " + " ".join("ws:p%d" % index for index in range(9)),
+                        "obsidianvault",
+                    )
 
     def test_format_context_reports_actual_injected_count(self):
         output, injected = format_context_with_count(

@@ -195,9 +195,13 @@ error/timeout 抛真正的 Pi 工具错误，取消保持独立。CLI `search --
 本地结果文件据此区分「候选 / LLM 放行 / 实际注入」。旧扩展必须重跑 `install --agents pi` 部署模板；
 已有 Pi 会话需 `/reload` 或新进程，chat-hub 长驻 RPC 同样需要在空闲时重载/重启才使用新实现。
 
-**查询级 Judge 重实现状态**：旧 v31 / Judge v15 的客户端 `injection_results` / 原正文降级链已被否决，
-不得作为新实现基线。跨 project A/B Judge、空上下文失败语义与审计载荷的定版契约以父级
-`SKILL.md` 对应 `core-rules` 记忆块为准；版本标签本身不能证明该契约已经实现或部署。
+**v32 跨 project + A/B 上下文契约**：客户端只扫描 query 的任务段（不扫描 `上下文:` 日志）提取
+`ws:<id>` / `project:<id>`，应用已安装 project aliases、保持出现顺序、去重并排除当前 project，作为
+`referenced_project_ids` 随同当前 project 一次请求发送（最多 8 个）；领先 `project:` 指令也改为追加范围，
+不再替换当前 scope。请求固定 `include_audit=true`。客户端只接受服务端 Stage B 的最终
+`injection_context`；`suppressed_*`、字段缺失、审计缺失、元数据污染或超预算都保持空上下文，禁止回退
+`injection_results`/原记忆。手工 `memory_search(project=...)` 的 project 参数仍表示调用者明确选择主 scope，
+query 中额外出现的 ws/project 引用继续追加。v32 修改安装副本，升级后须 install 并 reload/restart。
 
 **v19 起 Pi TUI 对召回结果可感知**：首轮 bootstrap 和手工 `memory_search` 都改用结构化 JSON
 响应。阻塞等待期间顶部 widget 显示“正在检索并审核”与累计耗时；完成后清理 widget，状态栏和
@@ -211,8 +215,9 @@ notification 显示 `候选 · LLM 放行 · 精炼线索 · 来源记忆 · 字
 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/recall-results/pi/<project>/`。文件顶部列出
 候选、LLM 放行、精炼线索、来源记忆、注入字符预算及模型可见线索预览。客户端须原样持久化 Hub 在审计模式
 随同主响应返回的完整载荷与最终实际注入上下文，不得另调 LLM、重建阶段结果或把兼容字段当降级注入源；
-A/B 结构化结果及其来源/模型/耗时/尝试/状态字段以父级 `SKILL.md` 的定版契约为准。遗留
-`injection_brief` / `injection_results` / validation error / facts / provenance 只作兼容诊断。Pi notification
+详情文件单列 scope、Stage A/B 完整解析审计、Stage B 原始最终上下文、客户端 validation/suppression 状态，
+并保留 Hub 完整响应与全部 facts/provenance。遗留 `injection_brief` / `injection_results` 只作兼容诊断，
+绝不成为模型上下文。Pi notification
 末尾显示绝对路径；状态栏保持短格式。**路径、审计元数据和思维过程不进入 systemPrompt，也不进入
 `memory_search` tool content**，只有 TUI、本地详情文件与服务端审计可见。文件目前不自动清理。
 
@@ -292,11 +297,11 @@ full-session 资产为准。该改动只在直接引用的 Python script 中，�
 | kind | 时机 | 关键字段 |
 |---|---|---|
 | `session_start` | 会话开始 | session_id、cwd |
-| `project_bootstrap` | session 首个有效任务的项目背景预热 | query、limit、project_override、outcome、exit_code、duration_ms、quality、context_stats（status/clue_items/source_memories/chars/client_validation_error）、injected_count、result_file、result_chars；纯寒暄另记 skipped_low_signal_prompt 且不写完成 marker；审核细节按 retrieval_id 在服务端查 |
+| `project_bootstrap` | session 首个有效任务的项目背景预热 | query、limit、project_override/referenced_projects、outcome（含 suppressed）、exit_code、duration_ms、quality、context_stats（stage/status/suppression/scope/clue/source/chars/validation）、injected_count、result_file、result_chars；纯寒暄另记 skipped_low_signal_prompt 且不写完成 marker |
 | `project_bootstrap_skip` | 已有持久完成标记，恢复旧 session 不重复回溯（v12） | session_id、outcome=already_completed |
 | `recall_cancel` | v25+ 用户在预热/检索等待期间按 Esc/Ctrl+C 手动中断 | session_id、cwd、key=escape\|ctrl_c |
 | `recall_score` / `recall_score_wait` | v12-v17 历史玩家评分事件；v18 不再产生 | total、scored、dropped、kept / rank、outcome |
-| `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、quality、injection_brief_count/injection_source_count/injection_context_status/error、context_source/context_stats、injected_count、result_file、result（模型可见纯线索全文，不含文件路径或来源元数据） |
+| `search` | memory_search 工具调用 | query、limit、referenced_projects/scope、exit_code、duration_ms、quality、stage_a/stage_b status/suppression/item/source、context_source/error、injected_count、result_file、result（只含模型可见最终线索或简短 suppressed 状态，不含审计正文） |
 | `marker_write` / `marker_delete` / `marker_quarantine` | write-ahead marker 生命周期（v5） | sessionId 等 |
 | `enqueue_done` | `capture --no-flush` 入队完成（v5） | outcome、job_id、sha256、transcript_bytes |
 | `flush_schedule` / `flush_cancel` / `flush_done` | 防抖 flush 排程 / 取消 / 完成（v5） | outcome=completed/busy/failed |
@@ -310,8 +315,7 @@ full-session 资产为准。该改动只在直接引用的 Python script 中，�
   候选级真实用户标注；集体 review 时先按 `session_id` 与 Pi transcript 关联。
 - 同目录 `memory-drafts/pi/<project>/*.md`——Pi 向 Hub 写 session memory 前的可读提取稿；同时包含
   较完整源字段与实际 outbound `distilled_content`，不受 trace 单字段 20k 字符截断影响。
-- 同目录 `recall-results/pi/<project>/*.md`——Pi 召回的完整本地审计包：Hub 原始响应、同次 Judge 精简结果、
-  客户端实际注入上下文，以及全部放行记忆/provenance 均须保留；文件路径只显示给 TUI，不注入 agent context。
+- 同目录 `recall-results/pi/<project>/*.md`——Pi 召回的完整本地审计包：跨 project scope、Stage A/B 解析结果与模型/尝试/耗时/来源、服务端与客户端最终上下文、suppression/validation、Hub 原始响应和全部 facts/provenance；文件路径只显示给 TUI，不注入 agent context。
 
 每轮检索测试/分析前用 `python3 scripts/rotate_pi_trace.py`（可加 `--include-hook-trace`）把旧
 trace 轮转到 `trace-backups/`，保证当轮数据干净；扩展按事件 append 写 trace、无持久句柄，

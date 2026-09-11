@@ -136,10 +136,10 @@ Pi v30 与 Claude/Codex recall 对纯寒暄/单独测试词做客户端快速跳
 
 <memory category="core-rules">
 查询级 Judge 重实现契约（已定版；实现/部署状态须另验，旧 Pi v31 / Judge v15 客户端降级链已否决）：
-- prompt 中的 `ws:<id>` / `project:<id>` 是当前 project 的**追加 scope**；去重后由服务端合并候选并只跑一次统一 Judge，不能替换当前 scope 或由客户端分次查询。
+- prompt 中的 `ws:<id>` / `project:<id>` 是当前 project 的**追加 scope**；Pi v32/共享 Python 客户端只从任务意图段提取（不扫粘贴日志），应用既有 project alias、按出现顺序去重、排除当前项，最多 8 个，通过一次请求交给服务端统一鉴权/合并候选/Judge；领先 `project:` 也不再替换当前 scope。手工工具的 `project` 参数仍可显式选择主 scope。
 - 服务端独占 A/B 两阶段：A 产出需求槽位与证据判定，B 只基于 A 的结构化结果综合最终可注入证据。
-- 任一阶段失败或 B 结果不可靠都返回空上下文；客户端不得降级注入 `injection_results` 或原记忆，宁可不注入。
-- 审计模式在同一响应下发 A/B 结构化结果、来源映射、模型/耗时/尝试/状态，不新增 LLM 调用；不下发思维过程，审计只写客户端详情文件和服务端记录，绝不进入模型上下文。
+- 任一阶段失败或 B 结果不可靠都返回空上下文；客户端不得降级注入 `injection_results` 或原记忆，宁可不注入。Pi 将该状态显示为 suppressed，并明确禁止 agent 自动重试。
+- Hook 固定请求 `include_audit=true`：同一响应下发 scope、A/B 结构化结果、来源映射、模型/耗时/尝试/状态，不新增 LLM 调用；不下发思维过程。客户端详情文件原样保留这些字段、Hub 完整响应、全部 facts/provenance 与最终实际上下文，但只有 `injection_context` 进入模型。
 </memory>
 
 Pi 扩展 v22+：用户用 `/skill:name` 显式指定 skill 的首轮 prompt **跳过自动预热检索**——pi 会把 skill 展开为 `<skill name="…" location="…">` 块注入 prompt 开头（裸 `/skill:` 未展开命令作兜底匹配），扩展检测到即跳过，trace outcome 记 `skipped_skill_invocation` 并照常写 bootstrap-done 标记（同 session 后续不补检索）。排查「首轮预热没跑」先认这个 outcome，是设计行为不是故障；`memory_search` 工具不受影响，skill 内仍可主动检索。

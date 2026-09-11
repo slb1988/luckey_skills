@@ -36,6 +36,7 @@ const projectDirectiveMode = process.env.PROJECT_DIRECTIVE === "1";
 const chatHubIdentityMode = process.env.CHAT_HUB_IDENTITY === "1";
 const multilinePromptMode = process.env.MULTILINE_PROMPT === "1";
 const lowSignalBootstrapMode = process.env.LOW_SIGNAL_BOOTSTRAP === "1";
+const suppressedBootstrapMode = process.env.SUPPRESSED_BOOTSTRAP === "1";
 const recallCancelMode = process.env.RECALL_CANCEL === "1";
 const personaManualMode = process.env.PERSONA_MANUAL === "1";
 const personaOversizeMode = process.env.PERSONA_OVERSIZE === "1";
@@ -68,7 +69,7 @@ const notifyCalls = [];
 const terminalInputHandlers = new Set();
 const ctx = {
 	cwd: process.cwd(),
-	hasUI: scoreGateMode || scoreAllZeroMode || recallCancelMode,
+	hasUI: scoreGateMode || scoreAllZeroMode || recallCancelMode || suppressedBootstrapMode,
 	mode: "tui",
 	ui: {
 		setWidget(key, lines) {
@@ -139,6 +140,13 @@ try {
 		assert.match(empty.content[0].text, /completed successfully.*no matching memory/);
 		assert.match(empty.content[0].text, /candidates: 10, kept: 0/);
 		assert.doesNotMatch(empty.content[0].text, /unavailable|failed/);
+		process.env.FAKE_SEARCH_MODE = "suppressed";
+		const suppressed = await tool.execute("suppressed", { query: "test" }, undefined, undefined, ctx);
+		assert.equal(suppressed.details.outcome, "suppressed");
+		assert.match(suppressed.content[0].text, /no safe actionable context/);
+		assert.match(suppressed.content[0].text, /Raw candidates were deliberately not injected/);
+		assert.doesNotMatch(suppressed.content[0].text, /raw candidate must not inject/);
+		assert.equal(traceEntries("search").at(-1).outcome, "suppressed");
 		for (const [mode, code] of [
 			["error", "RETRIEVAL_CORRECTION_RESOLVER_UNAVAILABLE"],
 			["bad-error", "RETRIEVAL_CORRECTION_RESOLVER_UNAVAILABLE"],
@@ -219,6 +227,23 @@ try {
 		assert.equal(toolResult.details.truncated, true);
 		assert.ok(traceEntries("memory_persona_card").every((entry) => entry.truncated === true));
 		console.log(JSON.stringify({ ok: true, mode: "persona-oversize" }));
+	} else if (suppressedBootstrapMode) {
+		process.env.FAKE_SEARCH_MODE = "suppressed";
+		await handlers.get("session_start")({}, ctx);
+		const result = await handlers.get("before_agent_start")(
+			{ prompt: "investigate suppressed memory", systemPrompt: "base-system" },
+			ctx,
+		);
+		assert.equal(result, undefined, "suppressed Stage B must not inject a system prompt");
+		assert.equal(traceEntries("project_bootstrap")[0].outcome, "suppressed");
+		assert.equal(traceEntries("project_bootstrap")[0].injected_count, 0);
+		assert.ok(
+			notifyCalls.some((entry) => /未形成安全可行动线索/.test(entry.message)),
+			"suppressed bootstrap must explain the empty injection",
+		);
+		assert.doesNotMatch(JSON.stringify(traceEntries("project_bootstrap")[0]), /raw candidate must not inject/);
+		assert.ok(existsSync(join(stateDir, "pi-bootstrap-done", "sess-e2e.json")));
+		console.log(JSON.stringify({ ok: true, mode: "suppressed-bootstrap" }));
 	} else if (lowSignalBootstrapMode) {
 		await handlers.get("session_start")({}, ctx);
 		const greeting = await handlers.get("before_agent_start")(

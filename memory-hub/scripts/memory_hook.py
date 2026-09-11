@@ -80,7 +80,7 @@ RETRIEVAL_INJECTION_RESULTS_MAX_CHARS = 4000
 RETRIEVAL_INJECTION_CONTEXT_MAX_CHARS = 4000
 MAX_REFERENCED_PROJECTS = 8
 REFERENCED_PROJECT_RE = re.compile(
-    r"(?<![A-Za-z0-9._:-])(?:ws|project):([A-Za-z0-9][A-Za-z0-9._:-]{0,127})",
+    r"(?<![A-Za-z0-9._:-])(ws|project):([A-Za-z0-9][A-Za-z0-9._:-]{0,127})",
     re.IGNORECASE,
 )
 # Pi 记忆写入前的可读审计稿。spool 对象在 job 完成后会清理；该目录保留
@@ -317,6 +317,35 @@ def parse_server_injection_context(
     return context, status, suppression_reason, None
 
 
+def workspace_memory_projects() -> Dict[str, str]:
+    configured = os.environ.get("AGENT_CONTROL_REGISTRY_PATH")
+    path = (
+        Path(configured).expanduser()
+        if configured
+        else Path.home() / ".local" / "state" / "agent-control" / "workspaces.json"
+    )
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    bindings = payload.get("bindings") if isinstance(payload, dict) else None
+    if not isinstance(bindings, dict):
+        return {}
+    result = {}
+    for workspace_id, binding in bindings.items():
+        if not isinstance(workspace_id, str) or not isinstance(binding, dict):
+            continue
+        memory_project = binding.get("memoryProject")
+        if not isinstance(memory_project, str) or not memory_project.strip():
+            continue
+        local_aliases = binding.get("localAliases")
+        keys = [workspace_id, *(local_aliases if isinstance(local_aliases, list) else [])]
+        for key in keys:
+            if isinstance(key, str) and key.strip():
+                result[key.strip().lower()] = memory_project.strip().lower()
+    return result
+
+
 def extract_referenced_project_ids(
     query: str,
     current_project_id: str,
@@ -324,14 +353,20 @@ def extract_referenced_project_ids(
 ) -> List[str]:
     intent = query.split("\n上下文:", 1)[0]
     aliases = project_aliases()
-    values = list(explicit or []) + [match.group(1) for match in REFERENCED_PROJECT_RE.finditer(intent)]
+    workspaces = workspace_memory_projects()
+    values = [("project", value) for value in (explicit or [])]
+    values.extend(
+        (match.group(1).lower(), match.group(2))
+        for match in REFERENCED_PROJECT_RE.finditer(intent)
+    )
     referenced = []
     current = normalize_identifier(current_project_id, current_project_id).lower()
-    for value in values:
+    for namespace, value in values:
         normalized = normalize_identifier(value, "").lower()
         if not normalized:
             continue
-        project_id = aliases.get(normalized, normalized)
+        resolved = workspaces.get(normalized, normalized) if namespace == "ws" else normalized
+        project_id = aliases.get(resolved, resolved)
         if project_id == current or project_id in referenced:
             continue
         referenced.append(project_id)
@@ -2289,7 +2324,11 @@ class HubClient:
             # 只兼容完全没有 v2 的旧 Hub。LLM 门禁 503/坏响应绝不能回退 v1，
             # 否则未判候选会绕过 correctness-first 契约进入 agent 上下文。
             detail = str(error)
-            if not detail.startswith("HTTP 404:"):
+            legacy_endpoint_missing = (
+                detail.startswith("HTTP 404:")
+                and error.error_code in (None, "NOT_FOUND")
+            )
+            if not legacy_endpoint_missing:
                 raise
 
         result = self.request(

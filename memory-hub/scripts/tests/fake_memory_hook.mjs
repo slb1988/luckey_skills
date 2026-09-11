@@ -109,6 +109,29 @@ function respondNow(args) {
 			}));
 			return;
 		}
+		if (mode === "suppressed") {
+			console.log(JSON.stringify({
+				facts: [{ result_id: "memory-suppressed", text: "raw candidate must not inject" }],
+				context: "",
+				context_stats: {
+					source: "server_suppressed_invalid",
+					status: "suppressed_invalid",
+					suppression_reason: "synthesis_invalid",
+					facts_returned: 1,
+					clue_items: 0,
+					source_memories: 0,
+					injected: 0,
+					chars: 0,
+					max_chars: 12000,
+				},
+				quality: {
+					mode: "llm", candidates: 3, kept: 1, min_rating: 2,
+					stage_a: { status: "completed" },
+					stage_b: { status: "suppressed_invalid", suppression_reason: "synthesis_invalid" },
+				},
+			}));
+			return;
+		}
 		if (mode === "error" || mode === "bad-error") {
 			console.log(JSON.stringify({ error: {
 				code: "RETRIEVAL_CORRECTION_RESOLVER_UNAVAILABLE", http_status: 503, retryable: true,

@@ -260,6 +260,12 @@ class PiExtensionE2ETest(unittest.TestCase):
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "low-signal-bootstrap")
 
+    def test_suppressed_stage_b_never_injects_raw_candidates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(Path(directory), {"SUPPRESSED_BOOTSTRAP": "1"})
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "suppressed-bootstrap")
+
     def test_project_bootstrap_accepts_leading_project_directive(self):
         with tempfile.TemporaryDirectory() as directory:
             summary = self.run_driver(Path(directory), {"PROJECT_DIRECTIVE": "1"})
