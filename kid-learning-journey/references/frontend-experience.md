@@ -48,7 +48,7 @@ Route guards and the backend must both enforce roles. Frontend hiding is not aut
 
 - `views/guardian/GuardianDailyView.vue`: compose, upload, review, and publish daily material.
 - `views/child/HomeworkDayView.vue`: view current or historical daily entries and tasks.
-- `components/ContentBlockRenderer.vue`: preserve ordered mixed blocks and use native image, audio, and video presentation. Image blocks open `components/ImageLightbox.vue` (fullscreen dialog, Escape/backdrop/close-button dismissal, scroll lock, focus restore) so children can inspect worksheets up close; decorative character art stays non-interactive.
+- `components/ContentBlockRenderer.vue`: preserve ordered mixed blocks and use native image, audio, and video presentation. Image blocks open `components/ImageLightbox.vue` (fullscreen dialog, Escape/backdrop/close-button dismissal, scroll lock, focus restore) so children can inspect worksheets up close, and offer a print button that posts to `/assets/{asset_id}/print` (idempotent, 10-minute duplicate window, dispatched via the backend's configured `PRINT_COMMAND` or held pending). Decorative character art stays non-interactive.
 
 Resolve media URLs through the API service so absolute and relative deployments work. Keep audio/video controls touch-friendly and allow range-based playback from the backend.
 

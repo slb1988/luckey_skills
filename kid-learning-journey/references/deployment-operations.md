@@ -35,6 +35,7 @@ The frontend is exposed on 8088 and the backend on 5100. The backend runs Gunico
 ## Configuration boundaries
 
 - `DATA_ROOT` controls database and media placement.
+- `PRINT_COMMAND` optionally names a local command that receives the absolute image path of each print job; without it print jobs stay pending as a spool for a later bridge (for example a NAS-side printer).
 - When no explicit database URI is set, SQLite lives below `DATA_ROOT`.
 - The application creates staging and media directories.
 - Production startup must run migrations before serving requests.

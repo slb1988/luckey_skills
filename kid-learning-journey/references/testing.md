@@ -8,7 +8,7 @@ uv run ruff check src tests
 uv run pytest -q
 ```
 
-The current baseline has 19 passing backend tests. `test_homework_center.py` covers dated image/audio/video archiving, task/star idempotency, one-time reward deduction, and Chat Hub pending-review ingestion.
+The current baseline has 41 passing backend tests. `test_homework_center.py` covers dated image/audio/video archiving, task/star idempotency, one-time reward deduction, and Chat Hub pending-review ingestion. `test_print_jobs.py` covers image print dispatch, the pending spool, the duplicate window, and authorization.
 
 ## Frontend
 
@@ -18,7 +18,7 @@ pnpm test -- --run
 pnpm build
 ```
 
-The current baseline has four unit tests and a successful production build. Extend tests when changing API URL resolution, offline replay, pinyin behavior, or preferences.
+The current baseline has 28 passing frontend unit tests and a successful production build. Extend tests when changing API URL resolution, offline replay, pinyin behavior, preferences, or content-block media interactions.
 
 ## End-to-end and visual
 

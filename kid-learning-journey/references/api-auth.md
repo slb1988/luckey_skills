@@ -30,6 +30,7 @@ The daily learning endpoints under `/api/v1` include:
 - daily-entry draft creation, listing, editing, asset upload, and publication;
 - learner day and calendar views;
 - protected asset content;
+- image print requests dispatched to a local command;
 - assignments and complete/verify/revoke actions;
 - star summary, rewards, redemption requests, and approvals.
 

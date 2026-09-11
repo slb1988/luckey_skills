@@ -33,6 +33,7 @@ Keep transactions short. Let constraints enforce uniqueness and use application-
 
 - `ResourceImportJob`, `AIJob`, `MemoryOutbox`
 - `IdempotencyRecord`: unique by actor, endpoint, and key, with the cached status and response.
+- `PrintJob`: child-initiated image print requests, dispatched to a local command or held pending as a spool.
 
 ### Daily learning center
 
