@@ -21,11 +21,12 @@ Markdown 标题、列表、链接和解释正文保留。Spool 每个 job 固化
 ## 首轮自动召回（recall / bootstrap）
 
 **三端都有首轮自动召回**（2026-08-29 起）：Pi 走扩展 `before_agent_start`；Claude/Codex 走
-`UserPromptSubmit` hook → `memory_hook.py recall --source <agent>`。同一语义：首个用户 prompt +
-project hint 做一次 focused recall（limit=6、默认最多 4000 字符、120 秒故障上限），**每个 session
-只查一次**——recall 用 `recall-markers/` 落盘标记（含失败/空结果），Pi v12 用
-`pi-bootstrap-done/` 持久标记（进程内集合仅作同进程快路径）；超时/空结果/
-服务故障都不在后续 prompt 重试。结果经 stdout 注入上下文；`MEMORY_HOOK_RECALL=0` 关闭
+`UserPromptSubmit` hook → `memory_hook.py recall --source <agent>`。同一语义：首个有效用户任务 +
+project hint 做一次 focused recall（limit=6、默认最多 4000 字符、120 秒故障上限）。纯寒暄/单独测试词
+在客户端本地跳过，不请求 Hub，也不消耗该 session 的召回机会；之后首个有效任务仍会召回。有效任务
+无论长短都保留原意，不再按字符数改写成通用项目背景。完成请求后每个 session 只查一次——recall 用
+`recall-markers/` 落盘标记（含失败/空结果），Pi 用 `pi-bootstrap-done/` 持久标记（进程内集合仅作
+同进程快路径）；超时/空结果/服务故障都不在后续 prompt 重试。结果经 stdout 注入上下文；`MEMORY_HOOK_RECALL=0` 关闭
 Claude/Codex 侧，Pi 侧用 `MEMORY_HOOK_PI_BOOTSTRAP_RECALL=0`。后续深挖用 `memory_search`（Pi）/
 `memory_hook.py search` CLI（Claude/Codex）；首次预算可用 `MEMORY_HOOK_PI_BOOTSTRAP_LIMIT` 与
 `MEMORY_HOOK_PI_BOOTSTRAP_MAX_CHARS` 调整（Pi），避免每个 session 固定注入大段历史。
@@ -137,8 +138,8 @@ Windows 写入注册表 `HKCU\Environment` 并广播 `WM_SETTINGCHANGE`；POSIX 
 - Stop 每轮直接执行 `capture`，不得带 `--flush-limit 0`；SessionEnd 再提交最终幂等快照。
 - Codex 必须通过 app-server `hooks/list` 确认 3 个 handlers 均为 `trusted`，且没有 Memory Hub 相关 warning/error。
 - Pi 全局扩展必须包含 `before_agent_start`、`agent_end`、`session_shutdown`；`before_agent_start` 在每个
-  session 的首轮按 cwd/project 阻塞执行一次精炼背景检索（默认 limit=6、最多 4000 字符、120 秒超时），
-  然后取消挂起归档。无结果、报错或超时均 fail-open，且本 session 后续 prompt 不重试；`agent_end`
+  session 的首个有效任务按 cwd/project 阻塞执行一次精炼背景检索（默认 limit=6、最多 4000 字符、120 秒超时）；
+  纯寒暄本地跳过且不消耗召回机会。无结果、报错或超时均 fail-open，且完成请求后本 session 不重试；`agent_end`
   走 AFK 防抖上传（默认空闲 5 分钟才归档，新 prompt 取消重计），`session_shutdown` 立即归档。
   v27 还必须注册 `/memory-card`、`memory_persona_card` 与默认关闭的 `MEMORY_HOOK_PI_PERSONA_CARD=1` opt-in 路径，card 客户端上限 2500 字符并独立 fail-open/trace。
 - 安装器返回的各 agent `ok=true`。服务健康检查失败可保留 durable spool，但必须明确报告"已安装、尚未端到端验证"，不得宣称上传链路正常。
@@ -186,21 +187,25 @@ agent 上下文。单次候选上限 10，首轮仍取 6 条/最多 4000 字符�
 **v29 检索诊断**：手工 `memory_search` 的 empty 明确表示成功零结果（含候选/保留数）；
 error/timeout 抛真正的 Pi 工具错误，取消保持独立。CLI `search --json` 失败同时输出非零退出码
 与安全结构化 error（code/http_status/retryable/request_id/retrieval_id）；这些字段进入 hook/Pi trace，
-不回显原始响应体/HTML/凭据。旧扩展必须重跑 `install --agents pi` 部署模板；已有 Pi 会话需
-`/reload` 或新进程，chat-hub 长驻 RPC 同样需要在空闲时重载/重启才使用新工具实现。
+不回显原始响应体/HTML/凭据。
+
+**v30 首问与计数语义**：Pi、Claude、Codex 在客户端识别纯寒暄/单独测试词并静默跳过，不写完成 marker；
+同 session 后续首个有效任务仍会召回。有效短任务直接进入 query，不再退回「项目概况/架构/决策」宽泛
+查询。`search --json` 增加 `context_stats`（返回条数、实际注入条数、字符数与预算）；Pi TUI、trace 和
+本地结果文件据此区分「候选 / LLM 放行 / 实际注入」。旧扩展必须重跑 `install --agents pi` 部署模板；
+已有 Pi 会话需 `/reload` 或新进程，chat-hub 长驻 RPC 同样需要在空闲时重载/重启才使用新实现。
 
 **v19 起 Pi TUI 对召回结果可感知**：首轮 bootstrap 和手工 `memory_search` 都改用结构化 JSON
-响应。阻塞等待期间顶部 widget 显示“正在检索并审核”与累计耗时；完成后清理 widget，在状态栏
-保留 `识别数/候选数 · project · 耗时`，并用 notification 展示最多 3 条已放行记忆的摘要。空结果、
-超时和错误也会明确提示“本轮未注入”。前端只看 Hub 的聚合 `quality` 与已放行结果，不展示 LLM
-理由、冲突字段或被拒候选；提示失败不影响 agent。新 session 会清理上一 session 的残留状态。
-Claude/Codex 暂无同等扩展 UI，`UserPromptSubmit` 注入头部只增加一行
-`LLM 审核通过 kept/candidates` 聚合状态，作为弱支持。
+响应。阻塞等待期间顶部 widget 显示“正在检索并审核”与累计耗时；完成后清理 widget，状态栏和
+notification 显示 `候选 · LLM 放行 · 实际注入 · project · 耗时`，摘要只取实际注入的前 3 条。
+空结果、超时和错误也会明确提示“本轮未注入”。前端只看 Hub 的聚合 `quality` 与已放行结果，不展示
+LLM 理由、冲突字段或被拒候选；提示失败不影响 agent。新 session 会清理上一 session 的残留状态。
+Claude/Codex 暂无同等扩展 UI，`UserPromptSubmit` 注入头部同样区分候选、放行与实际注入数。
 
 **v20 起每次 Pi 成功完成的首轮/手工召回都会原子写一份本地 Markdown**，路径为
-`${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/recall-results/pi/<project>/`。文件顶部先给
-`kept/candidates + 最多 3 条摘要`，再列 query、耗时、retrieval/quality JSON，以及每条已放行记忆的
-摘要、返回文本、分数组件和 provenance。Pi notification 末尾显示绝对路径；状态栏保持短格式。
+`${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/recall-results/pi/<project>/`。文件顶部列出
+候选、LLM 放行、实际注入、注入字符预算及最多 3 条注入摘要，再列 query、耗时、retrieval/quality JSON，
+以及每条已放行记忆的摘要、返回文本、分数组件和 provenance。Pi notification 末尾显示绝对路径；状态栏保持短格式。
 **路径和审计元数据不进入 systemPrompt，也不进入 `memory_search` tool content**，只有 TUI 与本地 trace
 可见。文件目前不自动清理，避免临时回看时丢失；服务端未返回的被拒候选仍不会写到客户端文件。
 
@@ -282,11 +287,11 @@ full-session 资产为准。该改动只在直接引用的 Python script 中，�
 | kind | 时机 | 关键字段 |
 |---|---|---|
 | `session_start` | 会话开始 | session_id、cwd |
-| `project_bootstrap` | session 首轮项目背景预热（v12+） | query、limit、project_override、outcome（v20：injected/empty/error/timeout/disabled/skipped_extraction/skipped_capture_env；v25+ 另有 cancelled）、exit_code、duration_ms、quality、result_file、result_chars；审核细节按 retrieval_id 在服务端查 |
+| `project_bootstrap` | session 首个有效任务的项目背景预热 | query、limit、project_override、outcome（含 injected/empty/error/timeout/disabled/skipped_extraction/skipped_capture_env/cancelled；纯寒暄另记 skipped_low_signal_prompt 且不写完成 marker）、exit_code、duration_ms、quality、context_stats、injected_count、result_file、result_chars；审核细节按 retrieval_id 在服务端查 |
 | `project_bootstrap_skip` | 已有持久完成标记，恢复旧 session 不重复回溯（v12） | session_id、outcome=already_completed |
 | `recall_cancel` | v25+ 用户在预热/检索等待期间按 Esc/Ctrl+C 手动中断 | session_id、cwd、key=escape\|ctrl_c |
 | `recall_score` / `recall_score_wait` | v12-v17 历史玩家评分事件；v18 不再产生 | total、scored、dropped、kept / rank、outcome |
-| `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、quality、result_file、result（模型可见结果全文，不含文件路径） |
+| `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、quality、context_stats、injected_count、result_file、result（模型可见结果全文，不含文件路径） |
 | `marker_write` / `marker_delete` / `marker_quarantine` | write-ahead marker 生命周期（v5） | sessionId 等 |
 | `enqueue_done` | `capture --no-flush` 入队完成（v5） | outcome、job_id、sha256、transcript_bytes |
 | `flush_schedule` / `flush_cancel` / `flush_done` | 防抖 flush 排程 / 取消 / 完成（v5） | outcome=completed/busy/failed |

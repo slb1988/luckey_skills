@@ -35,6 +35,7 @@ const skillBootstrapMode = process.env.SKILL_BOOTSTRAP === "1";
 const projectDirectiveMode = process.env.PROJECT_DIRECTIVE === "1";
 const chatHubIdentityMode = process.env.CHAT_HUB_IDENTITY === "1";
 const multilinePromptMode = process.env.MULTILINE_PROMPT === "1";
+const lowSignalBootstrapMode = process.env.LOW_SIGNAL_BOOTSTRAP === "1";
 const recallCancelMode = process.env.RECALL_CANCEL === "1";
 const personaManualMode = process.env.PERSONA_MANUAL === "1";
 const personaOversizeMode = process.env.PERSONA_OVERSIZE === "1";
@@ -218,6 +219,31 @@ try {
 		assert.equal(toolResult.details.truncated, true);
 		assert.ok(traceEntries("memory_persona_card").every((entry) => entry.truncated === true));
 		console.log(JSON.stringify({ ok: true, mode: "persona-oversize" }));
+	} else if (lowSignalBootstrapMode) {
+		await handlers.get("session_start")({}, ctx);
+		const greeting = await handlers.get("before_agent_start")(
+			{ prompt: "hi!", systemPrompt: "base-system" },
+			ctx,
+		);
+		assert.equal(greeting, undefined, "pure greeting must not inject memory");
+		assert.equal(hookCalls("search").length, 0, "pure greeting must not search");
+		assert.equal(traceEntries("project_bootstrap")[0].outcome, "skipped_low_signal_prompt");
+		assert.ok(
+			!existsSync(join(stateDir, "pi-bootstrap-done", "sess-e2e.json")),
+			"pure greeting must not consume the session bootstrap opportunity",
+		);
+
+		const shortTask = await handlers.get("before_agent_start")(
+			{ prompt: "修复", systemPrompt: "base-system" },
+			ctx,
+		);
+		assert.match(shortTask.systemPrompt, /严格测试驱动/);
+		assert.equal(hookCalls("search").length, 1, "the next meaningful prompt must search");
+		assert.match(hookCalls("search")[0].argv[1], /任务: 修复$/);
+		assert.doesNotMatch(hookCalls("search")[0].argv[1], /项目概况|核心架构/);
+		assert.equal(traceEntries("project_bootstrap").at(-1).outcome, "injected");
+		assert.ok(existsSync(join(stateDir, "pi-bootstrap-done", "sess-e2e.json")));
+		console.log(JSON.stringify({ ok: true, mode: "low-signal-bootstrap" }));
 	} else if (catchupMode) {
 		// catch-up 场景：session_start 前预置遗留 marker——合法可补传、半截损坏、
 		// transcript 已消失（应保留 marker）、extraction 子 session（应终态删除）
@@ -612,12 +638,13 @@ try {
 					statusCalls.every((entry) => !String(entry.value).includes("记忆识别中")),
 					"the progress widget must not be duplicated in the bottom status bar",
 				);
-				assert.match(notifyCalls[0].message, /已识别 2\/3 条历史记忆/);
+				assert.match(notifyCalls[0].message, /候选 3 条，LLM 放行 2 条，实际注入 1 条/);
 				assert.match(notifyCalls[0].message, /项目验证约定/);
 				assert.match(notifyCalls[0].message, /详情文件：.*recall-results/);
 				assert.ok(existsSync(join(stateDir, "recall-results", "pi", "fixture", "fixture-recall.md")));
 				assert.doesNotMatch(firstStart.systemPrompt, /recall-results|fixture-recall\.md/);
-				assert.ok(statusCalls.some((entry) => String(entry.value).includes("记忆 2\/3")));
+				assert.ok(statusCalls.some((entry) => String(entry.value).includes("候选 3 · 放行 2 · 注入 1")));
+				assert.equal(traceEntries("project_bootstrap")[0].injected_count, 1);
 			}
 		}
 		const secondStart = await handlers.get("before_agent_start")(
@@ -682,7 +709,7 @@ try {
 			["--session-id", "sess-e2e"],
 		);
 		if (ctx.hasUI) {
-			assert.match(notifyCalls.at(-1).message, /已识别 2\/3 条历史记忆/);
+			assert.match(notifyCalls.at(-1).message, /候选 3 条，LLM 放行 2 条，实际注入 1 条/);
 		}
 
 		// agent_end → enqueue 立即触发并 await 完成（handler 返回即 durable）

@@ -28,6 +28,7 @@ from memory_hook import (
     command_search,
     flush_pending,
     format_context,
+    format_context_with_count,
     head_tail_sample,
     load_session_texts,
     pi_memory_draft_path,
@@ -253,12 +254,17 @@ class MemoryHookTest(unittest.TestCase):
             self.assertEqual(seen, [120.0])
             self.assertEqual(payload["project_id"], "maindev")
             self.assertEqual(payload["quality"]["kept"], 1)
+            self.assertEqual(
+                payload["context_stats"],
+                {"facts_returned": 1, "injected": 1, "chars": len(payload["context"]), "max_chars": 4000},
+            )
             self.assertIn("先小范围验证", payload["context"])
             result_file = Path(payload["result_file"])
             self.assertTrue(result_file.is_file())
             result_text = result_file.read_text(encoding="utf-8")
             self.assertTrue(result_text.startswith("# Memory Hub Recall Result\n\n## 本轮摘要"))
-            self.assertIn("LLM 审核通过 `1/3` 条历史记忆", result_text)
+            self.assertIn("候选 `3` 条，LLM 放行 `1` 条，实际注入 `1` 条", result_text)
+            self.assertIn("注入字符：", result_text)
             self.assertIn("历史决策", result_text)
             self.assertIn("先小范围验证", result_text)
             self.assertIn("session_id: `sess-ui`", result_text)
@@ -962,7 +968,7 @@ class MemoryHookTest(unittest.TestCase):
                     self.assertEqual(command_recall(self._recall_args(), config), 0)
                 first = stdout.getvalue()
                 self.assertIn("自动首轮预热", first)
-                self.assertIn("LLM 审核通过 1/3 条历史记忆", first)
+                self.assertIn("候选 3 条，LLM 放行 1 条，实际注入 1 条", first)
                 self.assertIn("recall 配置方法", first)
                 self.assertEqual(len(calls), 1)
                 query, project_id, limit, user_id = calls[0]
@@ -1029,7 +1035,7 @@ class MemoryHookTest(unittest.TestCase):
             markers = list((root / "state" / "recall-markers").iterdir())
             self.assertEqual(len(markers), 1)
 
-    def test_recall_short_prompt_falls_back_to_topics(self):
+    def test_recall_low_signal_skips_then_short_task_preserves_intent(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
             root = Path(directory)
             config = Config(
@@ -1051,13 +1057,23 @@ class MemoryHookTest(unittest.TestCase):
                 stdout = io.StringIO()
                 with patch(
                     "sys.stdin",
-                    io.StringIO(self._recall_payload(root, session_id="sess-2", prompt="hi")),
+                    io.StringIO(self._recall_payload(root, session_id="sess-2", prompt="hi!")),
                 ), patch("sys.stdout", stdout):
                     self.assertEqual(command_recall(self._recall_args(), config), 0)
-                self.assertEqual(stdout.getvalue(), "")  # 空结果不注入
+                self.assertEqual(stdout.getvalue(), "")
+                self.assertEqual(calls, [])
+                self.assertFalse((root / "state" / "recall-markers").exists())
+
+                with patch(
+                    "sys.stdin",
+                    io.StringIO(self._recall_payload(root, session_id="sess-2", prompt="修复")),
+                ), patch("sys.stdout", io.StringIO()):
+                    self.assertEqual(command_recall(self._recall_args(), config), 0)
                 self.assertEqual(len(calls), 1)
-                self.assertIn("项目概况", calls[0])
+                self.assertIn("修复", calls[0])
+                self.assertNotIn("项目概况", calls[0])
                 self.assertIn(root.name, calls[0])
+                self.assertEqual(len(list((root / "state" / "recall-markers").iterdir())), 1)
 
     def test_format_context_exposes_structured_provenance_with_bounded_text(self):
         output = format_context(
@@ -1082,6 +1098,18 @@ class MemoryHookTest(unittest.TestCase):
         self.assertIn("session=pi:maindev:session-a", output)
         self.assertIn("摘要：DT 静态网格同步", output)
         self.assertIn("删除 10 条，最终 214 行", output)
+
+    def test_format_context_reports_actual_injected_count(self):
+        output, injected = format_context_with_count(
+            [
+                {"text": "A" * 500},
+                {"text": "B" * 500},
+            ],
+            700,
+        )
+        self.assertEqual(injected, 1)
+        self.assertIn("A" * 100, output)
+        self.assertNotIn("B" * 100, output)
 
     def test_strip_skill_wrapper_recovers_real_user_text(self):
         wrapped = (

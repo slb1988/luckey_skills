@@ -221,9 +221,9 @@ class PiExtensionE2ETest(unittest.TestCase):
             summary = self.run_driver(Path(directory), {"SEARCH_DIAGNOSTICS": "1"})
             self.assertEqual(summary["mode"], "search-diagnostics")
 
-    def test_pi_template_is_v29(self):
+    def test_pi_template_is_v30(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
-        self.assertIn('const EXTENSION_VERSION = "29";', template)
+        self.assertIn('const EXTENSION_VERSION = "30";', template)
 
     def test_project_bootstrap_default_timeout_is_two_minutes(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
@@ -253,6 +253,12 @@ class PiExtensionE2ETest(unittest.TestCase):
             summary = self.run_driver(Path(directory), {"SKILL_BOOTSTRAP": "1"})
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "skill-bootstrap")
+
+    def test_low_signal_prompt_skips_then_short_task_preserves_intent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(Path(directory), {"LOW_SIGNAL_BOOTSTRAP": "1"})
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "low-signal-bootstrap")
 
     def test_project_bootstrap_accepts_leading_project_directive(self):
         with tempfile.TemporaryDirectory() as directory:

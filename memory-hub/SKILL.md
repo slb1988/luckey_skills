@@ -131,8 +131,8 @@ MainDev `Tools/AiReview` 内的 Memory Hub 客户端是 CI 专用分支，只做
 </memory>
 
 <memory category="troubleshooting">
-Pi v29 首轮预热使用提炼后的 intent；当 `intent.length < 4` 时，不检索原文，而是将 query 完全替换为 `${projectHint} ${bootstrapTopics}`（项目概况/架构/决策/进展/待办/约定）。因此 `hi`/`你好` 触发的是宽泛项目召回和同步 LLM 门禁，不是连通性探针；直接 search 原始短词是另一条语义不同的请求。
-TUI 的「已识别 kept/candidates」来自服务端 quality 聚合，不等于模型可见条数：响应 facts 先受 result limit（默认 6），context 再按顺序加入整条 fact，下一条会突破 `max_chars`（默认 4000）时即停止。`recall-results` 文件列出全部已返回 facts，也不是注入子集；实际 recall 正文长度看 `project_bootstrap.result_chars`。
+Pi v30 与 Claude/Codex recall 对纯寒暄/单独测试词做客户端快速跳过：不请求 Hub、不写完成 marker，同 session 后续首个有效任务仍会召回。有效短任务保留原意，不再因字符数过短而替换为宽泛项目背景；排查旧副本仍把 `hi` 改写成「项目概况/架构/决策」时，先看 trace 的 `ext_version` 并重跑 install。
+TUI 的计数分三层：服务端候选、LLM 放行、客户端实际注入。响应 facts 仍受 result limit，context 再受 `max_chars` 整条截断；`search --json` 的 `context_stats.injected`、Pi trace 的 `injected_count` 才是模型可见条数。`recall-results` 文件列出全部放行 facts，同时在顶部单列实际注入数和字符预算。
 </memory>
 
 Pi 扩展 v22+：用户用 `/skill:name` 显式指定 skill 的首轮 prompt **跳过自动预热检索**——pi 会把 skill 展开为 `<skill name="…" location="…">` 块注入 prompt 开头（裸 `/skill:` 未展开命令作兜底匹配），扩展检测到即跳过，trace outcome 记 `skipped_skill_invocation` 并照常写 bootstrap-done 标记（同 session 后续不补检索）。排查「首轮预热没跑」先认这个 outcome，是设计行为不是故障；`memory_search` 工具不受影响，skill 内仍可主动检索。

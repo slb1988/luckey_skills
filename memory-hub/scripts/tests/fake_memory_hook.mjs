@@ -88,7 +88,12 @@ function respondNow(args) {
 	} else if (args[0] === "search") {
 		const mode = process.env.FAKE_SEARCH_MODE;
 		if (mode === "empty") {
-			console.log(JSON.stringify({ facts: [], context: "", quality: { candidates: 10, kept: 0 } }));
+			console.log(JSON.stringify({
+				facts: [],
+				context: "",
+				context_stats: { facts_returned: 0, injected: 0, chars: 0, max_chars: 12000 },
+				quality: { candidates: 10, kept: 0 },
+			}));
 			return;
 		}
 		if (mode === "error" || mode === "bad-error") {
@@ -115,7 +120,7 @@ function respondNow(args) {
 				const resultDir = join(process.env.MEMORY_HOOK_STATE_DIR, "recall-results", "pi", "fixture");
 				mkdirSync(resultDir, { recursive: true });
 				resultFile = join(resultDir, "fixture-recall.md");
-				writeFileSync(resultFile, "# Memory Hub Recall Result\n\n## 本轮摘要\n\n- 识别结果：2/3\n");
+				writeFileSync(resultFile, "# Memory Hub Recall Result\n\n## 本轮摘要\n\n- 候选 3 · 放行 2 · 注入 1\n");
 			}
 			console.log(JSON.stringify({
 				project_id: args.includes("--project")
@@ -127,6 +132,7 @@ function respondNow(args) {
 					policy_version: "v2-fts-top3-llm",
 				},
 				quality: { mode: "llm", candidates: 3, kept: 2, min_rating: 2 },
+				context_stats: { facts_returned: 2, injected: 1, chars: 43, max_chars: 4000 },
 				result_file: resultFile,
 				context: "[project:fixture]\n- 项目使用严格测试驱动；先跑小规模验证再全量修改。",
 				facts: [

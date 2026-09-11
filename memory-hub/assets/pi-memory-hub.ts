@@ -52,7 +52,8 @@ import { Type } from "typebox";
 //   bootstrap 检索 project 改用该 profile_id（可用 MEMORY_HUB_CHAT_HUB_PROJECT_ROUTING=0
 //   关闭），与 hook capture 的归档归属规则对齐。
 // v29：检索成功零结果与请求失败分离；安全结构化错误含HTTP状态/追踪ID，失败抛工具错误。
-const EXTENSION_VERSION = "29";
+// v30：纯寒暄首问本地跳过且不消耗召回机会；短任务保留原意；UI 区分候选、放行与实际注入数。
+const EXTENSION_VERSION = "30";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -80,8 +81,6 @@ const defaultBootstrapMaxChars = 4000;
 // 防止坏响应或未来配置漂移占满模型上下文。
 const personaCardMaxChars = 2500;
 const personaCardTimeoutMs = 15 * 1000;
-const bootstrapTopics =
-	"项目概况、核心架构、历史决策、当前进展、未完成事项、开发约定和重要注意事项";
 
 function flushDelayMs(): number {
 	const raw = process.env.MEMORY_HOOK_PI_CAPTURE_DELAY_MS;
@@ -163,6 +162,20 @@ const skillCommandPrefix = "/skill:";
 
 function isSkillInvocationPrompt(rawPrompt: string): boolean {
 	return rawPrompt.startsWith(skillInjectionPrefix) || rawPrompt.startsWith(skillCommandPrefix);
+}
+
+const lowSignalBootstrapTexts = new Set([
+	"hi", "hello", "hey", "你好", "您好", "在吗", "在么", "在",
+	"继续", "continue", "ok", "okay", "好的", "好", "嗯", "嗯嗯",
+	"test", "测试", "go", "yes", "是", "对", "谢谢", "thanks",
+]);
+
+function isLowSignalBootstrapPrompt(intent: string, context: string): boolean {
+	if (context.trim()) return false;
+	const normalized = intent.trim().toLowerCase()
+		.replace(/[。.!！?？;；,，、~～…_ "'`「」『』《》〈〉:：—-]+$/u, "")
+		.trim();
+	return !normalized || lowSignalBootstrapTexts.has(normalized);
 }
 
 const maxBootstrapQueryChars = 1200;
@@ -311,6 +324,18 @@ function qualityCounts(
 	};
 }
 
+function contextInjectedCount(
+	contextStats: Record<string, unknown> | null,
+	context: string,
+	facts: Record<string, unknown>[],
+): number {
+	const raw = contextStats?.injected;
+	if (typeof raw === "number" && Number.isFinite(raw)) {
+		return Math.max(0, Math.min(facts.length, Math.trunc(raw)));
+	}
+	return context ? facts.length : 0;
+}
+
 function memorySummaries(facts: Record<string, unknown>[]): string {
 	const values: string[] = [];
 	for (const fact of facts.slice(0, 3)) {
@@ -330,25 +355,33 @@ function showRecallOutcome(
 		durationMs: number;
 		quality: Record<string, unknown> | null;
 		facts: Record<string, unknown>[];
+		contextStats: Record<string, unknown> | null;
+		context: string;
 		resultFile: string | null;
 	},
 ): void {
 	if (!ctx.hasUI) return;
 	const seconds = (data.durationMs / 1000).toFixed(1);
 	const counts = qualityCounts(data.quality, data.facts);
-	const ratio = counts.candidates === null ? String(counts.kept) : `${counts.kept}/${counts.candidates}`;
+	const injectedCount = contextInjectedCount(data.contextStats, data.context, data.facts);
+	const statusCounts = counts.candidates === null
+		? `放行 ${counts.kept} · 注入 ${injectedCount}`
+		: `候选 ${counts.candidates} · 放行 ${counts.kept} · 注入 ${injectedCount}`;
+	const messageCounts = counts.candidates === null
+		? `召回 ${counts.kept} 条，实际注入 ${injectedCount} 条`
+		: `候选 ${counts.candidates} 条，LLM 放行 ${counts.kept} 条，实际注入 ${injectedCount} 条`;
 	const fileLine = data.resultFile ? `\n详情文件：${data.resultFile}` : "";
 	try {
 		if (data.outcome === "injected") {
-			const summaries = memorySummaries(data.facts);
-			ctx.ui.setStatus("memory-hub-recall", `🧠 记忆 ${ratio} · ${data.project} · ${seconds}s`);
+			const summaries = memorySummaries(data.facts.slice(0, injectedCount));
+			ctx.ui.setStatus("memory-hub-recall", `🧠 ${statusCounts} · ${data.project} · ${seconds}s`);
 			ctx.ui.notify(
-				`🧠 Memory Hub：已识别 ${ratio} 条历史记忆${summaries ? `｜${summaries}` : ""}（${seconds}s）${fileLine}`,
+				`🧠 Memory Hub：${messageCounts}${summaries ? `｜${summaries}` : ""}（${seconds}s）${fileLine}`,
 				"info",
 			);
 		} else if (data.outcome === "empty") {
-			ctx.ui.setStatus("memory-hub-recall", `🧠 记忆未命中 · ${data.project} · ${seconds}s`);
-			ctx.ui.notify(`Memory Hub：当前问题未识别到可用历史记忆（${seconds}s）${fileLine}`, "info");
+			ctx.ui.setStatus("memory-hub-recall", `🧠 ${statusCounts} · ${data.project} · ${seconds}s`);
+			ctx.ui.notify(`Memory Hub：${messageCounts}，当前问题未识别到可用历史记忆（${seconds}s）${fileLine}`, "info");
 		} else if (data.outcome === "cancelled") {
 			ctx.ui.setStatus("memory-hub-recall", `🧠 记忆召回已跳过 · ${data.project} · ${seconds}s`);
 			ctx.ui.notify(`Memory Hub：已手动跳过历史记忆检索（${seconds}s），本轮直接开始`, "info");
@@ -1166,12 +1199,10 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			markBootstrapDone(sessionId, { cwd: ctx.cwd, outcome: bootstrapSkip });
 			return;
 		}
-		// 先登记 attempted：超时/空结果/服务故障都不在后续 prompt 重试，避免持续
-		// 增加首 token 延迟。手工深挖仍可使用 memory_search 工具。
-		bootstrappedSessions.add(sessionId);
 		const recallEnabled = process.env.MEMORY_HOOK_PI_BOOTSTRAP_RECALL !== "0";
 		const personaEnabled = personaCardAutoEnabled();
 		if (!recallEnabled && !personaEnabled) {
+			bootstrappedSessions.add(sessionId);
 			trace("project_bootstrap", {
 				session_id: sessionId,
 				cwd: ctx.cwd,
@@ -1183,6 +1214,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			return;
 		}
 		if (!recallEnabled) {
+			bootstrappedSessions.add(sessionId);
 			const persona = await loadPersonaCard("bootstrap", ctx.cwd, sessionId);
 			const combinedOutcome = persona.markdown ? "persona_injected" : persona.outcome;
 			trace("project_bootstrap", {
@@ -1215,12 +1247,22 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		// → 其 profile_id 作为检索 project，与归档侧归属规则一致）。
 		const projectOverride = projectDirective.project || chatHubProject;
 		const projectHint = projectOverride || basename(ctx.cwd) || "当前项目";
-		const ratingQuestion = clipText(intent || `${projectHint} 项目背景`, 360);
-		// 首轮应回答用户正在问的问题；只有 prompt 太短时才退回通用项目背景。
-		// 一次查询同时带 project hint，服务端仍按当前 project 硬隔离。
-		const query = intent.length >= 4
-			? `${projectHint} 任务: ${intent}` + (promptFocus.context ? `\n上下文:\n${promptFocus.context}` : "")
-			: `${projectHint} ${bootstrapTopics}`;
+		if (isLowSignalBootstrapPrompt(intent, promptFocus.context)) {
+			trace("project_bootstrap", {
+				session_id: sessionId,
+				cwd: ctx.cwd,
+				prompt_source: promptFocus.source,
+				project_override: projectOverride,
+				outcome: "skipped_low_signal_prompt",
+				recall_outcome: "skipped_low_signal_prompt",
+				persona_outcome: personaEnabled ? "skipped_low_signal_prompt" : "disabled",
+			});
+			return;
+		}
+		bootstrappedSessions.add(sessionId);
+		const ratingQuestion = clipText(intent, 360);
+		const query = `${projectHint} 任务: ${intent}`
+			+ (promptFocus.context ? `\n上下文:\n${promptFocus.context}` : "");
 		const limit = bootstrapLimit();
 		const maxChars = bootstrapMaxChars();
 
@@ -1231,6 +1273,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		let durationMs: number;
 		let retrieval: Record<string, unknown> | null = null;
 		let quality: Record<string, unknown> | null = null;
+		let contextStats: Record<string, unknown> | null = null;
 		let resultFile: string | null = null;
 		let resultProject = projectHint;
 		let visibleFacts: Record<string, unknown>[] = [];
@@ -1501,6 +1544,10 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				&& (parsed as { quality?: unknown }).quality !== null
 				? (parsed as { quality: Record<string, unknown> }).quality
 				: null;
+			contextStats = parsed && typeof (parsed as { context_stats?: unknown }).context_stats === "object"
+				&& (parsed as { context_stats?: unknown }).context_stats !== null
+				? (parsed as { context_stats: Record<string, unknown> }).context_stats
+				: null;
 			resultFile = parsed && typeof (parsed as { result_file?: unknown }).result_file === "string"
 				? (parsed as { result_file: string }).result_file
 				: null;
@@ -1525,12 +1572,15 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		const persona = await personaPromise;
 		// 用户明确取消首轮等待时不注入已抢先完成的 card，避免取消语义出现半成功。
 		const personaMarkdown = outcome === "cancelled" ? "" : persona.markdown;
+		const injectedCount = contextInjectedCount(contextStats, recalled, visibleFacts);
 		showRecallOutcome(ctx, {
 			outcome,
 			project: resultProject,
 			durationMs,
 			quality,
 			facts: visibleFacts,
+			contextStats,
+			context: recalled,
 			resultFile,
 		});
 		trace("project_bootstrap", {
@@ -1553,6 +1603,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			exit_code: exitCode,
 			duration_ms: durationMs,
 			quality,
+			context_stats: contextStats,
+			injected_count: injectedCount,
 			result_file: resultFile,
 			result_chars: recalled.length,
 			score_enabled: scoreEnabled,
@@ -1566,7 +1618,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				session_id: sessionId,
 				session_file: ctx.sessionManager.getSessionFile(),
 				cwd: ctx.cwd,
-				prompt: focusedPrompt,
+				prompt: rawPrompt,
 				prompt_source: promptFocus.source,
 				project_override: projectOverride,
 				project_override_source: projectDirective.project
@@ -1773,6 +1825,10 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				&& (parsed as { quality?: unknown }).quality !== null
 				? (parsed as { quality: Record<string, unknown> }).quality
 				: null;
+			const contextStats = parsed && typeof (parsed as { context_stats?: unknown }).context_stats === "object"
+				&& (parsed as { context_stats?: unknown }).context_stats !== null
+				? (parsed as { context_stats: Record<string, unknown> }).context_stats
+				: null;
 			const resultFile = parsed && typeof (parsed as { result_file?: unknown }).result_file === "string"
 				? (parsed as { result_file: string }).result_file
 				: null;
@@ -1793,6 +1849,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				durationMs: result.durationMs,
 				quality,
 				facts,
+				contextStats,
+				context,
 				resultFile,
 			});
 			const text = context || (outcome === "cancelled"
@@ -1811,6 +1869,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				exit_code: result.code,
 				duration_ms: result.durationMs,
 				quality,
+				context_stats: contextStats,
+				injected_count: contextInjectedCount(contextStats, context, facts),
 				result_file: resultFile,
 				result_chars: text.length,
 				result: clip(text),
@@ -1822,7 +1882,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			if (error) throw new Error(text);
 			return {
 				content: [{ type: "text", text }],
-				details: { exitCode: result.code, project: resultProject, quality, outcome },
+				details: { exitCode: result.code, project: resultProject, quality, contextStats, outcome },
 			};
 		},
 	});
