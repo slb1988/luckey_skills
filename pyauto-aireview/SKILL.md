@@ -65,6 +65,12 @@ P4V Request Review
 仍应以后端 Review 状态及 watcher state/log 为准。
 </memory>
 
+<memory category="common-patterns">
+严格评审的 AI-ready 私聊复用普通 reviewer 就绪通知出口：AI 分析定案后，从实时配置加入全部 jury 成员，
+与指定 reviewer 重合时按用户去重，并排除作者、跳过无飞书 `open_id` 的成员。TeamCity callback 与
+backend LLM fallback 汇聚到同一出口；非 strict 不扩展 jury 收件人，通知失败仍只记日志而不影响业务状态。
+</memory>
+
 ## 标准排障流程
 
 ### 1. 建身份表
