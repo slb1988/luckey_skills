@@ -2,10 +2,12 @@
 
 ## Entry lifecycle
 
-`DailyEntry` groups one learner's materials for a calendar date and optionally a subject and teacher. Supported lifecycle states are `draft`, `pending_review`, `archiving`, and `published`.
+`DailyEntry` groups one learner's materials for a calendar date and optionally a subject and teacher. Supported lifecycle states include `draft`, `pending_review`, `archiving`, `published`, `rejected`, and `archived`.
 
 - Guardian-created entries start as drafts.
 - Service ingestions finalize as pending review.
+- Guardians reject drafts or pending-review entries through `POST /api/v1/daily-entries/{entry_id}/reject`, with session, CSRF, learner authorization and entry-scoped idempotency. Rejection preserves original content, tasks and media for guardian inspection; repeated rejection is a no-op. Rejected entries cannot be edited, uploaded to or published.
+- Publication and rejection use conditional database state transitions so neither can overwrite a competing decision.
 - Publishing archives every referenced asset, writes the manifest, and then exposes the entry to the child.
 - Published entries are read-only in the current MVP; editing or replacing an already-published date needs an explicit versioning design.
 

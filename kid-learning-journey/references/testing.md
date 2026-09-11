@@ -28,7 +28,7 @@ pnpm test
 pnpm test:visual
 ```
 
-The current Playwright baseline has six passing tests and two deliberate skips. It uses port 5174 to avoid the local Memory Hub service on 5173 and creates a temporary SQLite database and data root for each run.
+The current Playwright baseline has six passing tests and two deliberate skips. It uses frontend port 5174 and backend port 5101, with a temporary SQLite database and data root for each run. Both servers refuse to reuse an existing listener. The test frontend receives an explicit `VITE_API_BASE_URL` pointing to 5101 so tests cannot mutate the normal development backend on 5100.
 
 The main daily journey is guardian publish → child view → completion → updated stars. Visual coverage targets 1440×900 and 390×844. Generated screenshots under `kid-learning-journey/artifacts/` are ignored.
 
