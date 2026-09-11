@@ -17,7 +17,7 @@ Run the bundled installer from PowerShell:
 
 The script downloads the latest Windows x64 Mermaid Code installer from its GitHub release, installs the official Mermaid CLI with npm, and adds the local HTTP MCP to available Codex and Claude Code clients. Re-running it is safe: existing matching MCP entries are left in place.
 
-Mermaid Code registers `.mmd` and `.mermaid` file associations. It can open a single file outside any vault, watch external changes, edit the source, and export SVG or PNG.
+Mermaid Code registers `.mmd` and `.mermaid` file associations. It can open a single file from any folder, watch external changes, edit the source, and export SVG or PNG.
 
 ## Validate or export
 
