@@ -195,13 +195,9 @@ error/timeout 抛真正的 Pi 工具错误，取消保持独立。CLI `search --
 本地结果文件据此区分「候选 / LLM 放行 / 实际注入」。旧扩展必须重跑 `install --agents pi` 部署模板；
 已有 Pi 会话需 `/reload` 或新进程，chat-hub 长驻 RPC 同样需要在空闲时重载/重启才使用新实现。
 
-**v31 查询级行动简报**：服务端 policy 含 `judge15-evolution-brief` 时，客户端直接注入服务端已完成
-post-gate 过滤和预算渲染的 `injection_context`。模型可见文本中不加入 Memory 编号、标题、UUID、
-project/session/source/rank/result_id；这些来源映射只保存在 `injection_brief[].source_ranks`、完整响应、
-trace 和详情文件中，当前客户端没有按 memory_id 自动二次取回链路。若 v15 上下文被客户端防御校验拒绝，
-或对接 v14 服务端，则仅把 `injection_results[].text` 渲染为无元数据项目符号；再老的服务端才回退无元数据
-原记忆正文。`injection_context`/brief 格式问题不得静默丢失，详情文件记录 validation error。v31 修改了
-安装副本 `assets/pi-memory-hub.ts`，必须重跑 install；已有 Pi/chat-hub 进程需 reload/restart。
+**查询级 Judge 重实现状态**：旧 v31 / Judge v15 的客户端 `injection_results` / 原正文降级链已被否决，
+不得作为新实现基线。跨 project A/B Judge、空上下文失败语义与审计载荷的定版契约以父级
+`SKILL.md` 对应 `core-rules` 记忆块为准；版本标签本身不能证明该契约已经实现或部署。
 
 **v19 起 Pi TUI 对召回结果可感知**：首轮 bootstrap 和手工 `memory_search` 都改用结构化 JSON
 响应。阻塞等待期间顶部 widget 显示“正在检索并审核”与累计耗时；完成后清理 widget，状态栏和
@@ -213,12 +209,12 @@ notification 显示 `候选 · LLM 放行 · 精炼线索 · 来源记忆 · 字
 
 **v20 起每次 Pi 成功完成的首轮/手工召回都会原子写一份本地 Markdown**，路径为
 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/recall-results/pi/<project>/`。文件顶部列出
-候选、LLM 放行、精炼线索、来源记忆、注入字符预算及模型可见线索预览；审计正文必须同时原样保存：
-① 服务端查询级 `injection_brief`/`injection_context`/状态；② 兼容字段 `injection_results`；③ 客户端最终
-注入上下文、来源与 validation error；④ Hub 完整 JSON 响应；⑤ 每条放行记忆的正文、分数组件和 provenance。
-这些层不能互相替代，否则无法判断是 Judge 综合质量、post-gate 过滤、客户端字段处理还是预算拼装问题。Pi notification 末尾显示绝对路径；状态栏保持短格式。**路径和审计元数据不进入
-systemPrompt，也不进入 `memory_search` tool content**，只有 TUI 与本地 trace 可见。文件目前不自动清理；
-服务端未返回的被拒候选仍不会写到客户端文件。
+候选、LLM 放行、精炼线索、来源记忆、注入字符预算及模型可见线索预览。客户端须原样持久化 Hub 在审计模式
+随同主响应返回的完整载荷与最终实际注入上下文，不得另调 LLM、重建阶段结果或把兼容字段当降级注入源；
+A/B 结构化结果及其来源/模型/耗时/尝试/状态字段以父级 `SKILL.md` 的定版契约为准。遗留
+`injection_brief` / `injection_results` / validation error / facts / provenance 只作兼容诊断。Pi notification
+末尾显示绝对路径；状态栏保持短格式。**路径、审计元数据和思维过程不进入 systemPrompt，也不进入
+`memory_search` tool content**，只有 TUI、本地详情文件与服务端审计可见。文件目前不自动清理。
 
 **v21 起召回进行中不再同时写底部 status**，避免顶部 widget 与底部“记忆识别中”重复；完成后的
 短状态和结果 notification 保持不变。
@@ -275,10 +271,8 @@ fire-and-forget feedback 才形成评估样本。只有 v2 明确 404（旧服�
 **v17 起把“检索留痕”与“注入模型”拆开**：无 UI session 没有玩家评分能力，候选只进入
 `pi-recall-reviews.jsonl`，不再像 v12-v16 那样把 `score=null` 的候选当作可注入候选。这样仍可在后续
 集体 review 中评估 headless/worker 的召回准确度，同时避免未验证信息污染子任务和浪费最多 4000 字符
-上下文。另支持首问开头的 `project:<id>` scope 指令（包括 Orca `=== TASK ===` 后的第一段），例如
-`project:maindev 调研 SyncStaticMeshAssetMetaDT`；扩展会从 query 中移除指令，并给 bootstrap search
-显式传 `--project maindev`。只识别 focused prompt 开头且 project id 通过严格字符校验的指令，正文中
-偶然出现的 `project:` 不会改 scope。trace/review 增加 `project_override`，不增加查询次数。
+上下文。v17 的首问 `project:<id>` 单 scope override 只是历史兼容行为，不能沿用为重实现语义；定版的
+新 scope 契约详见父级 `SKILL.md`。
 
 **Pi 的 session memory 写入带本地可读审计稿**：`memory_hook.py` 从 full-session spool 提取出
 首个用户目标、最近用户目标和最终助手结果并生成 `distilled_content` 后，必须先把两者原子写入

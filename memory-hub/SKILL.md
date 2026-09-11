@@ -132,7 +132,14 @@ MainDev `Tools/AiReview` 内的 Memory Hub 客户端是 CI 专用分支，只做
 
 <memory category="troubleshooting">
 Pi v30 与 Claude/Codex recall 对纯寒暄/单独测试词做客户端快速跳过：不请求 Hub、不写完成 marker，同 session 后续首个有效任务仍会召回。有效短任务保留原意，不再因字符数过短而替换为宽泛项目背景；排查旧副本仍把 `hi` 改写成「项目概况/架构/决策」时，先看 trace 的 `ext_version` 并重跑 install。
-Pi v31 / Judge v15 直接注入服务端查询级 `injection_context`：同一次 Judge 已跨候选去重归纳并在 post-gate 后过滤来源。模型可见文本禁止加入 Memory 编号、标题、UUID、project/session/source/rank/result_id；当前没有按这些 ID 自动二次取回链路，它们只留审计。v15 不可用或客户端防御校验失败时，依次回退无元数据的 `injection_results[].text` 项目符号、无元数据原记忆正文。TUI 展示候选/放行/精炼线索/来源记忆/字符数，并预览真实线索而非标题。`recall-results` 必须原样保留 Hub 完整响应、query-level brief/context/状态、兼容精简项、客户端最终上下文与 validation error、全部 facts/provenance，任何一层都不能静默丢失。
+</memory>
+
+<memory category="core-rules">
+查询级 Judge 重实现契约（已定版；实现/部署状态须另验，旧 Pi v31 / Judge v15 客户端降级链已否决）：
+- prompt 中的 `ws:<id>` / `project:<id>` 是当前 project 的**追加 scope**；去重后由服务端合并候选并只跑一次统一 Judge，不能替换当前 scope 或由客户端分次查询。
+- 服务端独占 A/B 两阶段：A 产出需求槽位与证据判定，B 只基于 A 的结构化结果综合最终可注入证据。
+- 任一阶段失败或 B 结果不可靠都返回空上下文；客户端不得降级注入 `injection_results` 或原记忆，宁可不注入。
+- 审计模式在同一响应下发 A/B 结构化结果、来源映射、模型/耗时/尝试/状态，不新增 LLM 调用；不下发思维过程，审计只写客户端详情文件和服务端记录，绝不进入模型上下文。
 </memory>
 
 Pi 扩展 v22+：用户用 `/skill:name` 显式指定 skill 的首轮 prompt **跳过自动预热检索**——pi 会把 skill 展开为 `<skill name="…" location="…">` 块注入 prompt 开头（裸 `/skill:` 未展开命令作兜底匹配），扩展检测到即跳过，trace outcome 记 `skipped_skill_invocation` 并照常写 bootstrap-done 标记（同 session 后续不补检索）。排查「首轮预热没跑」先认这个 outcome，是设计行为不是故障；`memory_search` 工具不受影响，skill 内仍可主动检索。
