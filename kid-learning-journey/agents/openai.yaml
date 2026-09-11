@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kid Learning Journey"
+  short_description: "维护家庭学习系统的架构、数据、接口、前端、Chat Hub 接入与部署运维"
+  default_prompt: "Use $kid-learning-journey to work on the family learning system using its current architecture and invariants."
