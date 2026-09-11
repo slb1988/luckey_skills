@@ -1,0 +1,6 @@
+interface:
+  display_name: "Mermaid Diagrams"
+  short_description: "Create and validate standalone Mermaid diagrams"
+  default_prompt: "Use $mermaid-diagrams to turn this workflow into a validated .mmd diagram."
+policy:
+  allow_implicit_invocation: true

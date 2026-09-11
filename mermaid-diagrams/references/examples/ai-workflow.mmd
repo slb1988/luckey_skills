@@ -1,0 +1,14 @@
+flowchart TD
+  request["用户提出复杂问题"] --> agent["AI 分析并形成结论"]
+  agent --> visual{"存在多步、分支或反馈？"}
+  visual -->|否| answer["用简短文字回答"]
+  visual -->|是| extract["提取目标、依据、决策与动作"]
+  extract --> source["保存独立 .mmd 文件"]
+  source --> validate{"mmdc 校验通过？"}
+  validate -->|否| repair["修复语法或拆分图表"]
+  repair --> validate
+  validate -->|是| preview["Mermaid Code 可视化检查"]
+  preview --> clear{"用户能快速看懂？"}
+  clear -->|否| simplify["精简节点与关系"]
+  simplify --> source
+  clear -->|是| deliver["交付可编辑源文件"]
