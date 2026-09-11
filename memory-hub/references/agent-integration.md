@@ -195,6 +195,11 @@ error/timeout 抛真正的 Pi 工具错误，取消保持独立。CLI `search --
 本地结果文件据此区分「候选 / LLM 放行 / 实际注入」。旧扩展必须重跑 `install --agents pi` 部署模板；
 已有 Pi 会话需 `/reload` 或新进程，chat-hub 长驻 RPC 同样需要在空闲时重载/重启才使用新实现。
 
+服务端 policy 含 `judge14-evolution-injection` 时，客户端必须保留并优先注入同次 Judge 返回的
+`injection_results[{result_id,rank,text}]`，不得只白名单复制旧 `results/retrieval/quality` 而静默丢字段。
+`rank` 是 Judge 原始候选 rank，必须与 `result_id` 一起保存；字段缺失时才回退原记忆拼装。通用 hook
+脚本直接按仓库路径执行，此类 Python 客户端改动不需要提升 Pi 扩展版本或重装。
+
 **v19 起 Pi TUI 对召回结果可感知**：首轮 bootstrap 和手工 `memory_search` 都改用结构化 JSON
 响应。阻塞等待期间顶部 widget 显示“正在检索并审核”与累计耗时；完成后清理 widget，状态栏和
 notification 显示 `候选 · LLM 放行 · 实际注入 · project · 耗时`，摘要只取实际注入的前 3 条。
@@ -204,10 +209,12 @@ Claude/Codex 暂无同等扩展 UI，`UserPromptSubmit` 注入头部同样区分
 
 **v20 起每次 Pi 成功完成的首轮/手工召回都会原子写一份本地 Markdown**，路径为
 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/recall-results/pi/<project>/`。文件顶部列出
-候选、LLM 放行、实际注入、注入字符预算及最多 3 条注入摘要，再列 query、耗时、retrieval/quality JSON，
-以及每条已放行记忆的摘要、返回文本、分数组件和 provenance。Pi notification 末尾显示绝对路径；状态栏保持短格式。
-**路径和审计元数据不进入 systemPrompt，也不进入 `memory_search` tool content**，只有 TUI 与本地 trace
-可见。文件目前不自动清理，避免临时回看时丢失；服务端未返回的被拒候选仍不会写到客户端文件。
+候选、LLM 放行、实际注入、注入字符预算及最多 3 条注入摘要；审计正文必须同时原样保存：① 服务端
+`injection_results`；② 客户端最终注入上下文与 `context_stats`；③ Hub 完整 JSON 响应；④ 每条已放行
+记忆的正文、分数组件和 provenance。三层内容不能互相替代，否则无法判断是服务端未返回、客户端丢字段，
+还是预算拼装遗漏。Pi notification 末尾显示绝对路径；状态栏保持短格式。**路径和审计元数据不进入
+systemPrompt，也不进入 `memory_search` tool content**，只有 TUI 与本地 trace 可见。文件目前不自动清理；
+服务端未返回的被拒候选仍不会写到客户端文件。
 
 **v21 起召回进行中不再同时写底部 status**，避免顶部 widget 与底部“记忆识别中”重复；完成后的
 短状态和结果 notification 保持不变。
@@ -291,7 +298,7 @@ full-session 资产为准。该改动只在直接引用的 Python script 中，�
 | `project_bootstrap_skip` | 已有持久完成标记，恢复旧 session 不重复回溯（v12） | session_id、outcome=already_completed |
 | `recall_cancel` | v25+ 用户在预热/检索等待期间按 Esc/Ctrl+C 手动中断 | session_id、cwd、key=escape\|ctrl_c |
 | `recall_score` / `recall_score_wait` | v12-v17 历史玩家评分事件；v18 不再产生 | total、scored、dropped、kept / rank、outcome |
-| `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、quality、context_stats、injected_count、result_file、result（模型可见结果全文，不含文件路径） |
+| `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、quality、injection_results_count/injection_results_json_chars、context_source/context_stats、injected_count、result_file、result（模型可见结果全文，不含文件路径） |
 | `marker_write` / `marker_delete` / `marker_quarantine` | write-ahead marker 生命周期（v5） | sessionId 等 |
 | `enqueue_done` | `capture --no-flush` 入队完成（v5） | outcome、job_id、sha256、transcript_bytes |
 | `flush_schedule` / `flush_cancel` / `flush_done` | 防抖 flush 排程 / 取消 / 完成（v5） | outcome=completed/busy/failed |
@@ -305,8 +312,8 @@ full-session 资产为准。该改动只在直接引用的 Python script 中，�
   候选级真实用户标注；集体 review 时先按 `session_id` 与 Pi transcript 关联。
 - 同目录 `memory-drafts/pi/<project>/*.md`——Pi 向 Hub 写 session memory 前的可读提取稿；同时包含
   较完整源字段与实际 outbound `distilled_content`，不受 trace 单字段 20k 字符截断影响。
-- 同目录 `recall-results/pi/<project>/*.md`——Pi 从 Hub 读回并经 LLM 放行后的本地可读结果包；文件路径
-  只显示给 TUI，不注入 agent context。
+- 同目录 `recall-results/pi/<project>/*.md`——Pi 召回的完整本地审计包：Hub 原始响应、同次 Judge 精简结果、
+  客户端实际注入上下文，以及全部放行记忆/provenance 均须保留；文件路径只显示给 TUI，不注入 agent context。
 
 每轮检索测试/分析前用 `python3 scripts/rotate_pi_trace.py`（可加 `--include-hook-trace`）把旧
 trace 轮转到 `trace-backups/`，保证当轮数据干净；扩展按事件 append 写 trace、无持久句柄，

@@ -29,6 +29,7 @@ from memory_hook import (
     flush_pending,
     format_context,
     format_context_with_count,
+    format_recall_context,
     head_tail_sample,
     load_session_texts,
     pi_memory_draft_path,
@@ -221,12 +222,32 @@ class MemoryHookTest(unittest.TestCase):
 
             def fake_search_response(client, query, project_id, limit, user_id):
                 seen.append(client.config.timeout_seconds)
+                fact = {
+                    "result_id": "memory-1",
+                    "source_type": "memory_document",
+                    "summary": "历史决策",
+                    "text": "这是一段不会进入模型的较长原始记忆。",
+                }
+                injection_results = [
+                    {"result_id": "memory-1", "rank": 2, "text": "先小范围验证。"}
+                ]
+                raw_response = {
+                    "contract_version": "memory-search-results/2",
+                    "results": [fact],
+                    "injection_results": injection_results,
+                    "retrieval_id": "r1",
+                    "query_hash": "a" * 64,
+                    "policy_version": "v2-fts-judge14-evolution-injection-llm",
+                    "quality": {"mode": "llm", "candidates": 3, "kept": 1},
+                }
                 return {
-                    "facts": [{"summary": "历史决策", "text": "先小范围验证。"}],
+                    "facts": [fact],
+                    "injection_results": injection_results,
+                    "raw_response": raw_response,
                     "retrieval": {
                         "retrieval_id": "r1",
                         "query_hash": "a" * 64,
-                        "policy_version": "v2-fts-top3-llm",
+                        "policy_version": "v2-fts-judge14-evolution-injection-llm",
                     },
                     "quality": {"mode": "llm", "candidates": 3, "kept": 1},
                 }
@@ -254,19 +275,28 @@ class MemoryHookTest(unittest.TestCase):
             self.assertEqual(seen, [120.0])
             self.assertEqual(payload["project_id"], "maindev")
             self.assertEqual(payload["quality"]["kept"], 1)
-            self.assertEqual(
-                payload["context_stats"],
-                {"facts_returned": 1, "injected": 1, "chars": len(payload["context"]), "max_chars": 4000},
-            )
+            self.assertEqual(payload["injection_results"][0]["text"], "先小范围验证。")
+            self.assertEqual(payload["context_stats"]["source"], "server_injection_results")
+            self.assertEqual(payload["context_stats"]["facts_returned"], 1)
+            self.assertEqual(payload["context_stats"]["injection_results_returned"], 1)
+            self.assertEqual(payload["context_stats"]["injected"], 1)
+            self.assertEqual(payload["context_stats"]["chars"], len(payload["context"]))
+            self.assertEqual(payload["context_stats"]["max_chars"], 4000)
             self.assertIn("先小范围验证", payload["context"])
+            self.assertNotIn("不会进入模型", payload["context"])
             result_file = Path(payload["result_file"])
             self.assertTrue(result_file.is_file())
             result_text = result_file.read_text(encoding="utf-8")
             self.assertTrue(result_text.startswith("# Memory Hub Recall Result\n\n## 本轮摘要"))
             self.assertIn("候选 `3` 条，LLM 放行 `1` 条，实际注入 `1` 条", result_text)
             self.assertIn("注入字符：", result_text)
+            self.assertIn("注入来源：`server_injection_results`", result_text)
+            self.assertIn("服务端 LLM 精简结果（原始响应）", result_text)
+            self.assertIn("客户端实际注入上下文（原样）", result_text)
+            self.assertIn("服务端完整响应（原样）", result_text)
+            self.assertIn('"contract_version": "memory-search-results/2"', result_text)
+            self.assertIn('"text": "先小范围验证。"', result_text)
             self.assertIn("历史决策", result_text)
-            self.assertIn("先小范围验证", result_text)
             self.assertIn("session_id: `sess-ui`", result_text)
             self.assertNotIn(str(result_file), payload["context"])
 
@@ -836,19 +866,51 @@ class MemoryHookTest(unittest.TestCase):
                 state_dir=Path(directory),
             )
             client = HubClient(config)
-            client.request = lambda *args, **kwargs: {
+            raw_response = {
+                "contract_version": "memory-search-results/2",
                 "results": [{"result_id": "memory-1", "text": "answer"}],
+                "injection_results": [
+                    {"result_id": "memory-1", "rank": 3, "text": "compact answer"}
+                ],
                 "retrieval_id": "retrieval-1",
                 "query_hash": "a" * 64,
-                "policy_version": "v2-fts-top3-llm",
+                "policy_version": "v2-fts-judge14-evolution-injection-llm",
                 "quality": {"mode": "llm", "candidates": 2, "kept": 1},
             }
+            client.request = lambda *args, **kwargs: raw_response
 
             response = client.search_response("query", "project-a", 5, "user-a")
 
             self.assertEqual(response["facts"][0]["result_id"], "memory-1")
+            self.assertEqual(response["injection_results"], raw_response["injection_results"])
+            self.assertIs(response["raw_response"], raw_response)
             self.assertEqual(response["retrieval"]["retrieval_id"], "retrieval-1")
             self.assertEqual(response["quality"]["kept"], 1)
+
+    def test_search_response_rejects_injection_mapping_that_cannot_be_audited(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Config(
+                hub_url="http://memory.test",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=1,
+                state_dir=Path(directory),
+            )
+            client = HubClient(config)
+            client.request = lambda *args, **kwargs: {
+                "results": [{"result_id": "memory-1", "text": "answer"}],
+                "injection_results": [
+                    {"result_id": "missing-memory", "rank": 1, "text": "orphan digest"}
+                ],
+                "retrieval_id": "retrieval-1",
+                "query_hash": "a" * 64,
+                "policy_version": "v2-fts-judge14-evolution-injection-llm",
+            }
+
+            with self.assertRaisesRegex(HubError, "invalid injection result mapping"):
+                client.search_response("query", "project-a", 5, "user-a")
 
     def test_feedback_v2_falls_back_to_v1_for_old_hub(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -943,9 +1005,10 @@ class MemoryHookTest(unittest.TestCase):
                 state_dir=root / "state",
             )
             fact = {
+                "result_id": "m1",
                 "source_type": "memory_document",
                 "summary": "recall 配置方法",
-                "text": "在 UserPromptSubmit 挂 recall 子命令。",
+                "text": "原始长文不应进入 recall 注入。",
                 "provenance": [
                     {"project_id": "memory-hub", "session_id": "s1", "memory_id": "m1"}
                 ],
@@ -956,6 +1019,13 @@ class MemoryHookTest(unittest.TestCase):
                 calls.append((query, project_id, limit, user_id))
                 return {
                     "facts": [fact],
+                    "injection_results": [
+                        {
+                            "result_id": "m1",
+                            "rank": 2,
+                            "text": "recall 配置方法：在 UserPromptSubmit 挂 recall 子命令。",
+                        }
+                    ],
                     "retrieval": {"retrieval_id": "r1"},
                     "quality": {"mode": "llm", "candidates": 3, "kept": 1},
                 }
@@ -970,6 +1040,7 @@ class MemoryHookTest(unittest.TestCase):
                 self.assertIn("自动首轮预热", first)
                 self.assertIn("候选 3 条，LLM 放行 1 条，实际注入 1 条", first)
                 self.assertIn("recall 配置方法", first)
+                self.assertNotIn("原始长文", first)
                 self.assertEqual(len(calls), 1)
                 query, project_id, limit, user_id = calls[0]
                 self.assertIn(root.name, query)
@@ -1110,6 +1181,35 @@ class MemoryHookTest(unittest.TestCase):
         self.assertEqual(injected, 1)
         self.assertIn("A" * 100, output)
         self.assertNotIn("B" * 100, output)
+
+    def test_format_recall_context_uses_every_server_digest(self):
+        facts = [
+            {
+                "result_id": "memory-%d" % index,
+                "source_type": "memory_document",
+                "text": ("raw-%d-" % index) + ("X" * 1200),
+            }
+            for index in range(1, 6)
+        ]
+        injection_results = [
+            {
+                "result_id": "memory-%d" % index,
+                "rank": index + 3,
+                "text": "digest-%d: E_SYNC_%d" % (index, index),
+            }
+            for index in range(1, 6)
+        ]
+
+        output, injected, source = format_recall_context(
+            facts, injection_results, 4000
+        )
+
+        self.assertEqual(source, "server_injection_results")
+        self.assertEqual(injected, 5)
+        self.assertLessEqual(len(output), 4000)
+        for index in range(1, 6):
+            self.assertIn("digest-%d: E_SYNC_%d" % (index, index), output)
+            self.assertNotIn("raw-%d-" % index, output)
 
     def test_strip_skill_wrapper_recovers_real_user_text(self):
         wrapped = (

@@ -76,6 +76,7 @@ RECALL_DISABLE_ENV = "MEMORY_HOOK_RECALL"
 RECALL_MARKER_DIRNAME = "recall-markers"
 RECALL_MARKER_MAX_AGE_SECONDS = 14 * 24 * 3600
 ONLINE_SEARCH_TIMEOUT_SECONDS = 120.0
+RETRIEVAL_INJECTION_RESULTS_MAX_CHARS = 4000
 # Pi 记忆写入前的可读审计稿。spool 对象在 job 完成后会清理；该目录保留
 # 提取源文本和实际提交内容，方便离线判断是否因摘要预算而丢失关键信息。
 MEMORY_DRAFTS_DIRNAME = "memory-drafts"
@@ -2129,6 +2130,46 @@ class HubClient:
             results = result.get("results")
             if not isinstance(results, list) or any(not isinstance(row, dict) for row in results):
                 raise HubError("invalid search results", error_code="BAD_RESPONSE")
+            raw_injection_results = result.get("injection_results")
+            injection_results = None
+            if raw_injection_results is not None:
+                if not isinstance(raw_injection_results, list) or any(
+                    not isinstance(row, dict) for row in raw_injection_results
+                ):
+                    raise HubError("invalid injection results", error_code="BAD_RESPONSE")
+                result_ids = {
+                    row.get("result_id")
+                    for row in results
+                    if isinstance(row.get("result_id"), str)
+                }
+                seen_ranks = set()
+                seen_result_ids = set()
+                injection_results = []
+                for row in raw_injection_results:
+                    result_id = row.get("result_id")
+                    rank = row.get("rank")
+                    text = row.get("text")
+                    if (
+                        not isinstance(result_id, str)
+                        or not result_id
+                        or result_id not in result_ids
+                        or result_id in seen_result_ids
+                        or not isinstance(rank, int)
+                        or isinstance(rank, bool)
+                        or rank < 1
+                        or rank in seen_ranks
+                        or not isinstance(text, str)
+                        or not text.strip()
+                    ):
+                        raise HubError("invalid injection result mapping", error_code="BAD_RESPONSE")
+                    seen_result_ids.add(result_id)
+                    seen_ranks.add(rank)
+                    injection_results.append(dict(row))
+                injection_json = json.dumps(
+                    injection_results, ensure_ascii=False, separators=(",", ":")
+                )
+                if len(injection_json) > RETRIEVAL_INJECTION_RESULTS_MAX_CHARS:
+                    raise HubError("injection results exceed budget", error_code="BAD_RESPONSE")
             retrieval = {
                 key: result.get(key)
                 for key in ("retrieval_id", "query_hash", "policy_version")
@@ -2136,9 +2177,11 @@ class HubClient:
             if not all(isinstance(value, str) and value for value in retrieval.values()):
                 retrieval = None
             return {
-                "facts": results if isinstance(results, list) else [],
+                "facts": results,
+                "injection_results": injection_results,
                 "retrieval": retrieval,
                 "quality": result.get("quality") if isinstance(result.get("quality"), dict) else None,
+                "raw_response": result,
             }
         except HubError as error:
             # 只兼容完全没有 v2 的旧 Hub。LLM 门禁 503/坏响应绝不能回退 v1，
@@ -2166,8 +2209,10 @@ class HubClient:
             raise HubError("invalid search facts", error_code="BAD_RESPONSE")
         return {
             "facts": facts,
+            "injection_results": None,
             "retrieval": None,
             "quality": None,
+            "raw_response": result,
         }
 
     def search(
@@ -2484,6 +2529,58 @@ def format_context(
     return format_context_with_count(facts, max_chars, profile)[0]
 
 
+def format_recall_context(
+    facts: List[Dict[str, Any]],
+    injection_results: Optional[List[Dict[str, Any]]],
+    max_chars: int,
+    profile: Optional[UserProfile] = None,
+) -> Tuple[str, int, str]:
+    if not injection_results:
+        context, count = format_context_with_count(facts, max_chars, profile)
+        source = "legacy_results" if injection_results is None else "legacy_results_no_injection"
+        return context, count, source
+
+    facts_by_result_id = {
+        fact.get("result_id"): fact
+        for fact in facts
+        if isinstance(fact.get("result_id"), str)
+    }
+    blocks = []
+    for index, item in enumerate(injection_results, 1):
+        result_id = item["result_id"]
+        rank = item["rank"]
+        fact = facts_by_result_id[result_id]
+        header = structured_memory_header(fact, index)
+        header = "%s | judge_rank=%s | result=%s]" % (
+            header[:-1],
+            rank,
+            result_id,
+        )
+        blocks.append("%s\n精简内容：%s" % (header, item["text"].strip()))
+
+    context = (
+        "Memory Hub 的同一次质量审核已针对当前任务提炼以下历史信息；"
+        "它们仅作背景，使用前仍须结合当前事实核验：\n\n"
+        + "\n\n".join(blocks)
+    )
+    if len(context) <= max_chars:
+        return context, len(injection_results), "server_injection_results"
+
+    compact = json.dumps(injection_results, ensure_ascii=False, separators=(",", ":"))
+    if len(compact) <= max_chars:
+        return compact, len(injection_results), "server_injection_results_json"
+
+    context, count = format_context_with_count(facts, max_chars, profile)
+    return context, count, "legacy_results_budget_fallback"
+
+
+def markdown_json_lines(value: Any) -> List[str]:
+    serialized = json.dumps(value, ensure_ascii=False, indent=2)
+    longest = max((len(match.group(0)) for match in re.finditer(r"`+", serialized)), default=0)
+    fence = "`" * max(3, longest + 1)
+    return [fence + "json", serialized, fence]
+
+
 def write_recall_result_file(
     config: Config,
     *,
@@ -2492,9 +2589,13 @@ def write_recall_result_file(
     project_id: str,
     query: str,
     facts: List[Dict[str, Any]],
+    injection_results: Optional[List[Dict[str, Any]]],
+    server_response: Optional[Dict[str, Any]],
     retrieval: Optional[Dict[str, Any]],
     quality: Optional[Dict[str, Any]],
     duration_ms: int,
+    context: str,
+    context_stats: Dict[str, Any],
     injected_count: int,
     context_chars: int,
     max_chars: int,
@@ -2535,8 +2636,9 @@ def write_recall_result_file(
         "- 识别结果：候选 `%s` 条，LLM 放行 `%s` 条，实际注入 `%d` 条"
         % (candidates if candidates is not None else "未知", kept, injected_count),
         "- 注入字符：`%d/%d`" % (context_chars, max_chars),
+        "- 注入来源：`%s`" % context_stats.get("source", "unknown"),
         "- 注入摘要：%s" % ("；".join(summaries) if summaries else "无注入记忆"),
-        "- 上下文边界：此文件路径和审计元数据不会加入 agent context",
+        "- 审计边界：本文件保留服务端完整响应与客户端实际注入原文；文件路径和审计元数据不进入 agent context",
         "",
         "## 查询信息",
         "",
@@ -2555,9 +2657,21 @@ def write_recall_result_file(
         "",
         "### Quality",
         "",
-        "```json",
-        json.dumps(quality, ensure_ascii=False, indent=2) if quality else "null",
-        "```",
+        *markdown_json_lines(quality),
+        "",
+        "## 服务端 LLM 精简结果（原始响应）",
+        "",
+        "以下 JSON 原样保存本次响应的 `injection_results`，未经过客户端二次提炼。",
+        "",
+        *markdown_json_lines(injection_results),
+        "",
+        "## 客户端实际注入上下文（原样）",
+        "",
+        *markdown_json_lines({"context_stats": context_stats, "context": context}),
+        "",
+        "## 服务端完整响应（原样）",
+        "",
+        *markdown_json_lines(server_response),
         "",
     ]
     for index, fact in enumerate(facts, 1):
@@ -2865,11 +2979,22 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             args.query, project_id, args.limit, profile.user_id
         )
         facts = response["facts"]
-        context, injected_count = format_context_with_count(
-            facts, args.max_chars, profile
+        injection_results = response.get("injection_results")
+        context, injected_count, context_source = format_recall_context(
+            facts, injection_results, args.max_chars, profile
+        )
+        injection_json_chars = (
+            len(json.dumps(injection_results, ensure_ascii=False, separators=(",", ":")))
+            if injection_results is not None
+            else None
         )
         context_stats = {
+            "source": context_source,
             "facts_returned": len(facts),
+            "injection_results_returned": (
+                len(injection_results) if injection_results is not None else None
+            ),
+            "injection_results_json_chars": injection_json_chars,
             "injected": injected_count,
             "chars": len(context),
             "max_chars": args.max_chars,
@@ -2886,9 +3011,13 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
                     project_id=project_id,
                     query=args.query,
                     facts=facts,
+                    injection_results=injection_results,
+                    server_response=response.get("raw_response"),
                     retrieval=response.get("retrieval"),
                     quality=response.get("quality"),
                     duration_ms=duration_ms,
+                    context=context,
+                    context_stats=context_stats,
                     injected_count=injected_count,
                     context_chars=len(context),
                     max_chars=args.max_chars,
@@ -2902,6 +3031,8 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
                 "context": context,
                 "context_stats": context_stats,
             }
+            if injection_results is not None:
+                payload["injection_results"] = injection_results
             if response.get("retrieval") is not None:
                 payload["retrieval"] = response["retrieval"]
             if response.get("quality") is not None:
@@ -2925,6 +3056,11 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
                 "query": args.query,
                 "limit": args.limit,
                 "facts_count": len(facts),
+                "injection_results_count": (
+                    len(injection_results) if injection_results is not None else None
+                ),
+                "injection_results_json_chars": injection_json_chars,
+                "context_source": context_source,
                 "injected_count": injected_count,
                 "context_chars": len(context),
                 "retrieval": response.get("retrieval"),
@@ -3036,7 +3172,10 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
         )
         response = client.search_response(query, project_id, args.limit, profile.user_id)
         facts = response["facts"]
-        recalled, injected_count = format_context_with_count(facts, args.max_chars)
+        injection_results = response.get("injection_results")
+        recalled, injected_count, context_source = format_recall_context(
+            facts, injection_results, args.max_chars
+        )
         if recalled:
             quality = response.get("quality")
             if isinstance(quality, dict):
@@ -3077,6 +3216,10 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
                 "max_chars": getattr(args, "max_chars", None),
                 "outcome": outcome,
                 "quality": response.get("quality") if "response" in locals() else None,
+                "injection_results_count": (
+                    len(injection_results) if "injection_results" in locals() and injection_results is not None else None
+                ),
+                "context_source": context_source if "context_source" in locals() else None,
                 "injected_count": injected_count if "injected_count" in locals() else 0,
                 "duration_ms": int((time.monotonic() - started) * 1000),
                 "output_chars": len(output),
