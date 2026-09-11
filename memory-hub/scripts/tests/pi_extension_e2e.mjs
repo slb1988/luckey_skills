@@ -638,12 +638,20 @@ try {
 					statusCalls.every((entry) => !String(entry.value).includes("记忆识别中")),
 					"the progress widget must not be duplicated in the bottom status bar",
 				);
-				assert.match(notifyCalls[0].message, /候选 3 条，LLM 放行 2 条，实际注入 1 条/);
-				assert.match(notifyCalls[0].message, /项目验证约定/);
+				assert.match(
+					notifyCalls[0].message,
+					/候选 3 条，LLM 放行 2 条，精炼为 1 条线索（来源 1 条记忆，33 字）/,
+				);
+				assert.match(notifyCalls[0].message, /可复用做法：项目使用严格测试驱动/);
 				assert.match(notifyCalls[0].message, /详情文件：.*recall-results/);
 				assert.ok(existsSync(join(stateDir, "recall-results", "pi", "fixture", "fixture-recall.md")));
 				assert.doesNotMatch(firstStart.systemPrompt, /recall-results|fixture-recall\.md/);
-				assert.ok(statusCalls.some((entry) => String(entry.value).includes("候选 3 · 放行 2 · 注入 1")));
+				assert.doesNotMatch(firstStart.systemPrompt, /\[Memory|source=|project=|session=|judge_rank=|result=/);
+				assert.ok(
+					statusCalls.some((entry) =>
+						String(entry.value).includes("候选 3 · 放行 2 · 线索 1 · 来源 1 · 33字")
+					),
+				);
 				assert.equal(traceEntries("project_bootstrap")[0].injected_count, 1);
 			}
 		}
@@ -709,7 +717,7 @@ try {
 			["--session-id", "sess-e2e"],
 		);
 		if (ctx.hasUI) {
-			assert.match(notifyCalls.at(-1).message, /候选 3 条，LLM 放行 2 条，实际注入 1 条/);
+			assert.match(notifyCalls.at(-1).message, /精炼为 1 条线索（来源 1 条记忆，33 字）/);
 		}
 
 		// agent_end → enqueue 立即触发并 await 完成（handler 返回即 durable）

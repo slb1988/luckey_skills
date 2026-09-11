@@ -53,7 +53,8 @@ import { Type } from "typebox";
 //   关闭），与 hook capture 的归档归属规则对齐。
 // v29：检索成功零结果与请求失败分离；安全结构化错误含HTTP状态/追踪ID，失败抛工具错误。
 // v30：纯寒暄首问本地跳过且不消耗召回机会；短任务保留原意；UI 区分候选、放行与实际注入数。
-const EXTENSION_VERSION = "30";
+// v31：直接使用 Judge v15 查询级行动简报；UI 展示线索/来源和真实线索预览，不再展示记忆标题。
+const EXTENSION_VERSION = "31";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -324,27 +325,22 @@ function qualityCounts(
 	};
 }
 
-function contextInjectedCount(
+function numericContextStat(
 	contextStats: Record<string, unknown> | null,
-	context: string,
-	facts: Record<string, unknown>[],
+	key: string,
+	fallback: number,
 ): number {
-	const raw = contextStats?.injected;
-	if (typeof raw === "number" && Number.isFinite(raw)) {
-		return Math.max(0, Math.min(facts.length, Math.trunc(raw)));
-	}
-	return context ? facts.length : 0;
+	const raw = contextStats?.[key];
+	return typeof raw === "number" && Number.isFinite(raw)
+		? Math.max(0, Math.trunc(raw))
+		: fallback;
 }
 
-function memorySummaries(facts: Record<string, unknown>[]): string {
-	const values: string[] = [];
-	for (const fact of facts.slice(0, 3)) {
-		const summary = typeof fact.summary === "string" ? fact.summary.trim() : "";
-		const fallback = factTextOf(fact).split("\n")[0]?.trim() ?? "";
-		const value = clipText(summary || fallback, 60);
-		if (value && !values.includes(value)) values.push(value);
-	}
-	return values.join("；");
+function contextCluePreview(context: string): string {
+	const lines = context.split(/\r?\n/)
+		.map((line) => line.trim().replace(/^-\s*/, ""))
+		.filter(Boolean);
+	return lines.slice(0, 2).map((line) => clipText(line, 100)).join("；");
 }
 
 function showRecallOutcome(
@@ -363,20 +359,26 @@ function showRecallOutcome(
 	if (!ctx.hasUI) return;
 	const seconds = (data.durationMs / 1000).toFixed(1);
 	const counts = qualityCounts(data.quality, data.facts);
-	const injectedCount = contextInjectedCount(data.contextStats, data.context, data.facts);
+	const clueCount = numericContextStat(
+		data.contextStats,
+		"clue_items",
+		numericContextStat(data.contextStats, "injected", data.context ? 1 : 0),
+	);
+	const sourceCount = numericContextStat(data.contextStats, "source_memories", data.facts.length);
+	const contextChars = numericContextStat(data.contextStats, "chars", data.context.length);
 	const statusCounts = counts.candidates === null
-		? `放行 ${counts.kept} · 注入 ${injectedCount}`
-		: `候选 ${counts.candidates} · 放行 ${counts.kept} · 注入 ${injectedCount}`;
+		? `放行 ${counts.kept} · 线索 ${clueCount} · 来源 ${sourceCount} · ${contextChars}字`
+		: `候选 ${counts.candidates} · 放行 ${counts.kept} · 线索 ${clueCount} · 来源 ${sourceCount} · ${contextChars}字`;
 	const messageCounts = counts.candidates === null
-		? `召回 ${counts.kept} 条，实际注入 ${injectedCount} 条`
-		: `候选 ${counts.candidates} 条，LLM 放行 ${counts.kept} 条，实际注入 ${injectedCount} 条`;
+		? `放行 ${counts.kept} 条，精炼为 ${clueCount} 条线索（来源 ${sourceCount} 条记忆，${contextChars} 字）`
+		: `候选 ${counts.candidates} 条，LLM 放行 ${counts.kept} 条，精炼为 ${clueCount} 条线索（来源 ${sourceCount} 条记忆，${contextChars} 字）`;
 	const fileLine = data.resultFile ? `\n详情文件：${data.resultFile}` : "";
 	try {
 		if (data.outcome === "injected") {
-			const summaries = memorySummaries(data.facts.slice(0, injectedCount));
+			const preview = contextCluePreview(data.context);
 			ctx.ui.setStatus("memory-hub-recall", `🧠 ${statusCounts} · ${data.project} · ${seconds}s`);
 			ctx.ui.notify(
-				`🧠 Memory Hub：${messageCounts}${summaries ? `｜${summaries}` : ""}（${seconds}s）${fileLine}`,
+				`🧠 Memory Hub：${messageCounts}${preview ? `｜${preview}` : ""}（${seconds}s）${fileLine}`,
 				"info",
 			);
 		} else if (data.outcome === "empty") {
@@ -1572,7 +1574,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		const persona = await personaPromise;
 		// 用户明确取消首轮等待时不注入已抢先完成的 card，避免取消语义出现半成功。
 		const personaMarkdown = outcome === "cancelled" ? "" : persona.markdown;
-		const injectedCount = contextInjectedCount(contextStats, recalled, visibleFacts);
+		const injectedCount = numericContextStat(contextStats, "injected", recalled ? 1 : 0);
 		showRecallOutcome(ctx, {
 			outcome,
 			project: resultProject,
@@ -1870,7 +1872,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				duration_ms: result.durationMs,
 				quality,
 				context_stats: contextStats,
-				injected_count: contextInjectedCount(contextStats, context, facts),
+				injected_count: numericContextStat(contextStats, "injected", context ? 1 : 0),
 				result_file: resultFile,
 				result_chars: text.length,
 				result: clip(text),

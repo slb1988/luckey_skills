@@ -91,7 +91,17 @@ function respondNow(args) {
 			console.log(JSON.stringify({
 				facts: [],
 				context: "",
-				context_stats: { facts_returned: 0, injected: 0, chars: 0, max_chars: 12000 },
+				context_stats: {
+					source: "server_injection_context_fallback_filtered_empty",
+					status: "fallback_filtered_empty",
+					facts_returned: 0,
+					brief_items: 0,
+					clue_items: 0,
+					source_memories: 0,
+					injected: 0,
+					chars: 0,
+					max_chars: 12000,
+				},
 				quality: { candidates: 10, kept: 0 },
 			}));
 			return;
@@ -120,7 +130,7 @@ function respondNow(args) {
 				const resultDir = join(process.env.MEMORY_HOOK_STATE_DIR, "recall-results", "pi", "fixture");
 				mkdirSync(resultDir, { recursive: true });
 				resultFile = join(resultDir, "fixture-recall.md");
-				writeFileSync(resultFile, "# Memory Hub Recall Result\n\n## 本轮摘要\n\n- 候选 3 · 放行 2 · 注入 1\n");
+				writeFileSync(resultFile, "# Memory Hub Recall Result\n\n## 本轮摘要\n\n- 候选 3 · 放行 2 · 线索 1 · 来源 1\n");
 			}
 			console.log(JSON.stringify({
 				project_id: args.includes("--project")
@@ -129,12 +139,29 @@ function respondNow(args) {
 				retrieval: {
 					retrieval_id: "retrieval-e2e",
 					query_hash: "a".repeat(64),
-					policy_version: "v2-fts-top3-llm",
+					policy_version: "v2-fts-judge15-evolution-brief-llm",
 				},
 				quality: { mode: "llm", candidates: 3, kept: 2, min_rating: 2 },
-				context_stats: { facts_returned: 2, injected: 1, chars: 43, max_chars: 4000 },
+				injection_brief: [{
+					kind: "reusable_pattern",
+					text: "项目使用严格测试驱动；先跑小规模验证再全量修改。",
+					source_ranks: [1],
+				}],
+				injection_context: "- 可复用做法：项目使用严格测试驱动；先跑小规模验证再全量修改。",
+				injection_context_status: "generated",
+				context_stats: {
+					source: "server_injection_context",
+					status: "generated",
+					facts_returned: 2,
+					brief_items: 1,
+					clue_items: 1,
+					source_memories: 1,
+					injected: 1,
+					chars: 33,
+					max_chars: 4000,
+				},
 				result_file: resultFile,
-				context: "[project:fixture]\n- 项目使用严格测试驱动；先跑小规模验证再全量修改。",
+				context: "- 可复用做法：项目使用严格测试驱动；先跑小规模验证再全量修改。",
 				facts: [
 					{
 						result_id: "memory-useful",

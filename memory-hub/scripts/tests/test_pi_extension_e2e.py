@@ -221,9 +221,9 @@ class PiExtensionE2ETest(unittest.TestCase):
             summary = self.run_driver(Path(directory), {"SEARCH_DIAGNOSTICS": "1"})
             self.assertEqual(summary["mode"], "search-diagnostics")
 
-    def test_pi_template_is_v30(self):
+    def test_pi_template_is_v31(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
-        self.assertIn('const EXTENSION_VERSION = "30";', template)
+        self.assertIn('const EXTENSION_VERSION = "31";', template)
 
     def test_project_bootstrap_default_timeout_is_two_minutes(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")

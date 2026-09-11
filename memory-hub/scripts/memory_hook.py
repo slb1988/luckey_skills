@@ -77,6 +77,18 @@ RECALL_MARKER_DIRNAME = "recall-markers"
 RECALL_MARKER_MAX_AGE_SECONDS = 14 * 24 * 3600
 ONLINE_SEARCH_TIMEOUT_SECONDS = 120.0
 RETRIEVAL_INJECTION_RESULTS_MAX_CHARS = 4000
+RETRIEVAL_INJECTION_CONTEXT_MAX_CHARS = 4000
+RETRIEVAL_INJECTION_BRIEF_MAX_ITEMS = 8
+RETRIEVAL_INJECTION_BRIEF_TEXT_MAX_CHARS = 800
+RETRIEVAL_INJECTION_BRIEF_KINDS = {
+    "confirmed", "reusable_pattern", "constraint", "coverage_gap"
+}
+RETRIEVAL_INJECTION_CONTEXT_STATUSES = {
+    "generated",
+    "fallback_missing_brief",
+    "fallback_malformed_brief",
+    "fallback_filtered_empty",
+}
 # Pi 记忆写入前的可读审计稿。spool 对象在 job 完成后会清理；该目录保留
 # 提取源文本和实际提交内容，方便离线判断是否因摘要预算而丢失关键信息。
 MEMORY_DRAFTS_DIRNAME = "memory-drafts"
@@ -267,6 +279,90 @@ def project_id_for_cwd(cwd: str, fallback: str) -> str:
 
 def compact_text(value: str, limit: int) -> str:
     return re.sub(r"\s+", " ", value).strip()[:limit]
+
+
+def model_context_has_provenance_envelope(value: str) -> bool:
+    lowered = value.casefold()
+    return "[memory " in lowered or any(
+        token in lowered
+        for token in (
+            "source=",
+            "project=",
+            "session=",
+            "memory=",
+            "judge_rank=",
+            "result_id=",
+            "result=",
+        )
+    )
+
+
+def parse_server_injection_context(
+    response: Dict[str, Any],
+    injection_results: Optional[List[Dict[str, Any]]],
+    has_results: bool,
+) -> Tuple[Optional[List[Dict[str, Any]]], Optional[str], Optional[str], Optional[str]]:
+    keys = ("injection_brief", "injection_context", "injection_context_status")
+    if not any(key in response for key in keys):
+        return None, None, None, None
+
+    raw_brief = response.get("injection_brief")
+    raw_context = response.get("injection_context")
+    status = response.get("injection_context_status")
+    if (
+        not isinstance(raw_brief, list)
+        or len(raw_brief) > RETRIEVAL_INJECTION_BRIEF_MAX_ITEMS
+        or not isinstance(raw_context, str)
+        or status not in RETRIEVAL_INJECTION_CONTEXT_STATUSES
+    ):
+        return None, None, None, "invalid_v15_shape"
+
+    valid_ranks = {
+        item["rank"]
+        for item in (injection_results or [])
+        if isinstance(item.get("rank"), int) and not isinstance(item.get("rank"), bool)
+    }
+    brief = []
+    for item in raw_brief:
+        if not isinstance(item, dict):
+            return None, None, None, "invalid_brief_item"
+        kind = item.get("kind")
+        text = item.get("text")
+        source_ranks = item.get("source_ranks")
+        if (
+            kind not in RETRIEVAL_INJECTION_BRIEF_KINDS
+            or not isinstance(text, str)
+            or not text.strip()
+            or len(text.strip()) > RETRIEVAL_INJECTION_BRIEF_TEXT_MAX_CHARS
+            or model_context_has_provenance_envelope(text)
+            or not isinstance(source_ranks, list)
+        ):
+            return None, None, None, "invalid_brief_item"
+        normalized_ranks = []
+        for rank in source_ranks:
+            if (
+                not isinstance(rank, int)
+                or isinstance(rank, bool)
+                or rank < 1
+                or rank in normalized_ranks
+                or (valid_ranks and rank not in valid_ranks)
+            ):
+                return None, None, None, "invalid_brief_source"
+            normalized_ranks.append(rank)
+        if kind != "coverage_gap" and not normalized_ranks:
+            return None, None, None, "missing_brief_source"
+        brief.append({**item, "text": text.strip(), "source_ranks": normalized_ranks})
+
+    context = raw_context.strip()
+    if (
+        len(context) > RETRIEVAL_INJECTION_CONTEXT_MAX_CHARS
+        or model_context_has_provenance_envelope(context)
+        or (has_results and not context)
+    ):
+        return None, None, None, "invalid_injection_context"
+    if status == "generated" and not brief:
+        return None, None, None, "generated_context_without_brief"
+    return brief, context, str(status), None
 
 
 def sanitize_message_text(value: str) -> str:
@@ -2170,6 +2266,12 @@ class HubClient:
                 )
                 if len(injection_json) > RETRIEVAL_INJECTION_RESULTS_MAX_CHARS:
                     raise HubError("injection results exceed budget", error_code="BAD_RESPONSE")
+            (
+                injection_brief,
+                injection_context,
+                injection_context_status,
+                injection_context_error,
+            ) = parse_server_injection_context(result, injection_results, bool(results))
             retrieval = {
                 key: result.get(key)
                 for key in ("retrieval_id", "query_hash", "policy_version")
@@ -2179,6 +2281,10 @@ class HubClient:
             return {
                 "facts": results,
                 "injection_results": injection_results,
+                "injection_brief": injection_brief,
+                "injection_context": injection_context,
+                "injection_context_status": injection_context_status,
+                "injection_context_error": injection_context_error,
                 "retrieval": retrieval,
                 "quality": result.get("quality") if isinstance(result.get("quality"), dict) else None,
                 "raw_response": result,
@@ -2210,6 +2316,10 @@ class HubClient:
         return {
             "facts": facts,
             "injection_results": None,
+            "injection_brief": None,
+            "injection_context": None,
+            "injection_context_status": None,
+            "injection_context_error": None,
             "retrieval": None,
             "quality": None,
             "raw_response": result,
@@ -2534,44 +2644,59 @@ def format_recall_context(
     injection_results: Optional[List[Dict[str, Any]]],
     max_chars: int,
     profile: Optional[UserProfile] = None,
+    *,
+    injection_context: Optional[str] = None,
+    injection_brief: Optional[List[Dict[str, Any]]] = None,
+    injection_context_status: Optional[str] = None,
 ) -> Tuple[str, int, str]:
-    if not injection_results:
-        context, count = format_context_with_count(facts, max_chars, profile)
-        source = "legacy_results" if injection_results is None else "legacy_results_no_injection"
-        return context, count, source
-
-    facts_by_result_id = {
-        fact.get("result_id"): fact
-        for fact in facts
-        if isinstance(fact.get("result_id"), str)
-    }
-    blocks = []
-    for index, item in enumerate(injection_results, 1):
-        result_id = item["result_id"]
-        rank = item["rank"]
-        fact = facts_by_result_id[result_id]
-        header = structured_memory_header(fact, index)
-        header = "%s | judge_rank=%s | result=%s]" % (
-            header[:-1],
-            rank,
-            result_id,
+    if injection_context is not None and len(injection_context) <= max_chars:
+        clue_count = len(injection_brief or [])
+        if not clue_count and injection_context:
+            clue_count = max(1, sum(
+                1 for line in injection_context.splitlines() if line.lstrip().startswith("- ")
+            ))
+        source = (
+            "server_injection_context"
+            if injection_context_status == "generated"
+            else "server_injection_context_%s" % (injection_context_status or "unknown")
         )
-        blocks.append("%s\n精简内容：%s" % (header, item["text"].strip()))
+        return injection_context, clue_count, source
 
-    context = (
-        "Memory Hub 的同一次质量审核已针对当前任务提炼以下历史信息；"
-        "它们仅作背景，使用前仍须结合当前事实核验：\n\n"
-        + "\n\n".join(blocks)
-    )
-    if len(context) <= max_chars:
-        return context, len(injection_results), "server_injection_results"
+    if injection_results:
+        blocks = []
+        seen = set()
+        for item in injection_results:
+            text = item["text"].strip()
+            if text and text not in seen:
+                seen.add(text)
+                blocks.append("- " + text)
+        selected = []
+        used = 0
+        for block in blocks:
+            candidate = ("\n" if selected else "") + block
+            if used + len(candidate) > max_chars:
+                break
+            selected.append(block)
+            used += len(candidate)
+        return "\n".join(selected), len(selected), "injection_results_plain_fallback"
 
-    compact = json.dumps(injection_results, ensure_ascii=False, separators=(",", ":"))
-    if len(compact) <= max_chars:
-        return compact, len(injection_results), "server_injection_results_json"
-
-    context, count = format_context_with_count(facts, max_chars, profile)
-    return context, count, "legacy_results_budget_fallback"
+    blocks = []
+    seen = set()
+    for fact in facts:
+        text = compact_text(fact_text(fact), 1200)
+        if text and text not in seen:
+            seen.add(text)
+            blocks.append("- " + text)
+    selected = []
+    used = 0
+    for block in blocks:
+        candidate = ("\n" if selected else "") + block
+        if used + len(candidate) > max_chars:
+            break
+        selected.append(block)
+        used += len(candidate)
+    source = "legacy_results" if injection_results is None else "legacy_results_no_injection"
+    return "\n".join(selected), len(selected), source
 
 
 def markdown_json_lines(value: Any) -> List[str]:
@@ -2590,6 +2715,10 @@ def write_recall_result_file(
     query: str,
     facts: List[Dict[str, Any]],
     injection_results: Optional[List[Dict[str, Any]]],
+    injection_brief: Optional[List[Dict[str, Any]]],
+    server_injection_context: Optional[str],
+    injection_context_status: Optional[str],
+    injection_context_error: Optional[str],
     server_response: Optional[Dict[str, Any]],
     retrieval: Optional[Dict[str, Any]],
     quality: Optional[Dict[str, Any]],
@@ -2618,26 +2747,25 @@ def write_recall_result_file(
 
     candidates = quality.get("candidates") if isinstance(quality, dict) else None
     kept = quality.get("kept") if isinstance(quality, dict) else len(facts)
-    summaries = []
-    for fact in facts[: min(3, injected_count)]:
-        summary = fact.get("summary") if isinstance(fact, dict) else None
-        value = summary.strip() if isinstance(summary, str) else ""
-        if not value:
-            value = fact_text(fact).split("\n", 1)[0].strip()
-        value = compact_text(value, 160)
-        if value and value not in summaries:
-            summaries.append(value)
+    clue_count = context_stats.get("clue_items", injected_count)
+    source_count = context_stats.get("source_memories")
+    preview = compact_text(context, 300)
 
     lines = [
         "# Memory Hub Recall Result",
         "",
         "## 本轮摘要",
         "",
-        "- 识别结果：候选 `%s` 条，LLM 放行 `%s` 条，实际注入 `%d` 条"
-        % (candidates if candidates is not None else "未知", kept, injected_count),
+        "- 识别结果：候选 `%s` 条，LLM 放行 `%s` 条，精炼线索 `%s` 条，来源记忆 `%s` 条"
+        % (
+            candidates if candidates is not None else "未知",
+            kept,
+            clue_count,
+            source_count if source_count is not None else "未知",
+        ),
         "- 注入字符：`%d/%d`" % (context_chars, max_chars),
         "- 注入来源：`%s`" % context_stats.get("source", "unknown"),
-        "- 注入摘要：%s" % ("；".join(summaries) if summaries else "无注入记忆"),
+        "- 模型可见线索预览：%s" % (preview or "无"),
         "- 审计边界：本文件保留服务端完整响应与客户端实际注入原文；文件路径和审计元数据不进入 agent context",
         "",
         "## 查询信息",
@@ -2659,9 +2787,21 @@ def write_recall_result_file(
         "",
         *markdown_json_lines(quality),
         "",
-        "## 服务端 LLM 精简结果（原始响应）",
+        "## 服务端查询级行动简报（原始响应）",
         "",
-        "以下 JSON 原样保存本次响应的 `injection_results`，未经过客户端二次提炼。",
+        "- injection_context_status: `%s`" % (injection_context_status or "缺失"),
+        "- client_validation_error: `%s`" % (injection_context_error or "无"),
+        "",
+        *markdown_json_lines(
+            {
+                "injection_brief": injection_brief,
+                "injection_context": server_injection_context,
+            }
+        ),
+        "",
+        "## 服务端逐候选精简结果（兼容响应）",
+        "",
+        "以下 JSON 原样保存兼容字段 `injection_results`；模型优先使用上面的查询级行动简报。",
         "",
         *markdown_json_lines(injection_results),
         "",
@@ -2980,17 +3120,42 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
         )
         facts = response["facts"]
         injection_results = response.get("injection_results")
+        injection_brief = response.get("injection_brief")
+        server_injection_context = response.get("injection_context")
+        injection_context_status = response.get("injection_context_status")
+        injection_context_error = response.get("injection_context_error")
         context, injected_count, context_source = format_recall_context(
-            facts, injection_results, args.max_chars, profile
+            facts,
+            injection_results,
+            args.max_chars,
+            profile,
+            injection_context=server_injection_context,
+            injection_brief=injection_brief,
+            injection_context_status=injection_context_status,
         )
         injection_json_chars = (
             len(json.dumps(injection_results, ensure_ascii=False, separators=(",", ":")))
             if injection_results is not None
             else None
         )
+        source_ranks = {
+            rank
+            for item in (injection_brief or [])
+            for rank in item.get("source_ranks", [])
+            if isinstance(rank, int) and not isinstance(rank, bool)
+        }
+        if not source_ranks and not injection_brief and injection_results:
+            source_ranks = {
+                item["rank"] for item in injection_results if isinstance(item.get("rank"), int)
+            }
         context_stats = {
             "source": context_source,
+            "status": injection_context_status,
+            "client_validation_error": injection_context_error,
             "facts_returned": len(facts),
+            "brief_items": len(injection_brief or []),
+            "clue_items": injected_count,
+            "source_memories": len(source_ranks),
             "injection_results_returned": (
                 len(injection_results) if injection_results is not None else None
             ),
@@ -3012,6 +3177,10 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
                     query=args.query,
                     facts=facts,
                     injection_results=injection_results,
+                    injection_brief=injection_brief,
+                    server_injection_context=server_injection_context,
+                    injection_context_status=injection_context_status,
+                    injection_context_error=injection_context_error,
                     server_response=response.get("raw_response"),
                     retrieval=response.get("retrieval"),
                     quality=response.get("quality"),
@@ -3033,6 +3202,14 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             }
             if injection_results is not None:
                 payload["injection_results"] = injection_results
+            if injection_brief is not None:
+                payload["injection_brief"] = injection_brief
+            if server_injection_context is not None:
+                payload["injection_context"] = server_injection_context
+            if injection_context_status is not None:
+                payload["injection_context_status"] = injection_context_status
+            if injection_context_error is not None:
+                payload["injection_context_error"] = injection_context_error
             if response.get("retrieval") is not None:
                 payload["retrieval"] = response["retrieval"]
             if response.get("quality") is not None:
@@ -3060,6 +3237,10 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
                     len(injection_results) if injection_results is not None else None
                 ),
                 "injection_results_json_chars": injection_json_chars,
+                "injection_brief_count": len(injection_brief or []),
+                "injection_source_count": len(source_ranks),
+                "injection_context_status": injection_context_status,
+                "injection_context_error": injection_context_error,
                 "context_source": context_source,
                 "injected_count": injected_count,
                 "context_chars": len(context),
@@ -3173,17 +3354,36 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
         response = client.search_response(query, project_id, args.limit, profile.user_id)
         facts = response["facts"]
         injection_results = response.get("injection_results")
+        injection_brief = response.get("injection_brief")
+        server_injection_context = response.get("injection_context")
+        injection_context_status = response.get("injection_context_status")
+        injection_context_error = response.get("injection_context_error")
         recalled, injected_count, context_source = format_recall_context(
-            facts, injection_results, args.max_chars
+            facts,
+            injection_results,
+            args.max_chars,
+            injection_context=server_injection_context,
+            injection_brief=injection_brief,
+            injection_context_status=injection_context_status,
         )
+        source_ranks = {
+            rank
+            for item in (injection_brief or [])
+            for rank in item.get("source_ranks", [])
+            if isinstance(rank, int) and not isinstance(rank, bool)
+        }
+        if not source_ranks and not injection_brief and injection_results:
+            source_ranks = {
+                item["rank"] for item in injection_results if isinstance(item.get("rank"), int)
+            }
         if recalled:
             quality = response.get("quality")
             if isinstance(quality, dict):
                 candidates = quality.get("candidates")
                 kept = quality.get("kept")
                 status_line = (
-                    "Memory Hub 识别结果：候选 %s 条，LLM 放行 %s 条，实际注入 %d 条。"
-                    % (candidates, kept, injected_count)
+                    "Memory Hub 识别结果：候选 %s 条，LLM 放行 %s 条，精炼线索 %d 条，来源记忆 %d 条。"
+                    % (candidates, kept, injected_count, len(source_ranks))
                 )
             else:
                 status_line = "Memory Hub 识别结果：召回 %d 条，实际注入 %d 条。" % (
@@ -3217,7 +3417,19 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
                 "outcome": outcome,
                 "quality": response.get("quality") if "response" in locals() else None,
                 "injection_results_count": (
-                    len(injection_results) if "injection_results" in locals() and injection_results is not None else None
+                    len(injection_results)
+                    if "injection_results" in locals() and injection_results is not None
+                    else None
+                ),
+                "injection_brief_count": (
+                    len(injection_brief) if "injection_brief" in locals() and injection_brief is not None else None
+                ),
+                "injection_source_count": len(source_ranks) if "source_ranks" in locals() else 0,
+                "injection_context_status": (
+                    injection_context_status if "injection_context_status" in locals() else None
+                ),
+                "injection_context_error": (
+                    injection_context_error if "injection_context_error" in locals() else None
                 ),
                 "context_source": context_source if "context_source" in locals() else None,
                 "injected_count": injected_count if "injected_count" in locals() else 0,

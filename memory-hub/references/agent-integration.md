@@ -195,24 +195,28 @@ error/timeout 抛真正的 Pi 工具错误，取消保持独立。CLI `search --
 本地结果文件据此区分「候选 / LLM 放行 / 实际注入」。旧扩展必须重跑 `install --agents pi` 部署模板；
 已有 Pi 会话需 `/reload` 或新进程，chat-hub 长驻 RPC 同样需要在空闲时重载/重启才使用新实现。
 
-服务端 policy 含 `judge14-evolution-injection` 时，客户端必须保留并优先注入同次 Judge 返回的
-`injection_results[{result_id,rank,text}]`，不得只白名单复制旧 `results/retrieval/quality` 而静默丢字段。
-`rank` 是 Judge 原始候选 rank，必须与 `result_id` 一起保存；字段缺失时才回退原记忆拼装。通用 hook
-脚本直接按仓库路径执行，此类 Python 客户端改动不需要提升 Pi 扩展版本或重装。
+**v31 查询级行动简报**：服务端 policy 含 `judge15-evolution-brief` 时，客户端直接注入服务端已完成
+post-gate 过滤和预算渲染的 `injection_context`。模型可见文本中不加入 Memory 编号、标题、UUID、
+project/session/source/rank/result_id；这些来源映射只保存在 `injection_brief[].source_ranks`、完整响应、
+trace 和详情文件中，当前客户端没有按 memory_id 自动二次取回链路。若 v15 上下文被客户端防御校验拒绝，
+或对接 v14 服务端，则仅把 `injection_results[].text` 渲染为无元数据项目符号；再老的服务端才回退无元数据
+原记忆正文。`injection_context`/brief 格式问题不得静默丢失，详情文件记录 validation error。v31 修改了
+安装副本 `assets/pi-memory-hub.ts`，必须重跑 install；已有 Pi/chat-hub 进程需 reload/restart。
 
 **v19 起 Pi TUI 对召回结果可感知**：首轮 bootstrap 和手工 `memory_search` 都改用结构化 JSON
 响应。阻塞等待期间顶部 widget 显示“正在检索并审核”与累计耗时；完成后清理 widget，状态栏和
-notification 显示 `候选 · LLM 放行 · 实际注入 · project · 耗时`，摘要只取实际注入的前 3 条。
-空结果、超时和错误也会明确提示“本轮未注入”。前端只看 Hub 的聚合 `quality` 与已放行结果，不展示
-LLM 理由、冲突字段或被拒候选；提示失败不影响 agent。新 session 会清理上一 session 的残留状态。
-Claude/Codex 暂无同等扩展 UI，`UserPromptSubmit` 注入头部同样区分候选、放行与实际注入数。
+notification 显示 `候选 · LLM 放行 · 精炼线索 · 来源记忆 · 字符数 · project · 耗时`，预览取最终
+`injection_context` 的前两条线索，不再展示低信息量记忆标题。空结果、超时和错误也会明确提示“本轮未注入”。
+前端只看 Hub 聚合 `quality`、客户端 `context_stats` 与最终上下文，不展示 LLM 理由、冲突字段或被拒候选；
+提示失败不影响 agent。新 session 会清理上一 session 的残留状态。Claude/Codex 暂无同等扩展 UI，
+`UserPromptSubmit` 注入头部同样区分候选、放行、线索和来源数。
 
 **v20 起每次 Pi 成功完成的首轮/手工召回都会原子写一份本地 Markdown**，路径为
 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/recall-results/pi/<project>/`。文件顶部列出
-候选、LLM 放行、实际注入、注入字符预算及最多 3 条注入摘要；审计正文必须同时原样保存：① 服务端
-`injection_results`；② 客户端最终注入上下文与 `context_stats`；③ Hub 完整 JSON 响应；④ 每条已放行
-记忆的正文、分数组件和 provenance。三层内容不能互相替代，否则无法判断是服务端未返回、客户端丢字段，
-还是预算拼装遗漏。Pi notification 末尾显示绝对路径；状态栏保持短格式。**路径和审计元数据不进入
+候选、LLM 放行、精炼线索、来源记忆、注入字符预算及模型可见线索预览；审计正文必须同时原样保存：
+① 服务端查询级 `injection_brief`/`injection_context`/状态；② 兼容字段 `injection_results`；③ 客户端最终
+注入上下文、来源与 validation error；④ Hub 完整 JSON 响应；⑤ 每条放行记忆的正文、分数组件和 provenance。
+这些层不能互相替代，否则无法判断是 Judge 综合质量、post-gate 过滤、客户端字段处理还是预算拼装问题。Pi notification 末尾显示绝对路径；状态栏保持短格式。**路径和审计元数据不进入
 systemPrompt，也不进入 `memory_search` tool content**，只有 TUI 与本地 trace 可见。文件目前不自动清理；
 服务端未返回的被拒候选仍不会写到客户端文件。
 
@@ -294,11 +298,11 @@ full-session 资产为准。该改动只在直接引用的 Python script 中，�
 | kind | 时机 | 关键字段 |
 |---|---|---|
 | `session_start` | 会话开始 | session_id、cwd |
-| `project_bootstrap` | session 首个有效任务的项目背景预热 | query、limit、project_override、outcome（含 injected/empty/error/timeout/disabled/skipped_extraction/skipped_capture_env/cancelled；纯寒暄另记 skipped_low_signal_prompt 且不写完成 marker）、exit_code、duration_ms、quality、context_stats、injected_count、result_file、result_chars；审核细节按 retrieval_id 在服务端查 |
+| `project_bootstrap` | session 首个有效任务的项目背景预热 | query、limit、project_override、outcome、exit_code、duration_ms、quality、context_stats（status/clue_items/source_memories/chars/client_validation_error）、injected_count、result_file、result_chars；纯寒暄另记 skipped_low_signal_prompt 且不写完成 marker；审核细节按 retrieval_id 在服务端查 |
 | `project_bootstrap_skip` | 已有持久完成标记，恢复旧 session 不重复回溯（v12） | session_id、outcome=already_completed |
 | `recall_cancel` | v25+ 用户在预热/检索等待期间按 Esc/Ctrl+C 手动中断 | session_id、cwd、key=escape\|ctrl_c |
 | `recall_score` / `recall_score_wait` | v12-v17 历史玩家评分事件；v18 不再产生 | total、scored、dropped、kept / rank、outcome |
-| `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、quality、injection_results_count/injection_results_json_chars、context_source/context_stats、injected_count、result_file、result（模型可见结果全文，不含文件路径） |
+| `search` | memory_search 工具调用 | query、limit、exit_code、duration_ms、quality、injection_brief_count/injection_source_count/injection_context_status/error、context_source/context_stats、injected_count、result_file、result（模型可见纯线索全文，不含文件路径或来源元数据） |
 | `marker_write` / `marker_delete` / `marker_quarantine` | write-ahead marker 生命周期（v5） | sessionId 等 |
 | `enqueue_done` | `capture --no-flush` 入队完成（v5） | outcome、job_id、sha256、transcript_bytes |
 | `flush_schedule` / `flush_cancel` / `flush_done` | 防抖 flush 排程 / 取消 / 完成（v5） | outcome=completed/busy/failed |

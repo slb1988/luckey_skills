@@ -132,7 +132,7 @@ MainDev `Tools/AiReview` 内的 Memory Hub 客户端是 CI 专用分支，只做
 
 <memory category="troubleshooting">
 Pi v30 与 Claude/Codex recall 对纯寒暄/单独测试词做客户端快速跳过：不请求 Hub、不写完成 marker，同 session 后续首个有效任务仍会召回。有效短任务保留原意，不再因字符数过短而替换为宽泛项目背景；排查旧副本仍把 `hi` 改写成「项目概况/架构/决策」时，先看 trace 的 `ext_version` 并重跑 install。
-TUI 的计数分三层：服务端候选、LLM 放行、客户端实际注入。policy 含 `judge14-evolution-injection` 时客户端优先使用同次 Judge 的 `injection_results[].text`，以 `result_id+rank` 绑定来源；没有该字段才回退原记忆拼装。`search --json` 的 `context_stats.injected`、Pi trace 的 `injected_count` 才是模型可见条数。`recall-results` 是排查溯源包，必须同时原样保留 Hub 完整响应、服务端 LLM 精简结果、客户端最终注入上下文与全部放行 facts/provenance，任何一层都不能因旧字段白名单而静默丢失。
+Pi v31 / Judge v15 直接注入服务端查询级 `injection_context`：同一次 Judge 已跨候选去重归纳并在 post-gate 后过滤来源。模型可见文本禁止加入 Memory 编号、标题、UUID、project/session/source/rank/result_id；当前没有按这些 ID 自动二次取回链路，它们只留审计。v15 不可用或客户端防御校验失败时，依次回退无元数据的 `injection_results[].text` 项目符号、无元数据原记忆正文。TUI 展示候选/放行/精炼线索/来源记忆/字符数，并预览真实线索而非标题。`recall-results` 必须原样保留 Hub 完整响应、query-level brief/context/状态、兼容精简项、客户端最终上下文与 validation error、全部 facts/provenance，任何一层都不能静默丢失。
 </memory>
 
 Pi 扩展 v22+：用户用 `/skill:name` 显式指定 skill 的首轮 prompt **跳过自动预热检索**——pi 会把 skill 展开为 `<skill name="…" location="…">` 块注入 prompt 开头（裸 `/skill:` 未展开命令作兜底匹配），扩展检测到即跳过，trace outcome 记 `skipped_skill_invocation` 并照常写 bootstrap-done 标记（同 session 后续不补检索）。排查「首轮预热没跑」先认这个 outcome，是设计行为不是故障；`memory_search` 工具不受影响，skill 内仍可主动检索。
