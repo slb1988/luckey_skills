@@ -26,6 +26,7 @@ from memory_hook import (
     command_persona_card,
     command_recall,
     command_search,
+    extract_referenced_project_ids,
     flush_pending,
     format_context,
     format_context_with_count,
@@ -220,51 +221,92 @@ class MemoryHookTest(unittest.TestCase):
             )
             seen = []
 
-            def fake_search_response(client, query, project_id, limit, user_id):
-                seen.append(client.config.timeout_seconds)
+            def fake_search_response(client, query, project_id, limit, user_id, **kwargs):
+                seen.append((client.config.timeout_seconds, kwargs))
                 fact = {
                     "result_id": "memory-1",
                     "source_type": "memory_document",
                     "summary": "历史决策",
                     "text": "这是一段不会进入模型的较长原始记忆。",
                 }
-                injection_results = [
-                    {"result_id": "memory-1", "rank": 2, "text": "先小范围验证。"}
-                ]
-                injection_brief = [
-                    {
-                        "kind": "reusable_pattern",
-                        "text": "先小范围验证，再根据结果扩大修改范围。",
-                        "source_ranks": [2],
-                    }
-                ]
-                injection_context = "- 可复用做法：先小范围验证，再根据结果扩大修改范围。"
+                scope = {
+                    "mode": "current_plus_referenced",
+                    "current_project_id": "maindev",
+                    "referenced_project_ids": [],
+                    "project_ids": ["maindev"],
+                    "resolved_project_ids": ["maindev"],
+                }
+                audit = {
+                    "scope": scope,
+                    "stage_a": {
+                        "status": "completed",
+                        "required_slots": [
+                            {"slot_id": "validation", "description": "验证策略"}
+                        ],
+                        "judgments": [
+                            {
+                                "rank": 1,
+                                "result_id": "memory-1",
+                                "rating": 3,
+                                "supports_slots": ["validation"],
+                                "evidence": "先小范围验证",
+                                "rationale": "直接支持",
+                                "conflict": "",
+                            }
+                        ],
+                    },
+                    "stage_b": {
+                        "status": "completed",
+                        "input_sources": [
+                            {"source_id": "e1", "rank": 1, "result_id": "memory-1"}
+                        ],
+                        "items": [
+                            {
+                                "slot_id": "validation",
+                                "status": "known",
+                                "category": "reusable",
+                                "conclusion": "先小范围验证，再根据结果扩大修改范围。",
+                                "source_ids": ["e1"],
+                            }
+                        ],
+                        "suppression_reason": None,
+                    },
+                }
+                injection_context = "可复用\n- 验证策略：先小范围验证，再根据结果扩大修改范围。"
+                quality = {
+                    "mode": "llm",
+                    "candidates": 3,
+                    "kept": 1,
+                    "stage_a": {"status": "completed"},
+                    "stage_b": {"status": "completed", "suppression_reason": None},
+                }
                 raw_response = {
                     "contract_version": "memory-search-results/2",
                     "results": [fact],
-                    "injection_results": injection_results,
-                    "injection_brief": injection_brief,
+                    "scope": scope,
+                    "audit": audit,
                     "injection_context": injection_context,
-                    "injection_context_status": "generated",
                     "retrieval_id": "r1",
                     "query_hash": "a" * 64,
-                    "policy_version": "v2-fts-judge15-evolution-brief-llm",
-                    "quality": {"mode": "llm", "candidates": 3, "kept": 1},
+                    "policy_version": "v2-fts-stage-ab-slots-llm",
+                    "quality": quality,
                 }
                 return {
                     "facts": [fact],
-                    "injection_results": injection_results,
-                    "injection_brief": injection_brief,
+                    "injection_results": None,
                     "injection_context": injection_context,
-                    "injection_context_status": "generated",
+                    "injection_context_status": "completed",
+                    "injection_suppression_reason": None,
                     "injection_context_error": None,
+                    "scope": scope,
+                    "audit": audit,
                     "raw_response": raw_response,
                     "retrieval": {
                         "retrieval_id": "r1",
                         "query_hash": "a" * 64,
-                        "policy_version": "v2-fts-judge15-evolution-brief-llm",
+                        "policy_version": "v2-fts-stage-ab-slots-llm",
                     },
-                    "quality": {"mode": "llm", "candidates": 3, "kept": 1},
+                    "quality": quality,
                 }
 
             args = SimpleNamespace(
@@ -287,22 +329,21 @@ class MemoryHookTest(unittest.TestCase):
                 self.assertEqual(command_search(args, config), 0)
 
             payload = json.loads(stdout.getvalue())
-            self.assertEqual(seen, [120.0])
+            self.assertEqual(seen[0][0], 120.0)
+            self.assertEqual(seen[0][1]["referenced_project_ids"], [])
+            self.assertTrue(seen[0][1]["include_audit"])
             self.assertEqual(payload["project_id"], "maindev")
             self.assertEqual(payload["quality"]["kept"], 1)
-            self.assertEqual(payload["injection_results"][0]["text"], "先小范围验证。")
-            self.assertEqual(payload["context_stats"]["source"], "server_injection_context")
-            self.assertEqual(payload["context_stats"]["status"], "generated")
+            self.assertEqual(payload["context_stats"]["source"], "server_stage_b_context")
+            self.assertEqual(payload["context_stats"]["status"], "completed")
             self.assertEqual(payload["context_stats"]["facts_returned"], 1)
-            self.assertEqual(payload["context_stats"]["brief_items"], 1)
             self.assertEqual(payload["context_stats"]["clue_items"], 1)
             self.assertEqual(payload["context_stats"]["source_memories"], 1)
-            self.assertEqual(payload["context_stats"]["injection_results_returned"], 1)
             self.assertEqual(payload["context_stats"]["injected"], 1)
             self.assertEqual(payload["context_stats"]["chars"], len(payload["context"]))
             self.assertEqual(payload["context_stats"]["max_chars"], 4000)
             self.assertEqual(
-                payload["context"], "- 可复用做法：先小范围验证，再根据结果扩大修改范围。"
+                payload["context"], "可复用\n- 验证策略：先小范围验证，再根据结果扩大修改范围。"
             )
             self.assertNotIn("不会进入模型", payload["context"])
             self.assertNotIn("Memory 1", payload["context"])
@@ -316,15 +357,16 @@ class MemoryHookTest(unittest.TestCase):
                 result_text,
             )
             self.assertIn("注入字符：", result_text)
-            self.assertIn("注入来源：`server_injection_context`", result_text)
-            self.assertIn("服务端查询级行动简报（原始响应）", result_text)
-            self.assertIn("服务端逐候选精简结果（兼容响应）", result_text)
+            self.assertIn("注入来源：`server_stage_b_context`", result_text)
+            self.assertIn("跨 Project 检索 Scope（原始响应）", result_text)
+            self.assertIn("服务端 Stage A / Stage B 结构化审计（原始响应）", result_text)
+            self.assertIn("服务端最终注入上下文（原始响应）", result_text)
             self.assertIn("客户端实际注入上下文（原样）", result_text)
             self.assertIn("服务端完整响应（原样）", result_text)
             self.assertIn('"contract_version": "memory-search-results/2"', result_text)
-            self.assertIn('"text": "先小范围验证。"', result_text)
-            self.assertIn('"kind": "reusable_pattern"', result_text)
-            self.assertIn("- 可复用做法：先小范围验证，再根据结果扩大修改范围。", result_text)
+            self.assertIn('"slot_id": "validation"', result_text)
+            self.assertIn('"result_id": "memory-1"', result_text)
+            self.assertIn("- 验证策略：先小范围验证，再根据结果扩大修改范围。", result_text)
             self.assertIn("历史决策", result_text)
             self.assertIn("session_id: `sess-ui`", result_text)
             self.assertNotIn(str(result_file), payload["context"])
@@ -895,36 +937,62 @@ class MemoryHookTest(unittest.TestCase):
                 state_dir=Path(directory),
             )
             client = HubClient(config)
+            scope = {
+                "mode": "current_plus_referenced",
+                "current_project_id": "project-a",
+                "referenced_project_ids": ["project-b"],
+                "project_ids": ["project-a", "project-b"],
+                "resolved_project_ids": ["project-a", "project-b"],
+            }
+            audit = {
+                "scope": scope,
+                "stage_a": {"status": "completed", "required_slots": []},
+                "stage_b": {
+                    "status": "completed",
+                    "input_sources": [],
+                    "items": [],
+                    "suppression_reason": None,
+                },
+            }
             raw_response = {
                 "contract_version": "memory-search-results/2",
                 "results": [{"result_id": "memory-1", "text": "answer"}],
-                "injection_results": [
-                    {"result_id": "memory-1", "rank": 3, "text": "compact answer"}
-                ],
-                "injection_brief": [
-                    {
-                        "kind": "confirmed",
-                        "text": "actionable answer",
-                        "source_ranks": [3],
-                    }
-                ],
-                "injection_context": "- 已确认：actionable answer",
-                "injection_context_status": "generated",
+                "scope": scope,
+                "audit": audit,
+                "injection_context": "已确认\n- 任务所需结论：actionable answer",
                 "retrieval_id": "retrieval-1",
                 "query_hash": "a" * 64,
-                "policy_version": "v2-fts-judge15-evolution-brief-llm",
-                "quality": {"mode": "llm", "candidates": 2, "kept": 1},
+                "policy_version": "v2-fts-stage-ab-slots-llm",
+                "quality": {
+                    "mode": "llm",
+                    "candidates": 2,
+                    "kept": 1,
+                    "stage_a": {"status": "completed"},
+                    "stage_b": {"status": "completed", "suppression_reason": None},
+                },
             }
             client.request = lambda *args, **kwargs: raw_response
 
-            response = client.search_response("query", "project-a", 5, "user-a")
+            response = client.search_response(
+                "query",
+                "project-a",
+                5,
+                "user-a",
+                referenced_project_ids=["project-b"],
+                include_audit=True,
+            )
 
             self.assertEqual(response["facts"][0]["result_id"], "memory-1")
-            self.assertEqual(response["injection_results"], raw_response["injection_results"])
-            self.assertEqual(response["injection_brief"], raw_response["injection_brief"])
-            self.assertEqual(response["injection_context"], "- 已确认：actionable answer")
-            self.assertEqual(response["injection_context_status"], "generated")
+            self.assertIsNone(response["injection_results"])
+            self.assertEqual(
+                response["injection_context"],
+                "已确认\n- 任务所需结论：actionable answer",
+            )
+            self.assertEqual(response["injection_context_status"], "completed")
+            self.assertIsNone(response["injection_suppression_reason"])
             self.assertIsNone(response["injection_context_error"])
+            self.assertEqual(response["scope"], scope)
+            self.assertEqual(response["audit"], audit)
             self.assertIs(response["raw_response"], raw_response)
             self.assertEqual(response["retrieval"]["retrieval_id"], "retrieval-1")
             self.assertEqual(response["quality"]["kept"], 1)
@@ -943,17 +1011,19 @@ class MemoryHookTest(unittest.TestCase):
             client = HubClient(config)
             client.request = lambda *args, **kwargs: {
                 "results": [{"result_id": "memory-1", "text": "raw answer"}],
-                "injection_results": [
-                    {"result_id": "memory-1", "rank": 1, "text": "compact answer"}
-                ],
-                "injection_brief": [
-                    {"kind": "confirmed", "text": "answer", "source_ranks": [1]}
-                ],
                 "injection_context": "[Memory 1 | project=x | result=memory-1] answer",
-                "injection_context_status": "generated",
+                "audit": {"scope": {}, "stage_a": {}, "stage_b": {}},
+                "scope": {},
                 "retrieval_id": "retrieval-1",
                 "query_hash": "a" * 64,
-                "policy_version": "v2-fts-judge15-evolution-brief-llm",
+                "policy_version": "v2-fts-stage-ab-slots-llm",
+                "quality": {
+                    "mode": "llm",
+                    "candidates": 1,
+                    "kept": 1,
+                    "stage_a": {"status": "completed"},
+                    "stage_b": {"status": "completed", "suppression_reason": None},
+                },
             }
 
             response = client.search_response("query", "project-a", 5, "user-a")
@@ -962,15 +1032,14 @@ class MemoryHookTest(unittest.TestCase):
                 response["injection_results"],
                 4000,
                 injection_context=response["injection_context"],
-                injection_brief=response["injection_brief"],
                 injection_context_status=response["injection_context_status"],
             )
 
             self.assertIsNone(response["injection_context"])
             self.assertEqual(response["injection_context_error"], "invalid_injection_context")
-            self.assertEqual(context, "- compact answer")
-            self.assertEqual(count, 1)
-            self.assertEqual(source, "injection_results_plain_fallback")
+            self.assertEqual(context, "")
+            self.assertEqual(count, 0)
+            self.assertEqual(source, "suppressed_no_server_context")
 
     def test_search_response_rejects_injection_mapping_that_cannot_be_audited(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1100,29 +1169,30 @@ class MemoryHookTest(unittest.TestCase):
             }
             calls = []
 
-            def fake_search_response(self_client, query, project_id, limit, user_id):
-                calls.append((query, project_id, limit, user_id))
+            def fake_search_response(self_client, query, project_id, limit, user_id, **kwargs):
+                calls.append((query, project_id, limit, user_id, kwargs))
                 return {
                     "facts": [fact],
-                    "injection_results": [
-                        {
-                            "result_id": "m1",
-                            "rank": 2,
-                            "text": "recall 配置方法：在 UserPromptSubmit 挂 recall 子命令。",
-                        }
-                    ],
-                    "injection_brief": [
-                        {
-                            "kind": "reusable_pattern",
-                            "text": "在 UserPromptSubmit 挂 recall 子命令。",
-                            "source_ranks": [2],
-                        }
-                    ],
-                    "injection_context": "- 可复用做法：在 UserPromptSubmit 挂 recall 子命令。",
-                    "injection_context_status": "generated",
+                    "injection_results": None,
+                    "injection_context": "可复用\n- Recall 挂点：在 UserPromptSubmit 挂 recall 子命令。",
+                    "injection_context_status": "completed",
+                    "injection_suppression_reason": None,
                     "injection_context_error": None,
+                    "audit": {
+                        "stage_b": {
+                            "items": [{"slot_id": "recall_hook", "status": "known"}],
+                            "input_sources": [{"result_id": "m1"}],
+                        }
+                    },
+                    "scope": {"project_ids": [project_id]},
                     "retrieval": {"retrieval_id": "r1"},
-                    "quality": {"mode": "llm", "candidates": 3, "kept": 1},
+                    "quality": {
+                        "mode": "llm",
+                        "candidates": 3,
+                        "kept": 1,
+                        "stage_a": {"status": "completed"},
+                        "stage_b": {"status": "completed", "suppression_reason": None},
+                    },
                 }
 
             with patch.object(HubClient, "search_response", fake_search_response):
@@ -1134,16 +1204,18 @@ class MemoryHookTest(unittest.TestCase):
                 first = stdout.getvalue()
                 self.assertIn("自动首轮预热", first)
                 self.assertIn("候选 3 条，LLM 放行 1 条，精炼线索 1 条，来源记忆 1 条", first)
-                self.assertIn("可复用做法", first)
+                self.assertIn("Recall 挂点", first)
                 self.assertNotIn("recall 配置方法", first)
                 self.assertNotIn("原始长文", first)
                 self.assertNotIn("[Memory", first)
                 self.assertEqual(len(calls), 1)
-                query, project_id, limit, user_id = calls[0]
+                query, project_id, limit, user_id, kwargs = calls[0]
                 self.assertIn(root.name, query)
                 self.assertIn("怎么配置 recall 钩子", query)
                 self.assertEqual(limit, 6)
                 self.assertEqual(user_id, "user-a")
+                self.assertEqual(kwargs["referenced_project_ids"], [])
+                self.assertTrue(kwargs["include_audit"])
                 # 同 session 第二个 prompt：不再查询、不再注入。
                 stdout2 = io.StringIO()
                 with patch("sys.stdin", io.StringIO(self._recall_payload(root))), patch(
@@ -1187,7 +1259,7 @@ class MemoryHookTest(unittest.TestCase):
                 state_dir=root / "state",
             )
 
-            def failing_search(self_client, query, project_id, limit, user_id):
+            def failing_search(self_client, query, project_id, limit, user_id, **kwargs):
                 raise HubError("HTTP 503: GRAPHITI_UNAVAILABLE")
 
             stdout = io.StringIO()
@@ -1217,7 +1289,7 @@ class MemoryHookTest(unittest.TestCase):
             )
             calls = []
 
-            def fake_search_response(self_client, query, project_id, limit, user_id):
+            def fake_search_response(self_client, query, project_id, limit, user_id, **kwargs):
                 calls.append(query)
                 return {"facts": [], "retrieval": None, "quality": {"candidates": 0, "kept": 0}}
 
@@ -1267,6 +1339,21 @@ class MemoryHookTest(unittest.TestCase):
         self.assertIn("摘要：DT 静态网格同步", output)
         self.assertIn("删除 10 条，最终 214 行", output)
 
+    def test_extract_referenced_projects_from_intent_only(self):
+        query = (
+            "obsidianvault 任务: 联动 ws:autoserver-deveops 和 project:maindev，"
+            "再次引用 ws:autoserver-deveops\n上下文:\n日志里出现 project:noise"
+        )
+        self.assertEqual(
+            extract_referenced_project_ids(query, "obsidianvault"),
+            ["autoserver-deveops", "maindev"],
+        )
+        with self.assertRaisesRegex(HubError, "too many referenced projects"):
+            extract_referenced_project_ids(
+                "任务: " + " ".join("ws:p%d" % index for index in range(9)),
+                "obsidianvault",
+            )
+
     def test_format_context_reports_actual_injected_count(self):
         output, injected = format_context_with_count(
             [
@@ -1279,7 +1366,7 @@ class MemoryHookTest(unittest.TestCase):
         self.assertIn("A" * 100, output)
         self.assertNotIn("B" * 100, output)
 
-    def test_format_recall_context_uses_every_server_digest(self):
+    def test_format_recall_context_never_falls_back_to_candidate_digests(self):
         facts = [
             {
                 "result_id": "memory-%d" % index,
@@ -1301,14 +1388,9 @@ class MemoryHookTest(unittest.TestCase):
             facts, injection_results, 4000
         )
 
-        self.assertEqual(source, "injection_results_plain_fallback")
-        self.assertEqual(injected, 5)
-        self.assertLessEqual(len(output), 4000)
-        self.assertNotIn("[Memory", output)
-        self.assertNotIn("result_id", output)
-        for index in range(1, 6):
-            self.assertIn("digest-%d: E_SYNC_%d" % (index, index), output)
-            self.assertNotIn("raw-%d-" % index, output)
+        self.assertEqual(source, "suppressed_no_server_context")
+        self.assertEqual(injected, 0)
+        self.assertEqual(output, "")
 
     def test_strip_skill_wrapper_recovers_real_user_text(self):
         wrapped = (

@@ -601,17 +601,20 @@ try {
 			}
 			if (projectDirectiveMode) {
 				const bootstrapSearch = hookCalls("search")[0];
+				assert.equal(bootstrapSearch.argv.includes("--project"), false);
 				assert.deepEqual(
 					bootstrapSearch.argv.slice(
-						bootstrapSearch.argv.indexOf("--project"),
-						bootstrapSearch.argv.indexOf("--project") + 2,
+						bootstrapSearch.argv.indexOf("--referenced-project"),
+						bootstrapSearch.argv.indexOf("--referenced-project") + 2,
 					),
-					["--project", "maindev"],
+					["--referenced-project", "maindev"],
 				);
-				assert.match(bootstrapSearch.argv[1], /^maindev 任务: start work/);
+				assert.match(bootstrapSearch.argv[1], /任务: start work/);
 				assert.doesNotMatch(bootstrapSearch.argv[1], /project:maindev/);
-				assert.equal(traceEntries("project_bootstrap")[0].project_override, "maindev");
-				assert.equal(traceEntries("project_bootstrap")[0].project_override_source, "directive");
+				const trace = traceEntries("project_bootstrap")[0];
+				assert.equal(trace.project_override, null);
+				assert.equal(trace.project_override_source, null);
+				assert.deepEqual(trace.referenced_projects, ["maindev"]);
 			}
 			if (chatHubIdentityMode) {
 				const bootstrapSearch = hookCalls("search")[0];
@@ -640,16 +643,16 @@ try {
 				);
 				assert.match(
 					notifyCalls[0].message,
-					/候选 3 条，LLM 放行 2 条，精炼为 1 条线索（来源 1 条记忆，33 字）/,
+					/候选 3 条，LLM 放行 2 条，精炼为 1 条线索（来源 1 条记忆，\d+ 字）/,
 				);
-				assert.match(notifyCalls[0].message, /可复用做法：项目使用严格测试驱动/);
+				assert.match(notifyCalls[0].message, /测试策略：项目使用严格测试驱动/);
 				assert.match(notifyCalls[0].message, /详情文件：.*recall-results/);
 				assert.ok(existsSync(join(stateDir, "recall-results", "pi", "fixture", "fixture-recall.md")));
 				assert.doesNotMatch(firstStart.systemPrompt, /recall-results|fixture-recall\.md/);
 				assert.doesNotMatch(firstStart.systemPrompt, /\[Memory|source=|project=|session=|judge_rank=|result=/);
 				assert.ok(
 					statusCalls.some((entry) =>
-						String(entry.value).includes("候选 3 · 放行 2 · 线索 1 · 来源 1 · 33字")
+						/候选 3 · 放行 2 · 线索 1 · 来源 1 · \d+字/.test(String(entry.value))
 					),
 				);
 				assert.equal(traceEntries("project_bootstrap")[0].injected_count, 1);
@@ -704,12 +707,12 @@ try {
 			["--project", "maindev"],
 		);
 		assert.equal(toolResult.details.project, "maindev");
-		assert.deepEqual(toolResult.details.quality, {
-			mode: "llm",
-			candidates: 3,
-			kept: 2,
-			min_rating: 2,
-		});
+		assert.equal(toolResult.details.quality.mode, "llm");
+		assert.equal(toolResult.details.quality.candidates, 3);
+		assert.equal(toolResult.details.quality.kept, 2);
+		assert.equal(toolResult.details.quality.min_rating, 2);
+		assert.equal(toolResult.details.quality.stage_a.status, "completed");
+		assert.equal(toolResult.details.quality.stage_b.status, "completed");
 		assert.doesNotMatch(toolResult.content[0].text, /recall-results|fixture-recall\.md/);
 		assert.ok(toolSearch.argv.includes("--write-result-file"));
 		assert.deepEqual(
@@ -717,7 +720,7 @@ try {
 			["--session-id", "sess-e2e"],
 		);
 		if (ctx.hasUI) {
-			assert.match(notifyCalls.at(-1).message, /精炼为 1 条线索（来源 1 条记忆，33 字）/);
+			assert.match(notifyCalls.at(-1).message, /精炼为 1 条线索（来源 1 条记忆，\d+ 字）/);
 		}
 
 		// agent_end → enqueue 立即触发并 await 完成（handler 返回即 durable）

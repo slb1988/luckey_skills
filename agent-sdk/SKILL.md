@@ -153,6 +153,14 @@ pypiserver 宿主 `192.168.2.13`（包存储 `/home/dev/pypi-server/packages/`�
 在平台侧核对真实状态（**绝不重复派发**，会生成重复任务），再回头查旧进程退出原因。
 </memory>
 
+<memory category="troubleshooting">
+`pyauto-computer 0.4.4` 的 supervisor 依赖 `<workroot>/.pyauto/host.pid` 判断受管 host 是否存活，
+不以端口监听或平台 online 为准。健康 host 丢失 PID 文件后，supervisor 会约每 10 秒重复拉起；
+原进程仍占端口时，新 host 以 Windows `WinError 10048` 退出并再次清掉 PID 文件，形成自维持循环。
+因此平台心跳或 `btw` 可显示 agent 空闲正常，仍须将端口 owner、PID 文件和 supervisor 日志交叉核对；
+`current_run.log` 是历史记录，不能单独证明当前仍有任务。
+</memory>
+
 ## 深入参考（按需查阅，正文不再展开）
 
 - [troubleshooting](references/troubleshooting.md) — 注册/心跳/代理 502/删除复活/锁排障/Windows subprocess 坑

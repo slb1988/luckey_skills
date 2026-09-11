@@ -54,7 +54,8 @@ import { Type } from "typebox";
 // v29：检索成功零结果与请求失败分离；安全结构化错误含HTTP状态/追踪ID，失败抛工具错误。
 // v30：纯寒暄首问本地跳过且不消耗召回机会；短任务保留原意；UI 区分候选、放行与实际注入数。
 // v31：直接使用 Judge v15 查询级行动简报；UI 展示线索/来源和真实线索预览，不再展示记忆标题。
-const EXTENSION_VERSION = "31";
+// v32：支持 ws:/project: 追加 scope；只接受 Stage B 最终上下文，suppressed 时禁止客户端候选回退。
+const EXTENSION_VERSION = "32";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -343,6 +344,13 @@ function contextCluePreview(context: string): string {
 	return lines.slice(0, 2).map((line) => clipText(line, 100)).join("；");
 }
 
+function contextSuppressionStatus(contextStats: Record<string, unknown> | null): string | null {
+	const status = contextStats?.status;
+	if (typeof status === "string" && status.startsWith("suppressed_")) return status;
+	const validationError = contextStats?.client_validation_error;
+	return typeof validationError === "string" && validationError ? validationError : null;
+}
+
 function showRecallOutcome(
 	ctx: ExtensionContext,
 	data: {
@@ -380,6 +388,13 @@ function showRecallOutcome(
 			ctx.ui.notify(
 				`🧠 Memory Hub：${messageCounts}${preview ? `｜${preview}` : ""}（${seconds}s）${fileLine}`,
 				"info",
+			);
+		} else if (data.outcome === "suppressed") {
+			const reason = contextSuppressionStatus(data.contextStats) || "stage_b_not_actionable";
+			ctx.ui.setStatus("memory-hub-recall", `🧠 记忆未注入 · ${data.project} · ${reason}`);
+			ctx.ui.notify(
+				`Memory Hub：${messageCounts}，但未形成安全可行动线索，本轮不注入（${reason}，${seconds}s）${fileLine}`,
+				"warning",
 			);
 		} else if (data.outcome === "empty") {
 			ctx.ui.setStatus("memory-hub-recall", `🧠 ${statusCounts} · ${data.project} · ${seconds}s`);
@@ -1245,9 +1260,9 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		);
 		const projectDirective = parseProjectDirective(promptFocus.intent);
 		const intent = projectDirective.text;
-		// v28：显式 project: 指令优先；其次 chat-hub 身份封套（单一非机主说话人
-		// → 其 profile_id 作为检索 project，与归档侧归属规则一致）。
-		const projectOverride = projectDirective.project || chatHubProject;
+		// chat-hub 身份仍决定当前 project；显式 project: 只追加检索范围，不再替换当前 scope。
+		const projectOverride = chatHubProject;
+		const referencedProjects = projectDirective.project ? [projectDirective.project] : [];
 		const projectHint = projectOverride || basename(ctx.cwd) || "当前项目";
 		if (isLowSignalBootstrapPrompt(intent, promptFocus.context)) {
 			trace("project_bootstrap", {
@@ -1317,6 +1332,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				sessionId,
 			];
 			if (projectOverride) searchArgs.push("--project", projectOverride);
+			for (const project of referencedProjects) searchArgs.push("--referenced-project", project);
 			const jsonResult = await runHub(
 				searchArgs,
 				undefined,
@@ -1522,6 +1538,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				sessionId,
 			];
 			if (projectOverride) searchArgs.push("--project", projectOverride);
+			for (const project of referencedProjects) searchArgs.push("--referenced-project", project);
 			const result = await runHub(
 				searchArgs,
 				undefined,
@@ -1558,16 +1575,18 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				: projectHint;
 			recalled = parsed && typeof (parsed as { context?: unknown }).context === "string"
 				? (parsed as { context: string }).context.trim()
-				: formatFactsDebug(visibleFacts, maxChars);
+				: "";
 			outcome = result.code === 130
 				? "cancelled"
 				: recalled
 					? "injected"
 					: result.code === 124
 						? "timeout"
-						: result.code === 0
-							? "empty"
-							: "error";
+						: result.code === 0 && visibleFacts.length > 0
+							? "suppressed"
+							: result.code === 0
+								? "empty"
+								: "error";
 		}
 		stopCancelListener();
 		stopRecallIndicator();
@@ -1593,11 +1612,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			max_chars: maxChars,
 			prompt_source: promptFocus.source,
 			project_override: projectOverride,
-			project_override_source: projectDirective.project
-				? "directive"
-				: chatHubProject
-					? "chat_hub_identity"
-					: null,
+			project_override_source: chatHubProject ? "chat_hub_identity" : null,
+			referenced_projects: referencedProjects,
 			outcome,
 			recall_outcome: outcome,
 			persona_outcome: outcome === "cancelled" ? "cancelled" : persona.outcome,
@@ -1623,11 +1639,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				prompt: rawPrompt,
 				prompt_source: promptFocus.source,
 				project_override: projectOverride,
-				project_override_source: projectDirective.project
-					? "directive"
-					: chatHubProject
-						? "chat_hub_identity"
-						: null,
+				project_override_source: chatHubProject ? "chat_hub_identity" : null,
+				referenced_projects: referencedProjects,
 				query,
 				retrieval,
 				quality,
@@ -1839,11 +1852,13 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				: projectHint;
 			const context = parsed && typeof (parsed as { context?: unknown }).context === "string"
 				? (parsed as { context: string }).context.trim()
-				: formatFactsDebug(facts, 12000);
+				: "";
+			const suppressionStatus = contextSuppressionStatus(contextStats);
 			const outcome = result.code === 130 ? "cancelled"
 				: error ? (["REQUEST_TIMEOUT", "RETRIEVAL_JUDGE_TIMEOUT"].includes(String(error.code))
 					? "timeout" : "error")
-					: context ? "injected" : "empty";
+					: context ? "injected"
+						: facts.length > 0 ? "suppressed" : "empty";
 			stopRecallIndicator();
 			showRecallOutcome(ctx, {
 				outcome,
@@ -1859,9 +1874,11 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				? "Memory Hub search was cancelled by the user."
 				: error
 					? `Memory Hub search ${outcome === "timeout" ? "timed out" : "failed"}; this is not a zero-result search. ${JSON.stringify(error)}`
-					: "Memory Hub search completed successfully, but no matching memory was found"
-						+ (quality ? ` after the quality gate (candidates: ${quality.candidates ?? "?"}, kept: ${quality.kept ?? 0}).` : ".")
-						+ " Try different keywords or an explicit project.");
+					: outcome === "suppressed"
+						? `Memory Hub found candidates but produced no safe actionable context (${suppressionStatus || "stage_b_not_actionable"}). Raw candidates were deliberately not injected; continue from current code and user context without automatically retrying.`
+						: "Memory Hub search completed successfully, but no matching memory was found"
+							+ (quality ? ` after the quality gate (candidates: ${quality.candidates ?? "?"}, kept: ${quality.kept ?? 0}).` : ".")
+							+ " Try different keywords or an explicit project.");
 			trace("search", {
 				session_id: ctx.sessionManager.getSessionId(),
 				cwd: ctx.cwd,

@@ -92,17 +92,20 @@ function respondNow(args) {
 				facts: [],
 				context: "",
 				context_stats: {
-					source: "server_injection_context_fallback_filtered_empty",
-					status: "fallback_filtered_empty",
+					source: "server_suppressed_empty",
+					status: "suppressed_empty",
 					facts_returned: 0,
-					brief_items: 0,
 					clue_items: 0,
 					source_memories: 0,
 					injected: 0,
 					chars: 0,
 					max_chars: 12000,
 				},
-				quality: { candidates: 10, kept: 0 },
+				quality: {
+					mode: "llm", candidates: 10, kept: 0, min_rating: 2,
+					stage_a: { status: "completed" },
+					stage_b: { status: "suppressed_empty", suppression_reason: "no_final_evidence" },
+				},
 			}));
 			return;
 		}
@@ -132,6 +135,7 @@ function respondNow(args) {
 				resultFile = join(resultDir, "fixture-recall.md");
 				writeFileSync(resultFile, "# Memory Hub Recall Result\n\n## 本轮摘要\n\n- 候选 3 · 放行 2 · 线索 1 · 来源 1\n");
 			}
+			const injectionContext = "可复用\n- 测试策略：项目使用严格测试驱动；先跑小规模验证再全量修改。";
 			console.log(JSON.stringify({
 				project_id: args.includes("--project")
 					? args[args.indexOf("--project") + 1]
@@ -139,29 +143,34 @@ function respondNow(args) {
 				retrieval: {
 					retrieval_id: "retrieval-e2e",
 					query_hash: "a".repeat(64),
-					policy_version: "v2-fts-judge15-evolution-brief-llm",
+					policy_version: "v2-fts-stage-ab-slots-llm",
 				},
-				quality: { mode: "llm", candidates: 3, kept: 2, min_rating: 2 },
-				injection_brief: [{
-					kind: "reusable_pattern",
-					text: "项目使用严格测试驱动；先跑小规模验证再全量修改。",
-					source_ranks: [1],
-				}],
-				injection_context: "- 可复用做法：项目使用严格测试驱动；先跑小规模验证再全量修改。",
-				injection_context_status: "generated",
+				scope: {
+					mode: "current_plus_referenced",
+					current_project_id: "fixture",
+					referenced_project_ids: [],
+					project_ids: ["fixture"],
+					resolved_project_ids: ["fixture"],
+				},
+				quality: {
+					mode: "llm", candidates: 3, kept: 2, min_rating: 2,
+					stage_a: { status: "completed" },
+					stage_b: { status: "completed", suppression_reason: null },
+				},
+				injection_context: injectionContext,
 				context_stats: {
-					source: "server_injection_context",
-					status: "generated",
+					source: "server_stage_b_context",
+					status: "completed",
+					stage_a_status: "completed",
 					facts_returned: 2,
-					brief_items: 1,
 					clue_items: 1,
 					source_memories: 1,
 					injected: 1,
-					chars: 33,
+					chars: injectionContext.length,
 					max_chars: 4000,
 				},
 				result_file: resultFile,
-				context: "- 可复用做法：项目使用严格测试驱动；先跑小规模验证再全量修改。",
+				context: injectionContext,
 				facts: [
 					{
 						result_id: "memory-useful",
