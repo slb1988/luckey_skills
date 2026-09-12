@@ -33,7 +33,17 @@ WG/局域网设备 ──lp -h 10.77.77.6 | 192.168.50.2──▶ cups-server :6
 
 ## @nas 派发模板（可直接抄进 a2a_send）
 
-**容器文件系统隔离（所有模板共用前提）**：cups-server 容器与 QNAP 宿主机的文件系统不共享，唯一挂载卷是 `…/cups/config → /etc/cups`。任何落在宿主机路径的文件（curl 下载、a2a 附件落盘、NAS 本地文件），`docker exec cups-server lp <宿主机路径>` 都会报 `No such file or directory`。统一两步走：
+**容器文件系统隔离（所有模板共用前提）**：cups-server 容器与 QNAP 宿主机的文件系统不共享，唯一挂载卷是 `…/cups/config → /etc/cups`。任何落在宿主机路径的文件（curl 下载、a2a 附件落盘、NAS 本地文件），`docker exec cups-server lp <宿主机路径>` 都会报 `No such file or directory`。
+
+两条等价绕法，按场景选：
+
+- **stdin 管道（文件已在 NAS 本地时优先，一步完成）**：CUPS `lp` 的文件参数接受 `-` 表示从 stdin 读作业内容，配合 `docker exec -i` 把宿主机文件直接喂进容器，不落容器 /tmp、不用清理：
+
+```bash
+docker exec -i cups-server lp -d brother <options> - < <NAS绝对路径>
+```
+
+- **docker cp 两步走（需要先在容器内留档、或命令链下游还要引用容器内路径时）**：
 
 ```bash
 docker cp <宿主机路径> cups-server:/tmp/<文件名>   # 先拷进容器
@@ -52,8 +62,7 @@ docker exec cups-server lp -d brother \
 ### 打印已在 NAS 本地的文件
 
 ```bash
-docker cp <NAS绝对路径> cups-server:/tmp/<文件名> && \
-docker exec cups-server lp -d brother -o <options> /tmp/<文件名>
+docker exec -i cups-server lp -d brother -o <options> - < <NAS绝对路径>
 ```
 
 ### 图片直打
