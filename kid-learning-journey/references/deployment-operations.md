@@ -36,6 +36,9 @@ The frontend is exposed on 8088 and the backend on 5100. The backend runs Gunico
 
 - `DATA_ROOT` controls database and media placement.
 - `PRINT_COMMAND` optionally names a local command that receives the absolute image path of each print job; without it print jobs stay pending as a spool for a later bridge (for example a NAS-side printer).
+- Print dispatch runs the command synchronously (60s timeout): the command string is shell-split, the image path is appended as the final argument, exit 0 marks the job `dispatched`, and non-zero exit, timeout, or spawn `OSError` marks it `failed` with captured stderr in `print_job.error` (exposed by the API) plus an app-log warning.
+- No worker retries jobs left `pending`; adding `PRINT_COMMAND` later does not drain the existing spool. An external bridge must explicitly consume pending jobs.
+- On the QNAP host deployment, native `lp` is unavailable; CUPS runs in the `cups-server` Docker container with the `brother` queue. `PRINT_COMMAND` points at the host wrapper `/share/CACHEDEV1_DATA/Container/kid-learning/bin/print-image.sh`, which pipes the image via stdin into `docker exec -i cups-server lp -d brother -o fit-to-page -`.
 - When no explicit database URI is set, SQLite lives below `DATA_ROOT`.
 - The application creates staging and media directories.
 - Production startup must run migrations before serving requests.
@@ -67,5 +70,6 @@ On restore, run integrity checks, verify manifest hashes against representative 
 - `flask process-media`: process pending derived-media jobs.
 - `flask sync-memory`: retry Memory Hub outbox delivery.
 - `docker compose config`: validate Compose expansion before deployment.
+- QNAP host lifecycle lives in `/share/CACHEDEV1_DATA/Container/kid-learning/bin/` (`start-all.sh` / `stop-all.sh`); on QNAP `pkill -f` does not match long command lines reliably and `ps aux` prints PID in the first column, so stop scripts must kill by PID. Gunicorn exits a few seconds after SIGTERM—verify the port is free before restarting.
 
 Keep original assets when derivative generation fails; surface the job state for diagnosis without blocking otherwise playable content.
