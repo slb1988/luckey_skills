@@ -200,6 +200,7 @@ echo "MTs451Hi966jzN" | sudo -S -u admin \
 
 ### 已知问题
 
+- **HBS 3 是整机级资源杀手（止血必知）**: 本机常态可用内存仅 ~2.2GB（见 SKILL.md 资源天花板），HBS 重作业（高并发 IO+内存）可把整机拖到失响应。症状特征：**WireGuard ping 10.77.77.6 正常，但所有 TCP 服务同时无响应**（9100 pyauto agent、9287 memory-hub 等）——是系统卡死不是断网，此时 A2A 派发会持续 failure。止血：QTS 管理界面 → App Center → **停止 HBS 3 应用**，停应用会连带杀掉它全部作业进程，**不删配置不删数据**；资源恢复后再处理计划作业。
 - **远程路径丢失**: 上次（2026-06-28 21:48/21:54）手动执行时，百度网盘返回 `errno: -9`，即 `/NasSync/PerforceBackup` 目录不存在。可能被误删除或移动。
 - **需要以 admin 身份**: 普通用户无权限读取 `/tmp/.cloudconnector/` 下的 apikey 文件（`600`）。
 - **config.db 路径**: APSW SQLite Wrapper 要求数据库所在目录可写（需要创建 journal/WAL 文件）。原路径 `CloudConnector3/` 目录为 755 且属主为 admin，其他用户无写权限。需复制到 `/tmp/` 等可写位置再执行。
