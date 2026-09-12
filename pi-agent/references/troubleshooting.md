@@ -208,4 +208,27 @@ tier 映射（`/workflows-models` 配置）把 tier 解析到 `anthropic/kimi-k3
 
 ---
 
+## 9. `Warning: No models match pattern "<provider>/<model>"`：提供商无凭证，模型被整体过滤
+
+**症状**
+
+启动或 `/model` 时出现 `Warning: No models match pattern "opencode-go/deepseek-v4-flash"`，且 `pi --list-models opencode-go` 一个模型都没有——但缓存 `~/.pi/agent/models-store.json` 里明明有这些模型（缓存是历史快照，不代表当前可用）。
+
+**原因**
+
+内置提供商的模型只在**有凭证**时才进入注册表：凭证缺失 → 该提供商模型被整体过滤 → `settings.json` 的 `enabledModels` 模式匹配落空。例：`opencode-go` 的凭证来自环境变量 `OPENCODE_API_KEY`（见 `pi-ai/dist/providers/opencode-go.js` 的 `envApiKeyAuth`），没设就全 provider 不可见。
+
+**排查**
+
+1. `pi --list-models <provider>`：整个 provider 空 = 凭证问题；单个模型空 = 模型 id 变了。
+2. 查该 provider 的凭证来源（env var / `auth.json` / `models.json` 的 `providers.<id>.apiKey`）。
+
+**解决**
+
+- 还想用该提供商：补上对应 API key。
+- 同名模型其他 provider 有活源（如 `deepseek/deepseek-v4-flash` 在 `DEEPSEEK_API_KEY` 下可用）：把 `enabledModels` 的模式改指过去。
+- 不再使用：直接从 `enabledModels` 删掉该模式。
+
+---
+
 > 扩展**开发**细节（扩展布局、hook API、注册 provider、多机共享原则）见项目内 `.pi/extensions/SKILL.md`（pi-extensions 技能）。

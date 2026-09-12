@@ -7,7 +7,11 @@
 - `self`: the child can produce an accepted completion.
 - `guardian`: the child's action remains pending until a guardian verifies it.
 
-The backend decides the outcome from task policy. Never trust a client-provided star delta or completion state.
+`guardian` is the default on every creation path (daily drafts, standalone assignments, Chat Hub ingestion); `self` must be requested explicitly. The backend decides the outcome from task policy. Never trust a client-provided star delta or completion state.
+
+## Guardian completion review
+
+Pending guardian-mode completions surface in a dedicated queue: `GET /completion-reviews?learner_id=` (guardian-only) lists them with task details, and the guardian progress payload carries a `pending_completions` count. `GuardianDailyView.vue` renders the queue with verify (credit stars) and revoke (return to child) actions; until verification the child sees an honest pending state and no stars.
 
 ## Completion invariants
 
@@ -40,4 +44,4 @@ The frontend may queue selected JSON writes, including self-completion, then rep
 
 ## Key tests
 
-`backend/tests/test_homework_center.py` covers completion idempotency, ledger behavior, and one-time reward deductions. The Playwright journey covers guardian publish, child completion, and star display.
+`backend/tests/test_homework_center.py` covers completion idempotency, ledger behavior, the guardian verification queue, and one-time reward deductions. The Playwright journey covers guardian publish, child completion, guardian confirmation, and star display.

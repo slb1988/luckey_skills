@@ -8,7 +8,7 @@ uv run ruff check src tests
 uv run pytest -q
 ```
 
-The current baseline has 41 passing backend tests. `test_homework_center.py` covers dated image/audio/video archiving, task/star idempotency, one-time reward deduction, and Chat Hub pending-review ingestion. `test_print_jobs.py` covers image print dispatch, the pending spool, the duplicate window, and authorization.
+The current baseline has 42 passing backend tests. `test_homework_center.py` covers dated image/audio/video archiving, task/star idempotency, one-time reward deduction, and Chat Hub pending-review ingestion. `test_print_jobs.py` covers image print dispatch, the pending spool, the duplicate window, and authorization.
 
 ## Frontend
 
@@ -18,7 +18,7 @@ pnpm test -- --run
 pnpm build
 ```
 
-The current baseline has 28 passing frontend unit tests and a successful production build. Extend tests when changing API URL resolution, offline replay, pinyin behavior, preferences, or content-block media interactions.
+The current baseline has 36 passing frontend unit tests and a successful production build. Extend tests when changing API URL resolution, offline replay, pinyin behavior, preferences, or content-block media interactions.
 
 ## End-to-end and visual
 
@@ -28,9 +28,11 @@ pnpm test
 pnpm test:visual
 ```
 
-The current Playwright baseline has six passing tests and two deliberate skips. It uses frontend port 5174 and backend port 5101, with a temporary SQLite database and data root for each run. Both servers refuse to reuse an existing listener. The test frontend receives an explicit `VITE_API_BASE_URL` pointing to 5101 so tests cannot mutate the normal development backend on 5100.
+The current Playwright baseline has ten passing tests and two deliberate skips across the desktop and mobile projects. It uses frontend port 5174 and backend port 5101, with a temporary SQLite database and data root for each run. Both servers refuse to reuse an existing listener. The test frontend receives an explicit `VITE_API_BASE_URL` pointing to 5101 so tests cannot mutate the normal development backend on 5100.
 
-The main daily journey is guardian publish → child view → completion → updated stars. Visual coverage targets 1440×900 and 390×844. Generated screenshots under `kid-learning-journey/artifacts/` are ignored.
+The main daily journey is guardian publish → child view → completion pending → guardian confirmation queue → updated stars. Visual coverage targets 1440×900 and 390×844. Generated screenshots under `kid-learning-journey/artifacts/` are ignored.
+
+`PinyinText` renders Chinese strings as per-character `<ruby>` fragments; the full string survives only in the container's `aria-label`, so Playwright `hasText`/`getByText` matches against multi-character titles break whenever the pinyin preference is on. Specs that locate Chinese text must disable pinyin up front via `addInitScript` setting localStorage `kid-learning-pinyin-enabled` to `'false'` (see `disablePinyin` in `journey.spec.ts`).
 
 ## Contract and deployment validation
 

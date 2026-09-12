@@ -46,9 +46,14 @@ Route guards and the backend must both enforce roles. Frontend hiding is not aut
 
 ## Daily content presentation
 
-- `views/guardian/GuardianDailyView.vue`: compose, upload, review, and publish daily material.
+- `views/guardian/GuardianDailyView.vue`: compose, upload, review, and publish daily material; confirm or return child task completions from the guardian review queue.
 - `views/child/HomeworkDayView.vue`: view current or historical daily entries and tasks.
 - `components/ContentBlockRenderer.vue`: preserve ordered mixed blocks and use native image, audio, and video presentation. Image blocks open `components/ImageLightbox.vue`, a fullscreen viewer with pinch zoom around the moving midpoint, single-pointer pan clamped to the image overflow, double-tap zoom toggle (fit ↔ 250% at the tap point), mouse-wheel and keyboard (`+`/`-`/`0`) zoom, and a bottom zoom toolbar; dismissal stays via Escape, backdrop/empty-stage tap, or the close button, with scroll lock, focus restore, gesture-aware click suppression, and `prefers-reduced-motion` respected, so children can inspect worksheets up close. Image blocks offer a print button that posts to `/assets/{asset_id}/print` (idempotent, 10-minute duplicate window, dispatched via the backend's configured `PRINT_COMMAND` or held pending). Decorative character art stays non-interactive.
+
+<memory category="core-rules">
+- Image-block overlays (the 🔍 zoom badge) anchor to the image **top-right**, never bottom-anchored: worksheet photos are tall and their lower region is blank white paper visually indistinguishable from the card background, so a bottom-anchored badge sits at the CSS-correct position yet reads as floating/「错位」 mid-card. When a user reports overlay misalignment on a photo, pixel-measure against the CSS first — the position can be exact while the visual anchor is wrong.
+- The caption row under an image (filename + 🖨 print) is `display: grid; grid-template-columns: minmax(0, 1fr) auto`: `minmax(0, 1fr)` forces long filenames to ellipsis-truncate while the print button stays right-aligned on the same row. Both flex alternatives fail — `flex-wrap` pushes the button onto its own row; nowrap flex max-content (filename + button) overflows the parent grid's auto track and causes horizontal page overflow.
+</memory>
 
 Resolve media URLs through the API service so absolute and relative deployments work. Keep audio/video controls touch-friendly and allow range-based playback from the backend.
 
