@@ -90,6 +90,18 @@ outbox `graphiti.add_memory_relation` 事件 HTTP 503 ≠ Graphiti 故障：`POS
 「#review-extraction 卡住 / 队列不动」先查 hub-worker 进程是否存活，别误判成网关/LLM 问题。hub-worker 单进程跑 review/evolution/insight/outbox 四线程；SQLite `database is locked` 持续写锁风暴可让四线程全部退出、进程死亡，且**无 supervisor 自愈**，必须人工重启（`stop_all.sh && start_all.sh`，`status.sh` 验证）。特征形态：Hub API :9287 / Dashboard :9288 / Graphiti / LLM 网关全部健康，但 `preview_pending` 永不前进（review worker 是 `generate_pending_previews` 唯一执行者）、outbox 积压 next_attempt_at 过期无人投递；前端只是轮询一个静止的后端。重启后 preview 与 outbox 自动消化（2026-09-08 实证）。已知未根治：worker 无守护、`database is locked` 无重试退避、preview 解析不剥 code fence（烧 preview_attempts，处置见 memory-review）。
 </memory>
 
+<memory category="core-rules">
+Memory Hub“做梦/图谱健康审计”必须按“SQLite 权威账本 → Graphiti 异步投影”语义判定，不能做朴素全量差集：
+- `GraphitiClient.recent_episode_uuids()` 只有最近 N 条；`search/search_v2` 是语义 Top-K，`resolve_entities/get_entity_edge` 也不能证明任意 memory episode 不存在。`indexed` 缺 episode 规则必须先有按 `group_id + uuids[]` 的存在性或完整快照接口。
+- Graphiti 同 group FIFO 串行抽取；只有 group 无 `pending/retry/processing` outbox 且对象早于稳定余量时才可产生缺失/空图 finding，否则会撞上 episode 已建但实体/边未完成的中间态。
+- 预期无 episode 的状态是 `pending_intake`、`pending_extraction`、`rejected`、`hub_only`、`dry_run`、`invalidated`、`deleted`；确定性异常口径限于 `indexed` 确认缺失、`submitted` 超期且无在途 outbox、`failed + GRAPHITI_PERMANENT_ERROR`。
+- 跨组关系本就不镜像，不能把“Hub 有关系而图中无边”作为通用一致性异常。
+</memory>
+
+<memory category="common-patterns">
+图谱治理扩展点：深扫描是维护负载，SQLite WAL 只有一个 writer，应复用 Insight 的独立进程形态、`review_queue_leases` 全局单槽和短事务，而不是塞进 Hub Web/共享 worker 线程。Quarantine 必须在 `MemoryService.search_memories_v2` 的候选收口、fusion/judge 之前同时过滤 Graphiti edge UUID/episode provenance 与 FTS memory ID；只在 UI 或最终输出层过滤会漏路径。当前仅显式实体 merge 具备 `dry_run → expected_snapshot_hash` 的完整 CAS；边更新/删除、实体 rename 尚无同等快照契约，不能自动执行可能已过期的提案。
+</memory>
+
 <memory category="common-patterns">
 同义实体碎片（`memory-hub`/`memory_hub`/`Memory Hub` 多变体并存、事实边分散在各节点）的定点合并走服务端图谱修订管线。推荐 `POST /api/v1/graph/edits` 显式指定 `merge_into_uuid`：先 `dry_run` 获取 `snapshot_hash`，确认执行时以 `expected_snapshot_hash` 锁定完整图状态。
 合并会把源节点事实边迁移到 canonical（同名同端点边合并、episodes 去重）、迁移 episode MENTIONS，并丢弃源↔目标合并形成的自环；全程不调 LLM。**节点摘要不会自动拼接或重总结**：默认保留目标 summary、源 summary 随源节点删除，选 canonical 时须同时核对摘要，必要时在 merge 请求中显式提供目标 summary。
