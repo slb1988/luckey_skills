@@ -8,7 +8,7 @@ uv run ruff check src tests
 uv run pytest -q
 ```
 
-The current baseline has 48 passing backend tests (with ffmpeg/ffprobe available). `test_homework_center.py` covers dated image/audio/video archiving, task/star idempotency, one-time reward deduction, and Chat Hub pending-review ingestion. `test_print_jobs.py` covers image print dispatch, the pending spool, the duplicate window, and authorization.
+The validated baseline has 63 passing backend tests (with ffmpeg/ffprobe available). `test_homework_center.py` covers dated media archiving, task/star idempotency and Chat Hub pending-review ingestion. `test_star_policy.py` adds both review modes, inactive rewards, fingerprint conflicts, receipt-failure rollback and independent-connection concurrency. `test_star_policy_migration.py` checks fresh and populated old databases without silently settling history. `test_print_jobs.py` covers image printing and authorization.
 
 ## Frontend
 
@@ -18,7 +18,7 @@ pnpm test -- --run
 pnpm build
 ```
 
-The current baseline has 46 passing frontend unit tests and a successful production build. Extend tests when changing API URL resolution, offline replay, pinyin behavior, preferences, or content-block media interactions.
+The validated baseline has 66 passing frontend unit tests and a successful production build. Star-related coverage is in `HomeworkStars.spec.ts`, `StarPolicySettings.spec.ts` and `redemptions.spec.ts`. Extend tests when changing API URL resolution, offline replay, pinyin behavior, preferences, or content-block media interactions.
 
 ## End-to-end and visual
 
@@ -28,11 +28,13 @@ pnpm test
 pnpm test:visual
 ```
 
-The current Playwright journey/video baseline has twelve passing tests and two deliberate skips across the desktop and mobile projects; `test:visual` adds one screenshot flow. It uses frontend port 5174 and backend port 5101, with a temporary SQLite database and data root for each run. Both servers refuse to reuse an existing listener. The test frontend receives an explicit `VITE_API_BASE_URL` pointing to 5101 so tests cannot mutate the normal development backend on 5100.
+The validated Playwright journey/video/stars baseline has fourteen passing tests and two deliberate skips across desktop/mobile; `test:visual` adds one passing screenshot flow. The default test script includes `stars.spec.ts`; for a narrow run use `pnpm exec playwright test tests/stars.spec.ts` directly. It uses frontend port 5174 and backend port 5101, with a temporary SQLite database and data root for each run. Both servers refuse to reuse an existing listener. The test frontend receives an explicit `VITE_API_BASE_URL` pointing to 5101 so tests cannot mutate the normal development backend on 5100.
 
 The video E2E suite requires ffmpeg with libx264/AAC and creates a short local test-pattern clip; it does not download external material. It verifies decoded frames, continuous playback across enlargement/rotation, a missing Fullscreen API fallback, control sizing, focus/scroll restoration and desktop/phone/tablet/landscape screenshots. Backend `test_media_playback.py` converts a real 4:4:4/odd-sized clip and uses ffprobe to assert H.264 Main/yuv420p/AAC, even dimensions, frame rate, faststart and protected Range/conditional responses; it explicitly skips the real codec test if ffmpeg/ffprobe is absent. These tests do not replace Via real-device playback with the affected source file.
 
-The main daily journey is guardian publish → child view → completion pending → guardian confirmation queue → updated stars. Visual coverage targets 1440×900 and 390×844. Generated screenshots under `kid-learning-journey/artifacts/` are ignored.
+The daily publication journey explicitly enables review before testing pending completion and the guardian queue. The star journey exercises default direct credit/debit, a committed response deliberately lost before client receipt, same-key recovery after reload, balance in another browser context, and persisted guardian review toggling. It captures direct/review states at 1440×900 and 390×844. Generated screenshots under `kid-learning-journey/artifacts/` are ignored.
+
+Non-failing baseline warnings include legacy Alembic `get_engine` deprecation and the existing ContentBlockRenderer `<figcaption>` nesting warning. These are not changes to star behavior.
 
 `PinyinText` renders Chinese strings as per-character `<ruby>` fragments; the full string survives only in the container's `aria-label`, so Playwright `hasText`/`getByText` matches against multi-character titles break whenever the pinyin preference is on. Specs that locate Chinese text must disable pinyin up front via `addInitScript` setting localStorage `kid-learning-pinyin-enabled` to `'false'` (see `disablePinyin` in `journey.spec.ts`).
 

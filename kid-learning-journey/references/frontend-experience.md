@@ -47,7 +47,8 @@ Route guards and the backend must both enforce roles. Frontend hiding is not aut
 ## Daily content presentation
 
 - `views/guardian/GuardianDailyView.vue`: compose, upload, review, and publish daily material; confirm or return child task completions from the guardian review queue.
-- `views/child/HomeworkDayView.vue`: view current or historical daily entries and tasks.
+- `views/child/HomeworkDayView.vue`: view current or historical entries/tasks; default direct completion and redemption update the server balance without guardian approval. Actual pending responses remain visibly pending; historical pending tasks become actionable when their `requires_review` is false.
+- `components/StarPolicySettings.vue`, embedded in `GuardianSettingsView.vue`: guardian-only server-persisted star review switch, disabled until loaded and while saving; failures restore the prior display and offer a fresh read. `GuardianDailyView.vue` hides inactive review controls but retains historical pending queues and exchange records.
 - `components/ContentBlockRenderer.vue`: preserve ordered mixed blocks, use native image/audio presentation, and delegate video to `components/VideoPlayer.vue`. Image blocks open `components/ImageLightbox.vue`, a fullscreen viewer with pinch zoom around the moving midpoint, single-pointer pan clamped to the image overflow, double-tap zoom toggle (fit ↔ 250% at the tap point), mouse-wheel and keyboard (`+`/`-`/`0`) zoom, and a bottom zoom toolbar; dismissal stays via Escape, backdrop/empty-stage tap, or the close button, with scroll lock, focus restore, gesture-aware click suppression, and `prefers-reduced-motion` respected, so children can inspect worksheets up close. Image blocks offer a print button that posts to `/assets/{asset_id}/print` (idempotent, 10-minute duplicate window, dispatched via the backend's configured `PRINT_COMMAND` or held pending). Decorative character art stays non-interactive.
 
 <memory category="core-rules">
@@ -85,6 +86,10 @@ Validate child flows at 1440×900 and 390×844; include tablet coverage when lay
 ## Offline behavior
 
 Queue only explicitly supported JSON mutations. Replay in order with original idempotency identifiers. Media uploads and publication require connectivity and should surface a recoverable error rather than pretending success.
+
+Redemptions also require connectivity and never use the offline outbox. `services/redemptions.ts` persists an unresolved intent before sending, scoped by actor and learner. A lost response/5xx/reload reuses the original key and offers a dedicated retry even when the current shelf no longer permits a fresh exchange. Only a successful result or an inactive/insufficient no-effect refusal clears the intent; an idempotency conflict does not. Storage failures stop new requests rather than risking an unrecorded debit. The body carries `client_actor_id` as a server-checked stale-login guard.
+
+The homework view serializes wallet writes, shows queued completion as awaiting sync without spendable credit, and refreshes authoritative state on completion, focus/reentry and `kid-learning-outbox-synced`. Old cached receipts can contain a stale or absent balance. The existing global task outbox's cross-account isolation and poison-message handling are separate limitations; the new exchange recovery does not fix or reuse that queue.
 
 <memory category="core-rules">
 - The write outbox (`kid-learning-write-outbox-v1`, offline.ts) is stored browser-globally, not keyed per account; `flushOutbox` (`main.ts:24-25`) replays under the currently logged-in identity, so after an account switch the previous account's queued writes execute under the new identity with stale keys (the server's actor-scoped receipts then miss). `flushOutbox` also stops at the first business error (e.g. 409), so one poison message permanently blocks the rest of the queue.

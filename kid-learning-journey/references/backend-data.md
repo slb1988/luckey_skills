@@ -18,7 +18,7 @@ Keep transactions short. Let constraints enforce uniqueness and use application-
 
 ### Identity and access
 
-- `User`, `LearnerProfile`, `GuardianRelation`
+- `User`, `LearnerProfile`, `GuardianRelation`: `LearnerProfile.star_review_required` defaults false in both ORM and database, scoped to the learner and editable only by related guardians.
 - `TrustedDevice`, `DevicePairingCode`
 
 ### Learning core
@@ -32,7 +32,7 @@ Keep transactions short. Let constraints enforce uniqueness and use application-
 ### Jobs and integration
 
 - `ResourceImportJob`, `AIJob`, `MemoryOutbox`
-- `IdempotencyRecord`: unique by actor, endpoint, and key, with the cached status and response.
+- `IdempotencyRecord`: unique by actor, endpoint, and key, with cached status/response and nullable `request_fingerprint` for legacy compatibility. Star routes commit receipts and business effects atomically.
 - `PrintJob`: child-initiated image print requests, dispatched to a local command or held pending as a spool.
 
 ### Daily learning center
@@ -57,6 +57,8 @@ For a model change:
 6. Test both a fresh database and an upgraded database when risk warrants it.
 
 Never rewrite an already-deployed migration to represent a new schema change.
+
+For additive SQLite columns on referenced tables, use native `op.add_column` with a literal server default rather than a batch rebuild: dropping/recreating `learner_profiles` can fail with foreign keys enabled once history exists. The star-policy migration adds default-false review and a nullable receipt fingerprint without rewriting history. Its native DROP COLUMN downgrade requires SQLite 3.35+. Old-schema test fixtures must insert through reflected tables or version-appropriate SQL, not current ORM seed code that assumes newer columns.
 
 ## Time and identifiers
 
