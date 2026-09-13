@@ -84,6 +84,11 @@ remove 失败时不能假定后续 approve 会停止。批准依赖预览清理�
 先只执行 removals，重拉详情确认清理生效，再单独 dry-run/执行 approve/reject。
 </memory>
 
+<memory category="core-rules">
+同组“新实体入图”受串行门禁约束：approve 成功不等于索引完成，前一条须到 `indexed` 才批下一条。
+同组连续批准可能使后续条目被退回并清空预览；批量审核须按组串行等待入图，避免丢失已做的预览清理。
+</memory>
+
 <memory category="troubleshooting">
 apply 返回 `already_processed` = 该条已被并发处理（通常是用户在 dashboard 上手动批/拒）。
 属良性竞态而非错误：跳过即可，不要重试或改判；apply 前先 rescan 可减少撞上。
