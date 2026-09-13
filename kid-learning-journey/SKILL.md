@@ -23,7 +23,7 @@ Use this file only as the system index. Read the smallest relevant reference bef
 | --- | --- |
 | Repository layout, responsibilities, source precedence | [references/project-map.md](references/project-map.md) |
 | Flask app, SQLite configuration, model ownership, migrations | [references/backend-data.md](references/backend-data.md) |
-| Practice, reading, review, progression, AI, and memory | [references/learning-core.md](references/learning-core.md) |
+| Dated adaptive math, practice, reading, review, progression, AI, and memory | [references/learning-core.md](references/learning-core.md) |
 | Dated entries, uploads, archive paths, manifests, media processing | [references/daily-content-media.md](references/daily-content-media.md) |
 | Assignments, completion, star ledger, and rewards | [references/tasks-stars-rewards.md](references/tasks-stars-rewards.md) |
 | Vue routes, child/guardian UX, responsive and offline behavior | [references/frontend-experience.md](references/frontend-experience.md) |

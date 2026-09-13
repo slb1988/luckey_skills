@@ -13,6 +13,18 @@ Relevant code:
 - `frontend/src/views/child/ReviewView.vue`
 - `frontend/src/views/child/MistakesView.vue`
 
+## Dated adaptive mathematics
+
+- `math_models.py` owns `DailyMathPlan`, `DailyLearningResult`, `LearningObservation`, `MathReviewState`, `MathReviewLog`, and `SkillResource`; `math_api.py` exposes learner skills/reviews and guardian planning/observation/resource actions.
+- `services/math_catalog.py` validates parameterized arithmetic, elapsed-time and two-step templates. Higher bands add inverse problems. Answers are programmatic, not model-generated.
+- `services/math_review.py` pins `fsrs==6.3.1`: no fuzzing or minute-scale learning steps; card identity is learner + skill + template family + band, not the daily exercise ID. Only a first unhinted attempt is independent evidence; same-day fingerprints and successful card retrievals are deduplicated. Corrections cannot inflate mastery. Advancement needs 8 samples, 3 learning dates, 85% independent accuracy and cross-day review evidence; absence is not failure. Legacy queues map to cards without inventing FSRS logs.
+- `services/daily_math.py` snapshots 3–8 exercises per family date, with due cards first, recent confirmed observations for diagnosis, then consolidation. Snapshot inputs, cutoff/hash, versions and reasons are retained. Published items and a started session are stable across devices. Free practice is explicitly separate from today's unpublished assignment.
+- `services/math_results.py` persists immutable `DailyLearningResult` revisions in the learning-write transaction, including first answers, corrections, hints, unfinished exercises and session/Attempt references. The result date is the family date the sessions started; a late answer creates a new result revision without rewriting an existing plan input. Before a model request, recent daily results are refreshed and their IDs/revisions/hashes are included in the committed plan snapshot. Restarting the service must not lose this evidence.
+- LLM output only chooses catalog skills/approved resources and a rationale. Invalid/unavailable/over-quota output falls back to a rule draft. A two-minute lease and bounded retries protect generation; a committed `AIJob` reserves quota and records the exact input before the external request. No provider call holds a SQLite write transaction. Only a guardian can publish. Changes after generation require a new unstarted revision, not silent replacement.
+- Observations preserve original text/source references and may be confirmed, corrected with `supersedes`, or withdrawn. They influence diagnostics but are not Attempts. Approved `SkillResource` links and examples appear on skill cards; candidate links stay guardian-only.
+- `PracticeView.vue` resumes server progress and tracks foreground duration/server-recorded hints. A response-lost or offline answer is retained locally under the user/learner/session with the same event ID; it must be accepted by the server before advancing/completing. Continuous offline grading is not implemented.
+- The `daily-math` CLI is an external-scheduler entry, not an installed timer. It creates daily drafts and Sunday-evening idempotent review summaries in `MemoryOutbox`; see deployment operations. It does not run Anki Desktop or rewrite the word-review scheduler.
+
 ## Reading and word review
 
 `ReaderSource` and `ReaderSection` provide reading content. A learner can add lexemes to the wordbook; `LearnerWordState` and `ReviewLog` record spaced-review state and outcomes.

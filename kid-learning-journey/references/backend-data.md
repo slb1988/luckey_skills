@@ -3,10 +3,10 @@
 ## Application lifecycle
 
 - Factory: `backend/src/kid_learning/__init__.py`, `create_app`.
-- Route modules: `api.py` for the original learning APIs and `homework_api.py` for daily content, tasks, stars, rewards, and ingestion.
+- Route modules: `api.py` for original learning APIs, `math_api.py` for dated math/observations/resources, and `homework_api.py` for daily content, tasks, stars, rewards, and ingestion.
 - Configuration: `config.py`; security helpers: `security.py`; extensions: `extensions.py`.
 - Production schema setup uses `flask db upgrade`. Do not depend on `create_all` in production.
-- CLI commands include `init-db`, `seed-db`, `process-media`, and `sync-memory`.
+- CLI commands include `init-db`, `seed-db`, `process-media`, `daily-math`, and `sync-memory`.
 
 ## SQLite policy
 
@@ -23,7 +23,9 @@ Keep transactions short. Let constraints enforce uniqueness and use application-
 
 ### Learning core
 
-- `SkillNode`, `ExerciseItem`, `LearningSession`, `Attempt`
+- `SkillNode`, `ExerciseItem`, `LearningSession`, `Attempt`: sessions store per-exercise hint evidence and optional dated-plan binding; attempts distinguish first, independent and duplicate-fingerprint evidence.
+- `math_models.py`: `DailyMathPlan` (date/version, generation lease and input snapshot), `DailyLearningResult` (immutable daily evidence revisions), `LearningObservation` (review/supersession/source provenance), `MathReviewState` / `MathReviewLog` (stable FSRS cards and append-only review events), `SkillResource` (guardian-approved links).
+- Migration `d260913math01` follows `a1b2c3d4e5f6`, adds math tables/columns without erasing old attempts or treating unverifiable old answers as independent successes. Never run demo seed as a production upgrade.
 - `WeaknessState`, `ReviewQueueItem`
 - `Lexeme`, `LearnerWordState`, `ReviewLog`
 - `ReaderSource`, `ReaderSection`

@@ -21,6 +21,12 @@ Relevant daemon files:
 - `.pi/extensions/chat-hub/daemon/bridge/transaction.ts`
 - `.pi/extensions/chat-hub/daemon/main.ts`
 
+## Mathematical observations
+
+Standalone “收错题/收薄弱点/收数学错题” opens a batch whose daemon-owned `purpose` is `math_observation`; existing batches default to `homework`. The batch summary and receipt expose this purpose, but the Pi tool cannot override it. The same explicit “发完了” seal, owner checks, manifest, planned groups and pinned retry contract apply.
+
+For an observation batch, preserve original statements and worksheet images, leave `tasks` empty, and do not infer a score or diagnosis. `learning-upload.ts` sets ingestion `content_kind=math_observation`; the backend retains source content as a pending entry and creates a deduplicated pending `LearningObservation`. Neither path creates assignments or stars. A related guardian confirms/selects the skill in Plan & Services → Daily Math; confirmation enables diagnostic planning, not a failed Attempt. Corrections create a superseding record; withdrawal excludes it from new snapshots. Uploaded originals retain the ordinary protected media lifecycle.
+
 ## Trusted transaction context
 
 The publisher calls the daemon through `.local/chat-hub/hub.sock` (`kid_learning_ingest`). The daemon accepts a call only when the current trusted transaction passed its per-round context load and the target batch owned by the current actor is `sealed` or mid-upload. The bridge adds a `[chat-hub 可信来源] source_message_id` envelope. External batch identifiers and source references are opaque SHA-256 values; do not persist or return a raw chat ID.
