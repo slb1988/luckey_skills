@@ -18,7 +18,7 @@ Keep transactions short. Let constraints enforce uniqueness and use application-
 
 ### Identity and access
 
-- `User`, `LearnerProfile`, `GuardianRelation`: `LearnerProfile.star_review_required` defaults false in both ORM and database, scoped to the learner and editable only by related guardians.
+- `User`, `LearnerProfile`, `GuardianRelation`: `LearnerProfile.star_review_required` defaults false in both ORM and database, scoped to the learner and editable only by related guardians. `daily_math_question_count` defaults 20 in ORM/database; guardian math workbench GET/PATCH reads/saves integers 3–50 with related-guardian authorization, CSRF and transaction idempotency. Migration `e260913math02` follows `d260913math01` and uses native `op.add_column`; stored plans, sessions and evidence stay unchanged.
 - `TrustedDevice`, `DevicePairingCode`
 
 ### Learning core
