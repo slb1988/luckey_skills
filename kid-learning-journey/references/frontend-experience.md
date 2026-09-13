@@ -84,7 +84,7 @@ Additional product rules:
 
 - Child UI should feel encouraging, readable, and low-friction rather than administrative.
 - Generated Chinese interface copy may use `PinyinText` where the design calls for it.
-- Teacher-authored text remains plain and faithful; do not generate pinyin inside the teacher's material.
+- Teacher-authored text stays faithful in storage. Child homework opts text blocks into `ContentBlockRenderer`'s `pinyin` mode: display-only `PinyinText` annotations follow the global switch while preserving the original wording, line breaks, punctuation and English. Shared guardian previews remain plain by default; image/audio/video materials are unchanged.
 - Completion, pending verification, stars, and reward cost must have clear, distinct states.
 
 Guardian and administration screens stay adult-neutral, compact, and information-dense. Do not apply the princess theme globally.
