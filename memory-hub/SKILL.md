@@ -1,6 +1,7 @@
 ---
 name: memory-hub
-description: Memory Hub（agent 中心记忆网关）使用与运维指南。覆盖 HTTP API 写入/检索、检索 eval、session 不可变版本、scope/group_id、幂等与错误码，以及为 Claude Code、Codex、Pi 自动安装、检查、召回、持久化和补传 hooks。当用户提到 memory-hub、memory hub、记忆网关、agent 记忆、memory eval/记忆评估/检索评估、session 归档/版本、记忆检索/写入、服务排障，或在 Memory Hub 语境输入 install、安装、配置、检查、补传 Agent hooks 时触发。注意与 memory-center 区分：memory-center 覆盖后端 Graphiti/Neo4j，memory-hub 覆盖面向 Agent 的 HTTP 网关。
+description: Memory Hub（agent 中心记忆网关）使用与运维指南。覆盖 HTTP API 写入/检索、检索 eval、session 不可变版本、scope/group_id、幂等与错误码，以及为 Claude Code、Codex、Pi 自动安装、检查、召回、持久化和补传 hooks。当用户提到 memory-hub、memory hub、记忆网关、agent 记忆、memory eval/记忆评估/检索评估、session 归档/版本、记忆检索/写入、服务排障，或在 Memory Hub 语境输入 install、安装、配置、检查、补传 Agent hooks 时触发。提到 SQL 锁/sql锁、SQLite 锁、数据库写锁、database is locked、SQLITE_BUSY、SQLITE_LOCKED、持锁进程定位或审核队列卡住时也触发，加载 SQLite 跨进程锁诊断上下文；明确属于其他数据库的任务仍按对应项目处理。注意与 memory-center 区分：memory-center 覆盖后端 Graphiti/Neo4j，memory-hub 覆盖面向 Agent 的 HTTP 网关与 SQLite 控制面。
+tags: [memory-hub, sqlite, SQL锁, 写锁, 锁诊断, database-is-locked, worker]
 ---
 
 # Memory Hub（Agent 中心记忆网关）
@@ -54,6 +55,7 @@ Dashboard 抽取审核在手机竖屏上以信息完整性优先：实体、边�
 |------|------|
 | 服务端部署/启动/重启/备份/自启/身份迁移/内容清洗与图谱重建 | [references/deploy.md](references/deploy.md) |
 | Dashboard 开发/部署/排障入口 | [references/dashboard.md](references/dashboard.md) |
+| SQL 锁 / SQLite 写锁、长事务、持锁者与等待者归因、锁诊断埋点 | [references/sqlite-lock-diagnostics.md](references/sqlite-lock-diagnostics.md) |
 | API 端点、写入流程、Idempotency-Key、错误码、常用 curl | [references/api-notes.md](references/api-notes.md) |
 | Hook 安装/check/身份配置/环境变量/首轮召回/Pi 扩展机制与留痕/低价值过滤 | [references/agent-integration.md](references/agent-integration.md) |
 | 手动批量归档历史 session（upload_sessions.py、漏传回填、project 归属） | [references/upload-sessions.md](references/upload-sessions.md) |
@@ -86,11 +88,13 @@ Dashboard 创建/修改用户报 422（非 400）= Pydantic 请求模型在域�
 outbox `graphiti.add_memory_relation` 事件 HTTP 503 ≠ Graphiti 故障：`POST /memory-relations`（graphiti-0.22.0 overlay）的 Cypher 要求 source/target 两个 episode 都在 payload 的**同一个 group_id** 里，MATCH 不到即返回 503——设计本意是"瞬时可见性漂移，让 outbox 重试"，但永久不匹配配上 `OUTBOX_MAX_ATTEMPTS=100000` 就是无限重试。永久不匹配三类成因：① 演化分析**跨 project 建关系**（出生即跨组，payload 只带单个 group_id）；② 归属回填导致**组漂移**（payload group_id 入队时冻结为旧组，target 后被搬走）；③ target 被**强制忘记**（invalidated，episode 已删）。Dashboard「最近错误为空 + attempts 持续增长」的形态 = 命中 `workers/outbox.py` `_defer_memory_relation_until_indexed` 缺陷：defer 终态集漏了 `invalidated`（terminal 只有 deleted/rejected/failed/hub_only/dry_run），每 5s 无限 defer 且 defer 会把 `last_error` 清成 NULL。另一缺陷：`service.py` 强制忘记 `DELETE FROM outbox WHERE aggregate_id=?` 用的是 memory_id，而 relation 事件的 aggregate_id 是 relation_id → relation 事件漏取消。**关系的权威账本在 Hub SQLite（检索走账本，镜像失败不影响功能），Graphiti 镜像仅图谱可视化/审计用途**——跨组/失效的镜像本就无法落图，处置是置 completed，不要指望跨组落图（端点单组 MATCH 是组隔离语义）。诊断脚本（只读，可复用）：memory-hub 仓库 `scripts/diagnose_relation_outbox.py`。
 </memory>
 
-<memory category="troubleshooting">
-「#review-extraction 卡住 / 队列不动」先查 hub-worker 存活：Hub API :9287 / Dashboard :9288 / Graphiti / LLM 网关健康不代表后台处理正常，前端可能只是在轮询静止的后端。hub-worker 单进程跑 review/evolution/insight/outbox 四线程；review worker 是 `generate_pending_previews` 唯一执行者。
-已确认的停滞根因是未隔离的 SQLite `database is locked` 异常导致 worker 退出。**预览 LLM 调用不在写事务内**，不能据锁异常认定 LLM 持锁；具体持锁者尚未查明。
-`e01e284` 起 worker 已隔离 SQLite 异常、退避后继续运行，不再是「锁异常无重试退避」；这不等于已消除写锁竞争，也不提供进程退出后的 supervisor 自愈。队列调度与单条预览失败的判读见 [memory-review](../memory-review/SKILL.md)。
-</memory>
+## SQL 锁 / SQLite 与后台队列
+
+提到 **SQL 锁、SQLite 锁、database is locked、SQLITE_BUSY/SQLITE_LOCKED、持锁者或审核队列卡住**，先读 [SQLite 锁诊断机制与入口](references/sqlite-lock-diagnostics.md)。共享连接层的慢事务/等待快照与 Linux 内核写锁证据可关联跨进程锁主；诊断独立于业务 SQLite。
+
+- Hub API / Dashboard / Graphiti / LLM 健康不代表后台处理正常。hub-worker 承载 review/evolution/insight/outbox；review worker 是 `generate_pending_previews` 的执行者。
+- worker 的 SQLite 异常隔离与退避只维持处理循环，不等于消除写锁竞争，也不是进程退出后的 supervisor。队列调度与单条预览失败见 [memory-review](../memory-review/SKILL.md)。
+- **预览 LLM 调用在写事务外**；锁等待日志标识的是等待方，锁主须以事务与内核证据另行确认。
 
 <memory category="core-rules">
 Memory Hub“做梦/图谱健康审计”必须按“SQLite 权威账本 → Graphiti 异步投影”语义判定，不能做朴素全量差集：
