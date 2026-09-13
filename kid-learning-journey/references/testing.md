@@ -18,6 +18,15 @@ pnpm test -- --run
 pnpm build
 ```
 
+Production loading checks (build the frontend first; API responses are isolated mocks, not the live backend):
+
+```powershell
+cd kid-learning-journey/e2e
+pnpm exec playwright test --config=playwright.loading.config.ts
+```
+
+The preview uses port 5175 and refuses an existing listener. `KID_LOADING_DIST` optionally selects an alternate build directory for controlled comparisons. Foreground JS/image budgets exclude Service Worker background precaching. `pinyin.spec.ts` covers deferred/shared imports, disabled/non-Han text, reading reuse and dictionary failure fallback.
+
 The validated baseline has 66 passing frontend unit tests and a successful production build. Star-related coverage is in `HomeworkStars.spec.ts`, `StarPolicySettings.spec.ts` and `redemptions.spec.ts`. Extend tests when changing API URL resolution, offline replay, pinyin behavior, preferences, or content-block media interactions.
 
 ## End-to-end and visual

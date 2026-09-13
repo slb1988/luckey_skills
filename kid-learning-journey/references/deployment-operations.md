@@ -32,6 +32,10 @@ docker compose up -d --build
 
 The frontend is exposed on 8088 and the backend on 5100. The backend runs Gunicorn with one worker and four threads, appropriate for the current SQLite workload. A named volume persists `/data/kid-learning`, including `kid_learning.db`, staging files, and published media.
 
+### Frontend static delivery
+
+The frontend Nginx configuration enables gzip for HTML, CSS, JavaScript, SVG and the web manifest. Content-hashed JS/CSS/WebP under `/assets/` receive a one-year cache lifetime; HTML, Service Worker scripts and unversioned text assets require revalidation. Missing static resources return 404 instead of SPA HTML. Keep the `/api/` proxy outside these static rules; authentication and business data are not given static-cache lifetimes. Reverse proxies serving the build directly must provide equivalent policies. Rebuild/redeploy the frontend for these settings to affect users.
+
 ## Configuration boundaries
 
 - `DATA_ROOT` controls database and media placement.

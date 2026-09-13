@@ -6,6 +6,14 @@ The frontend uses Vue 3, TypeScript, Vite, Pinia, and PWA support. The API clien
 
 The API base defaults to `/api/v1` and may be overridden by `VITE_API_BASE_URL`. Requests include credentials; browser writes attach the CSRF token and business writes may attach an idempotency key.
 
+## Loading and asset budget
+
+- Route layouts and views use dynamic imports. Authentication completes before initial route resolution; the HTML startup status stays visible until `router.isReady()` and Vue mounting, without rendering protected content early.
+- `services/pinyin.ts` shares the optional dictionary import and a bounded character-reading cache. `PinyinText` renders accessible plain text while loading or on failure; disabled annotations do not load/convert the dictionary or create per-character DOM. Explicit `enabled` props still override the preference.
+- Theme PNG masters stay in `frontend/public/assets/`. Runtime views and CSS use committed WebP derivatives in `frontend/src/assets/`, bundled with content hashes. After changing a PNG master, run `bash scripts/optimize-theme.sh` from `frontend/` with `cwebp` installed, then rebuild. Preserve dimensions and alpha; no layout redesign is implied by conversion.
+- Service Worker registration waits for page load. Its offline precache includes built chunks and WebP, not PNG masters; this background offline preparation is distinct from the foreground route's request budget.
+- `e2e/playwright.loading.config.ts` validates an already-built production frontend with mocked APIs and Service Workers blocked: pending-auth paint and role isolation, route/dictionary requests, theme transfer budget and desktop/mobile output. It never connects to the live learning backend.
+
 ## Cross-device browser capability boundary
 
 The frontend is used across devices, including LAN HTTP origins. `localhost` and loopback are potentially trustworthy browser contexts, but a LAN HTTP address is not; successful cookie/CSRF authentication does not change this distinction.
