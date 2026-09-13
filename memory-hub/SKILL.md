@@ -87,7 +87,9 @@ outbox `graphiti.add_memory_relation` 事件 HTTP 503 ≠ Graphiti 故障：`POS
 </memory>
 
 <memory category="troubleshooting">
-「#review-extraction 卡住 / 队列不动」先查 hub-worker 进程是否存活，别误判成网关/LLM 问题。hub-worker 单进程跑 review/evolution/insight/outbox 四线程；SQLite `database is locked` 持续写锁风暴可让四线程全部退出、进程死亡，且**无 supervisor 自愈**，必须人工重启（`stop_all.sh && start_all.sh`，`status.sh` 验证）。特征形态：Hub API :9287 / Dashboard :9288 / Graphiti / LLM 网关全部健康，但 `preview_pending` 永不前进（review worker 是 `generate_pending_previews` 唯一执行者）、outbox 积压 next_attempt_at 过期无人投递；前端只是轮询一个静止的后端。重启后 preview 与 outbox 自动消化（2026-09-08 实证）。已知未根治：worker 无守护、`database is locked` 无重试退避、preview 解析不剥 code fence（烧 preview_attempts，处置见 memory-review）。
+「#review-extraction 卡住 / 队列不动」先查 hub-worker 存活：Hub API :9287 / Dashboard :9288 / Graphiti / LLM 网关健康不代表后台处理正常，前端可能只是在轮询静止的后端。hub-worker 单进程跑 review/evolution/insight/outbox 四线程；review worker 是 `generate_pending_previews` 唯一执行者。
+已确认的停滞根因是未隔离的 SQLite `database is locked` 异常导致 worker 退出。**预览 LLM 调用不在写事务内**，不能据锁异常认定 LLM 持锁；具体持锁者尚未查明。
+`e01e284` 起 worker 已隔离 SQLite 异常、退避后继续运行，不再是「锁异常无重试退避」；这不等于已消除写锁竞争，也不提供进程退出后的 supervisor 自愈。队列调度与单条预览失败的判读见 [memory-review](../memory-review/SKILL.md)。
 </memory>
 
 <memory category="core-rules">

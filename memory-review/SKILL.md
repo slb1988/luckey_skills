@@ -95,7 +95,8 @@ apply 返回 `already_processed` = 该条已被并发处理（通常是用户在
 </memory>
 
 <memory category="troubleshooting">
-多条停留 `preview_pending` 且 `preview_attempts=0`（从未被处理）+ outbox 积压 = hub-worker 进程已死（无自愈），不是审核/LLM 问题——重启 worker 后队列自动消化，详见 memory-hub skill。单条反复 preview 失败的已知成因：LLM 返回带 ```json 围栏的输出，解析不剥 code fence 直接失败并烧次数；`preview_attempts` 上限 3，到限后不再自动重试，需人工处置（重置 attempts 重试 / 正文有价值时 approve `original` 跳过预览 / reject）。
+关卡 1 入库审核与预览生成共用 review worker；旧预览优先策略可能使入库审核饥饿，现已改为公平轮转。须分别观察两阶段进度，不能以预览消化证明入库审核正常；待人工审核数量本身不是 worker backlog（先核对[自动决策模式](references/auto-review-modes-and-decision-samples.md)）。worker 存活及 SQLite 异常退出边界见 [memory-hub](../memory-hub/SKILL.md)。
+单条 preview 失败应与全局停滞分开判断：LLM JSON 截断或未剥 code fence 的解析失败均可能耗尽 `preview_attempts`；上限 3，到限后不再自动重试，worker 恢复也不会自动解锁这些条目。需人工处置（重置 attempts 重试 / 正文有价值时 approve `original` 跳过预览 / reject），不代表其它待人工审核条目也失败。
 </memory>
 
 <memory category="troubleshooting">
