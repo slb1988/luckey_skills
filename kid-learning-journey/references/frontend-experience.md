@@ -85,3 +85,8 @@ Validate child flows at 1440×900 and 390×844; include tablet coverage when lay
 ## Offline behavior
 
 Queue only explicitly supported JSON mutations. Replay in order with original idempotency identifiers. Media uploads and publication require connectivity and should surface a recoverable error rather than pretending success.
+
+<memory category="core-rules">
+- The write outbox (`kid-learning-write-outbox-v1`, offline.ts) is stored browser-globally, not keyed per account; `flushOutbox` (`main.ts:24-25`) replays under the currently logged-in identity, so after an account switch the previous account's queued writes execute under the new identity with stale keys (the server's actor-scoped receipts then miss). `flushOutbox` also stops at the first business error (e.g. 409), so one poison message permanently blocks the rest of the queue.
+- `HomeworkDayView.vue` `redeem()` regenerates the idempotency key on every click (`makeIdempotencyKey('reward-request')`), so redemption retries have no cross-click dedup today. A fixed key per redemption intent must rotate only after a deterministic response — see the `_idem` caching rules in [api-auth.md](api-auth.md).
+</memory>

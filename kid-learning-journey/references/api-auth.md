@@ -22,6 +22,11 @@ Use `Idempotency-Key` for retried writes with business effect. `IdempotencyRecor
 
 Domain-level event keys remain necessary for ledger and completion invariants even when HTTP idempotency exists.
 
+<memory category="core-rules">
+- `_idem` (`api.py:80-105`) producers call `db.session.commit()` internally first; the idempotency receipt is persisted in a second, separate commit. A crash between them loses the receipt, so a retry can re-execute the business effect — auto-settlement flows must first transactionalize (effect + receipt in one commit).
+- `_idem` caches the producer's response unconditionally, including 4xx/409 business rejections, and same-key replays return the cached response forever. Client rule: any deterministic response (including a 409) closes the intent and a new attempt needs a new key; reuse the key only when the response was lost or timed out, otherwise one cached 409 permanently locks that key.
+</memory>
+
 ## Public API surface
 
 The daily learning endpoints under `/api/v1` include:

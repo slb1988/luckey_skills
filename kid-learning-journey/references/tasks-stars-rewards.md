@@ -21,6 +21,10 @@ Pending guardian-mode completions surface in a dedicated queue: `GET /completion
 - Revocation preserves history and produces a compensating negative ledger entry; it does not delete the original credit.
 - Use version checks where concurrent guardian and child actions could race.
 
+<memory category="core-rules">
+- Award `event_key`/`version` handling is asymmetric by design: `verify_assignment` writes `completion:{id}:award:{version}` without bumping the completion version (the `state=="pending"` guard prevents reuse); the revoked→accepted branch of `complete_assignment` bumps `version` first, then awards under the new version. Any new pending→accepted path must reuse verify's key at the current version without bumping — bumping lets a concurrent guardian verify write a different key, defeating the unique-constraint dedup and double-granting stars. Also catch `IntegrityError` on the `task_completions` and `event_key` unique constraints and return the existing result instead of a 500.
+</memory>
+
 ## Star ledger
 
 `StarLedger` is append-only and is the accounting source of truth. Balance is the sum of signed deltas. Do not add or mutate a cached `stars_balance` field as an alternative authority.
@@ -37,6 +41,11 @@ Every ledger event needs a unique `event_key`, a reason, and its originating rel
 - Fulfillment is modeled on the record, but the current MVP has no dedicated fulfillment endpoint; add one deliberately if the workflow needs it.
 
 Never allow negative balance through reward approval unless the product rule is intentionally changed and documented.
+
+<memory category="core-rules">
+- The redemption API does not validate `RewardDefinition.active`: `request_redemption` and `approve_redemption` (`homework_api.py`, ~1009–1065) check balance only; the child UI listing just `active=True` rewards is the sole barrier today. Any auto-approve flow must add the `active` check at both creation and approval, or a deactivated reward stays redeemable with immediate star deduction and guardians lose delisting as their stop-loss lever.
+- There is no cancel/refund path for redemptions: no adjustment endpoint exists and the ledger (`task_complete/task_verified/task_revoked/reward_redeemed` reasons only) is append-only, so an accidental redemption cannot be undone without a new compensating-entry endpoint.
+</memory>
 
 ## Offline behavior
 
