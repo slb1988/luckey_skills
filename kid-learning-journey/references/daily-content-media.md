@@ -60,9 +60,13 @@ Do not load full videos into memory. Hash and copy in chunks.
 
 ## Derived media
 
-`MediaJob` represents normalization work. `process-media` calls ffmpeg for archived assets to produce compatible MP3/MP4 derivatives. When ffmpeg is absent, the job can be skipped and the original remains usable.
+`MediaJob` represents normalization work. `process-media` calls ffmpeg for archived assets to produce MP3 audio and versioned `-web-v1.mp4` video derivatives. Video output selects the first non-cover video and optional first audio stream, encodes H.264 Main level 4.0 / 8-bit `yuv420p` at 30 fps plus stereo AAC, fits within 1280×1280 with even dimensions, and moves MP4 metadata ahead of media (`faststart`). An MP4 extension or H.264 codec alone does not establish mobile compatibility; chroma, bit depth, dimensions and profile matter.
 
-Derived files must stay under the entry's `_derived/` directory and be described by metadata rather than guessed from filenames.
+Write to a `.partial.mp4`/`.partial.mp3`, atomically replace the target only after ffmpeg succeeds, then record `playback_storage_key`. Failed jobs preserve the original and any prior playback key/copy and remove partial output. When ffmpeg is absent, mark the job skipped and keep the original available; its playability still depends on the browser's decoder.
+
+`process-media --rebuild-videos` also selects archived video jobs in done/skipped/failed state whose playback key is absent or from an older profile. Already upgraded copies are excluded. This is an explicit deployment/backfill operation, not a transcode on a child's GET; see [deployment-operations.md](deployment-operations.md) for serial scheduling and retries.
+
+Derived files must stay under the entry's `_derived/` directory and be described by database metadata rather than guessed from filenames. Original archive files and their manifest hashes are not rewritten when making playback copies.
 
 ## Serving
 

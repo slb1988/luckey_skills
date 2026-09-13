@@ -67,7 +67,8 @@ On restore, run integrity checks, verify manifest hashes against representative 
 ## Operational commands
 
 - `flask db upgrade`: apply schema migrations.
-- `flask process-media`: process pending derived-media jobs.
+- `flask process-media --limit 10`: process pending archived-media jobs. The Web app does not schedule this automatically; configure one serial periodic invocation with the same data root/database as the Web service. Do not run overlapping processors.
+- `flask process-media --rebuild-videos --limit 10`: additionally rebuild legacy video copies and retry skipped/failed videos without the current compatibility copy. Run batches until `total` is zero; if `failed` is nonzero or ffmpeg is missing, inspect `MediaJob.error` and fix the cause rather than looping blindly. Originals remain intact. Deploying only the frontend does not make HEVC/10-bit/4:4:4 sources playable in an unsupported Via/WebView decoder.
 - `flask sync-memory`: retry Memory Hub outbox delivery.
 - `docker compose config`: validate Compose expansion before deployment.
 - QNAP host lifecycle lives in `/share/CACHEDEV1_DATA/Container/kid-learning/bin/` (`start-all.sh` / `stop-all.sh`); on QNAP `pkill -f` does not match long command lines reliably and `ps aux` prints PID in the first column, so stop scripts must kill by PID. Gunicorn exits a few seconds after SIGTERM—verify the port is free before restarting.

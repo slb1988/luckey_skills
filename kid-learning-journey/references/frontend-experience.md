@@ -48,7 +48,7 @@ Route guards and the backend must both enforce roles. Frontend hiding is not aut
 
 - `views/guardian/GuardianDailyView.vue`: compose, upload, review, and publish daily material; confirm or return child task completions from the guardian review queue.
 - `views/child/HomeworkDayView.vue`: view current or historical daily entries and tasks.
-- `components/ContentBlockRenderer.vue`: preserve ordered mixed blocks and use native image, audio, and video presentation. Image blocks open `components/ImageLightbox.vue`, a fullscreen viewer with pinch zoom around the moving midpoint, single-pointer pan clamped to the image overflow, double-tap zoom toggle (fit ↔ 250% at the tap point), mouse-wheel and keyboard (`+`/`-`/`0`) zoom, and a bottom zoom toolbar; dismissal stays via Escape, backdrop/empty-stage tap, or the close button, with scroll lock, focus restore, gesture-aware click suppression, and `prefers-reduced-motion` respected, so children can inspect worksheets up close. Image blocks offer a print button that posts to `/assets/{asset_id}/print` (idempotent, 10-minute duplicate window, dispatched via the backend's configured `PRINT_COMMAND` or held pending). Decorative character art stays non-interactive.
+- `components/ContentBlockRenderer.vue`: preserve ordered mixed blocks, use native image/audio presentation, and delegate video to `components/VideoPlayer.vue`. Image blocks open `components/ImageLightbox.vue`, a fullscreen viewer with pinch zoom around the moving midpoint, single-pointer pan clamped to the image overflow, double-tap zoom toggle (fit ↔ 250% at the tap point), mouse-wheel and keyboard (`+`/`-`/`0`) zoom, and a bottom zoom toolbar; dismissal stays via Escape, backdrop/empty-stage tap, or the close button, with scroll lock, focus restore, gesture-aware click suppression, and `prefers-reduced-motion` respected, so children can inspect worksheets up close. Image blocks offer a print button that posts to `/assets/{asset_id}/print` (idempotent, 10-minute duplicate window, dispatched via the backend's configured `PRINT_COMMAND` or held pending). Decorative character art stays non-interactive.
 
 <memory category="core-rules">
 - Image-block overlays (the 🔍 zoom badge) anchor to the image **top-right**, never bottom-anchored: worksheet photos are tall and their lower region is blank white paper visually indistinguishable from the card background, so a bottom-anchored badge sits at the CSS-correct position yet reads as floating/「错位」 mid-card. When a user reports overlay misalignment on a photo, pixel-measure against the CSS first — the position can be exact while the visual anchor is wrong.
@@ -56,6 +56,14 @@ Route guards and the backend must both enforce roles. Frontend hiding is not aut
 </memory>
 
 Resolve media URLs through the API service so absolute and relative deployments work. Keep audio/video controls touch-friendly and allow range-based playback from the backend.
+
+### Video and WebView compatibility
+
+`VideoPlayer.vue` keeps one inline `<video>` node with explicit fitted dimensions and `playsinline`/`webkit-playsinline`. Page enlargement changes the container to fixed positioning without moving or recreating the video, preserving playback. Keep its ancestors free of transforms/containment that would capture the fixed viewport. Rotation is a 90° CSS turn of the picture, not an OS orientation lock; fit dimensions swap for quarter turns, while controls stay upright and reachable. ResizeObserver and viewport resize listeners handle device rotation.
+
+Play/pause, seek, mute, enlarge, rotate and fullscreen are independent touch controls (44px minimum), not browser-native fullscreen controls. Request fullscreen on the whole player synchronously from the click, using the standard or WebKit-prefixed container API. Missing/rejected fullscreen leaves the page-sized viewer usable, including over LAN HTTP; never require secure-context orientation APIs for rotation. Closing/Escape restores scrolling and focus, and unmount pauses playback. Media/decode failures offer reload and the same protected media URL in a separate tab.
+
+A visible player cannot fix an unsupported codec. The backend compatibility job must run for imported videos; a Chromium fixture/viewport test is not proof of Via device decoder compatibility.
 
 ## Child design
 
