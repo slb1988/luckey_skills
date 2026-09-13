@@ -23,6 +23,12 @@ Relevant daemon files:
 
 ## Mathematical observations
 
+### Dated math regeneration commands
+
+`kid_learning_math_draft` is a parameterless Pi tool backed by `daemon/learning-math.ts`. The daemon reads the current trusted private-chat transaction's stored original text (or voice transcript), not agent-supplied dates, actors or difficulty. Standalone commands include `重新生成今天的数学题`, `明天数学难一点`, and `明天数学往后一步` (also explicit ISO dates). Quoted/forwarded prose, negations and groups are not accepted. It does not require or consume a material-collection batch.
+
+`POST /internal/v1/math-plan-requests` validates the existing ingest bearer and allowed actor, then commits a request receipt before generation. Its hashed message/owner idempotency key pins the target plan; retries across midnight keep the first resolved family date. The result remains a draft for guardian publication, cannot replace a started date, and cannot change mastery. The daemon returns only plan/date/status/count, not answer keys or learning evidence. Restart the daemon and load the new Pi extension code to activate this command path.
+
 Standalone “收错题/收薄弱点/收数学错题” opens a batch whose daemon-owned `purpose` is `math_observation`; existing batches default to `homework`. The batch summary and receipt expose this purpose, but the Pi tool cannot override it. The same explicit “发完了” seal, owner checks, manifest, planned groups and pinned retry contract apply.
 
 For an observation batch, preserve original statements and worksheet images, leave `tasks` empty, and do not infer a score or diagnosis. `learning-upload.ts` sets ingestion `content_kind=math_observation`; the backend retains source content as a pending entry and creates a deduplicated pending `LearningObservation`. Neither path creates assignments or stars. A related guardian confirms/selects the skill in Plan & Services → Daily Math; confirmation enables diagnostic planning, not a failed Attempt. Corrections create a superseding record; withdrawal excludes it from new snapshots. Uploaded originals retain the ordinary protected media lifecycle.
