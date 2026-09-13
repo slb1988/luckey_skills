@@ -39,6 +39,7 @@ The frontend Nginx configuration enables gzip for HTML, CSS, JavaScript, SVG and
 ## Configuration boundaries
 
 - `DATA_ROOT` controls database and media placement.
+- `LLM_TEMPERATURE` is shared by coaching and daily math (default `0.2`, finite number in `[0, 2]`); invalid values skip the provider request and use rule fallback, and models requiring `1` need that explicit setting in the shared Web/scheduler environment.
 - `PRINT_COMMAND` optionally names a local command that receives the absolute image path of each print job; without it print jobs stay pending as a spool for a later bridge (for example a NAS-side printer).
 - Print dispatch runs the command synchronously (60s timeout): the command string is shell-split, the image path is appended as the final argument, exit 0 marks the job `dispatched`, and non-zero exit, timeout, or spawn `OSError` marks it `failed` with captured stderr in `print_job.error` (exposed by the API) plus an app-log warning.
 - No worker retries jobs left `pending`; adding `PRINT_COMMAND` later does not drain the existing spool. An external bridge must explicitly consume pending jobs.
