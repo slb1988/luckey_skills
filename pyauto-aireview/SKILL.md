@@ -51,6 +51,14 @@ P4V Request Review
 5. **编译、AI、审批、提交彼此独立。** BuildUE 失败后 Pi 仍可分析；AI 结论不是人工票；`approved` 只是等待代提交的过渡态，只有 P4 与 DB 都收口才是 `submitted`。
 6. **源码事实与运行时事实分开。** P4 head/当前源码只能说明实现；线上参数、部署版本、Agent 用户、Pi 版本、网络和 artifact 必须在实际服务或构建机核实。
 
+<memory category="troubleshooting">
+`refresh_review()` 的无 shelf 校验在写库前返回错误：不启动新轮、不改变原 AI 状态，也不取消在途 job。
+因此“更新报错后仍分析、随后出分”可来自原轮继续执行，不代表刷新成功，也不能直接归为前端卡死。
+原 Flow 即使在 Sync/Unshelve/编译/TaskAiReview 均未执行前被取消，原 job 仍可能经 backend fallback 出分；
+`ai_result_source=backend_llm` 可与 `chain_failed=true`、`compile_status=skipped` 并存。
+按 refresh 请求时间、job/Flow 与 activity/结果来源核对轮次；此分数不证明更新后的代码已经评审或编译。
+</memory>
+
 <memory category="core-rules">
 两个容易混淆的准入语义：① `make_decision` 的作者分支先于指定 reviewer 授权校验，
 所以指定他人 reviewer 不会禁用 self-approve；开关开启且当前轮 AI done、风险低于门槛时，
