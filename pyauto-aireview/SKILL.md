@@ -87,6 +87,12 @@ P4Python 执行 `submit -e` 时，逐文件原因可能只在 `run()` 返回的 
 不能只匹配异常文本中的 `file not mapped in stream`。
 </memory>
 
+<memory category="common-patterns">
+AI Review 的 workspace→服务器 diff 不能用 `p4 diff2`：它只比较两个 depot revision，不读取本地 merged 内容。
+`p4 fstat` 用于核对 depot/client/have 映射；`p4 diff -du <clientFile>` 比较当前文件与 have revision，
+仅在 have 与本轮固定 baseline 一致时适用。显式 baseline 的比较沿用 [MainDev 工具链](references/maindev-toolchain.md) 中的 `p4 print` 路径。
+</memory>
+
 ## 标准排障流程
 
 ### 1. 建身份表
