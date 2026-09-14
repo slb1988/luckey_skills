@@ -14,7 +14,7 @@ description: "Git 仓库工具，支持两个命令：(1) update/sync 将主仓�
 | `git-tool commit` | 提交主库 + 所有有改动的 submodule，更新指针并推送 |
 | `git-tool commit <submodule名>` | 仅提交指定 submodule（已废弃，推荐用一键脚本） |
 
-> 详细执行流程：[commit-flow](references/commit-flow.md) · [update-flow](references/update-flow.md) · [conflict-resolution](references/conflict-resolution.md) · [troubleshooting](references/troubleshooting.md)
+> 详细执行流程：[commit-flow](references/commit-flow.md) · [update-flow](references/update-flow.md) · [conflict-resolution](references/conflict-resolution.md) · [troubleshooting](references/troubleshooting.md) · [env-protection](references/env-protection.md)
 
 ---
 
@@ -191,7 +191,7 @@ bash ~/.pi/skills/git-tool/git-tool-commit.sh   # 提交所有有改动的 submo
   操作完成后记得 `--unset` 这些临时配置。若 fetch 多次中断留下 `tmp_pack_*` 残留文件，下次 fetch 会更慢——清理 `rm .git/objects/pack/tmp_pack_*`。
 - **`index.lock` / `shallow.lock` 残留**：除 `index.lock` 外，`--depth` 浅克隆中断会在 `.git/` 留下 `shallow.lock`，清理命令：`rm -f .git/index.lock .git/shallow.lock`
 
-- **提交 skills submodule 前检查未追踪的 scratch 测试文件是否硬编码了密钥**：`git-tool commit` 会扫描并提交 submodule 内所有改动，若误用 `add -A` 会把含硬编码 API Key 的临时文件（如 `memory-hub/scripts/zep_test.py`，内含真实 Zep Key）提交进 git 历史，密钥将永久泄露且无法通过删除文件清除。这类 `zep_test.py`/`*_test.py` 调试残留应直接删除而非提交；若只是临时验证工具，改用环境变量读取密钥。提交前对扫描到的未追踪文件先 `cat` 检查是否含 `sk-`/`z_`/`key=` 等敏感串。
+- **凭证保护有两层**：读取 Guard 保护模型上下文，Git 索引/忽略规则保护入库；二者不能相互替代。提交前用 `python ~/.agent-hooks/env-read-guard/guard.py git-check --repo <目标库> --recursive` 只查元数据，有风险即停止；不要读取 `.env` 或反复改写被拦命令。脚本不会自动执行该检查，具体边界、未安装 Guard 时的处理及 scratch 文件检查见 [env-protection](references/env-protection.md)。
 
 <memory category="core-rules">
 - ObsidianVault 主仓库没有 master 分支（本地/远端均只有 main，GitHub 默认分支即 main；`.claude/skills` submodule 同样在 main 上）。用户说「在 master 分支操作」时一律指 main，不要找或新建 master。
