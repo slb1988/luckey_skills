@@ -17,6 +17,11 @@ Use this file only as the system index. Read the smallest relevant reference bef
 - Chat Hub and other service integrations may create `pending_review` drafts only. A guardian publishes them.
 - The server is authoritative for authorization, completion, star, reward, and idempotency state.
 
+<memory category="troubleshooting">
+`frontend/src/views/child/PracticeView.vue`: an answer awaiting save confirmation is not necessarily a failed save; normal in-flight submissions also pass through that state.
+Using unconfirmed-answer state alone to expose “重试保存同一答案” causes the retry UI to flash on every normal submission. In-flight saving and failed-save recovery are distinct UI states; suppressing retry controls during saving must not remove offline recovery.
+</memory>
+
 ## Reference router
 
 | Topic | Read |
