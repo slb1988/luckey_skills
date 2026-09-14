@@ -1,0 +1,23 @@
+{
+  "skill_name": "ai-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Codex 刚完成 src/cache.ts 和 tests/cache.test.ts 的缓存修复，帮我用 Kimi K3 review 一下结果，只审不改。环境信息已确认：Pi 能承载已配置的唯一 Kimi K3 模型，具体 provider/model ID 尚未读取；Codex CLI 也可用。现在只做路由演练：输出如何核实模型、选择哪个入口以及将派发的只读评审任务，不实际启动工具或修改文件。",
+      "expected_output": "将 Codex 识别为作者、Kimi K3 识别为 reviewer，选择能承载 Kimi 的 Pi 入口；执行前核实真实 provider/model，不臆造 ID，不用 codex exec review 替代。只审指定文件的实际改动及必要上下文，不只依赖作者总结，不修复或提交。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "按以前的 codex-review 流程，用 Codex review 一下当前 Git 仓库的未提交改动，先只审一轮，不修复也不提交。这里没有额外的评审重点。现在只写出会使用的命令、评审范围与停止条件，不实际执行。",
+      "expected_output": "将旧称呼识别为 ai-review 的 Codex 入口，先核实 CLI 能力，再使用 codex exec review --uncommitted，不与自定义 PROMPT 混用；覆盖 staged、unstaged、相关 untracked。遵守一轮、只读、不自动提交，不将命令退出码或空输出当作无发现。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "刚才 Codex 已经审过一轮，这次换 Kimi K3 复审，还是只审不改。当前环境模型列表里只有一个 Codex 模型和一个 Claude 模型，没有 Kimi K3，也没配置其他 Kimi 入口。现在只做路由演练，不调用工具：你准备怎么办？",
+      "expected_output": "明确 Kimi K3 不可用导致阻塞，询问用户是否配置该模型或授权替代；不静默切回 Codex/Claude，不把换窗口或 CLI 冒称换模型，不声称复审完成。",
+      "files": []
+    }
+  ]
+}

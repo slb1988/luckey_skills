@@ -4,6 +4,17 @@
 > 版本：Langfuse v3.174.1  
 > 状态：✅ 运行中（2026-07-25 修复 worker 后）
 
+## 目录
+
+- 一、架构概览
+- 二、连接信息
+- 三、API 密钥与本地凭据
+- 四、内部组件配置
+- 五、业务接入指南
+- 六、运维命令
+- 七、故障记录
+- 八、关键注意事项
+
 ---
 
 ## 一、架构概览
@@ -64,7 +75,7 @@ Client SDK → POST /api/public/ingestion → Web 服务器
 | 局域网地址 | `http://192.168.2.13:3030` |
 | 本地地址 | `http://localhost:3030` |
 | 管理员邮箱 | `sunlaibing88@gmail.com` |
-| 管理员密码 | `!hmR5h80bzH8ks4Z` |
+| 管理员密码 | `${LANGFUSE_ADMIN_PASSWORD}` |
 | 组织名 | Default (`org-default`) |
 | 项目名 | Default (`proj_default`) |
 
@@ -74,20 +85,24 @@ Client SDK → POST /api/public/ingestion → Web 服务器
 |------|-----|
 | 地址 | `http://192.168.2.13:9093` |
 | 用户名 | `minio` |
-| 密码 | `miniosecret` |
+| 密码 | `${LANGFUSE_MINIO_PASSWORD}` |
 
 ---
 
 ## 三、API 密钥（用于业务接入）
 
-> 以下密钥在 Project Settings → API Keys 中获取或通过数据库创建。
+> 密钥在 Project Settings → API Keys 中获取或通过数据库创建。实际值只存本 skill 目录的 `.env`，下表及密码表只给出变量名。
 
-### 当前有效密钥
+首次配置时复制 `../.env.example` 到 `../.env` 并在本地填写，保留已有文件；`.env` 不入 Git。API 密钥与管理员、内部组件、安全密钥都保存在这里，但应用只应注入自己需要的变量，不能把整份运维凭据注入业务容器。
+
+Agent 从 skill 目录调用 `python ~/.agent-hooks/env-read-guard/guard.py keys` 只查看变量名，实际使用走 `pipe KEY -- <静默下游命令>`。不要直接读文件、打印密钥、开 shell trace 或把值写进报告。
+
+### API 变量
 
 | 用途 | 值 |
 |------|-----|
-| **Public Key** | `pk-lf-ade6a02d-1393-4af4-9100-c755789722cc` |
-| **Secret Key** | `sk-lf-a4850c13-3608-470f-a19e-6ee5f16c625b` |
+| **Public Key** | `${LANGFUSE_PUBLIC_KEY}` |
+| **Secret Key** | `${LANGFUSE_SECRET_KEY}` |
 | **Host** | `http://192.168.2.13:3030` 或 `http://localhost:3030` |
 
 > ⚠️ 如需在 Docker 容器内访问 Langfuse，请使用桥接网络 IP 或 `host.docker.internal:3030`（需要 `extra_hosts` 配置）。
@@ -99,7 +114,7 @@ Client SDK → POST /api/public/ingestion → Web 服务器
 如果 Web UI 不可用，通过数据库创建（需要正确的 bcrypt 哈希和 fast hash）：
 
 ```python
-import bcrypt, hashlib, uuid
+import bcrypt, hashlib, os, uuid
 
 # 1. 生成密钥对
 pk = f"pk-lf-{uuid.uuid4()}"
@@ -109,7 +124,7 @@ sk = f"sk-lf-{uuid.uuid4()}"
 hashed = bcrypt.hashpw(sk.encode(), bcrypt.gensalt(rounds=11)).decode()
 
 # 3. fast_hashed_secret_key = SHA256(salt + SHA256(secret_key).hex).hex
-SALT = "1fddb49ee65746c08a46d4f54e338254"
+SALT = os.environ["SALT"]
 fast_hash = hashlib.sha256(
     (SALT + hashlib.sha256(sk.encode()).hexdigest()).encode()
 ).hexdigest()
@@ -128,30 +143,30 @@ fast_hash = hashlib.sha256(
 | 容器内地址 | `langfuse-postgres:5432` |
 | 数据库 | `langfuse` |
 | 用户 | `postgres` |
-| 密码 | `difyai123456` |
+| 密码 | `${LANGFUSE_POSTGRES_PASSWORD}` |
 
 ### 4.2 ClickHouse
 
 | 项目 | 值 |
 |------|-----|
 | 容器内地址 | `langfuse-clickhouse:8123` (HTTP) / `:9000` (Native) |
-| 用户 | `clickhouse` |
-| 密码 | `clickhouse` |
+| 用户 | `${LANGFUSE_CLICKHOUSE_PASSWORD}` |
+| 密码 | `${LANGFUSE_CLICKHOUSE_PASSWORD}` |
 
 ### 4.3 Redis
 
 | 项目 | 值 |
 |------|-----|
 | 容器内地址 | `langfuse-redis:6379` |
-| 密码 | `langfuse-redis-secret` |
+| 密码 | `${LANGFUSE_REDIS_PASSWORD}` |
 
 ### 4.4 安全密钥（NEXTAUTH / 加密）
 
 | 密钥 | 值 |
 |------|-----|
-| `NEXTAUTH_SECRET` | `66959d0d214f0714ee0e064412e12583f2c9214ebbb384af7013c11c12633ce4` |
-| `SALT` | `1fddb49ee65746c08a46d4f54e338254` |
-| `ENCRYPTION_KEY` | `ea00e06b97639c2b4035e1dc0aa67911e6fb39cde2cf8242ee8a39582bee132e` |
+| `NEXTAUTH_SECRET` | `${NEXTAUTH_SECRET}` |
+| `SALT` | `${SALT}` |
+| `ENCRYPTION_KEY` | `${ENCRYPTION_KEY}` |
 
 ---
 
@@ -161,21 +176,20 @@ fast_hash = hashlib.sha256(
 
 #### 环境变量方式
 
-```bash
-LANGFUSE_PUBLIC_KEY=pk-lf-ade6a02d-1393-4af4-9100-c755789722cc
-LANGFUSE_SECRET_KEY=sk-lf-a4850c13-3608-470f-a19e-6ee5f16c625b
-LANGFUSE_HOST=http://192.168.2.13:3030
-```
+以下示例假定应用进程已注入 `LANGFUSE_PUBLIC_KEY`、`LANGFUSE_SECRET_KEY`、`LANGFUSE_HOST`。普通 Python/Node 进程不会自动读取本 skill 的 `.env`；由应用配置加载器（如显式指定路径的 python-dotenv）或进程管理器注入，文件路径按部署环境设置。不要把密钥重新粘贴到代码。
+
+Docker Compose 的 `.env` / `--env-file` 用于配置插值；只在服务 `environment` 中映射所需变量，不把整份文件作为业务容器的 `env_file`。
 
 #### 代码方式
 
 ```python
+import os
 from langfuse import Langfuse
 
 langfuse = Langfuse(
-    public_key="pk-lf-ade6a02d-1393-4af4-9100-c755789722cc",
-    secret_key="sk-lf-a4850c13-3608-470f-a19e-6ee5f16c625b",
-    host="http://192.168.2.13:3030"
+    public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
+    secret_key=os.environ["LANGFUSE_SECRET_KEY"],
+    host=os.environ["LANGFUSE_HOST"]
 )
 
 # 记录 trace
@@ -199,12 +213,9 @@ langfuse.flush()
 litellm_settings:
   success_callback: ["langfuse"]
   failure_callback: ["langfuse"]
-
-environment_variables:
-  LANGFUSE_PUBLIC_KEY: "pk-lf-ade6a02d-1393-4af4-9100-c755789722cc"
-  LANGFUSE_SECRET_KEY: "sk-lf-a4850c13-3608-470f-a19e-6ee5f16c625b"
-  LANGFUSE_HOST: "http://192.168.2.13:3030"
 ```
+
+在 LiteLLM 进程启动环境中注入上述三项 `LANGFUSE_*` 变量，配置文件只保留回调设置，不存凭据。
 
 ### 5.2 RAGFlow 配置
 
@@ -213,20 +224,21 @@ RAGFlow v0.26.4 接入 Langfuse，直接使用以下环境变量：
 ```yaml
 # ragflow 服务添加环境变量
 environment:
-  LANGFUSE_PUBLIC_KEY: "pk-lf-ade6a02d-1393-4af4-9100-c755789722cc"
-  LANGFUSE_SECRET_KEY: "sk-lf-a4850c13-3608-470f-a19e-6ee5f16c625b"
-  LANGFUSE_HOST: "http://192.168.2.13:3030"
+  LANGFUSE_PUBLIC_KEY: "${LANGFUSE_PUBLIC_KEY:?required}"
+  LANGFUSE_SECRET_KEY: "${LANGFUSE_SECRET_KEY:?required}"
+  LANGFUSE_HOST: "${LANGFUSE_HOST:?required}"
 ```
 
 或在代码中手动集成：
 
 ```python
+import os
 from langfuse import Langfuse
 
 langfuse = Langfuse(
-    public_key="pk-lf-ade6a02d-1393-4af4-9100-c755789722cc",
-    secret_key="sk-lf-a4850c13-3608-470f-a19e-6ee5f16c625b",
-    host="http://192.168.2.13:3030"
+    public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
+    secret_key=os.environ["LANGFUSE_SECRET_KEY"],
+    host=os.environ["LANGFUSE_HOST"]
 )
 ```
 
@@ -240,9 +252,9 @@ npm install langfuse
 import { Langfuse } from "langfuse";
 
 const langfuse = new Langfuse({
-  publicKey: "pk-lf-ade6a02d-1393-4af4-9100-c755789722cc",
-  secretKey: "sk-lf-a4850c13-3608-470f-a19e-6ee5f16c625b",
-  baseUrl: "http://192.168.2.13:3030",
+  publicKey: process.env.LANGFUSE_PUBLIC_KEY,
+  secretKey: process.env.LANGFUSE_SECRET_KEY,
+  baseUrl: process.env.LANGFUSE_HOST,
 });
 
 const trace = langfuse.trace({ name: "my-trace" });
@@ -266,17 +278,17 @@ await langfuse.shutdownAsync();
 
 ### 5.5 验证连接
 
+通过已注入环境变量的应用执行，只回报鉴权结果，不输出凭据或配置对象：
+
 ```python
+import os
 from langfuse import Langfuse
-l = Langfuse(public_key="pk-...", secret_key="sk-...", host="http://192.168.2.13:3030")
-print(l.auth_check())  # 返回 True 表示连接成功
-```
-
-或用 curl：
-
-```bash
-curl -u "pk-lf-ade6a02d-1393-4af4-9100-c755789722cc:sk-lf-a4850c13-3608-470f-a19e-6ee5f16c625b" \
-  http://192.168.2.13:3030/api/public/projects
+l = Langfuse(
+    public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
+    secret_key=os.environ["LANGFUSE_SECRET_KEY"],
+    host=os.environ["LANGFUSE_HOST"]
+)
+print(l.auth_check())
 ```
 
 ---
@@ -307,9 +319,9 @@ cd /mnt/disk2/langfuse && docker compose down
 # 进入 PostgreSQL
 docker exec -it langfuse-postgres psql -U postgres -d langfuse
 
-# 队列积压检查（trace 收不到时的首要诊断）
-docker exec langfuse-redis redis-cli -a langfuse-redis-secret \
-  LLEN 'bull:otel-ingestion-queue:wait'
+# 队列积压检查（已安全注入 LANGFUSE_REDIS_PASSWORD）
+REDISCLI_AUTH="$LANGFUSE_REDIS_PASSWORD" docker exec -e REDISCLI_AUTH langfuse-redis \
+  redis-cli LLEN 'bull:otel-ingestion-queue:wait'
 # 返回值 > 0 且不减少 → worker 没在消费
 
 # ClickHouse 数据量检查
@@ -364,8 +376,8 @@ UPDATE tenant_langfuse SET host = 'http://langfuse:3000' WHERE tenant_id = '...'
 **诊断方法**：
 ```bash
 # 队列积压量（>0 且不动 = worker 没运行）
-docker exec langfuse-redis redis-cli -a langfuse-redis-secret \
-  LLEN 'bull:otel-ingestion-queue:wait'
+REDISCLI_AUTH="$LANGFUSE_REDIS_PASSWORD" docker exec -e REDISCLI_AUTH langfuse-redis \
+  redis-cli LLEN 'bull:otel-ingestion-queue:wait'
 # ClickHouse 空
 docker exec langfuse-clickhouse clickhouse-client -q "SELECT count() FROM traces"
 ```
@@ -411,9 +423,9 @@ cd /mnt/disk2/langfuse && docker compose up -d langfuse langfuse-worker
 
 ## 八、关键注意事项
 
-1. **API 密钥安全**：Secret Key 不要提交到 Git，建议通过环境变量或密钥管理服务注入。
+1. **凭据安全**：所有实际凭据只存本地 `.env` 或密钥管理服务，不提交到 Git、不打印；已入 Git 历史的密钥应安排轮换，迁出当前文件不等于清除了历史。
 2. **PostgreSQL 持久化**：数据存储在 `postgres-data` Docker Volume 中，备份时注意备份该卷。
 3. **网络**：Langfuse 使用外部网络 `docker_default`（`external: true`），新服务需要加入此网络才能用容器名通信。
-4. **SALT 的重要性**：`SALT`（`1fddb49ee65746c08a46d4f54e338254`）用于生成 `fast_hashed_secret_key`，修改它会导致所有 API 密钥失效。
+4. **SALT 的重要性**：`SALT` 从受控环境注入，用于生成 `fast_hashed_secret_key`，修改它会导致所有 API 密钥失效。迁移凭据存储位置不等于授权更改服务器的 SALT。
 5. **密码初始化**：`LANGFUSE_INIT_USER_PASSWORD` 仅在首次启动时生效，数据库已有用户后不再自动更新。
 6. **镜像版本漂移**：`langfuse/langfuse:3` 和 `clickhouse/clickhouse-server` 均为浮动标签，各自独立升级。ClickHouse 大版本升级后 Langfuse 查询构建器可能生成不兼容的 SQL（典型症状：`tRPC route failed on scores.all` + ClickHouse `Not found column`）。建议固定 ClickHouse 版本号或用 digest pin 绑定两个镜像的兼容版本对。

@@ -17,29 +17,30 @@ references/langfuse.md
 
 该文档包含：
 - 架构概览（6 个容器：langfuse、langfuse-worker、postgres、clickhouse、redis、minio）
-- 连接信息（Web UI 地址、管理员账号密码）
-- API 密钥（pk-lf-... / sk-lf-...）
+- 连接信息（Web UI 地址、管理员账号和凭据变量名）
+- API 密钥的环境变量配置（不存储实际值）
 - 内部组件配置（数据库、缓存、对象存储）
 - 业务接入指南（Python / Node.js / RAGFlow / LiteLLM / 容器内访问）
 - 运维命令（启停、日志、队列诊断、状态检查）
 - 故障记录与修复
 
+## 本地凭据
+
+实际 API 密钥、管理员/组件密码和安全密钥只放本 skill 目录的 `.env`（Git 忽略），无值模板为 `.env.example`。其他机器需单独配置，不通过 Git 分发实际值。
+
+只向用户说明变量名和文件位置，不回显值。Agent 查询用 env-read-guard 的 `keys`；需要凭据时，用 `pipe KEY -- <静默下游命令>`，从本 skill 目录执行，以定位这里的 `.env`。没有 guard 时由应用自己的配置加载器注入，不直接读取或打印密钥文件。
+
 ## 常见场景
 
 ### 用户问"langfuse 密钥是什么"
-→ 读取 `references/langfuse.md`，找到「三、API 密钥」部分。
+→ 说明 `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` 存在本地 `.env`；接入方法见参考文档第三节，不把实际值放进回复。
 
 ### 用户问"XXX 容器连不上 langfuse"
 → 确认防火墙规则已修复（`/etc/iptables/rules.v4`），指导用户使用 `http://192.168.2.13:3030`。
 如果不行，检查容器是否在 `docker_default` 网络内。
 
 ### 用户问"怎么在 RAGFlow 里配置 langfuse"
-→ 给出环境变量：
-```
-LANGFUSE_PUBLIC_KEY=pk-lf-ade6a02d-1393-4af4-9100-c755789722cc
-LANGFUSE_SECRET_KEY=sk-lf-a4850c13-3608-470f-a19e-6ee5f16c625b
-LANGFUSE_HOST=http://192.168.2.13:3030
-```
+→ 将本地凭据注入服务的 `LANGFUSE_PUBLIC_KEY`、`LANGFUSE_SECRET_KEY` 和 `LANGFUSE_HOST` 环境变量。Docker Compose 用 `.env` 插值并只映射这三项；不要把含运维密码的整个文件注入业务容器。具体配置见参考文档第五节。
 
 ### 用户问"langfuse 挂了"或"trace 收不到"
 → 执行 `cd /mnt/disk2/langfuse && docker compose ps` 检查所有 6 个容器状态。
@@ -66,3 +67,4 @@ LANGFUSE_HOST=http://192.168.2.13:3030
 | 管理面板 HTML | `/mnt/disk2/langfuse/index.html` |
 | iptables 持久化 | `/etc/iptables/rules.v4` |
 | 参考文档 | `references/langfuse.md` |
+| 本地凭据 / 无值模板 | `.env`（忽略） / `.env.example` |
