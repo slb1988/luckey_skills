@@ -148,9 +148,8 @@ CodeGraph 的 Linux 编译链独立保留。同机组靠 snapshot 边取兼容�
 </memory>
 
 <memory category="code-locations">
-PLN_TaskAiReview 的内容步 "Collect Review Context" 调的是 **MainDev depot** 的 `Tools/AiReview/AiReviewContextCollect.py`（本机 `D:\MainDev`），不在 DevOps 仓——ws:autoserver-deveops 的 AI review 故障可能要改 MainDev 文件。`STREAM_MISMATCH` 报错出自其 `collect_diff()`。**2026-09 起混合 stream CL 不再硬失败**：目标 stream 外文件不进 diff、只在 diff 头部记 SKIPPED 节（列前 20 条；实测 CL 130205 目标 MainDev 时 Wwise 的 a.cpp 被跳过），整 CL 都在目标 stream 外才 exit 3。上游 Task_Unshelve（DevOps `P4UnshelveStage.py`）对混合 CL 正常——见 STREAM_MISMATCH 先查 collect 步，别查 unshelve。
+PLN_TaskAiReview 的内容步 "Collect Review Context" 调的是 **MainDev depot** 的 `Tools/AiReview/AiReviewContextCollect.py`（本机 `D:\MainDev`），不在 DevOps 仓——ws:autoserver-deveops 的 AI review 故障可能要改 MainDev 文件。`STREAM_MISMATCH` 报错出自其 `collect_diff()`。**2026-09 起混合 stream CL 不再硬失败**：目标 stream 外文件不进 diff、只在 diff 头部记 SKIPPED 节（列前 20 条；实测 CL 130205 目标 MainDev 时 Wwise 的 a.cpp 被跳过），整 CL 都在目标 stream 外才 exit 3。上游 Unshelve 的混合 CL 映射与基线校验边界见 [FlowAiReview 参考](references/flow-aireview-pipeline.md)。
 </memory>
-
 <memory category="troubleshooting">
 PLN_TaskAiReview 观测性两个结构性事实（build 18399 实证，2026-09）：
 ① 编译日志采集是**静默降级**——Collect 步 `--tc-dep-suffix` 必须与链上实际编译节点同名（现 `TaskBuildUEWindows`，链定义见 build-chain-parameters.md）；不匹配不报错，`Saved/ai_review/build_log_tail.txt` 只剩 ~94B 说明 stub，AI 在无编译日志下评审。已发根因：脚本默认值滞留 `TaskBuildUELinux`、文档声称已对齐而代码没有。评审输出缺编译证据时先查该文件大小，别怀疑模型。

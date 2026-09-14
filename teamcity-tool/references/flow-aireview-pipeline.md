@@ -87,6 +87,14 @@ Build.bat 编 Linux target，门禁语义不变）。要点：
 
 `RequestReview.py` 的请求动作是 workspace 交接边界：`p4 shelve -f -Af -c <CL>` 成功后，shelf 成为评审和代提交的内容源，作者 client 不应继续保留该 CL 的本地改动、opened 状态或 `+l` 锁。清理必须覆盖 `revert -a -c <CL>` 未处理的剩余文件；执行破坏性 revert 前先预检文件占用及其他阻塞并明确提示，清理不完整时不得静默报成功。
 
+## Unshelve 混合 CL：client view 与 depot 基线边界
+
+<memory category="core-rules">
+`DevOps/P4UnshelveStage.py` 的基线校验只适用于 shelf 中实际被目标 client view 映射的文件；未映射项应记录并跳过。
+depot 存在 baseline revision 不代表该 client 有映射或 have revision；把未映射的 `WwiseProject_main` 文件纳入校验会触发 `haveRev unknown`，与独占锁或 resolve 冲突无关。
+映射判断不能退化为目标 stream 的 depot 前缀过滤：映射内的 `import+` 外部文件仍须保留，混合 CL 不能一概拒绝。
+</memory>
+
 ## Unshelve 吞掉他人已提交代码：have 回退 + `resolve -am` 空跑/假成功（2026-09 review 315 查明）
 
 排查「unshelve 后好像没合并、直接用了某一方内容」先对这几条（隔离 P4 测试库 11 断言复现确认）：
