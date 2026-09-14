@@ -97,6 +97,15 @@ outbox `graphiti.add_memory_relation` 事件 HTTP 503 ≠ Graphiti 故障：`POS
 - **预览 LLM 调用在写事务外**；锁等待日志标识的是等待方，锁主须以事务与内核证据另行确认。
 
 <memory category="core-rules">
+审核批准链的写锁边界：`apply_extraction_actions` 在 `BEGIN IMMEDIATE` 后调用 Graphiti
+`/resolve-entities`，网络等待因此占住 SQLite 唯一 writer；`_retry_locked` / `run_supervised`
+只能重试等待方或保活循环，不能缩短该持锁窗口。`/v1/auth/me` 也会写 `last_used_at`，
+所以它会作为旁路 writer 被拖成 `database is locked` / 500，即使 Hub / Graphiti 均 ready。
+外部解析必须在事务外；短事务内以 review/proposed/group/novelty 版本 CAS 后原子写结果和 outbox；
+CAS 冲突应退出事务后重新计算，禁止在事务重试中重复外部调用；认证时间戳应为 best-effort 写。
+</memory>
+
+<memory category="core-rules">
 Memory Hub“做梦/图谱健康审计”必须按“SQLite 权威账本 → Graphiti 异步投影”语义判定，不能做朴素全量差集：
 - `GraphitiClient.recent_episode_uuids()` 只有最近 N 条；`search/search_v2` 是语义 Top-K，`resolve_entities/get_entity_edge` 也不能证明任意 memory episode 不存在。`indexed` 缺 episode 规则必须先有按 `group_id + uuids[]` 的存在性或完整快照接口。
 - Graphiti 同 group FIFO 串行抽取；只有 group 无 `pending/retry/processing` outbox 且对象早于稳定余量时才可产生缺失/空图 finding，否则会撞上 episode 已建但实体/边未完成的中间态。
