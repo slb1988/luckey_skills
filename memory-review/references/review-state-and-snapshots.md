@@ -31,7 +31,32 @@ remove 后的事实清单可以保持不变而不再携带部分解析提示。�
 
 辅助元数据变化不自动证明事实变化，也不授权忽略实体重命名、摘要或边 fact 的变化。
 后者需要逐条复核，不能仅重新计算一个 hash 就视为审核通过。
-本地快照比对不提供服务端 CAS 原子性；读取后到动作之间仍存在并发窗口。
+本地快照比对不提供服务端原子性；读到批准之间的版本绑定由下面的服务端 token/CAS 契约保证。
+
+## 人工批准的快照契约
+
+| 接口或结果 | 含义 |
+|---|---|
+| BFF `GET /api/v1/review/extraction/{review_id}` 的 `snapshot_token` | 服务端提供的不透明版本标记；客户端原样保留，不自己算 hash |
+| 人工 approve 的 `expected_snapshot_tokens: {review_id: token}` | 每个 review 必填；`original` 与 `curated` 一致 |
+| 缺映射或缺任一条 token | HTTP 422 / `REVIEW_SNAPSHOT_REQUIRED`，整请求不执行、没有逐项 results |
+| token 格式不合法 | 普通 HTTP 422，不是批准结果 |
+| token 过期 | HTTP 200 的该项 `status=review_changed`；该项不处置、不写 outbox，也不返回替代 token |
+| reject / retry_preview | 服务端不要求批准 token；CLI 的 reject 保持兼容 |
+
+同一批请求的其他项可能成功，不能把一个 `review_changed` 解读为整批回滚。CLI 留下逐项结果并停止后续动作，
+重新读取后仍须重新审核，不自动换 token 再批准；`already_processed` 保持并发跳过语义。
+
+token 覆盖正文、归属、审核状态、novelty 以及实体/关系事实，排除解析提示与更新时间噪音。
+组门禁仍在批准时即时检查；token 不取代组就绪约束，也不授权自动 approve。
+
+scan 将 token 与供审核的正文/预览一起保存，并保留状态、attempts 和来源元数据；字段缺失留空，不猜版本。
+决策文件必须复制该次已审核的 token，apply 不通过 GET 自动补齐。
+同一 review 的 remove/approve 必须拆文件；remove 后重新读取、核对整个预览，再使用其新 token。
+本地缺 token 或存在同条 remove+approve 时，连 dry-run 也拒绝；remove 失败后不发送任何后续批准或拒绝。
+
+本契约依赖服务端版本支持；客户端安装/推送不代表服务已部署。旧服务返回无 token 的 detail 时仍可扫描，
+但新客户端不能批准，不提供绕过快照校验的兼容降级。
 
 ## 动作台账与队列快照分层
 

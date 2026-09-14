@@ -15,7 +15,8 @@
 决策文件格式（apply 的输入）：
 {
   "removals":  [{"review_id": "...", "entities": ["name"], "edges": [{"source","name","target"}]}],
-  "approvals": [{"review_id": "...", "content_mode": "curated|original", "rationale": "..."}],
+  "approvals": [{"review_id": "...", "content_mode": "curated|original",
+                 "snapshot_token": "<审核时 detail/scan 返回的原值>", "rationale": "..."}],
   "rejections":[{"review_id": "...", "rationale": "..."}]
 }
 """
@@ -108,6 +109,19 @@ def check_item(detail: dict) -> list[dict]:
     entities = proposed.get("entities") or []
     edges = proposed.get("edges") or []
     content = detail.get("distilled_content") or ""
+    status = detail.get("status")
+    if status in {"preview_pending", "preview_failed"}:
+        flags.append({
+            "check": status, "severity": "escalate",
+            "detail": f"审核状态 {status}，preview_attempts={detail.get('preview_attempts')}；需核对预览生命周期",
+        })
+
+    token = detail.get("snapshot_token")
+    if not isinstance(token, str) or not token.strip():
+        flags.append({
+            "check": "snapshot_missing", "severity": "escalate",
+            "detail": "缺少服务端 snapshot_token，不能批准；需支持快照契约的服务端并重新扫描审核",
+        })
 
     # 1) 自环边（LLM 预览常见畸形：source == target）
     for e in edges:
@@ -192,6 +206,10 @@ def cmd_scan(args) -> int:
         proposed = d.get("proposed") or {}
         novelty = d.get("novelty") or {}
         packet.append({
+            **{field: d.get(field) for field in (
+                "memory_id", "session_id", "session_version", "scope_type", "group_id",
+                "status", "memory_status", "preview_attempts", "updated_at", "snapshot_token",
+            )},
             "review_id": d["review_id"],
             "project_id": d.get("project_id"),
             "memory_type": d.get("memory_type"),
@@ -213,14 +231,16 @@ def cmd_scan(args) -> int:
     auto = sum(1 for p in packet if p["suggestion"]["auto"])
     esc = len(packet) - auto
     print(f"open 队列 {len(packet)} 条：可自动处置 {auto}，需人工判断 {esc}")
-    print(f"{'review':8s} {'project':24s} {'ent/edge':9s} {'novelty':18s} 建议 / flags")
+    print(f"{'review':8s} {'project':24s} {'state/attempts':18s} {'ent/edge':9s} {'novelty':18s} 建议 / flags")
     for p in packet:
         nov = p["novelty"] or {}
         nov_s = f"{nov.get('status', '-')}/{nov.get('admission', '-')}"
         sg = p["suggestion"]
         act = sg["action"] + (f"({sg.get('content_mode', '')})" if sg["action"] == "approve" else "")
         flag_s = "; ".join(f["check"] for f in p["flags"]) or "-"
-        print(f"{p['review_id'][:8]:8s} {(p['project_id'] or '')[:24]:24s} "
+        attempts = p.get("preview_attempts")
+        state_s = f"{p.get('status') or '-'}/{attempts if attempts is not None else '-'}"
+        print(f"{p['review_id'][:8]:8s} {(p['project_id'] or '')[:24]:24s} {state_s:18s} "
               f"{p['entity_count']}/{p['edge_count']:<7d} {nov_s:18s} {act} | {flag_s}")
         print(f"         {(p['summary'] or '')[:80]}")
     print(f"\n审核包已写入 {out_path}——逐条阅读 proposed/distilled_content 做判断，"
@@ -231,9 +251,44 @@ def cmd_scan(args) -> int:
 # ---------------------------------------------------------------- apply
 
 
+def validate_decisions(decisions: dict) -> None:
+    if not isinstance(decisions, dict):
+        raise ValueError("决策文件必须是 JSON 对象")
+    for key in ("removals", "approvals", "rejections"):
+        items = decisions.get(key, [])
+        if not isinstance(items, list):
+            raise ValueError(f"{key} 必须是数组")
+        for item in items:
+            if not isinstance(item, dict) or not isinstance(item.get("review_id"), str) or not item["review_id"].strip():
+                raise ValueError(f"{key} 每条必须包含非空 review_id")
+
+    approved = set()
+    for item in decisions.get("approvals", []):
+        review_id = item["review_id"]
+        token = item.get("snapshot_token")
+        if not isinstance(token, str) or not token.strip():
+            raise ValueError(f"APPROVE {review_id} 缺少有效 snapshot_token；必须复制已审核快照的原值，不能自动补取")
+        if item.get("content_mode", "original") not in {"original", "curated"}:
+            raise ValueError(f"APPROVE {review_id} 的 content_mode 必须为 original 或 curated")
+        if review_id in approved:
+            raise ValueError(f"重复 APPROVE {review_id}")
+        approved.add(review_id)
+
+    removed = {i["review_id"] for i in decisions.get("removals", []) if i.get("entities") or i.get("edges")}
+    if approved & removed:
+        raise ValueError("同条记忆不能在一份文件中 REMOVE 后 APPROVE；先清理，重新读取并审核，再用新 snapshot_token 批准")
+    if approved & {i["review_id"] for i in decisions.get("rejections", [])}:
+        raise ValueError("同条记忆不能同时 APPROVE 与 REJECT")
+
+
 def cmd_apply(args) -> int:
     with open(args.decisions, encoding="utf-8") as fh:
         decisions = json.load(fh)
+    try:
+        validate_decisions(decisions)
+    except ValueError as exc:
+        print(f"决策校验失败：{exc}；未发送任何请求。", file=sys.stderr)
+        return 1
     client = make_client(args)
     dry = args.dry_run
 
@@ -251,7 +306,12 @@ def cmd_apply(args) -> int:
         failures += 0 if ok else 1
         print(f"REMOVE {rem['review_id'][:8]} -> {status}{'' if ok else ' ' + json.dumps(resp, ensure_ascii=False)[:200]}")
 
-    # 按 (action, content_mode, rationale) 分组批量调用，同组共享一次 rationale 留痕
+    if failures:
+        print(f"清理失败 {failures} 项；已停止，未发送批准或拒绝请求。")
+        return 1
+
+    # 每组共用 action/mode/rationale，各 review 保留自己的已审核 token。
+    tokens = {i["review_id"]: i["snapshot_token"] for i in decisions.get("approvals", [])}
     groups: dict[tuple, list[str]] = {}
     for item in decisions.get("approvals", []):
         key = ("approve", item.get("content_mode", "original"), item.get("rationale") or None)
@@ -264,6 +324,7 @@ def cmd_apply(args) -> int:
         body = {"review_ids": ids, "action": action, "acknowledge_novelty_warning": False}
         if action == "approve":
             body["content_mode"] = mode or "original"
+            body["expected_snapshot_tokens"] = {review_id: tokens[review_id] for review_id in ids}
         if rationale:
             body["rationale"] = rationale
         if dry:
@@ -276,9 +337,16 @@ def cmd_apply(args) -> int:
             failures += 0 if ok else 1
             print(f"{action.upper()} {r.get('review_id', '?')[:8]} -> {r.get('status')}"
                   + (f" | {r.get('error')}" if r.get("error") else ""))
+            if r.get("status") == "review_changed":
+                print("快照已变化：停止批准，重新 scan 并逐条审核；不会自动换 token 重试。")
         if not results:
             failures += 1
             print(f"{action.upper()} batch -> HTTP {status} {json.dumps(resp, ensure_ascii=False)[:300]}")
+        elif status != 200:
+            failures += 1
+        if failures:
+            print("已停止后续动作；保留已返回的逐项结果，不自动重试。")
+            break
 
     print("\n完成。" + ("（dry-run，未实际执行）" if dry else f"失败 {failures} 项。"))
     return 1 if failures else 0

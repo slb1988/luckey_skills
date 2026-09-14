@@ -79,9 +79,9 @@ python scripts/review_queue.py apply decisions.json
   写明判断依据，方便事后审计"为什么批/拒"。
 
 <memory category="core-rules">
-`review_queue.py apply` 只保证 removals 排在 actions 前，不提供跨阶段事务或 fail-closed：
-remove 失败时不能假定后续 approve 会停止。批准依赖预览清理时必须拆成两份决策文件；
-先只执行 removals，重拉详情确认清理生效，再单独 dry-run/执行 approve/reject。
+`review_queue.py apply` 在任何写操作前校验每条 approve 的 `snapshot_token`；同一 review 的有效 remove 与 approve 不能在同一文件。
+任一 remove 失败会停止后续 actions，但多条 remove 之间不是事务。先单独清理、重拉并重新审核，再用新快照构造批准文件。
+`original`/`curated` 都绑定已审核 token；缺 token（含旧决策文件）或 `review_changed` 必须停下，不自动补取、替换 token 或重试。
 </memory>
 
 <memory category="core-rules">
@@ -117,23 +117,26 @@ sk- 凭证此前漏报。
 ```json
 {
   "removals": [
-    {"review_id": "...", "entities": ["错误归属实体名"], "edges": []},
-    {"review_id": "...", "entities": [],
+    {"review_id": "review-to-clean-a", "entities": ["错误归属实体名"], "edges": []},
+    {"review_id": "review-to-clean-b", "entities": [],
      "edges": [{"source": "user", "name": "HAS_PREFERENCE", "target": "user"}]}
   ],
   "approvals": [
-    {"review_id": "...", "content_mode": "curated",
+    {"review_id": "review-ready", "content_mode": "curated",
+     "snapshot_token": "<从已审核的 detail/scan 原样复制>",
      "rationale": "auto-review: 预览准确无畸形；novelty=novel"}
   ],
   "rejections": [
-    {"review_id": "...", "rationale": "auto-review: 正文为一次性临时状态，无长期价值"}
+    {"review_id": "review-reject", "rationale": "auto-review: 正文为一次性临时状态，无长期价值"}
   ]
 }
 ```
 
-removals 先于 approvals 执行（服务端保证 remove 后 curated 用清理后的预览渲染）。
-apply 按 (action, content_mode, rationale) 分组批量调用；需要逐条不同 rationale 时
-给每条单独一句即可，脚本会自动分组。
+apply 按 (action, content_mode, rationale) 分组，逐项 token 组装为 `expected_snapshot_tokens: {review_id: token}`；
+reject 不要求 token。同一 review 的清理与批准须拆阶段，不能给新预览套用旧验收。
+scan 保留服务端 token、状态、attempts、memory/session/group 等元数据；未返回的字段留空，不推断版本或物理组。
+新客户端的批准需要支持快照契约的服务端；旧服务无 token 时仅可扫描，不能降级批准。
+接口与错误语义见 [审核状态与快照](references/review-state-and-snapshots.md)。
 
 ## 常见预览质量模式
 
@@ -181,7 +184,7 @@ duplicate（误杀）。完整排查：`.claude/plans/MemoryHub抽取审核重�
 | GET | `/review/extraction/{id}` | 详情（proposed 预览 + novelty + turns） |
 | POST | `/review/extraction/{id}/remove` | 按 name/三元组移除预览条目（不经 LLM） |
 | POST | `/review/extraction/{id}/turns` | 与预览 LLM 多轮对话调整（复杂修正时用） |
-| POST | `/review/extraction/actions` | 批量 approve/reject；`content_mode`、`acknowledge_novelty_warning`、`rationale`（v13+） |
+| POST | `/review/extraction/actions` | 批量 approve/reject；approve 必填 `expected_snapshot_tokens`；另带 `content_mode`、`acknowledge_novelty_warning`、`rationale` |
 
 直连 Hub 用 `http://10.77.77.6:9287/v1/...`（脚本 `--base-url` 自动适配前缀）。
 **注意（2026-09-06 实测修正）**：review 系列接口只在 dashboard BFF 上，直连 Hub :9287 会 404；
