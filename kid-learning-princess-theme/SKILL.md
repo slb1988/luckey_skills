@@ -26,6 +26,11 @@ Do not automatically apply it to parent dashboards, content administration, obse
 - Support desktop, Pad, and 390×844 mobile layouts. Reposition characters instead of merely shrinking the desktop composition; never crop a face or cover a label, answer, or button.
 - Respect `prefers-reduced-motion`; interaction must remain understandable with animation disabled.
 
+<memory category="common-patterns">
+- Child-facing pinyin participates in text layout: its font size, annotation line spacing, Pad navigation width, and mobile hero copy/character separation are coupled. Enlarging annotations can crowd navigation or push copy into artwork even when the Chinese text is unchanged.
+- The homework `.star-wallet` overlap came from fixed grid-row heights combined with a narrow “我的星星” label column: wrapping made the label overlap the balance. Wallet sizing must accommodate the full annotated label, not a single-line height estimate.
+</memory>
+
 ## Working agreement
 
 Use the current A v3 prototype and screenshots as the visual baseline when they exist in the workspace. Preserve an approved version before a substantial redesign. For implementation work, expose the theme through shared tokens/components rather than duplicating ad-hoc color and spacing values across pages.
