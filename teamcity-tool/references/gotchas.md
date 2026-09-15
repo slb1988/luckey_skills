@@ -89,3 +89,9 @@ sudo readlink /proc/<PID>/exe           # 必须是 java-21
 
 ### 升级后 agent 要求
 Agent 必须用 Java 21，老 Java 的 agent 能连上但**无法跑新构建**。Windows agent 需单独升级其 JVM。
+
+## 构建大日志的清理范围与空间口径
+
+- `Hide for me` / `Hide for everyone` 只隐藏大日志提醒，不删除日志、不释放空间。
+- 构建页 `Actions → Remove` 或按 build ID 的 REST 删除面向整个构建，日志与构建历史记录一起删除；没有用户产物也不等于“只删日志”。要求保留构建记录时不能用该入口，删除整个构建需另行确认范围。
+- `auto-server` 的 TeamCity 日志存储启用了 **ZFS 压缩**；大日志提醒显示的逻辑大小可远大于实际占盘，不能直接当作预计释放量。清理前分别核对精确逻辑字节数、实际占盘与 GB/GiB 阈值，不仅看取整后的 UI 大小。
