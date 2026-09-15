@@ -79,6 +79,19 @@
 | **上传限速** | 5 KB/s (工作日 9:00-18:00) |
 | **创建时间** | 2022-03-02 |
 
+### 5. ArchivedDocuments - Cloud119 ❌ 禁用（2026-09-12 事故停用）
+
+| 属性 | 值 |
+|------|-----|
+| **UUID** | `15c18128-aad2-11f1-8066-6acfdcb3bab8` |
+| **启用** | ❌ 否（`enable: false`, `user_stop: true`，2026-09-12 应急停用） |
+| **类型** | sync，local2remote，copy（update_only） |
+| **账号** | 天翼云盘 Cloud119（account_id `7ec2cd04-aad1-11f1-b867-6acfdcb3bab8`） |
+| **本地路径** | `ArchivedDocuments` |
+| **远程路径** | `/ArchivedDocuments` |
+| **调度** | 手动 |
+| **备注** | ⚠️ 2026-09-12 该作业手动触发后持续 75+ 分钟高速失败重试（天翼返回 `not well-formed (invalid token)` / `Method Not Allowed`，每 ~2s 一条），叠加 `restart_if_abnormal_shutdown: true` 会反复重启，是把 NAS 负载推到 70+ 的元凶之一。重新启用前需先排查天翼云盘 token/目录有效性。配置备份：`/tmp/cc3_config_backup_20260912_225022.db`。 |
+
 ## 近期运行日志 (Perforce Sync)
 
 ```

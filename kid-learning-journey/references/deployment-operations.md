@@ -69,6 +69,21 @@ On restore, run integrity checks, verify manifest hashes against representative 
 - Never expose the SQLite file, staging directory, or media root as public static storage.
 - Limit upload size and disk consumption, and monitor failed media jobs and free space.
 
+## QNAP NAS native deployment (no containers)
+
+Source lives in the `ObsidianVault` git repo at `/share/CACHEDEV1_DATA/Container/ObsidianVault/kid-learning-journey` (remote `git@github.com:slb1988/ObsidianVault.git`; the HTTPS remote with osxkeychain helper does not work on the NAS, use SSH). Update with `git pull` (fast-forward).
+
+Runtime state lives outside the repo in `/share/CACHEDEV1_DATA/Container/kid-learning/`:
+
+- `kid-learning.env`: all backend configuration (mode 600, holds secrets)
+- `data/`: `KID_LEARNING_DATA_ROOT`, contains `kid_learning.db` and media tree
+- `logs/`: gunicorn access/error, backend.out, frontend.log
+- `bin/`: `start-backend.sh` (db upgrade + gunicorn on 5100), `frontend-server.mjs` (Node static server on 8088 with `/api` proxy to 127.0.0.1:5100, replacing the nginx container), `start-frontend.sh`, `start-all.sh`, `stop-all.sh`
+
+Backend runs via `uv run` from `backend/.venv`; frontend serves the prebuilt `frontend/dist` (rebuild with `pnpm install --frozen-lockfile && pnpm build`, needs `CI=true` non-interactive and `PATH` including `/share/homes/slb1988/.local/opt/node/bin`). NAS has no `nohup`/`pgrep`; use `setsid` for backgrounding. BusyBox `netstat -tln` is the way to check ports.
+
+Access: `http://192.168.50.2:8088` (LAN), `COOKIE_SECURE=false` because it is plain LAN HTTP. Both services bind `0.0.0.0`, so every NAS interface works without extra config — verified LAN `192.168.50.2` and WireGuard `wg0` `10.77.77.6`. Remote devices (phone/Pad over WireGuard) use `http://10.77.77.6:8088` directly; the same-origin `/api` proxy means `FRONTEND_ORIGIN` does not need to match the accessed host.
+
 ## Operational commands
 
 - `flask db upgrade`: apply schema migrations.
