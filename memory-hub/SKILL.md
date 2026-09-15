@@ -65,7 +65,7 @@ Dashboard 抽取审核在手机竖屏上以信息完整性优先：实体、边�
 | 检索 scope 选择、已知 project 一览、别名映射 | [references/projects.md](references/projects.md) |
 | 全链路总览（拓扑/写入/检索/观测/隐患） | [references/system-overview.md](references/system-overview.md) |
 | auto-server 上的 Hub LAN 转发（:9287→10.77.77.6:9287）、无 sudo 时用 docker 特权容器代办 root 操作 | [references/auto-server-forward.md](references/auto-server-forward.md) |
-| outbox 确认机制/大批量 retry 判读 | [memory-center/references/ingest-performance.md](../../memory-center/references/ingest-performance.md) |
+| outbox 精确确认/抽取验收边界/大批量 retry 判读 | [memory-center/references/ingest-performance.md](../memory-center/references/ingest-performance.md) |
 
 服务端仓库文档（NAS 项目 `docs/`）：`USAGE.md`、`API_CONTRACT.md`、`IMPLEMENTATION.md`、`DASHBOARD.md`、`REVIEW_PIPELINE.md`、`MULTI_USER_AUTH.md`、`GRAPH_CURATION.md`（图谱修订/实体合并）。
 
@@ -85,7 +85,10 @@ Dashboard 创建/修改用户报 422（非 400）= Pydantic 请求模型在域�
 </memory>
 
 <memory category="troubleshooting">
-outbox `graphiti.add_memory_relation` 事件 HTTP 503 ≠ Graphiti 故障：`POST /memory-relations`（graphiti-0.22.0 overlay）的 Cypher 要求 source/target 两个 episode 都在 payload 的**同一个 group_id** 里，MATCH 不到即返回 503——设计本意是"瞬时可见性漂移，让 outbox 重试"，但永久不匹配配上 `OUTBOX_MAX_ATTEMPTS=100000` 就是无限重试。永久不匹配三类成因：① 演化分析**跨 project 建关系**（出生即跨组，payload 只带单个 group_id）；② 归属回填导致**组漂移**（payload group_id 入队时冻结为旧组，target 后被搬走）；③ target 被**强制忘记**（invalidated，episode 已删）。Dashboard「最近错误为空 + attempts 持续增长」的形态 = 命中 `workers/outbox.py` `_defer_memory_relation_until_indexed` 缺陷：defer 终态集漏了 `invalidated`（terminal 只有 deleted/rejected/failed/hub_only/dry_run），每 5s 无限 defer 且 defer 会把 `last_error` 清成 NULL。另一缺陷：`service.py` 强制忘记 `DELETE FROM outbox WHERE aggregate_id=?` 用的是 memory_id，而 relation 事件的 aggregate_id 是 relation_id → relation 事件漏取消。**关系的权威账本在 Hub SQLite（检索走账本，镜像失败不影响功能），Graphiti 镜像仅图谱可视化/审计用途**——跨组/失效的镜像本就无法落图，处置是置 completed，不要指望跨组落图（端点单组 MATCH 是组隔离语义）。诊断脚本（只读，可复用）：memory-hub 仓库 `scripts/diagnose_relation_outbox.py`。
+outbox `graphiti.add_memory_relation` 的 HTTP 503 ≠ Graphiti 故障：`POST /memory-relations`（graphiti-0.22.0 overlay）要求 source/target episode 都在 payload 的**同一个 group_id**，MATCH 不到也返回 503。已知端点不匹配原因包括跨 project 建关系、归属回填后 payload 旧组与 episode 实际组不一致、强制忘记删除 episode；不是穷尽列表，不能据 503 推定缺失原因。
+历史无限 defer 的独立根因：`_defer_memory_relation_until_indexed` 终态集漏 `invalidated`，每 5s defer 并清空 `last_error`；强制忘记按 memory_id 删除 outbox，但 relation 事件的 aggregate_id 是 relation_id，导致漏取消。只读定位入口仍是服务仓库 `scripts/diagnose_relation_outbox.py`。
+`faaf5dc` 起镜像重试取 `min(OUTBOX_MAX_ATTEMPTS, OUTBOX_RELATION_MAX_ATTEMPTS)`（后者默认 12），不再继承 episode 的超大重试额度。失败探测区分 `RELATION_EPISODE_MISSING`（物理组与缺失 UUID）、端点可见但镜像失败、探测不可用（未知而非缺失）；耗尽为 `failed / RELATION_RETRY_EXHAUSTED`。
+**关系权威账本在 Hub SQLite，Graphiti 只是可视化/审计镜像**，镜像失败不应改坏 memory/关系账本。跨组或已失效、按设计不应镜像的事件可跳过结算；仍应同组落图却缺 episode 的事件不得置 `completed` 冒充恢复，也不自动重投正文。恢复验收须核对真实端点及图谱事实，不能只看重试消失。
 </memory>
 
 ## SQL 锁 / SQLite 与后台队列
@@ -95,6 +98,12 @@ outbox `graphiti.add_memory_relation` 事件 HTTP 503 ≠ Graphiti 故障：`POS
 - Hub API / Dashboard / Graphiti / LLM 健康不代表后台处理正常。hub-worker 承载 review/evolution/insight/outbox；review worker 是 `generate_pending_previews` 的执行者。
 - worker 的 SQLite 异常隔离与退避只维持处理循环，不等于消除写锁竞争，也不是进程退出后的 supervisor。队列调度与单条预览失败见 [memory-review](../memory-review/SKILL.md)。
 - **预览 LLM 调用在写事务外**；锁等待日志标识的是等待方，锁主须以事务与内核证据另行确认。
+
+<memory category="troubleshooting">
+evolution 的缺行回填扫描是另一已确认写锁源：在 `BEGIN IMMEDIATE` 内查找尚无分析记录的记忆，会让慢 SELECT 占住唯一 writer；即使没有可补队项，也仍可能扫描，不能只排查 LLM/网络等待。
+该路径的事务边界是“写事务外发现候选 → 逐主键短事务复查并补队”；复查当前状态、物理组和既有分析，避免并发拒绝、搬组或补队后写回过期候选。
+发现查询由 `idx_memories_evolution_backfill` 部分覆盖索引支撑（`faaf5dc` 起）；索引控制扫描成本，事务拆分控制持锁窗口，两者不能互相替代。
+</memory>
 
 <memory category="core-rules">
 审核批准链的写锁边界：`apply_extraction_actions` 在 `BEGIN IMMEDIATE` 后调用 Graphiti

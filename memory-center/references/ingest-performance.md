@@ -8,7 +8,7 @@
 ```text
 upload/hook → memory-hub outbox(add_episode) → graphiti 内存队列 → 单 worker → LLM 网关 → Neo4j
                    ↓                                                           ↑
-            outbox(confirm_episode) ── GET /episodes/{group}?last_n=N ── 轮询确认
+            outbox(confirm_episode) ── POST /episodes/exists ── 精确存在性确认
 ```
 
 ## graphiti ingest 性能特征（核心瓶颈）
@@ -36,31 +36,31 @@ upload/hook → memory-hub outbox(add_episode) → graphiti 内存队列 → 单
   `confirm_episode`（attempt_count 归零、status=retry），确认成功才 completed。
 - **episode uuid == memory_id**：graphiti 侧 ingest.py 补丁在 add_episode 前按 uuid MERGE 预建
   EpisodicNode，使 hub 可用 memory_id 直接确认。
-- confirm 实现：客户端拉 group 的 `/episodes?last_n={GRAPHITI_EPISODE_CONFIRM_LIMIT=100000}`
-  全量列表（含完整 content）比对 uuid。**已改为组级批量结算**（一轮一次查询），
-  调度语义见下文「confirm 组级冷却语义」。
-- 重试策略（.env）：`OUTBOX_MAX_ATTEMPTS=100000`（实际永不失败）、退避 2^n 秒封顶
-  `OUTBOX_MAX_BACKOFF_SECONDS=3600`、`OUTBOX_POLL_SECONDS=1`。
-- 大批量补传时 retry 堆积是**正常现象**（episode 还在 graphiti 队列里，`episode is not
-  indexed yet` 为真），队列排空后自动转 completed/indexed；抽样直连 Neo4j 验证
-  `Episodic.uuid` 命中即可区分「真排队」与「确认逻辑失效」。
+- confirm 已从最近 episode 列表改为精确存在性批查，协议与调度见下节。
+- 历史补传配置（不是当前默认值）：`OUTBOX_MAX_ATTEMPTS=100000`、退避 2^n 秒封顶
+  `OUTBOX_MAX_BACKOFF_SECONDS=3600`、`OUTBOX_POLL_SECONDS=1`。关系镜像另有独立额度，见 [memory-hub](../../memory-hub/SKILL.md)。
+- 大批量补传的 retry 可以是在途等待，但不能承诺队列排空就一定成功；须结合精确存在性
+  与 Graphiti 日志区分尚未消费、抽取失败及确认异常，不能仅凭 `episode is not indexed yet` 归因。
 
 ## confirm 组级冷却语义（批量确认版）
 
 confirm 不再是逐事件轮询，而是**按 group 共享冷却时间点**调度：
 
-- 同 group 的待确认事件对齐到同一个 `next_attempt_at`；到点后一轮只查一次
-  `/episodes`，按 **FIFO 前缀结算**：graphiti 对同 group 串行处理，命中最晚可见的
-  待确认事件即说明比它早提交的全部已处理完，整段前缀置 completed。
+<memory category="core-rules">
+`faaf5dc` 起 confirm 用 Graphiti overlay `POST /episodes/exists` 按**物理 group_id + 待确认 UUID**批查，只结算本次实际存在的 UUID。
+FIFO 只保证尝试顺序，不保证成功前缀：早条抽取失败后，晚条仍可成功；禁止由晚条可见推断早条成功。
+`GRAPHITI_EPISODE_CONFIRM_LIMIT` 保留旧名称，但含义已是单次 UUID 批大小（默认 100，worker 上限 500），不是最近 N 条窗口；大队列分块，不拉全图正文。
+精确存在性仍不是抽取完成回执：`indexed` 时 episode 可见，后台实体/边抽取却可能未完成或失败。恢复必须核对正文应产生的事实边；消除假完成还需 Graphiti 的完成回执，不能把它视为已实现。
+</memory>
+
+- 同 group 待确认项共享 `next_attempt_at`；到点后在 SQLite 写事务外精确批查，缺失项继续共享退避，新提交项跟随已排定轮次。
 - 有进展 → 退避重置为 poll 级（秒级紧跟下一轮）；无进展 → 指数退避封顶
   `outbox_confirm_max_backoff_seconds`。
 - defer 时**整组统一改写**到最早共享点（含 processing 状态的当前事件），旧版逐条
   退避留下的抖动散点一轮内自愈。
 - 后果：dashboard 上 submitted/indexed 计数是**阶梯式跳动**而非连续变化，
-  组退避到高档位时可能 30-60 分钟才跳一次——这不代表卡住，看 graphiti 队列深度
-  （`remaining queue`）才是真实进度。
-- 低效放大点：confirm 逐条轮询 + dashboard episode 探测（秒级 `last_n=100000`）叠加，
-  给 graphiti/neo4j 增加可观的只读负载。可优化为 group 级批量确认（每 group 每轮查一次）。
+  组退避到高档位时会延迟下一次确认；这本身不代表卡住，应结合 `remaining queue` 与抽取日志判读。
+- 历史读负载放大点是逐条 confirm 与 dashboard 大窗口 episode 探测叠加；排查旧部署须同时核对两路，不能只扩大查询窗口。
 
 ## 分析方法（可复用）
 
@@ -71,13 +71,12 @@ confirm 不再是逐事件轮询，而是**按 group 共享冷却时间点**调�
 | LLM 延迟/调用数分布 | 解析 `logs/graphiti/llm_calls.jsonl`（字段含 latency_ms/model/size/caller/episode_uuid/status；200MB 自动轮转归档，历史保留） |
 | episode 是否已入 Neo4j | cypher-ro `POST :8006/query`，body 字段名是 **`cypher`**（不是 query），头 `Authorization: Bearer $DASHBOARD_NEO4J_GATEWAY_TOKEN`（token 在 memory-hub `.env`）；`MATCH (n:Episodic {uuid:'<memory_id>'}) RETURN n.uuid, n.created_at` |
 | hub outbox 堆积 | SQLite `data/memory-hub.sqlite3` 的 `outbox` 表，按 `status/last_error/attempt_count/substr(created_at,1,13)` 聚合 |
-| 端到端对账 | retry 集合的 aggregate_id 批量 `WHERE n.uuid IN [...]` 查 cypher-ro：命中=已入库待确认，未命中=仍在 graphiti 队列 |
+| 端到端对账 | 按 payload 物理组对 retry 集合的 aggregate_id 做精确存在性核销；未命中不能单凭此区分排队、失败或丢失 |
 
 ## 判读速查
 
-- retry 全是 `episode is not indexed yet` + graphiti 队列深度 ≈ retry 数 → **正常排队**，等即可。
-- retry 的 episode 已在 Neo4j 查到但 hub 一直不 confirm → 确认逻辑/查询路径失效（查
-  `episode_confirm_limit` 是否小于 group episode 总量、`/episodes` 响应是否含 uuid 字段）。
+- retry 全是 `episode is not indexed yet` + graphiti 队列深度 ≈ retry 数 → 可先按在途观察；持续无进展仍须核对日志。
+- retry 的 episode 已可见但 Hub 一直不 confirm → 核对 payload 物理组、`/episodes/exists` 响应与组冷却点，不能拿其它组的同 UUID 命中作证。
 - 长时间没有新的 `Got a job` → ingest worker 死了（补丁后理论上不会，仍需先排除）。
 
 ## episode uuid 的 group 粘性（跨组投递语义）

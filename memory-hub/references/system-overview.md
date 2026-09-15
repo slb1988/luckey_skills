@@ -62,16 +62,16 @@
 ```text
 capture → spool → upload(files 三段式) → SessionVersion → Memory(pending_intake)
   → 关卡1 入库过滤(auto triage, 可脱敏 approve) → 关卡2 抽取审核
-  → outbox graphiti.add_episode → Graphiti 队列 → 单 worker 串行抽取
-  → Kimi 网关 LLM（3 medium + ~21 small）+ DashScope embedding → Neo4j MERGE
-  → outbox confirm_episode（组级批量结算，FIFO 前缀）→ indexed
+  → outbox graphiti.add_episode → Graphiti 队列
+      ├→ 单 worker 串行抽取 → Kimi LLM + DashScope embedding → Neo4j 实体/边
+      └→ outbox confirm_episode → indexed（确认口径见下文）
 ```
 
 1. **capture（agent 端）**：hook 在 Stop/SessionEnd（Claude/Codex）或 agent_end/session_shutdown（Pi）触发，生成确定性 gzip 快照（`agent-session/2`，只留最近 10 条 user/assistant），先落本地 spool 再上传——fail-open，断网不丢。Esc 中断轮次跳过；纯噪声/例行运维会话被启发式/LLM 过滤（`skipped_meaningless`）。
 2. **上传三段式**：`POST /v1/files/uploads` → `PUT content` → `complete`；session 文件必须是单 JSON 文档（批传用 `agent-session-archive/1` 包装）。写操作必带确定性 `Idempotency-Key`。
 3. **版本链**：`PUT /v1/sessions/{id}/versions`，首版 replace、后续 append（文件仍是完整快照），同内容 SHA 相同天然幂等。
 4. **Memory + 审核**：`POST /v1/memories` 绑定 session/version/file。当前 `review_settings.mode=auto`（2026-08-26 02:04 切换）：关卡 1 LLM triage 决定入/拒/脱敏（209 条 rejected 留档可救回），关卡 2 抽取审核（15 条 pending_extraction 在途）。mode=off 时走旧直连链路。
-5. **outbox 两段式**：`add_episode`（POST Graphiti /messages，202）→ 原地改写为 `confirm_episode`；episode uuid == memory_id（graphiti 侧补丁 MERGE 预建保证）。confirm 为**组级批量结算**：同 group 对齐冷却点、一轮一次 `/episodes` 查询、FIFO 前缀整段转 completed——dashboard 上 indexed 计数阶梯式跳动属正常。
+5. **outbox 两段式**：`add_episode`（POST Graphiti /messages，202）→ 原地改写为 `confirm_episode`；episode uuid == memory_id（graphiti 侧补丁 MERGE 预建保证）。现行确认与退避规则、抽取验收边界见 [outbox 确认判读](../../memory-center/references/ingest-performance.md)，不沿用本快照时期的 FIFO 前缀结算。
 6. **Graphiti 抽取**：单 asyncio worker 严格串行；每 episode ~24.6 次 LLM 调用（3 medium kimi-k3 抽取实体/边 + ~21 small deepseek-v4-flash 属性/边去重），p50 89s/条，实测吞吐 ~85 episodes/小时。瓶颈 = LLM 网关延迟 × 串行，NAS CPU 不是瓶颈。
 7. **落库**：Entity/Edge/Episodic 全部 MERGE 幂等写 Neo4j；embedding 只作用于实体名与边事实（短文本）。
 
