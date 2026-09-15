@@ -42,6 +42,7 @@ from memory_hook import (
     setup_reminder,
     strip_skill_wrapper,
     transcript_tail_interrupted,
+    write_recall_result_file,
 )
 
 
@@ -351,7 +352,10 @@ class MemoryHookTest(unittest.TestCase):
             result_file = Path(payload["result_file"])
             self.assertTrue(result_file.is_file())
             result_text = result_file.read_text(encoding="utf-8")
-            self.assertTrue(result_text.startswith("# Memory Hub Recall Result\n\n## 本轮摘要"))
+            self.assertTrue(result_text.startswith("# Memory Hub Recall Result\n\n## 最终注入的记忆正文（完整原文）"))
+            first_section = result_text.split("## 本轮摘要", 1)[0]
+            self.assertIn("```text\n" + payload["context"] + "\n```", first_section)
+            self.assertNotIn("\\n", first_section)
             self.assertIn(
                 "候选 `3` 条，LLM 放行 `1` 条，精炼线索 `1` 条，来源记忆 `1` 条",
                 result_text,
@@ -361,7 +365,9 @@ class MemoryHookTest(unittest.TestCase):
             self.assertIn("跨 Project 检索 Scope（原始响应）", result_text)
             self.assertIn("服务端 Stage A / Stage B 结构化审计（原始响应）", result_text)
             self.assertIn("服务端最终注入上下文（原始响应）", result_text)
-            self.assertIn("客户端实际注入上下文（原样）", result_text)
+            self.assertIn("客户端上下文与统计（JSON 审计）", result_text)
+            self.assertNotIn("模型优先使用", result_text)
+            self.assertNotIn("模型可见线索预览", result_text)
             self.assertIn("服务端完整响应（原样）", result_text)
             self.assertIn('"contract_version": "memory-search-results/2"', result_text)
             self.assertIn('"slot_id": "validation"', result_text)
@@ -370,6 +376,55 @@ class MemoryHookTest(unittest.TestCase):
             self.assertIn("历史决策", result_text)
             self.assertIn("session_id: `sess-ui`", result_text)
             self.assertNotIn(str(result_file), payload["context"])
+
+    def test_recall_result_preserves_fences_and_shows_empty_client_context(self):
+        contexts = (
+            "已确认\n- 多行正文\n```python\nprint('example')\n```\n保留字面转义：\\n\n",
+            "",
+        )
+        for context in contexts:
+            with self.subTest(context=context), tempfile.TemporaryDirectory() as directory:
+                status = "completed" if context else "suppressed_client_validation"
+                server_context = context or "未通过校验的服务端正文，不能注入。"
+                audit = {"stage_b": {"status": "completed", "items": []}}
+                server_response = {"injection_context": server_context, "audit": audit}
+                context_stats = {"chars": len(context), "status": status}
+                path = write_recall_result_file(
+                    self.config(directory),
+                    source="pi",
+                    session_id="session-a",
+                    project_id="project-a",
+                    query="查询正文",
+                    facts=[{"text": "未注入的候选记忆"}],
+                    injection_results=None,
+                    scope=None,
+                    audit=audit,
+                    server_injection_context=server_context,
+                    injection_context_status="completed",
+                    injection_suppression_reason=None,
+                    injection_context_error=None if context else "validation_error",
+                    server_response=server_response,
+                    retrieval=None,
+                    quality=None,
+                    duration_ms=1,
+                    context=context,
+                    context_stats=context_stats,
+                    injected_count=1 if context else 0,
+                    context_chars=len(context),
+                    max_chars=4000,
+                )
+                result = path.read_text(encoding="utf-8")
+                first_section = result.split("## 本轮摘要", 1)[0]
+                if context:
+                    self.assertIn("````text\n" + context + "\n````", first_section)
+                else:
+                    self.assertIn("本轮未注入任何记忆正文。", first_section)
+                    self.assertNotIn("```text", first_section)
+                    self.assertNotIn(server_context, first_section)
+                self.assertNotIn("未注入的候选记忆", first_section)
+                self.assertNotIn("stage_b", first_section)
+                for value in (audit, server_response, {"context_stats": context_stats, "context": context}):
+                    self.assertIn(json.dumps(value, ensure_ascii=False, indent=2), result)
 
     def test_capture_is_durable_and_idempotent_while_server_is_down(self):
         with tempfile.TemporaryDirectory() as directory:

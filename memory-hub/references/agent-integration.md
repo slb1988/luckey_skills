@@ -212,8 +212,10 @@ notification 显示 `候选 · LLM 放行 · 精炼线索 · 来源记忆 · 字
 `UserPromptSubmit` 注入头部同样区分候选、放行、线索和来源数。
 
 **v20 起每次 Pi 成功完成的首轮/手工召回都会原子写一份本地 Markdown**，路径为
-`${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/recall-results/pi/<project>/`。文件顶部列出
-候选、LLM 放行、精炼线索、来源记忆、注入字符预算及模型可见线索预览。客户端须原样持久化 Hub 在审计模式
+`${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/recall-results/pi/<project>/`。文件首节以文本代码块
+逐字展示客户端最终采用的完整记忆正文 `context`，保留真实换行，不用预览或 JSON 转义字符串代替；
+空注入明确标注，不以服务端被拒正文填充。正文不含调用端固定提示外壳；Pi 自动预热另加历史背景标题与核验提示。
+摘要、计数、客户端 JSON 记录及服务端审计排在正文之后。客户端须原样持久化 Hub 在审计模式
 随同主响应返回的完整载荷与最终实际注入上下文，不得另调 LLM、重建阶段结果或把兼容字段当降级注入源；
 详情文件单列 scope、Stage A/B 完整解析审计、Stage B 原始最终上下文、客户端 validation/suppression 状态，
 并保留 Hub 完整响应与全部 facts/provenance。遗留 `injection_brief` / `injection_results` 只作兼容诊断，

@@ -2699,11 +2699,14 @@ def format_recall_context(
     return injection_context, clue_count, "server_stage_b_context"
 
 
-def markdown_json_lines(value: Any) -> List[str]:
-    serialized = json.dumps(value, ensure_ascii=False, indent=2)
-    longest = max((len(match.group(0)) for match in re.finditer(r"`+", serialized)), default=0)
+def markdown_fenced_lines(text: str, language: str) -> List[str]:
+    longest = max((len(match.group(0)) for match in re.finditer(r"`+", text)), default=0)
     fence = "`" * max(3, longest + 1)
-    return [fence + "json", serialized, fence]
+    return [fence + language, text, fence]
+
+
+def markdown_json_lines(value: Any) -> List[str]:
+    return markdown_fenced_lines(json.dumps(value, ensure_ascii=False, indent=2), "json")
 
 
 def write_recall_result_file(
@@ -2751,10 +2754,14 @@ def write_recall_result_file(
     kept = quality.get("kept") if isinstance(quality, dict) else len(facts)
     clue_count = context_stats.get("clue_items", injected_count)
     source_count = context_stats.get("source_memories")
-    preview = compact_text(context, 300)
-
     lines = [
         "# Memory Hub Recall Result",
+        "",
+        "## 最终注入的记忆正文（完整原文）",
+        "",
+        "以下代码块为客户端采用的完整记忆正文 `context`，不含调用端的固定提示外壳；其余章节仅供审计，不随正文注入。",
+        "",
+        *(markdown_fenced_lines(context, "text") if context else ["本轮未注入任何记忆正文。"]),
         "",
         "## 本轮摘要",
         "",
@@ -2767,8 +2774,11 @@ def write_recall_result_file(
         ),
         "- 注入字符：`%d/%d`" % (context_chars, max_chars),
         "- 注入来源：`%s`" % context_stats.get("source", "unknown"),
-        "- 模型可见线索预览：%s" % (preview or "无"),
         "- 审计边界：本文件保留服务端完整响应与客户端实际注入原文；文件路径和审计元数据不进入 agent context",
+        "",
+        "## 客户端上下文与统计（JSON 审计）",
+        "",
+        *markdown_json_lines({"context_stats": context_stats, "context": context}),
         "",
         "## 查询信息",
         "",
@@ -2809,13 +2819,9 @@ def write_recall_result_file(
         "",
         "## 服务端旧精简字段（兼容审计）",
         "",
-        "以下 JSON 原样保存兼容字段 `injection_results`；模型优先使用上面的查询级行动简报。",
+        "以下 JSON 原样保存兼容字段 `injection_results`，仅供审计，绝不作为注入来源。",
         "",
         *markdown_json_lines(injection_results),
-        "",
-        "## 客户端实际注入上下文（原样）",
-        "",
-        *markdown_json_lines({"context_stats": context_stats, "context": context}),
         "",
         "## 服务端完整响应（原样）",
         "",
