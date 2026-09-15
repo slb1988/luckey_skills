@@ -52,6 +52,14 @@ P4V Request Review
 6. **源码事实与运行时事实分开。** P4 head/当前源码只能说明实现；线上参数、部署版本、Agent 用户、Pi 版本、网络和 artifact 必须在实际服务或构建机核实。
 
 <memory category="troubleshooting">
+AI Review 的清理步骤也参与调度兼容性：`TaskBuildUEWindows` 使用 PowerShell runner 时，
+会引入隐式 PowerShell 能力要求，并经 `runOnSameAgent=true` 排除整链上的无此能力 Agent。
+因此即使本轮 pyAutomation 名称策略含 Linux `DefaultAgent`，它在线、启用、空闲仍不代表可调度。
+runner 与清理命令是不同层：Python runner 包装 Windows PowerShell 清理调用可保留清理行为，
+而不引入 PowerShell runner 的隐式能力门；不等于 Linux 获得 Windows 编译能力或线上配置已更新。
+</memory>
+
+<memory category="troubleshooting">
 `refresh_review()` 的无 shelf 校验在写库前返回错误：不启动新轮、不改变原 AI 状态，也不取消在途 job。
 因此“更新报错后仍分析、随后出分”可来自原轮继续执行，不代表刷新成功，也不能直接归为前端卡死。
 原 Flow 即使在 Sync/Unshelve/编译/TaskAiReview 均未执行前被取消，原 job 仍可能经 backend fallback 出分；
