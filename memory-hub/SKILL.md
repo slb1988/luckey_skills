@@ -169,6 +169,15 @@ Pi v30 与 Claude/Codex recall 对纯寒暄/单独测试词做客户端快速跳
 - Hook 固定请求 `include_audit=true`：同一响应下发 scope、A/B 结构化结果、来源映射、模型/耗时/尝试/状态，不新增 LLM 调用；不下发思维过程。客户端详情文件原样保留这些字段、Hub 完整响应、全部 facts/provenance 与最终实际上下文，但只有 `injection_context` 进入模型。
 </memory>
 
+<memory category="troubleshooting">
+查询级 Judge 的证据审计不能只看 `completed` / `outcome=injected`：这些状态不证明线索适用于当前问题。
+`status=unknown` 且 `source_ids=[]` 表示缺证据槽位；“本次召回无可验证证据，需核对当前代码”
+是审核诊断，不是“待核对线索”，不应进入最终上下文。
+来源记忆真实存在也不等于相关：相同 C2039/C4996 错误码不能把动画 API/include 的修法认作 Niagara/RDG 的“已确认”答案。
+错误若同时出现在服务端 Stage B `injection_context` 和客户端 `context`，应定位服务端 A/B 证据判定/综合，
+而非 Markdown 展示或 JSON 的 `\n` 转义；客户端不应另行改写服务端证据来掩盖问题。
+</memory>
+
 Pi 扩展 v22+：用户用 `/skill:name` 显式指定 skill 的首轮 prompt **跳过自动预热检索**——pi 会把 skill 展开为 `<skill name="…" location="…">` 块注入 prompt 开头（裸 `/skill:` 未展开命令作兜底匹配），扩展检测到即跳过，trace outcome 记 `skipped_skill_invocation` 并照常写 bootstrap-done 标记（同 session 后续不补检索）。排查「首轮预热没跑」先认这个 outcome，是设计行为不是故障；`memory_search` 工具不受影响，skill 内仍可主动检索。
 
 Pi 扩展 v25+：首轮预热（“正在检索并审核历史记忆…” widget）与 `memory_search` 检索**可按 Esc/Ctrl+C 中断**——取消即杀检索子进程、本轮不注入、agent 立即开始；trace outcome 记 `cancelled`，本会话不重试。Ctrl+C 只取消检索并照常透传给 pi（连按两次仍退出 pi）。
