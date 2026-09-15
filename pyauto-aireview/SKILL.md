@@ -52,6 +52,22 @@ P4V Request Review
 6. **源码事实与运行时事实分开。** P4 head/当前源码只能说明实现；线上参数、部署版本、Agent 用户、Pi 版本、网络和 artifact 必须在实际服务或构建机核实。
 
 <memory category="troubleshooting">
+AS warning 的采集白名单不是失败策略：`TeamCityLogParserInformer.py` 的 `--warning-categories`
+只过滤告警，命中 warning 仍正常返回 0。BuildUE 的 Report / Notification 是独立调用，参数不继承；
+Notification 默认 `--log-level=Error`，只补类别仍不启用 warning，需同时启用 All 级别。
+`job-result=FAILURE` 且无匹配诊断时，informer 自身还会调用 `pi_analyze_errors`；
+这条通知侧 Pi 兜底独立于 TaskAiReview Runner，停评审节点不能保证“零 AI”。
+</memory>
+
+<memory category="common-patterns">
+跳过两类 backend LLM 的回调契约不同：`_run_analysis` 依赖定案 `tc_callback`；
+`_poll_compile` 中的 `_analyze_compile_errors` 还要求回调携带非空 `compile_log_analysis`，
+由 `service.py` 落为 `compile_analysis` 并标记 `compile_result['analysis_source']='tc_callback'`。
+因此仅发送 reject verdict 不保证零 LLM；确定性门禁还须覆盖回调缺失时的两个模型入口，
+不能把“回调正常时会短路”当成端到端的零 AI 保证。
+</memory>
+
+<memory category="troubleshooting">
 AI Review 的清理步骤也参与调度兼容性：`TaskBuildUEWindows` 使用 PowerShell runner 时，
 会引入隐式 PowerShell 能力要求，并经 `runOnSameAgent=true` 排除整链上的无此能力 Agent。
 因此即使本轮 pyAutomation 名称策略含 Linux `DefaultAgent`，它在线、启用、空闲仍不代表可调度。
