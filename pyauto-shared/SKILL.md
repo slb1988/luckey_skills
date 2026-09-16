@@ -1,7 +1,6 @@
 ---
 name: pyauto-shared
-description: >
-  pyAutomation / py_automation 各系统共性知识、经验与导航。用户泛称 pyAutomation、询问系统划分/上手/跨系统故障、找不到责任模块，或涉及共享的 Flask/Vue、任务队列、回调、配置继承、P4 与数据库一致性、源码和运行时路由时使用。各 pyauto 领域技能链接此入口并按需读取共性参考；明确 AI Review 使用 pyauto-aireview，TeamCity 使用 teamcity-tool，部署使用 auto-server-*-deploy，不用总入口替代领域规则。仅把跨系统稳定机制收进共享知识，不收一次性事故或未经核实的线上状态。
+description: pyAutomation / py_automation 各系统共性知识、经验与导航。用户泛称 pyAutomation、询问系统划分/上手/跨系统故障、找不到责任模块，或涉及共享的 Flask/Vue、任务队列、回调、配置继承、P4 与数据库一致性、源码和运行时路由时使用。各 pyauto 领域技能链接此入口并按需读取共性参考；明确 AI Review 使用 pyauto-aireview，TeamCity 使用 teamcity-tool，部署使用 auto-server-*-deploy，不用总入口替代领域规则。仅把跨系统稳定机制收进共享知识，不收一次性事故或未经核实的线上状态。
 compatibility: Flask, Vue, SQLAlchemy, Perforce, TeamCity, Orca workspace routing, A2A
 ---
 
