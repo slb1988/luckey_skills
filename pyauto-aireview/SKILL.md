@@ -125,6 +125,13 @@ AI Review 的 workspace→服务器 diff 不能用 `p4 diff2`：它只比较两�
 仅在 have 与本轮固定 baseline 一致时适用。显式 baseline 的比较沿用 [MainDev 工具链](references/maindev-toolchain.md) 中的 `p4 print` 路径。
 </memory>
 
+<memory category="core-rules">
+`pl-review` 的放行/携带者无责与严重度正交：“本 CL 无需处理”不是降级依据。全目录扫描把 depot 外
+的备份 xlsx 写入 `dt_metadata.json` 属管线快照污染，至少 `medium`；明确适用的 `high/重要` 规则保底
+`high`，引用、否定、示例不触发提级。severity 与总分独立，MainDev Publish、后端 `tc_callback` 与
+LLM fallback 必须统一按最终严重度约束风险分下限，既防 high finding 配低总分，也防按文件数聚合稀释高风险。
+</memory>
+
 ## 标准排障流程
 
 ### 1. 建身份表
