@@ -16,7 +16,7 @@ compatibility: Windows, Perforce, TeamCity REST, Flask/SQLAlchemy, Vue, Pi CLI, 
 | 想理解端到端流程、对象身份或状态机 | [architecture-lifecycle](references/architecture-lifecycle.md) |
 | 后端 API、表、AI worker、callback、配置或测试 | [backend-module](references/backend-module.md) |
 | TeamCity 链、参数、同机 workspace、步骤、artifact 或耗时 | [teamcity-pipeline](references/teamcity-pipeline.md) |
-| Collect / MergeGate / Runner / Publish / Memory / Pi | [maindev-toolchain](references/maindev-toolchain.md) |
+| Collect / MergeGate / Runner / Publish / Memory / Pi、AS warning 误分类 | [maindev-toolchain](references/maindev-toolchain.md) |
 | 人工决策、jury、自动批准、提交队列、P4 闭环或通知 | [decision-submit-notification](references/decision-submit-notification.md) |
 | 排队、卡住、慢、失败、错配、缺日志、错误 verdict | [diagnostics](references/diagnostics.md) |
 | 要判断用 `ws:` 还是 `@agent`、在哪台机器取证 | [workspace-agent-routing](references/workspace-agent-routing.md) |

@@ -211,6 +211,15 @@ callback 或 Publish 内部失败当前以 warning/exit 0 收口；所以 TC 绿
 
 完整 callback URL可能含 token/nonce；日志、artifact 摘要和最终报告只显示 host/path/review_id。
 
+### 8.1 Collect 失败与 AS warning 归因
+
+<memory category="troubleshooting">
+Collect 失败不等于 AS warning 命中。已确认的误分类路径是 Publish 将任意 Collect 失败
+统一包装成“AS warning 门禁证据不可用”，并非 warning 匹配器命中了非 AS 文本。
+工具链自修改 FATAL 等非 AS 失败也会由此被误标；判因应回溯 Collect 原始错误，而不是依据页面标签。
+发布结果应区分通用 Collect 失败、AS warning 证据不可用与真实 AS warning 阻断；纠正分类不能放宽门禁。
+</memory>
+
 ## 9. 安全边界
 
 已存在的保护：
