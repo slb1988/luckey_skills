@@ -93,6 +93,12 @@ python scripts/review_queue.py apply decisions.json
 状态口径、语义快照和执行归因见 [审核状态与快照](references/review-state-and-snapshots.md)。
 </memory>
 
+<memory category="core-rules">
+批准动作的 HTTP 回执与服务端提交是不同边界：`503 / memory-hub: timed out` 不证明
+批准未执行或已回滚；实测回读可已为 review `approved`、memory `indexed`。
+超时结果应视为未知，不自动重发；只读核对 review 与对应 memory 的状态，再决定是否可续批。
+</memory>
+
 <memory category="troubleshooting">
 apply 返回 `already_processed`，或复读时条目已为 approved/rejected，均可能是并发处理的正常结果。
 跳过即可，不重试、不改判；apply 前先 rescan 可减少撞上。本次动作回执与最终队列快照分开统计，
