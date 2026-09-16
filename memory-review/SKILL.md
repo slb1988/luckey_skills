@@ -90,7 +90,7 @@ python scripts/review_queue.py apply decisions.json
 “同组存在尚未完成的新实体入图任务”是暂态依赖等待，不是永久拒绝：应自动退回等待，依赖完成后自动重建预览、按既有模式重审，无需人工重新入队。
 自动退回/恢复不等于自动 approve，也不改变审核模式；这是行为契约，实际部署状态另验。
 重建后的预览不继承旧清理验收；重新核对事实与 novelty，不绕过门禁。
-状态口径、语义快照和执行归因见 [审核状态与快照](references/review-state-and-snapshots.md)。
+内容分层、状态口径、语义快照和执行归因见 [审核内容、状态与快照](references/review-state-and-snapshots.md)。
 </memory>
 
 <memory category="core-rules">
