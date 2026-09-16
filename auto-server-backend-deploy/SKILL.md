@@ -5,6 +5,8 @@ description: Deploy the auto-server Flask backend on dev@auto-server. Syncs late
 
 # Auto-Server Backend Deploy
 
+共性知识：[pyauto-shared](../pyauto-shared/SKILL.md)。本页“本地执行”只适用于已确认的 auto-server 会话；其他主机需路由到目标运行时，不能把文档主机描述当现场事实。
+
 ## 概述
 
 在 `auto-server` 本地部署 py_automation Flask 后端。**pi 本身就运行在 auto-server 上**（`auto-server` 解析到 `127.0.1.1`），无需 SSH，直接用 bash 执行本地命令即可。

@@ -1,0 +1,17 @@
+%% 归因导航，不是发布控制流；保护与状态策略以本轮实际版本为准。
+flowchart TD
+    identity["核 Review轮次 / Task / callback身份"] --> evidence["读原始错误与本轮认证 artifact"]
+    evidence --> stage{"失败在哪一层？"}
+    stage -->|工具链自修改保护| guard["安全拒绝 / 人工处理；不是 AS warning"]
+    stage -->|Collect / merge / workspace| collect["保留原始阶段与原因；禁止复用旧 Pi 结果"]
+    stage -->|warning 报告| report{"有效且属于本轮？"}
+    report -->|否| missing["证据不可用：未知，不是命中或放行"]
+    report -->|是| category{"实际诊断类别？"}
+    category -->|AngelScript warning| warning["真实 AS warning：维持门禁阻断"]
+    category -->|其他 warning| other["按实际类别报告；不冒充 AS warning"]
+    stage -->|真正编译失败| compile["保留 compile failed；模型分析不等于编译通过"]
+    stage -->|Pi / Publish / callback| delivery["核 manifest / result / callback是否应用"]
+    delivery --> policy["按当前 callback与fallback契约收口"]
+    collect --> policy
+    missing --> policy
+    policy --> boundary["error 不是 approve；不能单凭 reject 承诺零 LLM"]

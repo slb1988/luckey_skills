@@ -1,0 +1,49 @@
+%% 独立状态轴的主路径，不是完整状态转换表；不表示 AI done 等于人工批准。
+stateDiagram-v2
+    state "同一业务轮的独立观察轴" as Axes {
+        state "Review" as Review {
+            state "pending / reviewing" as RActive
+            state "approved" as RApproved
+            state "submitted" as RSubmitted
+            state "rejected / archived" as RClosed
+            RActive --> RApproved: 合法决策且门禁满足
+            RActive --> RClosed: 拒绝或归档
+            RApproved --> RSubmitted: P4 与 DB 收敛
+            RApproved --> RClosed: 受控拒绝
+            RClosed --> RActive: 合法 reopen 新轮
+        }
+        --
+        state "AI" as AI {
+            state "pending" as APending
+            state "running" as ARunning
+            state "done" as ADone
+            state "failed" as AFailed
+            APending --> ARunning: job 执行
+            ARunning --> ADone: 当前轮有效结果
+            ARunning --> AFailed: 失败预算耗尽
+            APending --> ADone: 合法无文本短路
+        }
+        --
+        state "Compile" as Compile {
+            state "pending" as CPending
+            state "running" as CRunning
+            state "passed / failed" as CFinished
+            state "skipped" as CSkipped
+            CPending --> CRunning: 实际编译执行
+            CRunning --> CFinished: 编译事实归因
+            CPending --> CSkipped: 未要求或未执行，核原因
+        }
+        --
+        state "Submit job" as Submit {
+            state "尚未入队" as SNone
+            state "queued" as SQueued
+            state "running" as SRunning
+            state "done" as SDone
+            state "failed / manual" as SStopped
+            SNone --> SQueued: approved 后入队
+            SQueued --> SRunning: 按域 claim
+            SRunning --> SDone: 明确成功
+            SRunning --> SStopped: 明确失败或未知
+            SStopped --> SQueued: 获准 retry，未知需先对账
+        }
+    }

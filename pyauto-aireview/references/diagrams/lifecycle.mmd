@@ -1,0 +1,18 @@
+%% 主路径导航；省略管理/重开支线。权限与条件以 architecture-lifecycle.md 为准。
+flowchart TD
+    author["RequestReview：刷新 shelf"] --> job["Backend：Review 与 AI job"]
+    job --> chain["TeamCity：Sync → Unshelve → 按需 Build"]
+    chain --> tools["安全门 / Collect → Runner → Publish"]
+    tools --> callback{"本轮 callback 可信定案？"}
+    callback -->|approve / reject / needs_discussion| result["本轮评审结果与证据"]
+    callback -->|error / skipped / 缺失| fallback["Backend fallback：独立分析或失败"]
+    fallback --> result
+    job -.->|合法无文本短路：不是模型批准| result
+    result --> decision["人工 / 系统决策：独立门禁"]
+    decision -->|有效 approve| queue["Submit job：按域串行"]
+    decision -->|有效 reject| rejected["Review rejected"]
+    queue --> p4["P4 submit / 受控 auto-merge"]
+    p4 -->|明确成功或唯一对账| submitted["P4 与 DB 收敛：submitted"]
+    p4 -->|失败或结果未知| handling["领域失败策略 / 人工对账"]
+    submitted --> notice["通知；作者 watcher 另行 HTTP 轮询收口"]
+    rejected --> notice

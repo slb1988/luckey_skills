@@ -124,6 +124,8 @@
 
 相关 P4 trigger 入口：`POST /p4_trigger_validate/validate`。
 
+`refresh_review()` 无 shelf 时在写库前返回错误：不启动新轮，也不取消旧 job。因此刷新报错后仍出分可能是旧轮继续执行；按请求时间、job/Flow和活动代际核对。前置 Task 全未执行的取消链也可能经 backend fallback 出分，不能据此证明新 shelf 已被编译或评审。
+
 注意：部分管理/评论接口沿用内网信任约定，不能据此假设公网授权安全；若改变暴露边界，先做完整 authz 审计。
 
 ## 4. AI worker
@@ -179,6 +181,12 @@ load_diff → trigger_compile → tc_inflight → await_compile → analyze
 - 幂等 replay；旧代际/终态迟到结果零写入；
 - 写 findings 前后都检查是否被并发 callback supersede；
 - 可从 snapshot BuildUE 成功侧提前 settle compile。
+
+短路两个模型入口的契约不同：`_run_analysis` 依赖定案 callback；`_poll_compile` 的 `_analyze_compile_errors` 还要求非空 `compile_log_analysis`，由 service 落 `compile_analysis` 并标记 `analysis_source=tc_callback`。仅 reject 不证明零 LLM；回调丢失时两条入口也要核实。
+
+### 4.7 严重度与风险分
+
+`pl-review` 的“本 CL 无需处理”与 severity 正交，不能据此降级。明确适用的 high/重要规则保底 high，引用、否定、示例不触发提级；如全目录扫描把 depot 外备份 xlsx 写入 `dt_metadata.json`，属于管线快照污染，至少 medium。MainDev/DevOps 工具的 Publish、后端 callback 与 LLM fallback 都应按最终严重度约束风险分下限，避免 high finding 配低总分或被文件数聚合稀释。
 
 ## 5. Submit worker
 

@@ -1,0 +1,29 @@
+{
+  "skill_name": "pyauto-shared",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "pyAutomation 的 A2A task 一直 running，它和 AI Review 是同一套任务吗？先告诉我属于哪个系统、最小证据与该去哪里看，不要连接真实服务。",
+      "expected_output": "区分 Agent 平台 task 与 AI Review job，使用系统目录定位 agent_platform/a2a 模块，源码和运行时分开；不套用 AIReviewJob 的状态、重试或 callback 契约。",
+      "files": [],
+      "expectations": [
+        "明确 A2A task 与 AI Review job 不是同一业务身份或状态机",
+        "定位 agent_platform/a2a 的模块文档而非 AI Review 表",
+        "区分源码工作区与运行时证据，未验证的运行状态不做断言",
+        "不触发远端任务或执行生产变更"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "刚查出服务子进程 PATH 与登录 shell 不同；还有某条 Review 的审批失败。哪些知识放 pyauto-shared，哪些放领域技能或个人记忆？",
+      "expected_output": "可跨系统复用的配置继承机制进入共性参考，AI Review 特有审批规则进入领域参考；具体 Review 编号、临时修复或未上线进度留个人记忆/plans，不把个例泛化。",
+      "files": [],
+      "expectations": [
+        "配置继承机制可归共性层，但具体机器临时 PATH 不泛化",
+        "AI Review 审批规则留领域技能",
+        "一次性事故、编号与部署进度留个人记忆或 plans",
+        "采用单一详细维护源和链接，不复制多份规则"
+      ]
+    }
+  ]
+}

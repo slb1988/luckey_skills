@@ -1,0 +1,35 @@
+%% 系统边界与知识入口，不是部署拓扑；模块启用以 router 注册和运行时为准。
+flowchart TD
+    shared["pyauto-shared：共性知识与导航"]
+
+    subgraph domains["pyAutomation 业务领域"]
+        review["AI Review：pyauto-aireview"]
+        agents["Agent 平台 / A2A"]
+        feishu["飞书助手 / 业务通知"]
+        jobs["构建 / P4自动化 / 诊断 / 内容设备"]
+    end
+
+    subgraph foundation["pyAutomation 公共能力"]
+        api["Flask API / Vue 页面 / 权限配置"]
+        async["Scheduler / 任务与回调 / 持久状态"]
+    end
+
+    subgraph external["外部依赖：独立状态与运维"]
+        execution["TeamCity / Jenkins / 构建机"]
+        vcs["P4"]
+        model["LLM代理 / 模型 / Memory Hub"]
+        messaging["飞书等外部平台"]
+    end
+
+    review -.->|共性回链| shared
+    agents -.->|共性回链| shared
+    feishu -.->|共性回链| shared
+    jobs -.->|共性回链| shared
+    domains --> api
+    domains --> async
+    review --> execution
+    review --> vcs
+    review --> model
+    feishu --> messaging
+    jobs --> execution
+    jobs --> vcs

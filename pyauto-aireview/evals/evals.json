@@ -28,12 +28,12 @@
     {
       "id": 3,
       "prompt": "TeamCity 编译里有很多 AngelScript warning，但 AI Review 报告完全没提。要定位是 informer、Collect 还是模型漏看，并给修改和验证范围。",
-      "expected_output": "核对 TaskBuildUEWindows 的 ALWAYS report、报告 meta/provenance、Collect 认证和同目录 SameFileError，再看 review_input 与 Pi session；把 DevOps DSL/informer 与 MainDev Collect 修复分仓。",
+      "expected_output": "核对 TaskBuildUEWindows 的 ALWAYS report、报告 meta/provenance、Collect 认证和同目录复制，再看 review_input 与 Pi session；先核实际 Task 工具入口与当前同路径修复，不把历史缺口当现行故障，按实际所有权分仓。",
       "files": [],
       "expectations": [
         "不会建议把所有 warning 直接加入 50KiB error tail",
         "检查 build_log_analysis.txt 及 meta/provenance 与本轮 build ID",
-        "识别 source==destination copyfile 的已知缺口但先要求真实 build 证据",
+        "把 source==destination copyfile 作为已知回归点，先核本轮 provenance 与当前修复状态",
         "跨 DevOps/MainDev 改动分别建立专用 P4 CL并分层测试"
       ]
     },
@@ -58,6 +58,30 @@
         "明确任务不属于 AI Review业务流程",
         "建议使用 teamcity-extract-commandlet",
         "不无谓查询 AI Review API、DB或A2A机器"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "第一次接手 pyAutomation AI Review，从申请到代提交怎么走？编译绿了是不是就批准了？给我最短阅读入口和失败首查顺序，不访问真实服务。",
+      "expected_output": "指向 quickstart、主链和独立状态图，解释 callback/fallback 与审批/提交不同，给最小首查证据而不要求全部系统盘点。",
+      "files": [],
+      "expectations": [
+        "指出 quickstart 和 Mermaid 流程或状态图入口",
+        "明确编译通过、AI done、approved、submitted 独立",
+        "解释 callback 定案与 error/skipped fallback 不同",
+        "先查本轮业务身份/活动，再按需追加 Task或机器证据"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Collect 日志是 FATAL: shelved CL modifies the review toolchain (Tools/AiReview/); manual handling required，页面却显示 AS warning 门禁证据不可用。报告缺失，没有认证 warning。是不是把 warning 正则收窄就行？只根据材料解释排查和修复边界。",
+      "expected_output": "优先检查 Collect 失败被 Publish 归为 AS warning 的路径；分开工具链保护、普通失败、缺证和真实 warning，不把缺证当命中或放行，不绕过自修改保护，不宣称已部署或零 LLM。",
+      "files": [],
+      "expectations": [
+        "优先回溯 Collect/Publish 失败归因而非直接认定 warning 正则错误",
+        "区分非 AS 失败、证据不可用与认证 AS warning",
+        "保留工具链自修改保护并覆盖普通采集失败而不只修样例",
+        "不凭 reject 承诺零 LLM，不宣称未验证的部署已生效"
       ]
     }
   ]

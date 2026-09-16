@@ -17,6 +17,8 @@ compatibility: linux, bash, ps, grep, find, curl
 
 # TeamCity Administration Skill
 
+For pyAutomation integrations, consult [pyauto-shared](../pyauto-shared/SKILL.md) for shared evidence, ownership, configuration and safety boundaries. TeamCity is an external execution system, not the authority for the application's business state.
+
 This skill knows how to operate and troubleshoot TeamCity installations across multiple machines. It uses a host fingerprint system to identify which machine it's running on and loads the appropriate configuration reference.
 
 ## Step 0 — Identify the machine

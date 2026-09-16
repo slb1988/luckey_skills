@@ -63,7 +63,7 @@ P4 change-submit trigger 的 review gate根据 branch 和受保护文件决定�
 
 ### 3.3 作者自批/自拒
 
-当前源代码允许受控 self-approve：开关开启、AI done、风险严格低于 self-approve 门槛等条件同时满足。作者 self-reject 在进行中可作为否决票。
+当前源代码允许受控 self-approve：开关开启、AI done、风险严格低于 self-approve 门槛等条件同时满足。作者分支先于指定 reviewer 授权校验，指定他人不等于禁用自批。纯二进制/无文本 diff 可不调用 LLM 而得到 done/risk0/verdict=null；这不是模型批准，但可能满足自批条件。作者 self-reject 在进行中可作为否决票。
 
 reopen 必须复位 author/reviewer/required/ai 的旧 decision；否则旧 author veto 会在新轮批准同秒把状态重新打回。排障时活动流中“approve 后立即 status→rejected”优先查残留票，而不是只查 risk。
 
@@ -119,6 +119,8 @@ branch review关闭且非 strict 时可 direct system approve；strict 永不 by
 
 不要猜提交号。只有明确 P4 回执或只读对账证明才能写 submitted。
 
+混合 Stream shelf 可由 `import+` 跨 depot 根；不能用 Review branch、文件多数或 depot 前缀推导提交映射。权威链是 `change -o` 的 Client → `client -o` 的完整 Stream，再创建/复用绑定同 Stream 的 bot client，仅设 Stream、不手写 View；以该 client 的 `p4 where` 验证全 shelf。存在性用 `clients -e`，因为不存在的 `client -o` 也返回模板。游戏 P4 为非 Unicode，charset 留空；`submit -e` 直接消费 shelf，无需 sync。
+
 ### 4.3 Auto-merge
 
 直提遇到 out-of-date/open-files 类错误时，可进入 `_auto_merge_submit`：
@@ -143,6 +145,8 @@ branch review关闭且非 strict 时可 direct system approve；strict 永不 by
 - 不按旧 `AI_REVIEW_SUBMIT_RETRY_MAX` 自动循环提交/耗尽打回。
 
 人工 retry 是重新入队，不应绕过串行域和幂等 fence。
+
+P4Python 逐文件错误可能只在 `run()` 返回的 info 字符串中，抛异常会丢返回值。需要暂设 `exception_level=0` 同时采集返回值/errors/warnings，以 errors 非空判失败并 finally 恢复级别；stream fallback 不能只匹配异常摘要中的 `file not mapped in stream`。
 
 ### 4.5 结果未知
 
@@ -198,7 +202,7 @@ Review approved 已提交 DB
 - rejected 后恢复 shelf并处理独占 filetype；
 - 通过短 TTL cancel intent与服务端协调。
 
-排障“平台已提交但本地还脏”时，同时看后端 activity与 watcher log，不要让服务端 worker直接操作作者 client。
+watcher 仅靠 HTTP 轮询获知状态；飞书是通知副作用，不会唤醒 watcher 或触发本地拉新。排障“平台已提交但本地还脏”时，同时看后端 activity与 watcher state/log，不要让服务端 worker直接操作作者 client。
 
 ## 7. 通知矩阵
 
@@ -218,6 +222,8 @@ Review approved 已提交 DB
 | submit失败/未知 | 作者、管理员、群；必须保留真实 error/manual状态 |
 
 AI findings 不逐条发通知，避免刷屏；汇总由 AI done卡承担。
+
+严格评审的 AI-ready 私聊复用 reviewer 就绪出口，按实时配置加入全部 jury，与指定 reviewer 按用户去重、排除作者并跳过无 open_id 的成员。callback 与 backend fallback 汇聚同一出口；非 strict 不扩展 jury 收件人，通知失败仍 log-only。
 
 ## 8. 活动流取证
 

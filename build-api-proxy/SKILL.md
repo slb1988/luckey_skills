@@ -5,6 +5,8 @@ description: build-api-proxy（内网 LLM API 中转网关）运维参考。虚�
 
 # build-api-proxy 运维参考
 
+pyAutomation 集成共性知识：[pyauto-shared](../pyauto-shared/SKILL.md)。网关是外部依赖；先核实际主机，“本机部署”不适用于任意会话。优先请求元数据，正文仅在必要且获准时读取并脱敏。
+
 ## 是什么
 
 团队自建的**内网 LLM API 中转网关**：给成员发虚拟 key，转发到 Kimi(moonshot, kimi-k3)/DeepSeek 等 Anthropic 兼容上游。Node.js 应用（`node src/server.js`），Docker 单容器部署在本机。

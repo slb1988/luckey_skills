@@ -5,6 +5,8 @@ description: Full-stack deploy of the auto-server frontend and backend on dev@au
 
 # Auto-Server Full-Stack Deploy
 
+共性知识：[pyauto-shared](../pyauto-shared/SKILL.md)。先核实际 host／服务账号和在途副作用；下述本地命令仅供 auto-server 运行时执行，不代表当前会话就在该机器。
+
 ## 概述
 
 在 `dev@auto-server` 上一键部署 auto-server **前端 + 后端**。先部署后端（同步→停服→归档→轮转→启动），再部署前端（同步→构建），最后自动验证。

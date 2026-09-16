@@ -5,6 +5,8 @@ description: Sync auto-server frontend code from Perforce and build for deployme
 
 # Auto-Server Frontend Deploy
 
+共性知识：[pyauto-shared](../pyauto-shared/SKILL.md)。先确认实际执行主机；下述“本机”仅指 auto-server 运行时，不是对当前会话位置的断言。
+
 ## Overview
 
 发布 auto-server **前端**项目。从 Perforce 同步最新代码并构建。

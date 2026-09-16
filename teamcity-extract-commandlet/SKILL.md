@@ -5,6 +5,8 @@ description: 从 TeamCity 构建日志中提取 UE commandlet 命令行（如 WP
 
 # TeamCity → UE Commandlet 命令行提取
 
+pyAutomation 集成的身份、机器与脱敏边界参见 [pyauto-shared](../pyauto-shared/SKILL.md)；命令提取本身不需要加载 AI Review 状态机。
+
 把一个 TeamCity 构建链接，变成「可在本地 Visual Studio 复现的调试命令行」。
 
 ## 何时用

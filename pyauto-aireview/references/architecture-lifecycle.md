@@ -1,5 +1,9 @@
 # AI Review 架构、对象身份与生命周期
 
+导航：[五分钟上手](quickstart.md) · [主链图](diagrams/lifecycle.mmd) · [独立状态轴](diagrams/status-axes.mmd)。图只画主路径，不枚举所有管理/重试转换；API/状态以本轮版本为准。
+
+图的源码锚点：backend `service.py` / `ai_worker.py` / `submit_worker.py`，TeamCity `TaskAiReview.kts`，工具 `Collect/Runner/Publish`，客户端 `RequestReview.py`。工具实际根目录见 [路由](workspace-agent-routing.md)，部署状态不能由图推断。
+
 ## 1. 参与者与责任边界
 
 | 组件 | 主要责任 | 业务真相 |

@@ -16,6 +16,8 @@ PLN_TaskSyncCyanCookDepot
 
 历史 `TaskBuildUELinux`、`DefaultAgent_*`、`LINUX_MULTIARCH_ROOT` 和 Linux `p4ws/` 资料只用于读旧构建，不得恢复成当前配置。
 
+清理步骤也影响调度兼容性：PowerShell runner 引入隐式能力要求，并可通过 same-agent 依赖排除无此能力的 Agent。名称策略允许、在线空闲并不保证可调度；改成 Python runner 包装 Windows 清理调用也不意味着 Linux 具备 Windows 编译能力或配置已上线。
+
 TeamCity 通用链参数规则见 [teamcity-tool/build-chain-parameters](../../teamcity-tool/references/build-chain-parameters.md)，REST 查询见 [teamcity-tool/rest-api](../../teamcity-tool/references/rest-api.md)。
 
 ## 2. 参数所有权
@@ -80,7 +82,9 @@ Sync Root
 
 AngelScript 检查与 C++ 编译是门禁证据。warning 不应全部塞进 50 KiB error tail；informer 的 AI Review 模式单独生成 `build_log_analysis.txt` 和 provenance/meta sidecar。
 
-`PLN_TaskAiReview` 对 Build 节点使用允许下游继续的 failure policy：编译失败后仍要运行 Pi，目的是让 AI 读取错误并解释；这不代表编译通过。
+`PLN_TaskAiReview` 对 Build 节点使用允许下游继续的 failure policy：编译失败后仍要运行 Pi，目的是让 AI 读取错误并解释；确定性门禁可提前结束模型路径，不代表编译通过。
+
+`--warning-categories` 只过滤告警，不是失败策略；命中 warning 仍可返回 0，是否 fail-fast 要看独立失败选项。Report / Notification 是独立调用，不继承参数；Notification 默认 Error 级，启用 warning 还需 All 级。`job-result=FAILURE` 且无匹配诊断时，informer 可调用 `pi_analyze_errors`，独立于 TaskAiReview Runner，停 Runner 不保证零 AI。
 
 ### 3.4 TaskAiReview
 
@@ -94,6 +98,8 @@ AngelScript 检查与 C++ 编译是门禁证据。warning 不应全部塞进 50 
 6. **Log Analysis Notification**：Task 自身失败时的 opt-in informer 路径。
 
 Runner 故障不会自动把链标红；Publish 会生成 `verdict=error`。callback 失败也可能只 warning。因此必须检查 artifact 和后端 activity，不能从 build status 推断业务成功。
+
+生产 Task 与 `TaskAiReviewTest` 的入口/行为分别核对；已核测试链为 `mode=test`、无编译段、不接 AS warning 门禁。测试链运行成功不能替代生产 warning 分支验收。工具迁移先看三处实际调用路径，不能以 DevOps 磁盘出现同名目录判断切换完成。
 
 ## 4. 运行模式
 

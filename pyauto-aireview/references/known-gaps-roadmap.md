@@ -2,25 +2,27 @@
 
 本文件防止把历史计划、当前源码和未来设计混为一谈。每次执行前仍需核 P4 head、部署 revision 和运行参数。
 
-## 1. 当前已实现
+## 1. 已记录的能力基线
 
 - P4V Request Review 刷新 shelf、释放关键锁、打开申请页并后台收口本地 workspace。
 - `/ai_review/request` 预检、创建/reopen、文件/diff首屏、参与者、评论、活动流。
 - AI job持久 stage、秒级 kick + 60秒补偿 ticker、claim/fence/retry。
 - Windows `PLN_FlowAiReview`：Sync → Unshelve/merge → BuildUEWindows/AS/report → TaskAiReview。
 - Unshelve后固定baseline merge、`resolve -N`复查、版本化 `merge_result.json` 和 backend merge gate。
-- MainDev Collect/Runner/Publish、turn guard、CI Memory search-v2、callback代际和metadata覆盖。
+- Collect/Runner/Publish、turn guard、CI Memory search-v2、callback代际和metadata覆盖；实际工具根以 Task 三入口核实。
 - callback定案优先；error/skipped时backend LLM fallback。
 - 指定 reviewer、self、strict jury、自动批准、branch closed direct pass和approve gate。
 - 独立 `ai_review_submit_jobs`，30秒submit worker、workspace/domain串行、跨域并行。
 - submit unknown/manual、stale recovery、只读ghost/CL-missing对账和auto-merge。
 - reviewer/AI/compile/comment/submit通知与前端submit progress。
 
-## 2. 当前未实现或未完全实现
+## 2. 版本敏感能力与待核边界
+
+以下含历史缺口和设计方向，不能不经核实就称“当前仍未实现”。本页不承担部署进度台账，尤其 Session、工具迁移和 same-file 行为需在任务涉及时核当前版本。
 
 ### 2.1 同一 Review 的 Pi 真续接
 
-当前 Runner每轮删除固定 `pi_session.jsonl`并新建会话。尚无：
+旧 Runner 每轮删除固定 `pi_session.jsonl` 并新建会话。判断当前版本是否具备真续接，需要验证以下契约，而不是沿用旧结论：
 
 - Review.id ↔ Pi session UUID唯一绑定；
 - 多轮 turn/report版本；
@@ -30,7 +32,7 @@
 - 追问/纠错UI；
 - 人工裁定样本→规则候选→回放闭环。
 
-因此“重新分析”是新一轮无状态执行，不是继续原 Pi上下文。不要把 session artifact存在误报成产品已支持续聊。
+核实这些契约前，既不把 session artifact 存在误报成产品已支持续聊，也不因旧 Runner 行为断言新版本仍无续接。
 
 ### 2.2 构建内 A2A
 
@@ -48,7 +50,7 @@ Pi无shell/edit/P4工具，但 `read` 仍缺严格canonical root限制；显式�
 
 ### 2.5 结构化 warning报告 same-file
 
-当前Collect认证代码与TC布局可能形成 source==destination `copyfile`，导致有效报告被标missing。需要先用真实 provenance确认，再在 `ws:maindev`加同路径回归并最小修复。
+历史 Collect 认证的 source==destination `copyfile` 可导致有效报告被标 missing。先查本轮 provenance 和当前同路径分支；已有修复则验证，不重复开发。改动归属以实际工具入口核实。
 
 ### 2.6 构建机版本一致性
 
@@ -86,7 +88,7 @@ Publish/curl失败可warning-only并保持TC绿色；完整callback URL还可能
 ### P0：安全与正确性
 
 1. 迁移并轮换源码中的embedded/hardcoded credential；
-2. 验证并修复结构化warning报告same-file；
+2. 以本轮 provenance 核验结构化 warning 报告，保留 same-file 回归；
 3. 给所有候选WinBuilder建立Pi/Node/Python/Memory版本准入；
 4. callback URL和artifact脱敏；
 5. 对受信工具/rules/read路径做不可被shelf替换的隔离。

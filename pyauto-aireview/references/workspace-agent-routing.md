@@ -1,5 +1,9 @@
 # `ws:` 与 `@agent` 路由
 
+跨系统约定以 [pyauto-shared](../../pyauto-shared/references/common-practices.md#所有权与执行边界) 为准；此页保留 AI Review 的所有权与精确取证范围。
+
+工具迁移时先核生产/测试 Task 的 Collect、Runner、Publish 实际入口与工具 revision，区分受信工具根、MainDev 被审根和产物根。本地存在 `DevOps/AiReview` 或迁移计划不证明入口已切换，更不证明线上已生效。
+
 ## 1. 两种地址不是一回事
 
 | 语法 | 表示 | 用途 |

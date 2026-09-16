@@ -1,5 +1,9 @@
 # AI Review 证据化排障
 
+快速入口：[失败归因图](diagrams/failure-routing.mmd) · [五分钟上手](quickstart.md) · [共性证据边界](../../pyauto-shared/references/common-practices.md)。图是诊断分流，不是执行顺序；真实分支以 `TaskAiReview.kts`、Collect/Publish 和 backend `apply_tc_ai_result` / `_poll_compile` 为准。
+
+AS warning 页面误标先核原始 Collect 错误与 Publish 归因，不先假设 informer 正则太宽。工具链自修改、普通采集失败、缺少可信报告和真实 AS warning 四者分开；见 [工具链结果契约](review-toolchain.md#81-collect-失败与-as-warning-归因)。
+
 ## 1. 先回答“用户给的是同一单吗”
 
 常见输入同时包含 Dashboard Review URL 和 TeamCity build URL。第一步不要分析耗时，先建立映射：
