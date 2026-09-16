@@ -32,6 +32,19 @@ Graphiti 语义检索噪音底线高：乱查（大小写无关）也会返回"�
 **「memory 已 indexed、scope 正确却检索不到」时在 NAS 上直查 FTS 层拿真实 rank**：在 `/share/Container/memory-hub` 用当前服务代码 `memory_hub.application.retrieval._fts_query` 生成服务端同款 MATCH 表达式，再按 tenant_id、`group_id=project:<pid>`、`status='indexed'` 执行与 `search_memory_documents` 相同的 FTS SQL 并把 LIMIT 放大到 30，即得 API top-K 之外的 rank 与 fts_score（bm25，SQLite FTS5 越负越好）；sqlite3 按既有规矩复制临时副本或 `mode=ro` 打开，输出只留 rank/memory_id/score/summary，不复制候选正文与凭据。2026-08-31 实证根因模式：同主题近重复记忆以 bm25 ≈ -76 的离群分霸占 rank 1，目标记忆 -12.8 仅排第 12；下游固定 top-3 裁剪（`prune_memory_results_by_score` 默认 `max_results=3`，fusion `v2-fts-top3`），**rank 4+ 永不进入候选**——属取错（排序/裁剪遮蔽），不是存错，不要 reingest；修法是改写 query 或让目标排名进前 3。
 </memory>
 
+### 长规划 prompt 的主题遮蔽与规划证据误过滤
+
+<memory category="troubleshooting">
+图检索关闭时，长 prompt 中的测试路径/通用测试词可主导 FTS/BM25 排序，挤掉核心技术主题；候选数量满额不代表主题覆盖。
+2026-09-16 `maindev` 的 AngelScript await/async 规划查询已确认：直接相关记忆在查询前已 `indexed` 且 scope 正确，却排到第 13 名以后，被送审 10 条的收口挡在 Judge 之前；这是候选排序损失，不是记忆缺失。
+排序与候选收口入口：Memory Hub 仓库 `src/memory_hub/application/retrieval.py`、`src/memory_hub/application/service.py` 的检索链路。上面的历史 `v2-fts-top3` 裁剪与本例送审池不是同一口径，须按实际 policy/审计判读。
+</memory>
+
+<memory category="common-patterns">
+查询级 Judge 的 Stage A 全部淘汰时 Stage B 不调用；零线索须区分“目标未入 A 候选池”与“已入池但被 A 拒绝”，不能直接归咎客户端漏展示。
+规划查询的另一已确认漏召回原因是把证据要求收窄为“必须已涉及目标特性”：与任务相关的现有框架/API 约束（如 `.Step`、`Do/Wait/Assert` 的边界）也可支撑规划，不应仅因未涉及 await/async 而被丢弃；但综合时只能标为现状约束，不能冒充已实现的异步方案。
+</memory>
+
 ### 较新纠正已入库但旧答案仍被 LLM 放行
 
 <memory category="troubleshooting">
