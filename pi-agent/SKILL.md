@@ -32,7 +32,10 @@ description: Pi agent（pi，@earendil-works 的 coding agent）使用与排障�
 </memory>
 
 <memory category="troubleshooting">
-`ws:` 路由（.pi/extensions/workspace-routing → agentctl.py）解析需要两份数据同时就位：共享 catalog `.claude/agent-control/workspaces.json`（只有名字，可入库）+ 本机注册表 `%LOCALAPPDATA%\agent-control\workspaces.json`（机器路径绑定，不共享）。新机器报 `unknown workspace` 或 `has no local binding or remote route` 时先查本机注册表是否存在——没跑过 add 流程时它根本不存在。
+`ws:` 路由（`.pi/extensions/workspace-routing` → `.claude/scripts/agent_control/agentctl.py`）先从共享 catalog `.claude/agent-control/workspaces.json` 与本机 `workspaces.json` 匹配 workspace 名称，再解析本地绑定/远程路由；机器路径绑定不共享。
+已确认的漏发现根因：`list_workspaces()` 只合并 catalog 与本机 bindings；`resolve_workspace()` 对二者之外的新名称先报 `unknown workspace`，到不了后面的只读 Orca fallback。**Orca repo/worktree 已登记，不代表 workspace 可发现**。
+Orca fallback 只补已知 workspace 的本地绑定，不发现新名称；`/workspace-reload` 只重读同一列表，不能补齐仅在 Orca 登记的仓库。
+支持 Orca 新仓库发现时，**列表与名称解析必须同时接入只读发现**（不隐式写 catalog/本机绑定）；仅刷新或扩展路径 fallback 均不足以修复此缺口。
 </memory>
 
 <memory category="code-locations">
