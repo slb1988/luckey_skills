@@ -195,6 +195,35 @@ error/timeout 抛真正的 Pi 工具错误，取消保持独立。CLI `search --
 本地结果文件据此区分「候选 / LLM 放行 / 实际注入」。旧扩展必须重跑 `install --agents pi` 部署模板；
 已有 Pi 会话需 `/reload` 或新进程，chat-hub 长驻 RPC 同样需要在空闲时重载/重启才使用新实现。
 
+**v33 输入预算与持续反馈**：输入 query 与输出 context 各自最多 4000 字符，`--max-chars` /
+`MEMORY_HOOK_PI_BOOTSTRAP_MAX_CHARS` 只控制输出，不再把输入切成 1200 字前缀。Pi 与共享 Python
+recall 保留首行任务、标识、关键失败/traceback 完整行；超长日志显式标记省略，预算统计进入 trace。
+Hub 也须升级 nav1（取消内部 1024 前缀），否则仅升级客户端仍会丢检索尾部。最终正文不强行填满，
+不再按 240 字硬切单项；已证实事实与历史关联导航分栏，路径/ws 只能引用已批准证据，不能虚构当前
+存在性或根因。`context_stats.clue_items` 为实际注入条数，unknown 单列；来源数只计算实际采用来源。
+
+显式效果反馈可运行（参数使用本轮真实值，禁止填写凭据）：
+
+```bash
+python "$SKILL_DIR/scripts/memory_hook.py" recall-feedback \
+  --project obsidianvault --retrieval-id <本轮ID> --query '<任务关键词>' \
+  --actor agent --outcome unverified --note '<观察到的丢信号/核验情况，非根因推测>' \
+  --expected-signal '<必须保留的错误/标识>' \
+  --expected-navigation '<已见来源中的完整路径>'
+```
+
+记录 fsync 到 state dir `recall-feedback.jsonl`；同 project 的后续相似 search/recall 自动在本地复核
+query 信号与实际 context 导航是否出现，结果写 `context_stats.feedback_checks` / hook trace / recall
+结果文件，最多匹配 8 条、读取尾部 1 MiB，不增加远端检索。`unverified` 是默认，不把未访问/未点击当
+无用，`helpful/unhelpful` 只能显式报告；agent/human 来源区分，出现路径也不代表验证成功。
+这是 evaluation-only 反馈，**不注入、不调分、不扩 scope、不自动入库批准**。新导航知识仍走普通记忆
+审核，不能为补结果把本地反馈当作已批准记忆；逐记忆人工评分仍复用 `feedback --rating` / Hub feedback/2。
+`memory-hub/tests/fixtures/recall_prepare_package.json` + `test_recall_navigation.py` 固化本次回归信号与
+导航来源；它是离线协议样本，不是线上排名/根因 baseline。真实首问可设置 `RECALL_SAMPLE_PROMPT` 指向
+本地提取的 prompt 后运行客户端 `scripts/tests/test_recall_navigation.py`，同时验证 Pi/共享 Python。
+安装模板升级到 v33 后新进程或 `/reload` 才加载；已尝试召回的旧 session 标记不清除、不自动重试。
+Python hook 直接引用仓库文件，下一次子进程即使用新版；不要重启仍在工作的协调者。
+
 **v32 跨 project + A/B 上下文契约**：客户端只扫描 query 的任务段（不扫描 `上下文:` 日志）提取
 `ws:<id>` / `project:<id>`，应用已安装 project aliases、保持出现顺序、去重并排除当前 project，作为
 `referenced_project_ids` 随同当前 project 一次请求发送（最多 8 个）；领先 `project:` 指令也改为追加范围，
@@ -233,7 +262,7 @@ v12-v17 的玩家评分 UI、`pi-recall-scores.jsonl` 和 feedback 上报路径�
 **v13-v17 的评分 widget 已在 v18 停用**。首个用户问题仍会被提炼为检索 query，但问题与内部候选
 不再通过 widget/select 暴露；需要复盘时按 retrieval_id 查询服务端 judgment 日志。
 
-**v14 起 Orca worker 的首问会先提取最后一个 `=== TASK ===` 之后的真实任务，再做 1200 字截断**；
+**v14 起 Orca worker 的首问会先提取最后一个 `=== TASK ===` 之后的真实任务**（v14-v32 曾再截 1200 字，v33 已修复）；
 旧逻辑先截断整段 prompt，8KB 编排说明会把 TASK 完全挤掉，导致 query 与评分界面只显示 Orca
 操作样板。review/trace 增加 `prompt_source=orca_task|user_prompt`，便于后续区分入口质量与排序质量。
 

@@ -1336,8 +1336,9 @@ class MemoryHookTest(unittest.TestCase):
                     "injection_context_error": None,
                     "audit": {
                         "stage_b": {
-                            "items": [{"slot_id": "recall_hook", "status": "known"}],
-                            "input_sources": [{"result_id": "m1"}],
+                            "items": [{"slot_id": "recall_hook", "status": "known", "source_ids": ["e1"],
+                                       "conclusion": "在 UserPromptSubmit 挂 recall 子命令。"}],
+                            "input_sources": [{"source_id": "e1", "result_id": "m1"}],
                         }
                     },
                     "scope": {"project_ids": [project_id]},

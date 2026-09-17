@@ -31,6 +31,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from recall_query import build_recall_query, QUERY_MAX_CHARS
+from recall_feedback import record_feedback, replay_feedback
 from session_messages import (
     chat_hub_project_for_speakers,
     chat_hub_speaker_note,
@@ -3110,8 +3112,45 @@ def search_error_diagnostics(error: Exception) -> Dict[str, Any]:
     return result
 
 
+def rendered_context_stats(audit: Optional[Dict[str, Any]], context: str, injected: int) -> Dict[str, Any]:
+    stage_b = (audit or {}).get("stage_b") or {}
+    items = stage_b.get("items") or []
+    rendered = stage_b.get("rendered_items")
+    if not isinstance(rendered, list):
+        # Older servers: count real rendered lines; unknown placeholders never count.
+        rendered = [item for item in items if isinstance(item, dict)
+                    and item.get("status") in {"known", "related"}
+                    and item.get("source_ids") and item.get("conclusion")
+                    and " ".join(str(item["conclusion"]).split()) in " ".join(context.split())]
+    source_ids = {sid for item in rendered for sid in item.get("source_ids", [])} if context else set()
+    source_results = {item.get("result_id") for item in stage_b.get("input_sources") or []
+                      if isinstance(item, dict) and item.get("source_id") in source_ids and item.get("result_id")}
+    return {"clue_items": injected if context else 0, "source_memories": len(source_results),
+            "audit_items": len(items), "unknown_items": sum(1 for item in items if item.get("status") == "unknown")}
+
+
+def command_recall_feedback(args: argparse.Namespace, config: Config) -> int:
+    """Explicit local observations; not memory writes, ratings, or automatic admission."""
+    try:
+        record = record_feedback(config.state_dir, {
+            "project_id": args.project, "query": args.query, "retrieval_id": args.retrieval_id,
+            "note": args.note, "outcome": args.outcome, "actor": args.actor,
+            "expected_signals": args.expected_signal, "expected_navigation": args.expected_navigation,
+        })
+        print(json.dumps(record, ensure_ascii=False))
+        return 0
+    except (ValueError, OSError) as error:
+        print("recall feedback failed: %s" % type(error).__name__, file=sys.stderr)
+        return 1
+
+
 def command_search(args: argparse.Namespace, config: Config) -> int:
     started = time.monotonic()
+    query_stats = {"input_chars": len(args.query), "query_chars": len(args.query),
+                   "max_chars": QUERY_MAX_CHARS, "compacted": False}
+    if len(args.query) > QUERY_MAX_CHARS:
+        args.query, query_stats = build_recall_query(args.query, "")
+    args.max_chars = min(args.max_chars, RETRIEVAL_INJECTION_CONTEXT_MAX_CHARS)
     try:
         profile = request_user_profile(
             config,
@@ -3174,8 +3213,11 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             "client_validation_error": injection_context_error,
             "stage_a_status": stage_a.get("status") if isinstance(stage_a, dict) else None,
             "facts_returned": len(facts),
-            "clue_items": len(stage_b_items or []) if context else 0,
-            "source_memories": len(source_result_ids) if context else 0,
+            **rendered_context_stats(audit, context, injected_count),
+            "query_chars": len(args.query),
+            "query_max_chars": QUERY_MAX_CHARS,
+            "query_stats": query_stats,
+            "feedback_checks": replay_feedback(config.state_dir, project_id=project_id, query=args.query, context=context),
             "referenced_projects": referenced_projects,
             "scope": scope,
             "injected": injected_count,
@@ -3353,7 +3395,7 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
         assert profile is not None
         project_id = project_id_for_cwd(cwd, config.archive_project_id)
         hint = Path(cwd).name or "当前项目"
-        focused = re.sub(r"\s+", " ", prompt if isinstance(prompt, str) else "").strip()[:1200]
+        focused = prompt.strip() if isinstance(prompt, str) else ""
         if is_low_signal_recall_prompt(focused):
             outcome = "skipped_low_signal_prompt"
             return 0
@@ -3367,7 +3409,7 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
             outcome = "duplicate"
             return 0
         _gc_recall_markers(config)
-        query = "%s %s" % (hint, focused)
+        query, query_stats = build_recall_query(focused, hint)
         referenced_projects = extract_referenced_project_ids(query, project_id)
         client = HubClient(
             replace(config, timeout_seconds=args.timeout_seconds)
@@ -3402,6 +3444,8 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
             for item in (input_sources or [])
             if isinstance(item, dict) and isinstance(item.get("result_id"), str)
         }
+        actual_stats = rendered_context_stats(audit, recalled, injected_count)
+        feedback_checks = replay_feedback(config.state_dir, project_id=project_id, query=query, context=recalled)
         if recalled:
             quality = response.get("quality")
             if isinstance(quality, dict):
@@ -3409,7 +3453,7 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
                 kept = quality.get("kept")
                 status_line = (
                     "Memory Hub 识别结果：候选 %s 条，LLM 放行 %s 条，精炼线索 %d 条，来源记忆 %d 条。"
-                    % (candidates, kept, len(stage_b_items or []), len(source_result_ids))
+                    % (candidates, kept, actual_stats["clue_items"], actual_stats["source_memories"])
                 )
             else:
                 status_line = "Memory Hub 识别结果：召回 %d 条，实际注入 %d 条。" % (
@@ -3460,6 +3504,9 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
                 "stage_b_source_count": (
                     len(source_result_ids) if "source_result_ids" in locals() else 0
                 ),
+                "context_stats": actual_stats if "actual_stats" in locals() else {},
+                "query_stats": query_stats if "query_stats" in locals() else {},
+                "feedback_checks": feedback_checks if "feedback_checks" in locals() else [],
                 "injection_context_status": (
                     injection_context_status if "injection_context_status" in locals() else None
                 ),
@@ -3557,10 +3604,20 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--project")
     search.add_argument("--referenced-project", action="append", default=[])
     search.add_argument("--limit", type=int, default=10)
-    search.add_argument("--max-chars", type=int, default=8000)
+    search.add_argument("--max-chars", type=int, default=4000)
     search.add_argument("--json", action="store_true")
     search.add_argument("--write-result-file", action="store_true")
     search.add_argument("--session-id")
+    recall_feedback = commands.add_parser("recall-feedback", help="record explicit evaluation-only feedback; never admit a fact")
+    recall_feedback.add_argument("--project", required=True)
+    recall_feedback.add_argument("--query", required=True)
+    recall_feedback.add_argument("--retrieval-id", required=True)
+    recall_feedback.add_argument("--note", required=True)
+    recall_feedback.add_argument("--outcome", choices=("unverified", "helpful", "unhelpful"), default="unverified")
+    recall_feedback.add_argument("--actor", choices=("human", "agent"), required=True)
+    recall_feedback.add_argument("--expected-signal", action="append", default=[])
+    recall_feedback.add_argument("--expected-navigation", action="append", default=[])
+
     feedback = commands.add_parser("feedback")
     feedback.add_argument("--memory-id", required=True)
     feedback.add_argument(
@@ -3614,6 +3671,8 @@ def main() -> int:
         return command_persona_card(args, config)
     if args.command == "feedback":
         return command_feedback(args, config)
+    if args.command == "recall-feedback":
+        return command_recall_feedback(args, config)
     if args.command == "recall":
         return command_recall(args, config)
     if args.command == "flush":

@@ -55,7 +55,8 @@ import { Type } from "typebox";
 // v30：纯寒暄首问本地跳过且不消耗召回机会；短任务保留原意；UI 区分候选、放行与实际注入数。
 // v31：直接使用 Judge v15 查询级行动简报；UI 展示线索/来源和真实线索预览，不再展示记忆标题。
 // v32：支持 ws:/project: 追加 scope；只接受 Stage B 最终上下文，suppressed 时禁止客户端候选回退。
-const EXTENSION_VERSION = "32";
+// v33：输入独立 4000 字符预算，保留任务/标识/失败与 traceback，省略显式留痕。
+const EXTENSION_VERSION = "33";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -117,7 +118,7 @@ function bootstrapLimit(): number {
 function bootstrapMaxChars(): number {
 	const parsed = Number(process.env.MEMORY_HOOK_PI_BOOTSTRAP_MAX_CHARS ?? defaultBootstrapMaxChars);
 	if (!Number.isFinite(parsed)) return defaultBootstrapMaxChars;
-	return Math.max(1000, Math.min(20000, Math.trunc(parsed)));
+	return Math.max(1000, Math.min(4000, Math.trunc(parsed)));
 }
 
 const stateDir =
@@ -180,10 +181,50 @@ function isLowSignalBootstrapPrompt(intent: string, context: string): boolean {
 	return !normalized || lowSignalBootstrapTexts.has(normalized);
 }
 
-const maxBootstrapQueryChars = 1200;
-const maxBootstrapIntentChars = 300;
+const maxBootstrapQueryChars = 4000;
+const queryOmitted = "[… input omitted to fit query budget …]";
 
-function focusBootstrapPrompt(value: unknown): { intent: string; context: string; source: "orca_task" | "user_prompt" } {
+function queryUnits(text: string, budget: number): string[] {
+	const result: string[] = [];
+	for (const raw of text.split(/\r?\n/)) {
+		const line = raw.replace(/[ \t]+/g, " ").trim();
+		if (!line) continue;
+		if (line.length <= budget) { result.push(line); continue; }
+		let part = "";
+		for (const word of line.split(/\s+/)) {
+			if (part.length + word.length + 1 > budget) {
+				if (part) result.push(part);
+				part = "";
+			}
+			if (word.length <= budget) part = `${part} ${word}`.trim();
+		}
+		if (part) result.push(part);
+	}
+	return result;
+}
+
+function compactQueryContext(text: string, budget: number): string {
+	if (text.length <= budget) return text;
+	let room = Math.max(0, budget - queryOmitted.length - 1);
+	const lines = room ? queryUnits(text, Math.min(1000, room)) : [];
+	const tracebackAt = lines.findIndex((line) => /traceback/i.test(line));
+	const score = (i: number) =>
+		(/error|exception|traceback|fail(?:ed|ure)?|not on client|not found|denied|报错|错误|失败/i.test(lines[i]) ? 8 : 0)
+		+ (tracebackAt >= 0 && i >= tracebackAt ? 4 : 0)
+		+ (/--[\w-]+=|[\\/][\w.-]+|\b(?:build|change-list)\D*\d+/i.test(lines[i]) ? 3 : 0)
+		+ (i < 2 ? 2 : 0);
+	const kept = new Map<number, string>();
+	const seen = new Set<string>();
+	for (const i of lines.map((_, i) => i).sort((a, b) => score(b) - score(a) || a - b)) {
+		const line = lines[i];
+		if (seen.has(line) || line.length + 1 > room) continue;
+		kept.set(i, line); seen.add(line); room -= line.length + 1;
+	}
+	return budget >= queryOmitted.length
+		? [...[...kept.keys()].sort((a, b) => a - b).map((i) => kept.get(i)), queryOmitted].join("\n") : "";
+}
+
+export function focusBootstrapPrompt(value: unknown, projectHint: string): { intent: string; context: string; source: "orca_task" | "user_prompt"; compacted: boolean; inputChars: number } {
 	const raw = String(value ?? "");
 	const markerAt = raw.lastIndexOf(orcaTaskMarker);
 	const selected = markerAt >= 0 ? raw.slice(markerAt + orcaTaskMarker.length) : raw;
@@ -192,16 +233,14 @@ function focusBootstrapPrompt(value: unknown): { intent: string; context: string
 	// 保留换行边界，让 server judge 能区分「任务」与「被引用材料」。
 	const lines = selected.split(/\r?\n/).map((line) => line.replace(/[ \t]+/g, " ").trim());
 	const firstAt = lines.findIndex((line) => line.length > 0);
-	if (firstAt < 0) return { intent: "", context: "", source };
-	const intent = clipText(lines[firstAt], maxBootstrapIntentChars);
-	const rest = lines.slice(firstAt + 1).join("\n").replace(/\n{3,}/g, "\n\n").trim();
-	// projectHint、「任务: 」与「上下文:」标记约占 40 字，余量全给上下文。
-	const contextBudget = maxBootstrapQueryChars - intent.length - 40;
-	return {
-		intent,
-		context: contextBudget > 0 ? clipText(rest, contextBudget) : "",
-		source,
-	};
+	if (firstAt < 0) return { intent: "", context: "", source, compacted: false, inputChars: selected.length };
+	const first = queryUnits(lines[firstAt], 1000);
+	const intent = first[0] || "[oversized task token omitted]";
+	const rest = [...first.slice(1), ...lines.slice(firstAt + 1)].filter(Boolean).join("\n");
+	const contextBudget = maxBootstrapQueryChars - `${projectHint} 任务: ${intent}\n上下文:\n`.length;
+	const context = compactQueryContext(rest, contextBudget);
+	return { intent, context, source, inputChars: selected.length,
+		compacted: context.includes(queryOmitted) || lines[firstAt].length > 1000 };
 }
 
 function parseProjectDirective(value: string): { text: string; project: string | null } {
@@ -1255,15 +1294,15 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			: null;
 		// chat-hub 会话先用剥掉信封的干净正文构造检索 query（身份封套/语音元数据
 		// 不参与检索意图）。
+		const projectHint = (chatHubProject || basename(ctx.cwd) || "当前项目").slice(0, 128);
 		const promptFocus = focusBootstrapPrompt(
-			chatHubProject ? stripChatHubEnvelopeText(event.prompt) : event.prompt,
+			chatHubProject ? stripChatHubEnvelopeText(event.prompt) : event.prompt, projectHint,
 		);
 		const projectDirective = parseProjectDirective(promptFocus.intent);
 		const intent = projectDirective.text;
 		// chat-hub 身份仍决定当前 project；显式 project: 只追加检索范围，不再替换当前 scope。
 		const projectOverride = chatHubProject;
 		const referencedProjects = projectDirective.project ? [projectDirective.project] : [];
-		const projectHint = projectOverride || basename(ctx.cwd) || "当前项目";
 		if (isLowSignalBootstrapPrompt(intent, promptFocus.context)) {
 			trace("project_bootstrap", {
 				session_id: sessionId,
@@ -1280,6 +1319,9 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		const ratingQuestion = clipText(intent, 360);
 		const query = `${projectHint} 任务: ${intent}`
 			+ (promptFocus.context ? `\n上下文:\n${promptFocus.context}` : "");
+		trace("recall_query_budget", { session_id: sessionId, input_chars: promptFocus.inputChars,
+			query_chars: query.length, max_chars: maxBootstrapQueryChars, compacted: promptFocus.compacted,
+			policy: "intent-diagnostic-lines/1" });
 		const limit = bootstrapLimit();
 		const maxChars = bootstrapMaxChars();
 
