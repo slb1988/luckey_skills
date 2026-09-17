@@ -65,6 +65,12 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 - severity 与“本 CL 是否负责修”及总分是不同维度；放行不降低严重度，最终严重度约束风险下限。见 backend 结果契约。
 - 飞书通知不唤醒本地 watcher；当前构建内 Pi 也不能据此假定拥有协调者的 A2A 能力。
 
+<memory category="common-patterns">
+- 普通网页 diff 来自建评审时落库的 `ai_review_files.diff_content` 文本快照，不是作者或构建机的实时 diff；删除 shelf 不会使已存 diff 同步消失。
+- “整文件对比”则实时读取 P4 shelf；shelf 已空时该接口可失败，即使同一页的普通 diff 仍能显示。
+- 快照不是完整文件备份：文本仅在差异未截断且基线匹配时可尝试重建，不能据此保证恢复；它不提供二进制内容备份。存储上限与 API 见 [backend-module](references/backend-module.md)。
+</memory>
+
 ## 修改与交付
 
 按 [pyauto-shared 共性边界](../pyauto-shared/references/common-practices.md) 路由及保护凭证；按实施参考核 opened/head/shelf、保留并行改动、分 depot 建专用 pending CL。不自动 submit、部署、重跑或改生产 DB。
