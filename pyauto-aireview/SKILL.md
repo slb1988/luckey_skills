@@ -65,6 +65,12 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 - severity 与“本 CL 是否负责修”及总分是不同维度；放行不降低严重度，最终严重度约束风险下限。见 backend 结果契约。
 - 飞书通知不唤醒本地 watcher；当前构建内 Pi 也不能据此假定拥有协调者的 A2A 能力。
 
+<memory category="troubleshooting">
+- `PLN_FlowAiReview` 中，Unshelve 失败可使编译节点根本未启动、未分配 Agent；若 TaskAiReview 仍要求与该编译节点同机，即使前置均已结束、允许编译失败后继续，评审仍可永久排队，Flow 无法收口。这是同机锚点缺失，不是 Agent 忙碌。
+- 同机约束与失败策略须配对：TaskAiReview 应锚定 Unshelve 同机，Unshelve 失败直接终止链；对编译节点保留顺序依赖及失败后继续评审的行为，不再以可能未启动的编译节点作为同机锚点。
+- 配置入口：`ws:autoserver-deveops` 的 `Teamcity_PLN/.teamcity/patches/buildTypes/TaskAiReview.kts`；生产与测试配置须保持上述依赖语义一致。
+</memory>
+
 <memory category="common-patterns">
 - 普通网页 diff 来自建评审时落库的 `ai_review_files.diff_content` 文本快照，不是作者或构建机的实时 diff；删除 shelf 不会使已存 diff 同步消失。
 - “整文件对比”则实时读取 P4 shelf；shelf 已空时该接口可失败，即使同一页的普通 diff 仍能显示。
