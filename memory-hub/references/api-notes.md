@@ -49,6 +49,16 @@ schema `memory-search/2`，请求体固定带 `quality_mode=llm` + `session_view
   验证「写入是否可检索」必须用 answer-level 自然语言问句（「X 的最终结论是什么？」），不要用关键词列表；
   裸标识符 query 只断言 presence，不断言 rank（judge13 实证见 retrieval-eval.md）。
 
+### 查询级 Judge 的证据引用与适用范围
+
+<memory category="core-rules">
+- 审核后内容是检索输入的一部分，必须保留其来源与版本，不能只在审核界面展示修订结果。
+- 原文证据由模型选择片段编号、服务端校验来源并回填原文；不要求模型逐字重抄。模型重复转述与逐字来源校验叠加会误删真实证据，编号引用解决的是这一协议错配，不是放松来源校验。
+- 同一问题允许保留多条相关证据，并明确各自适用范围；纠正只在证据支持的范围内生效，不能凭空判定“已被替代”或覆盖其他场景。
+</memory>
+
+服务端检索分层图：Memory Hub 仓库 `docs/RETRIEVAL_LAYERS.mmd`。
+
 ## 完整写入流程（顺序固定）
 
 ```text

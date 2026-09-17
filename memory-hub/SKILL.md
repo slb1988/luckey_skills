@@ -178,6 +178,8 @@ Pi v30 与 Claude/Codex recall 对纯寒暄/单独测试词做客户端快速跳
 - Hook 固定请求 `include_audit=true`：同一响应下发 scope、A/B 结构化结果、来源映射、模型/耗时/尝试/状态，不新增 LLM 调用；不下发思维过程。客户端详情文件原样保留这些字段、Hub 完整响应、全部 facts/provenance 与最终实际上下文，但只有 `injection_context` 进入模型。
 </memory>
 
+证据协议补充 → [查询级 Judge 的证据引用与适用范围](references/api-notes.md#查询级-judge-的证据引用与适用范围)。
+
 <memory category="troubleshooting">
 查询级 Judge 的证据审计不能只看 `completed` / `outcome=injected`：这些状态不证明线索适用于当前问题。
 `status=unknown` 且 `source_ids=[]` 表示缺证据槽位；“本次召回无可验证证据，需核对当前代码”
