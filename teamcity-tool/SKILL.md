@@ -148,7 +148,7 @@ CodeGraph 的 Linux 编译链独立保留。同机组靠 snapshot 边取兼容�
 </memory>
 
 <memory category="code-locations">
-PLN_TaskAiReview 的内容步 "Collect Review Context" 调的是 **MainDev depot** 的 `Tools/AiReview/AiReviewContextCollect.py`（本机 `D:\MainDev`），不在 DevOps 仓——ws:autoserver-deveops 的 AI review 故障可能要改 MainDev 文件。`STREAM_MISMATCH` 报错出自其 `collect_diff()`。**2026-09 起混合 stream CL 不再硬失败**：目标 stream 外文件不进 diff、只在 diff 头部记 SKIPPED 节（列前 20 条；实测 CL 130205 目标 MainDev 时 Wwise 的 a.cpp 被跳过），整 CL 都在目标 stream 外才 exit 3。上游 Unshelve 的混合 CL 映射与基线校验边界见 [FlowAiReview 参考](references/flow-aireview-pipeline.md)。
+PLN_TaskAiReview 的内容步 "Collect Review Context" 调的是 **MainDev depot** 的 `Tools/AiReview/AiReviewContextCollect.py`（本机 `D:\MainDev`），不在 DevOps 仓——ws:autoserver-deveops 的 AI review 故障可能要改 MainDev 文件。`STREAM_MISMATCH` 报错出自其 `collect_diff()`。**2026-09 起混合 stream CL 不再硬失败**：目标 stream 外文件不进 diff、只在 diff 头部记 SKIPPED 节（列前 20 条；实测 CL 130205 目标 MainDev 时 Wwise 的 a.cpp 被跳过），整 CL 都在目标 stream 外才 exit 3。注意该实测早于 MergeGate（CL 130496）引入：此后含 client view 外文件的混合 CL 会先被 MergeGate 拦下 exit 6（skipped_out_of_view 未被门禁消费），走不到 SKIPPED 路径。定版契约：workspace 保持 MainDev 不迁 MainDev_Wwise，视图外文件属预期并由门禁容忍——见 pyauto-aireview/references/review-toolchain.md §2；修复 pending CL 133315（提交前线上仍 exit 6）。上游 Unshelve 的混合 CL 映射与基线校验边界见 [FlowAiReview 参考](references/flow-aireview-pipeline.md)。
 </memory>
 <memory category="troubleshooting">
 PLN_TaskAiReview 观测性两个结构性事实（build 18399 实证，2026-09）：
