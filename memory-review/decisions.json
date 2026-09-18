@@ -1,40 +1,114 @@
 {
-  "removals": [
-    {
-      "review_id": "01a06cc1-3b9e-788f-a21a-db6e301708ec",
-      "entities": [],
-      "edges": [
-        {"source": "kid-learning-journey", "name": "DECIDED", "target": "女儿"},
-        {"source": "kid-learning-journey", "name": "DECIDED", "target": "家长开发者"}
-      ]
-    }
-  ],
-  "approvals": [
-    {"review_id": "01a06cde-fcf0-7a6f-9068-66e2ec7ee675", "content_mode": "curated",
-     "rationale": "auto-review: 预览4实体3边均有正文支撑（flask/vue-ts技术栈、ABC三原型）；novelty=evolution（文档迁移+原型落地）"},
-    {"review_id": "01a06cd7-55f2-7678-8ab4-1b55c3e9d98c", "content_mode": "curated",
-     "rationale": "auto-review: 综合方案6边全部有正文支撑（person一等公民、状态机、语录链、边界裁定）；novelty=evolution REFINES"},
-    {"review_id": "01a06ccb-d31f-7781-bfa8-1522e068d1ad", "content_mode": "curated",
-     "rationale": "auto-review: checklist/脚本/A-B-C判定7边均与正文一致，引用关系（drift-audit.md）准确；novelty=evolution"},
-    {"review_id": "01a06cc4-97b3-71dc-9a7f-c51a8eff2f25", "content_mode": "curated",
-     "rationale": "auto-review: 轻游戏化+性能预算8边fact均有正文支撑；3条边端点未入实体表但fact文本自足，curated渲染无碍；novelty=evolution"},
-    {"review_id": "01a06cc1-3b9e-788f-a21a-db6e301708ec", "content_mode": "curated",
-     "rationale": "auto-review: v0.2定案事实准确；已remove 4条target错挂Person的DECIDED边（2个三元组），余9边准确；novelty=evolution"},
-    {"review_id": "01a06cba-93cd-7570-af35-69d44a8e6298", "content_mode": "curated",
-     "rationale": "auto-review: 平台与hub分层/伪名user/P0缺口8边均有正文支撑；novelty=evolution"},
-    {"review_id": "01a06cb3-44f4-7c80-a897-84fa73068e56", "content_mode": "curated",
-     "rationale": "auto-review: 首版方案6边准确（受约束AI教练、错题闭环、restx契约顾虑）；novelty=novel"},
-    {"review_id": "01a06ca9-209a-76fe-8161-dd143c1f11b6", "content_mode": "curated",
-     "rationale": "auto-review: codex技能目录预算2边与正文一致（10000上限、禁重复副本、重启生效）；novelty=evolution"},
-    {"review_id": "01a06c97-dbaf-7477-9326-77f5460e0592", "content_mode": "curated",
-     "rationale": "auto-review: orca实体是正文真实主题（Settings Arguments配置）非模板污染；3边准确；novelty=evolution"},
-    {"review_id": "01a06c92-db24-7edd-9a69-7b62594c1e48", "content_mode": "curated",
-     "rationale": "auto-review: P4并行隔离6边全部有正文支撑，预览正确忽略正文开头的Orca派发模板；novelty=evolution"},
-    {"review_id": "01a06c79-271f-7663-83c5-1657bb7d0105", "content_mode": "curated",
-     "rationale": "auto-review: 漏洞A/B修复机制8边准确；尾部CL1472待提交为短期状态但主体是长期机制知识且预览未抽取该部分；novelty=evolution SUPERSEDES"}
-  ],
-  "rejections": [
-    {"review_id": "01a06c78-c047-7d8c-9427-b1059375c838",
-     "rationale": "auto-review（人工确认）: worker侧会话，预览整体为Orca派发模板污染（只抽出orca+worker_done约定，修复内容零抽取）；正文有效内容与同批01a06c79完全重复且后者保真度更高，无独立长期价值"}
-  ]
+ "removals": [],
+ "approvals": [
+  {
+   "review_id": "01a0b2c8-b2a4-7441-8272-622ccbf47594",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:27f1fd3b72e48becf0198f9084cb66b217e2b08a9a27d67b06dc0df79ad30f96",
+   "rationale": "auto-review: skill-harvest 过滤规则与 perforce 服务实体均有正文支撑，边 fact 与蒸馏文一致；novelty=novel"
+  },
+  {
+   "review_id": "01a0b288-7fd1-786f-a02d-6eb131435d8e",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:7b399e46cc61ff5438660ac38627054dbb47956d47aa14b384290b5618c3a9c0",
+   "rationale": "auto-review: recall 三层审计实体与 3 条边均有正文支撑，未确认建议已如实标注；novelty=novel"
+  },
+  {
+   "review_id": "01a0b286-7a48-7dac-9080-0b6575b16b99",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:174a92b10e983c560c469b482b465fad7c6cc6ba5c4d64f4dc23fd5566d421e3",
+   "rationale": "auto-review: ue-launcher 清理策略实体/边与正文一致；novelty=novel"
+  },
+  {
+   "review_id": "01a0b26f-439a-7e2f-a3a8-01fbc40f3111",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:7f378c66dec342ff602ef0adc6f67ec581ef62a3c7ef143cf0277783b229284b",
+   "rationale": "auto-review: $dst: 驱动器限定变量坑与 kts 修复事实均有正文支撑；novelty=novel"
+  },
+  {
+   "review_id": "01a0b268-d345-74e9-bb7b-4f87eca0f953",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:2421829d6fac20856d044acfa302123ba3c1f29554c27b54e43b0b4945413e86",
+   "rationale": "auto-review: P4 sync strict 移除决策与 up-to-date 日志行为均有正文支撑，SUPERSEDES 演进链可见；novelty=evolution"
+  },
+  {
+   "review_id": "01a0b263-d1b6-7291-b9ef-b7f280cc9f32",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:a156cbb51e898b199fbc8348fb95a918b37f4abca6a54d6cace31390f622be29",
+   "rationale": "auto-review: 两样本对比与 task-grounded-hints 归因均有正文支撑，未确认方向如实标注；novelty=evolution"
+  },
+  {
+   "review_id": "01a0b258-e76b-74da-ad05-09d60ebd8431",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:93ec2631bda867fbe607f9b3f16921cdd7e2c9b42081918a3e1cabcd99983c76",
+   "rationale": "auto-review: recall 范围过滤决策与通用排障本地化约定有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a0b1ea-d3c4-7e4e-a92d-6441a3a3a7f1",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:d5f044eb2aef6d33d40ac5962b502c2cc1a8fefb9e6e778fb38cb4cb7770e08b",
+   "rationale": "auto-review: 4000 字符预算与关联导航机制均有正文支撑，未达标部分如实保留；novelty=novel"
+  },
+  {
+   "review_id": "01a0b1e9-a64e-70b8-b976-2235404835ba",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:5dfd217fa71edd745be3ff8eaa609da72b5408aa583db80ebe14ed31ab4713ba",
+   "rationale": "auto-review: @CYANCOOK 约定与 async-stepout-fix 单函数方案均有正文支撑，待批准状态如实标注；novelty=evolution"
+  },
+  {
+   "review_id": "01a0b1e1-8f0f-7cbe-b421-b468dca862df",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:f9c03c1bffc71da4e66f783e43167635ddaa7bf4c4ca523be48819dc11c5835f",
+   "rationale": "auto-review: notify_subscribers 开关移除决策与验证结果均有正文支撑；novelty=novel"
+  },
+  {
+   "review_id": "01a0aedb-a6a2-78c7-bb56-c7af5cadc786",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:56c4a4c0cfa5070e49c7e5cf12182357ab24c22c4e70e83b6acfcd05219493d4",
+   "rationale": "auto-review: plan-review-gate 工作流与 @CYANCOOK 标注约定有正文支撑；novelty=novel"
+  },
+  {
+   "review_id": "01a0b318-a5f1-71d4-92ce-c82e1e193bf3",
+   "content_mode": "original",
+   "snapshot_token": "rs1:fea886639c6bf424a1a612ab572f1524b6118624b22389cfd2067c3c17092f98",
+   "rationale": "auto-review: 预览薄（2实体0边）但蒸馏文含构建免审批新策略与 StepOver 实测结果；novelty=evolution，按 original 保留原文"
+  },
+  {
+   "review_id": "01a0b312-1e91-7027-a47a-99d9118844a0",
+   "content_mode": "original",
+   "snapshot_token": "rs1:435abb990f01bd9345455c8343e688a416711808ceb69a836d8559414c1d9602",
+   "rationale": "auto-review: 预览薄（1实体0边）但蒸馏文含规范与用户手动构建通过事实；novelty=evolution，按 original 保留原文"
+  },
+  {
+   "review_id": "01a0b287-b03c-7dd9-93ac-303bcd9175ab",
+   "content_mode": "original",
+   "snapshot_token": "rs1:6afc57c5b19a4d137879362e78a0c737dc79e102c90d64d281bd96df7781a714",
+   "rationale": "auto-review: 预览薄（1实体0边）但流水线不可断点续跑结论有长期价值；novelty=evolution，按 original 保留原文"
+  },
+  {
+   "review_id": "01a0b1c4-b174-7fd6-95b4-418bbc18bd52",
+   "content_mode": "original",
+   "snapshot_token": "rs1:128c48f98d1ea243296c9101d3619941b57d04cb1b1e3c94b6c374bbf37c7a01",
+   "rationale": "auto-review: 预览薄（2实体0边）但 B1 阶段 StepWatch 失败与互审状态有长期价值；novelty=evolution，按 original 保留原文"
+  },
+  {
+   "review_id": "01a0b1c1-9282-7047-8980-a7d24efb0d4f",
+   "content_mode": "original",
+   "snapshot_token": "rs1:07c0c276657277220a287045cf9ecef2776131665a41aca87531cde505a48c49",
+   "rationale": "auto-review: 预览薄（2实体0边）但 P4SyncWorkspace/P4Util 改动状态有长期价值；novelty=evolution，按 original 保留原文"
+  },
+  {
+   "review_id": "01a0b2ee-5ec5-7c07-a315-4d2e2d0862f5",
+   "content_mode": "original",
+   "snapshot_token": "rs1:5219d810a8b6f43bb2118d86e277d71031c4835dc27d9b59bccc1357ebe97744",
+   "rationale": "auto-review: preview_failed(attempts=3) 预览不可用，但蒸馏正文为 2026-09-17 日蒸馏成果摘要，含多条长期经验，按 original 跳过预览批准"
+  },
+  {
+   "review_id": "01a0adf9-e17e-776a-a83a-ab2f1721c7ce",
+   "content_mode": "original",
+   "snapshot_token": "rs1:cde7e1bf337346c4daa6fa87e341f1a3f3de3f2c4f672ae6b838e107011d09c2",
+   "rationale": "auto-review: preview_failed(attempts=3) 预览不可用，但正文含异步测试文件守卫方向与保留/清理判定，有长期价值，按 original 跳过预览批准"
+  }
+ ],
+ "rejections": []
 }

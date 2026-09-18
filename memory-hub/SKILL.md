@@ -130,6 +130,7 @@ Memory Hub“做梦/图谱健康审计”必须按“SQLite 权威账本 → Gra
 同义实体碎片（`memory-hub`/`memory_hub`/`Memory Hub` 多变体并存、事实边分散在各节点）的定点合并走服务端图谱修订管线。推荐 `POST /api/v1/graph/edits` 显式指定 `merge_into_uuid`：先 `dry_run` 获取 `snapshot_hash`，确认执行时以 `expected_snapshot_hash` 锁定完整图状态。
 合并会把源节点事实边迁移到 canonical（同名同端点边合并、episodes 去重）、迁移 episode MENTIONS，并丢弃源↔目标合并形成的自环；全程不调 LLM。**节点摘要不会自动拼接或重总结**：默认保留目标 summary、源 summary 随源节点删除，选 canonical 时须同时核对摘要，必要时在 merge 请求中显式提供目标 summary。
 合并不可自动撤销，但全部落 `graph_edits` 审计（before 快照支持人工回滚）；合法子实体（文件/环境变量/专题节点）不要合并，跨物理 group 也不能合并。权威文档 `docs/GRAPH_CURATION.md`。合并只是时点修复——归一化缺陷不除变体会再生（根因见 memory-review 记录的 `_normalize_extraction`）。
+执行侧三条行为契约（2026-09-18 实证）：① **preview 实体名 ≠ 图谱实际节点**——curated 预览的变体名经 Graphiti 写入侧 LLM 解析多数不落图（被归并进既有 canonical），规划 merge 前必须用 BFF `?q=<精确名>` 钉入逐个核实实际节点与连接面，禁止照 preview 清单执行。② `expected_source` 逐字段字面比对：BFF `exclude_none` 会剥掉 None 字段，服务端按「该字段应为 null」比对，实际非空即必撞 STALE_PRECONDITION；要么传完整 verbatim，要么整个省略（snapshot_hash 已是主守卫）。③ family 聚合视图的节点 payload 不含 group_id，同名 canonical 可能每物理组各一个，跨组判定只能用 dry_run 的 409 GROUP_MISMATCH 探测。
 </memory>
 
 <memory category="troubleshooting">
