@@ -50,7 +50,6 @@ Dashboard 抽取审核在手机竖屏上以信息完整性优先：实体、边�
 </memory>
 
 ## 按场景导航（references/）
-
 | 场景 | 文件 |
 |------|------|
 | 服务端部署/启动/重启/备份/自启/身份迁移/内容清洗与图谱重建 | [references/deploy.md](references/deploy.md) |
