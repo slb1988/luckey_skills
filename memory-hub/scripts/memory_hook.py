@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from recall_query import build_recall_query, QUERY_MAX_CHARS
-from recall_feedback import record_feedback, replay_feedback
+from recall_feedback import record_feedback, replay_feedback, augment_query, remember_approved_navigation
 from session_messages import (
     chat_hub_project_for_speakers,
     chat_hub_speaker_note,
@@ -3132,7 +3132,12 @@ def rendered_context_stats(audit: Optional[Dict[str, Any]], context: str, inject
 def command_recall_feedback(args: argparse.Namespace, config: Config) -> int:
     """Explicit local observations; not memory writes, ratings, or automatic admission."""
     try:
+        profile = request_user_profile(config)
+        if not profile_is_ready(profile):
+            raise ValueError("client identity required to own feedback hints")
         record = record_feedback(config.state_dir, {
+            "user_id": profile.user_id, "origin": "explicit_observation",
+            "source_project_ids": [args.project],
             "project_id": args.project, "query": args.query, "retrieval_id": args.retrieval_id,
             "note": args.note, "outcome": args.outcome, "actor": args.actor,
             "expected_signals": args.expected_signal, "expected_navigation": args.expected_navigation,
@@ -3142,6 +3147,25 @@ def command_recall_feedback(args: argparse.Namespace, config: Config) -> int:
     except (ValueError, OSError) as error:
         print("recall feedback failed: %s" % type(error).__name__, file=sys.stderr)
         return 1
+
+
+def prepare_feedback_query(config: Config, project_id: str, user_id: str, query: str,
+                           referenced_projects: List[str]) -> Tuple[str, Dict[str, Any]]:
+    try:
+        return augment_query(config.state_dir, project_id=project_id, user_id=user_id, query=query,
+                             referenced_projects=referenced_projects, workspace_projects=workspace_memory_projects())
+    except (OSError, ValueError, TypeError, KeyError):
+        return query, {"query_changed": False, "error": "feedback_hint_unavailable"}
+
+
+def remember_recall_navigation(config: Config, project_id: str, user_id: str,
+                               query: str, response: Dict[str, Any], context: str) -> Dict[str, Any]:
+    try:
+        ids = remember_approved_navigation(config.state_dir, project_id=project_id, user_id=user_id,
+                                           query=query, response=response, context=context)
+        return {"recorded_ids": ids, "trigger": "approved_navigation_observed", "outcome": "unverified"}
+    except (OSError, ValueError, TypeError, KeyError):
+        return {"recorded_ids": [], "error": "feedback_persistence_unavailable"}
 
 
 def command_search(args: argparse.Namespace, config: Config) -> int:
@@ -3170,6 +3194,11 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             project_id,
             getattr(args, "referenced_project", None),
         )
+        original_query = args.query
+        args.query, feedback_hints = prepare_feedback_query(
+            config, project_id, profile.user_id, original_query, referenced_projects
+        )
+        query_stats.update({"pre_hint_query_chars": len(original_query), "query_chars": len(args.query)})
         # 在线召回包含同步 LLM 审核，不能沿用 capture/upload 的 8 秒网络预算。
         response = HubClient(
             replace(config, timeout_seconds=ONLINE_SEARCH_TIMEOUT_SECONDS)
@@ -3217,7 +3246,9 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             "query_chars": len(args.query),
             "query_max_chars": QUERY_MAX_CHARS,
             "query_stats": query_stats,
-            "feedback_checks": replay_feedback(config.state_dir, project_id=project_id, query=args.query, context=context),
+            "feedback_hints": feedback_hints,
+            "feedback_checks": replay_feedback(config.state_dir, project_id=project_id, user_id=profile.user_id, query=args.query, context=context),
+            "feedback_capture": remember_recall_navigation(config, project_id, profile.user_id, original_query, response, context),
             "referenced_projects": referenced_projects,
             "scope": scope,
             "injected": injected_count,
@@ -3411,6 +3442,9 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
         _gc_recall_markers(config)
         query, query_stats = build_recall_query(focused, hint)
         referenced_projects = extract_referenced_project_ids(query, project_id)
+        original_query = query
+        query, feedback_hints = prepare_feedback_query(config, project_id, profile.user_id, query, referenced_projects)
+        query_stats.update({"pre_hint_query_chars": len(original_query), "query_chars": len(query)})
         client = HubClient(
             replace(config, timeout_seconds=args.timeout_seconds)
         )
@@ -3445,7 +3479,9 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
             if isinstance(item, dict) and isinstance(item.get("result_id"), str)
         }
         actual_stats = rendered_context_stats(audit, recalled, injected_count)
-        feedback_checks = replay_feedback(config.state_dir, project_id=project_id, query=query, context=recalled)
+        feedback_checks = replay_feedback(config.state_dir, project_id=project_id, user_id=profile.user_id, query=query, context=recalled)
+        actual_stats.update({"feedback_hints": feedback_hints,
+                            "feedback_capture": remember_recall_navigation(config, project_id, profile.user_id, original_query, response, recalled)})
         if recalled:
             quality = response.get("quality")
             if isinstance(quality, dict):

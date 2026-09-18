@@ -212,12 +212,27 @@ python "$SKILL_DIR/scripts/memory_hook.py" recall-feedback \
   --expected-navigation '<已见来源中的完整路径>'
 ```
 
-记录 fsync 到 state dir `recall-feedback.jsonl`；同 project 的后续相似 search/recall 自动在本地复核
-query 信号与实际 context 导航是否出现，结果写 `context_stats.feedback_checks` / hook trace / recall
-结果文件，最多匹配 8 条、读取尾部 1 MiB，不增加远端检索。`unverified` 是默认，不把未访问/未点击当
-无用，`helpful/unhelpful` 只能显式报告；agent/human 来源区分，出现路径也不代表验证成功。
-这是 evaluation-only 反馈，**不注入、不调分、不扩 scope、不自动入库批准**。新导航知识仍走普通记忆
-审核，不能为补结果把本地反馈当作已批准记忆；逐记忆人工评分仍复用 `feedback --rating` / Hub feedback/2。
+记录 fsync 到 state dir `recall-feedback.jsonl`；新记录为 `recall-feedback/2`，绑定当前配置的 user_id，
+未绑定用户的旧 v1 条目仍只作审计，不能自动归给下一位登录用户。`unverified` 是默认，不把未访问/未点击
+当无用；`helpful/unhelpful` 只能显式报告，最新显式结果只影响同类任务的定位提示，不全局否定记忆。
+
+**真实消费通路（仅共享 Python 改动，Pi 保持 v33）**：
+- 发请求前，`command_search` / `command_recall` 从当前用户、同 project 的相似任务反馈中选择最多两条、
+  合计最多 400 字符的完整路径/ws 定位符，追加到 `上下文` 中并标为「未验证，仅找候选」；不复制旧结论。
+  任务/显式 scope 先解析再加提示，总 query 仍≤4000 字符，只压缩日志而不裁切路径；无安全余量则跳过。
+  来源 project 必须在本轮 current + 调用者显式 referenced 内，工作区映射只读，不自动扩 scope/改 aliases。
+  提示会真实参与 Hub FTS/候选检索，**不是事后统计**；仍只有一次检索请求，ACL、批准内容和 A/B 原文门禁不变。
+- 成功召回后，自动从**实际渲染、approved 层证据及其 provenance**中保存逐字可核验的导航定位符，记为
+  `origin=approved_navigation_observed/outcome=unverified`；无有效上下文、非 approved、未呈现或源中无路径
+  不写。相同导航与证据版本去重，重复出现不升级可信度；下次相似任务无需开发者手工追加即可消费。
+  自动记录仅证明历史证据包含此定位符，不证明当前文件存在、已点击、有用或根因已确认。
+- 后置验收仍复核 query 信号与实际 context 导航，结果写 `context_stats.feedback_checks`；新增
+  `feedback_hints`（实际采用ID/定位符/是否改变query）与 `feedback_capture`（自动记录ID/失败）供审计。
+  本地扫描最多尾部1 MiB/8条匹配，持久化失败不阻断有效召回；状态文件不自动同步其他机器。
+
+这是**检索提示复用，不是模型训练或事实学习**：反馈正文不直接进入最终 context、不绕过人工批准，未批准/
+新发现的导航仍须正常归档审核；旧观察只能显式归属当前用户后作低信任查询提示。逐记忆人工评分仍复用
+`feedback --rating` / Hub feedback/2，自动观察不产生负面评分。
 `memory-hub/tests/fixtures/recall_prepare_package.json` + `test_recall_navigation.py` 固化本次回归信号与
 导航来源；它是离线协议样本，不是线上排名/根因 baseline。真实首问可设置 `RECALL_SAMPLE_PROMPT` 指向
 本地提取的 prompt 后运行客户端 `scripts/tests/test_recall_navigation.py`，同时验证 Pi/共享 Python。
