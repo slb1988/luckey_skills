@@ -59,7 +59,7 @@ Always read the reference file before acting — it contains the actual paths, p
 | Non-obvious traps（含构建日志清理范围与 ZFS 空间口径） | [references/gotchas.md](references/gotchas.md) |
 | 打包管线 (PL_BuildProjectWindows / PL_BuildUgsBinaries / UAT cook) | `references/package-pipeline.md` |
 | Checkout 目录自动清理事故 (DirectoryMap cleaner, 192h expiry) | `references/checkout-dir-auto-clean.md` |
-| 构建失败排障（Sync 固定基线校验、UBT mutex）与重编归因（Linux/Windows 链全量重编、增量缓存健康判定） | `references/troubleshooting.md` |
+| 构建失败排障（Copy Cook Logs / PowerShell 插值、Sync 固定基线校验、UBT mutex）与重编归因（Linux/Windows 链全量重编、增量缓存健康判定） | `references/troubleshooting.md` |
 | FlowAiReview 管线耗时画像与瓶颈、编译失败归因（sync HEAD 语义 / adaptive unity 盲区 / workspace reset 机制）、后端 busy 门（设计根因 TC 无链级互斥/取单公平性）与降级放行缺陷、unshelve 独占锁、unshelve 吞他人提交（have 回退 + `resolve -am` 空跑/假成功，须 `resolve -N` 复查）、队列停摆诊断 | `references/flow-aireview-pipeline.md` |
 | TaskAiReview 失败通知链路（TeamCityLogParserInformer 归因/路由语义、latestCL vs unshelve CL 身份陷阱） | `references/task-aireview-notification.md` |
 | AiReview 工具链本地模拟测试（Collect/Runner/Publish 分工、Runner cwd 硬性前置、copyfile SameFileError 根因） | `references/aireview-local-test.md` |
