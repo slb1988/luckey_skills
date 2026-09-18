@@ -148,7 +148,7 @@ CodeGraph 的 Linux 编译链独立保留。同机组靠 snapshot 边取兼容�
 </memory>
 
 <memory category="code-locations">
-PLN_TaskAiReview 的内容步 "Collect Review Context" 调的是 **MainDev depot** 的 `Tools/AiReview/AiReviewContextCollect.py`（本机 `D:\MainDev`），不在 DevOps 仓——ws:autoserver-deveops 的 AI review 故障可能要改 MainDev 文件。`STREAM_MISMATCH` 报错出自其 `collect_diff()`。**2026-09 起混合 stream CL 不再硬失败**：目标 stream 外文件不进 diff、只在 diff 头部记 SKIPPED 节（列前 20 条；实测 CL 130205 目标 MainDev 时 Wwise 的 a.cpp 被跳过），整 CL 都在目标 stream 外才 exit 3。注意该实测早于 MergeGate（CL 130496）引入：此后含 client view 外文件的混合 CL 会先被 MergeGate 拦下 exit 6（skipped_out_of_view 未被门禁消费），走不到 SKIPPED 路径。定版契约：workspace 保持 MainDev 不迁 MainDev_Wwise，视图外文件属预期并由门禁容忍——见 pyauto-aireview/references/review-toolchain.md §2；修复 pending CL 133315（提交前线上仍 exit 6）。上游 Unshelve 的混合 CL 映射与基线校验边界见 [FlowAiReview 参考](references/flow-aireview-pipeline.md)。
+PLN_TaskAiReview 的 AI Review 工具链现居 **DevOps depot** `DevOps/AiReview/`（ws:autoserver-deveops，本机 `D:\work\admin_sun_depot_7184`）——Task_AiReview 经 Resolve DevOps Toolchain Root 同步后以 devops_root 绝对路径调用；MainDev `Tools/AiReview/` 旧副本废弃删除中。`STREAM_MISMATCH` 报错出自 `AiReviewContextCollect.py`。**2026-09 起混合 stream CL 不再硬失败**：目标 stream 外文件不进 diff、只在 diff 头部记 SKIPPED 节（列前 20 条；实测 CL 130205 目标 MainDev 时 Wwise 的 a.cpp 被跳过），整 CL 都在目标 stream 外才 exit 3。注意该实测早于 MergeGate（CL 130496）引入：此后含 client view 外文件的混合 CL 会先被 MergeGate 拦下 exit 6（skipped_out_of_view 未被门禁消费），走不到 SKIPPED 路径。定版契约：workspace 保持 MainDev 不迁 MainDev_Wwise，视图外文件属预期并由门禁容忍——见 pyauto-aireview/references/review-toolchain.md §2；修复 pending DevOps CL 1796（提交前线上仍 exit 6）。上游 Unshelve 的混合 CL 映射与基线校验边界见 [FlowAiReview 参考](references/flow-aireview-pipeline.md)。
 </memory>
 <memory category="troubleshooting">
 PLN_TaskAiReview 观测性两个结构性事实（build 18399 实证，2026-09）：
@@ -157,7 +157,7 @@ PLN_TaskAiReview 观测性两个结构性事实（build 18399 实证，2026-09�
 </memory>
 
 <memory category="troubleshooting">
-AI 评审看不到 warning 的采集侧根因（2026-10 查明）：MainDev `Tools/AiReview/AiReviewContextCollect.py` 的 `LOG_ERROR_RE` 只匹配 `error|fatal|failed`，**不含 warning**——`build_log_tail.txt` 结构性漏掉全部警告（informer PREVIEW 里仅 `Summary: 0 Errors, N Warnings` 这行碰巧命中 error 关键字，正文全漏）。只在构建里加 warning 分析没用，AI 侧必须走独立报告文件通道；不要把 warning 扩进 `LOG_ERROR_RE`——tail 有 50KB cap，warning 量大反而挤占 error。
+AI 评审看不到 warning 的采集侧根因（2026-10 查明）：`DevOps/AiReview/AiReviewContextCollect.py`（DevOps depot）的 `LOG_ERROR_RE` 只匹配 `error|fatal|failed`，**不含 warning**——`build_log_tail.txt` 结构性漏掉全部警告（informer PREVIEW 里仅 `Summary: 0 Errors, N Warnings` 这行碰巧命中 error 关键字，正文全漏）。只在构建里加 warning 分析没用，AI 侧必须走独立报告文件通道；不要把 warning 扩进 `LOG_ERROR_RE`——tail 有 50KB cap，warning 量大反而挤占 error。
 </memory>
 
 <memory category="code-locations">
@@ -169,7 +169,7 @@ TaskAiReview 的"停用"实为占位放行（2026-09 核实）：`paused=false`�
 </memory>
 
 <memory category="code-locations">
-TaskAiReview 旁路/开关设计依赖的 Publish 契约（2026-10 读码核实）：Publish 步脚本 `Tools/AiReview/AiReviewResultPublish.py`（MainDev）只校验 `pi_out.txt` 里 JSON 的 verdict ∈ {approve, reject, needs_discussion}，并强制覆盖 cl/stream/url 元数据——占位 verdict=approve 的 pi_out.txt 与真实评审输出走完全相同的已验证解析发布路径。因此加 review/bypass 模式开关只需在 Pi_Agent_Review 步内分支（bypass 写占位 pi_out.txt 后 exit 0），Publish/Collect/Cleanup 零改动；开关做成 select 参数时，TC UI 改参数值（patches 模式）或 Run Custom Build 覆盖即时生效，回滚不需要紧急 P4 提交。
+TaskAiReview 旁路/开关设计依赖的 Publish 契约（2026-10 读码核实）：Publish 步脚本 `DevOps/AiReview/AiReviewResultPublish.py`（DevOps depot）只校验 `pi_out.txt` 里 JSON 的 verdict ∈ {approve, reject, needs_discussion}，并强制覆盖 cl/stream/url 元数据——占位 verdict=approve 的 pi_out.txt 与真实评审输出走完全相同的已验证解析发布路径。因此加 review/bypass 模式开关只需在 Pi_Agent_Review 步内分支（bypass 写占位 pi_out.txt 后 exit 0），Publish/Collect/Cleanup 零改动；开关做成 select 参数时，TC UI 改参数值（patches 模式）或 Run Custom Build 覆盖即时生效，回滚不需要紧急 P4 提交。
 </memory>
 
 <memory category="troubleshooting">

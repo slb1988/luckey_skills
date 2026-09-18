@@ -1,13 +1,13 @@
 # AI Review 工具链
 
-本文以职责和契约组织；工具所在仓由实际 Task 三入口决定。传统入口是 MainDev `Tools/AiReview`；迁到 DevOps 时必须区分工具根、被审根、规则根和产物根，不能机械替换所有 MainDev 路径。入口核验见 [路由](workspace-agent-routing.md)。
+本文以职责和契约组织。现行入口是 DevOps `DevOps/AiReview/`（`//depot/DevOps/`，ws:autoserver-deveops）——Task_AiReview 经 Resolve DevOps Toolchain Root 同步后以 devops_root 绝对路径调用；MainDev `Tools/AiReview/` 旧副本已废弃（删除中），业务 `pl-review` 规则仍留 MainDev。仍须区分工具根、被审根、规则根和产物根，不能机械替换路径。入口核验见 [路由](workspace-agent-routing.md)。
 
 ## 1. 所有权与文件图
 
-当 Task 执行 `Tools/AiReview` 时，源码归 `ws:maindev`；只有实际入口切换到受信 `DevOps/AiReview` 后，工具源码才归 `ws:autoserver-deveops`。业务 `pl-review` 仍留 MainDev。典型工具包：
+工具源码归 `ws:autoserver-deveops`（`DevOps/AiReview/`）；被审对象与业务规则 `pl-review` 归 `ws:maindev`。典型工具包：
 
 ```text
-Tools/AiReview/
+DevOps/AiReview/
 ├── AiReviewContextCollect.py
 ├── AiReviewMergeGate.py
 ├── AiReviewRunner.py
@@ -48,7 +48,7 @@ Collect 不启动模型；本地“实际评审”入口是 Runner。Publish 不
 - MainDev + Wwise 混合 CL 的完整视图来自虚拟流 `//CyanCookOfficialDepot/MainDev_Wwise`：`share ...` 加 `import+ Main/WwiseProject/... //CyanCookOfficialDepot/WwiseProject_main/...`，Wwise 工程落在 workspace 的 `Main/WwiseProject/`。
 - 已确认的 Collect 故障根因（build 23434 / CL 133169）：评审 client `WinBuilder3_MainDev`（`E:\WinBuilder3_MainDev`）绑定裸 `MainDev`，缺少上述映射，5 个 Wwise 文件从未进入该 workspace 的 opened 状态。
 - `P4UnshelveStage` 可跳过视图外文件、记入 `skipped_out_of_view`，同时保留全量 `files` 并报告 `result=merged`；该成功状态不保证全 shelf 已 opened。MergeGate 对 `describe -S` 全量文件逐一要求 opened，会把这种范围差异升级成整链 exit 6。
-- 定版决策：stream 与 workspace 保持 MainDev，不做 MainDev_Wwise 迁移；其他 stream 文件不进 workspace 属预期，MergeGate 兼容此不一致——未 opened 行略过、manifest 保留条目（client_path=null）供模型看见完整 CL 范围、AiReviewDiff show 对其返回文件级 not_in_workspace；opened 文件的 action/type 一致性校验与证据绑定校验不变。修复在 pending CL 133315；提交并随 Sync 进评审 workspace 前，线上仍是 exit 6 旧行为。
+- 定版决策：stream 与 workspace 保持 MainDev，不做 MainDev_Wwise 迁移；其他 stream 文件不进 workspace 属预期，MergeGate 兼容此不一致——未 opened 行略过、manifest 保留条目（client_path=null）供模型看见完整 CL 范围、AiReviewDiff show 对其返回文件级 not_in_workspace；opened 文件的 action/type 一致性校验与证据绑定校验不变。修复在 DevOps pending CL 1796（MainDev CL 133315 已随工具链迁移作废）；提交并随 DevOps toolchain 同步进构建机前，线上仍是 exit 6 旧行为。
 </memory>
 
 <memory category="common-patterns">
@@ -243,7 +243,7 @@ Collect 失败不等于 AS warning 命中。已确认的误分类路径是 Publi
 
 已存在的保护：
 
-- Task 在执行前拒绝 shelf 修改 `Tools/AiReview/`；
+- Task 在执行前拒绝 shelf 修改 `Tools/AiReview/`（历史自卫条款：工具链已迁出被审 depot，shelf 无法再携带工具链，该 guard 只防旧时代 shelf）；
 - MergeGate 绑定本轮 CL/stream/client/baseline/build；
 - 模型元数据被 Publish 覆盖；
 - Pi 无 shell/P4/edit 工具；
@@ -266,7 +266,7 @@ Collect 失败不等于 AS warning 命中。已确认的误分类路径是 Publi
 测试入口：
 
 ```text
-python -m unittest discover -s Tools/AiReview/tests -v
+python -m unittest discover -s DevOps/AiReview/tests -v
 ```
 
 测试覆盖 fake Pi、loopback fake Hub、Collect/Runner/Publish、merge evidence；部分 merge 用例需要本机隔离 `p4d` 且只绑定 loopback。运行前确认 Python/P4Python/requests、Node 和 Pi 版本；无真实模型的测试不能证明 provider、凭证、VPN或 headless TeamCity 环境。

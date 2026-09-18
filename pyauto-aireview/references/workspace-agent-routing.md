@@ -2,7 +2,7 @@
 
 跨系统约定以 [pyauto-shared](../../pyauto-shared/references/common-practices.md#所有权与执行边界) 为准；此页保留 AI Review 的所有权与精确取证范围。
 
-工具迁移时先核生产/测试 Task 的 Collect、Runner、Publish 实际入口与工具 revision，区分受信工具根、MainDev 被审根和产物根。本地存在 `DevOps/AiReview` 或迁移计划不证明入口已切换，更不证明线上已生效。
+AI Review 执行链工具已迁入 `DevOps/AiReview/`（生产/测试 Task 的 Collect、Runner、Publish 均经 devops_root 绝对路径调用）；MainDev `Tools/AiReview/` 旧副本删除中。仍须区分受信工具根、MainDev 被审根和产物根；pending 修复不证明线上已生效。
 
 ## 1. 两种地址不是一回事
 
@@ -27,6 +27,7 @@
 - `DevOps/RequestReview.py`、Setup/分发；
 - `P4UnshelveStage.py`、Sync helper；
 - `TeamCityLogParserInformer.py`；
+- `DevOps/AiReview/**`（AI Review 执行链工具与测试）；
 - backend/frontend/DSL/RequestReview tests。
 
 这是 `//depot/` 的 P4 workspace，目标服务器为 Unicode；命令行要按该项目规则使用 `p4 -C utf8`。修改后建立独立中文描述 pending CL，不把文件留在 default CL。
@@ -47,7 +48,6 @@
 
 负责：
 
-- `Tools/AiReview/**`；
 - `.claude/skills/pl-review/**` 与目录模块规则；
 - MainDev 侧 Memory CI bundle和离线测试；
 - `SetupP4.bat` / 引擎侧 P4VUtils 接线（若实际文件在该 depot）。

@@ -12,7 +12,7 @@
 | Web 前端 | 申请、详情、diff、AI 报告、评论、决策和提交进度展示 | 只展示 API 投影，不是状态权威 |
 | pyAutomation backend | Review 状态机、AI/compile/submit job、回调、决策、通知、P4 对账 | Review、活动流和任务行 |
 | TeamCity | 同机执行 Sync、Unshelve/merge、Build/AS/报告、Pi 评审 | 具体 build、step 与 artifact |
-| MainDev `Tools/AiReview` | 校验合并证据、组装上下文、启动 Pi、校验并发布结果 | 本轮评审输入、session、manifest、result |
+| DevOps `DevOps/AiReview` | 校验合并证据、组装上下文、启动 Pi、校验并发布结果 | 本轮评审输入、session、manifest、result |
 | build-api-proxy / 模型上游 | Pi 与 backend fallback 的 LLM 调用 | 请求时延、错误和 token |
 | submit worker / P4 | 串行代提交、自动合并、未知结果对账、作者署名恢复 | P4 是否真实提交及最终 CL |
 | 飞书 | 评审、风险、失败、评论和提交通知 | 辅助通知；失败不改变业务状态 |

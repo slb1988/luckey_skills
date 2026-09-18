@@ -27,7 +27,6 @@
 
 ### `ws:maindev`
 
-- `Tools/AiReview/**`；
 - `pl-review`及模块规则；
 - Memory CI bundle；
 - MainDev工具测试。
@@ -93,8 +92,8 @@
 ### 5.2 MainDev 工具测试
 
 ```text
-cd <MainDev-root>
-python -m unittest discover -s Tools/AiReview/tests -v
+cd <DevOps-root>
+python -m unittest discover -s DevOps/AiReview/tests -v
 ```
 
 应覆盖：
@@ -155,7 +154,7 @@ fake Pi/Hub测试只证明本地逻辑，不证明真实模型、网络或构建
 
 1. TC agent name、host、服务账号、agent home；
 2. `NODE_WORKSPACE`、P4 client、Root/stream/owner；
-3. Tools/AiReview have/head与trusted guard；
+3. DevOps/AiReview have/head与工具链完整性；
 4. Python/P4/P4Python/requests/Node/Pi真实解析路径和版本；
 5. Runner的 `--`、extensions、turn guard和process tree；
 6. 模型 provider/model/base host与一次受控延迟，不输出key；
@@ -223,7 +222,7 @@ fake Pi/Hub测试只证明本地逻辑，不证明真实模型、网络或构建
 
 - backend语义 → 模块 `SKILL.md` / references；
 - TeamCity语义 → `Teamcity_PLN/SKILL.md` 或本 skill TeamCity reference；
-- MainDev脚本 → `Tools/AiReview/README.md` / 本 skill toolchain reference；
+- 工具链脚本 → `DevOps/AiReview/README.md` / 本 skill toolchain reference；
 - 跨系统稳定机制 → 本 `pyauto-aireview`；
 - 一次性事故/个人环境 → 个人memory，不污染共享skill。
 

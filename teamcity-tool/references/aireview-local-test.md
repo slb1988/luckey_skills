@@ -2,9 +2,9 @@
 
 ## 工具链分工与真正入口
 
-- `Tools/AiReview/AiReviewContextCollect.py`（MainDev depot）只**备料**：采集 diff、`build_log_tail.txt`、`build_log_analysis.txt` 等到 out_dir，不启动 AI。
-- `Tools/AiReview/AiReviewRunner.py` 才是**实际启动 Pi 分析的入口**——本地模拟评审跑的是它，不是 Collector。
-- `Tools/AiReview/AiReviewResultPublish.py` 只解析 `pi_out.txt` 发布 verdict（Publish 契约见 SKILL.md 对应 memory）。
+- `DevOps/AiReview/AiReviewContextCollect.py`（DevOps depot）只**备料**：采集 diff、`build_log_tail.txt`、`build_log_analysis.txt` 等到 out_dir，不启动 AI。
+- `DevOps/AiReview/AiReviewRunner.py` 才是**实际启动 Pi 分析的入口**——本地模拟评审跑的是它，不是 Collector。
+- `DevOps/AiReview/AiReviewResultPublish.py` 只解析 `pi_out.txt` 发布 verdict（Publish 契约见 SKILL.md 对应 memory）。
 
 ## 本地测试硬性前置
 

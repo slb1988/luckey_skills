@@ -91,7 +91,7 @@ AngelScript 检查与 C++ 编译是门禁证据。warning 不应全部塞进 50 
 当前步骤主线：
 
 1. **Resolve Workspace Root**：核对实际 P4 client 与 Root。
-2. **Collect Review Context**：运行 MainDev `Tools/AiReview/AiReviewContextCollect.py`；若 shelf 修改评审工具自身，trusted-source guard fail-closed。
+2. **Collect Review Context**：运行 DevOps `DevOps/AiReview/AiReviewContextCollect.py`（devops_root 同步）；若 shelf 修改评审工具自身，trusted-source guard fail-closed。
 3. **Pi Agent Review**：清本轮旧输出，按 `AI_REVIEW_MODE` 运行 `AiReviewRunner.py` 或显式 bypass。
 4. **Validate And Publish Result**：运行 `AiReviewResultPublish.py`，写 result 并尝试 callback。
 5. **Cleanup Workspace**：ALWAYS `p4 revert -w`。

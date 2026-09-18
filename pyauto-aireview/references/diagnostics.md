@@ -179,7 +179,7 @@ manifest区分：injected、timeout、401、quality rejected、empty。Memory超
 | Collect `STREAM_MISMATCH` | shelf完整文件集、target stream | 整单不含目标stream；mixed stream会skip外部文件 |
 | merge clean但代码像旧版 | merge_result、baseline、`resolve -N` | have回退、resolve空跑、证据不匹配 |
 | Unshelve秒挂 `exclusive file` | 失败文件、`p4 opened -a` | 作者client仍持有+l锁 |
-| Collect拒绝工具自身改动 | shelf是否打开`Tools/AiReview/` | self-modification guard，需人工受信流程 |
+| Collect拒绝工具自身改动 | shelf是否打开`Tools/AiReview/` | self-modification guard（历史副本遗留防护，工具链已迁 `DevOps/AiReview`），需人工受信流程 |
 | Review反复 fallback | callback非定案或没到、backend LLM | Pi error/skipped，fallback同故障域 |
 | approve后长时间approved | submit_progress/job/activity/P4 CL state | 队列、明确失败、manual_required、进程中断 |
 | 原CL missing | P4明确回执、filelog、actual submitted CL | rename成功、删除或未知；禁止猜最近CL |
