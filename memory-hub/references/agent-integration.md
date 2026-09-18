@@ -199,8 +199,8 @@ error/timeout 抛真正的 Pi 工具错误，取消保持独立。CLI `search --
 `MEMORY_HOOK_PI_BOOTSTRAP_MAX_CHARS` 只控制输出，不再把输入切成 1200 字前缀。Pi 与共享 Python
 recall 保留首行任务、标识、关键失败/traceback 完整行；超长日志显式标记省略，预算统计进入 trace。
 Hub 也须升级 nav1（取消内部 1024 前缀），否则仅升级客户端仍会丢检索尾部。最终正文不强行填满，
-不再按 240 字硬切单项；已证实事实与历史关联导航分栏，路径/ws 只能引用已批准证据，不能虚构当前
-存在性或根因。`context_stats.clue_items` 为实际注入条数，unknown 单列；来源数只计算实际采用来源。
+不再按 240 字硬切单项；已证实事实与历史关联导航分栏，路径/ws 按既有 approved/distilled 权威层
+引用证据，不能虚构当前存在性或根因；自动反馈记录仍单独要求 approved。`context_stats.clue_items` 为实际注入条数，unknown 单列；来源数只计算实际采用来源。
 
 显式效果反馈可运行（参数使用本轮真实值，禁止填写凭据）：
 
@@ -216,16 +216,20 @@ python "$SKILL_DIR/scripts/memory_hook.py" recall-feedback \
 未绑定用户的旧 v1 条目仍只作审计，不能自动归给下一位登录用户。`unverified` 是默认，不把未访问/未点击
 当无用；`helpful/unhelpful` 只能显式报告，最新显式结果只影响同类任务的定位提示，不全局否定记忆。
 
-**真实消费通路（仅共享 Python 改动，Pi 保持 v33）**：
-- 发请求前，`command_search` / `command_recall` 从当前用户、同 project 的相似任务反馈中选择最多两条、
-  合计最多 400 字符的完整路径/ws 定位符，追加到 `上下文` 中并标为「未验证，仅找候选」；不复制旧结论。
-  任务/显式 scope 先解析再加提示，总 query 仍≤4000 字符，只压缩日志而不裁切路径；无安全余量则跳过。
-  来源 project 必须在本轮 current + 调用者显式 referenced 内，工作区映射只读，不自动扩 scope/改 aliases。
-  提示会真实参与 Hub FTS/候选检索，**不是事后统计**；仍只有一次检索请求，ACL、批准内容和 A/B 原文门禁不变。
-- 成功召回后，自动从**实际渲染、approved 层证据及其 provenance**中保存逐字可核验的导航定位符，记为
-  `origin=approved_navigation_observed/outcome=unverified`；无有效上下文、非 approved、未呈现或源中无路径
-  不写。相同导航与证据版本去重，重复出现不升级可信度；下次相似任务无需开发者手工追加即可消费。
-  自动记录仅证明历史证据包含此定位符，不证明当前文件存在、已点击、有用或根因已确认。
+**task-grounded-hints/2 消费通路（共享 Python；服务端需 nav1-task1）**：
+- 发请求前，从当前用户/同 project 的相似任务反馈选择最多两条、合计最多 400 字符的完整路径/ws。
+  提示放在独立 `retrieval_hints`，不再追加 query；任务与提示总输入≤4000，无余量就跳过提示，不缩短任务。
+  来源 project 必须在 current + 显式 referenced 内；不扩 scope/改 aliases。服务端限定补查最多 2 个候选，
+  仍经权威内容/ACL/A/B 门；提示不得用于证明相关性、改 intent/槽位或 query_hash。
+- 实际渲染的 approved 证据若获 A/B `task_relevance.kind=task_detail`，两侧任务/证据引用都能核验，才
+  自动保存 `origin=task_navigation_observed/outcome=unverified`。不要求共有字面词，不把方法标签一刀切排除；
+  但通用排障原则不是具体任务知识，method_request 不自动学习。历史目录入口可以 related，不能升为脚本位置/根因。
+  distilled 导航保留原召回契约，但不自动写反馈；去重、approved/provenance/实际呈现门不变。
+- 旧 `approved_navigation_observed` 及缺少 A/B 任务关系的 agent 手工观察只留审计，query/expected_signals
+  相似不能证明其导航相关；具体相关的新自动观察及用户显式导航反馈仍可在下一相似任务消费。
+  人工 task-specific `unhelpful` 优先于 agent 重复观察；可用 `recall-feedback --actor human --outcome unhelpful
+  --invalidates-feedback <ID>` 追加拥有者纠正（可重复参数），旧条目保留并显示 invalidated_by，不删除 ledger/个人方法。
+  这不是全局文件黑名单；显式用户直接询问该方法仍可正常召回。
 - 后置验收仍复核 query 信号与实际 context 导航，结果写 `context_stats.feedback_checks`；新增
   `feedback_hints`（实际采用ID/定位符/是否改变query）与 `feedback_capture`（自动记录ID/失败）供审计。
   本地扫描最多尾部1 MiB/8条匹配，持久化失败不阻断有效召回；状态文件不自动同步其他机器。
@@ -254,6 +258,19 @@ notification 显示 `候选 · LLM 放行 · 精炼线索 · 来源记忆 · 字
 前端只看 Hub 聚合 `quality`、客户端 `context_stats` 与最终上下文，不展示 LLM 理由、冲突字段或被拒候选；
 提示失败不影响 agent。新 session 会清理上一 session 的残留状态。Claude/Codex 暂无同等扩展 UI，
 `UserPromptSubmit` 注入头部同样区分候选、放行、线索和来源数。
+
+**v34 原始输入审计**：Pi `input` 事件在 skill/template 展开前捕获文本（interactive/rpc），仅经 stdin
+`search --audit-prompt-stdin` 送本机 Python，绝不使用 systemPrompt、profile、skills 或工具 query 冒充原文。
+首轮与同回合手工 search 都可留原 prompt；重载后没有输入事件的调用明确标为未记录，不从摘要复原。
+Claude/Codex 使用 `UserPromptSubmit.prompt`，成功完成 recall 同样落本地回执。独立分节显示：最终注入正文、
+原始用户 prompt、实际 query/独立提示；原 prompt 不受 4000 预算截断、不进入额外 context/trace/HTTP 请求或 spool。
+原始文本与存储文本各记字符数/UTF-8 SHA-256、输入源/会话/时间；保留原换行/代码围栏，Markdown 动态围栏防串段。
+若剥已知 Orca/skill 封套或脱敏配置 API key/凭据赋值，明确记 transformations，不声称逐字未变。回执不替代
+密钥管理：秘密仍只放 `~/.env`。无输入的旧记录不全量改写；指定 Pi entry 可用 `scripts/restore_recall_prompt.py`
+定点补回，须 session + 原 query/hash 完全核对，保留备份/来源哈希，绝不重跑检索替换旧结果。
+模板需正规 `install --agents pi` 发布 v34；新进程或用户自行 `/reload` 才加载输入捕获，Python 改动则下一次
+spawn 已热生效（未 install 不代表完全未生效），不要重启协调者。旧服务不支持独立 hints 会正常失败封闭，不能
+兼容降级把提示混回任务；先部署 Hub task1 后才能使用新 hints。
 
 **v20 起每次 Pi 成功完成的首轮/手工召回都会原子写一份本地 Markdown**，路径为
 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/recall-results/pi/<project>/`。文件首节以文本代码块

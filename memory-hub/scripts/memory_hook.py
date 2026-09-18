@@ -2226,6 +2226,7 @@ class HubClient:
         user_id: str,
         referenced_project_ids: Optional[List[str]] = None,
         include_audit: bool = True,
+        retrieval_hints: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         try:
             result = self.request(
@@ -2236,6 +2237,7 @@ class HubClient:
                 json_body={
                     "schema_version": "memory-search/2",
                     "query": query,
+                    **({"retrieval_hints": retrieval_hints} if retrieval_hints else {}),
                     "agent_id": self.config.agent_id,
                     "project_id": project_id,
                     "limit": limit,
@@ -2711,6 +2713,48 @@ def markdown_json_lines(value: Any) -> List[str]:
     return markdown_fenced_lines(json.dumps(value, ensure_ascii=False, indent=2), "json")
 
 
+def recall_prompt_audit(value: Any, config: Config) -> Dict[str, Any]:
+    """Local-only input, never reconstructed from a retrieval query or uploaded."""
+    if not isinstance(value, dict) or not isinstance(value.get("text"), str):
+        return {"status": "not_recorded", "reason": "原始用户输入未记录；不能用 query 或摘要复原"}
+    original = value["text"]
+    text = original
+    changes = []
+    # Only known transport wrappers; do not normalize whitespace or strip code fences.
+    if text.startswith("You are working inside Orca,") and "=== TASK ===" in text:
+        text = text.rsplit("=== TASK ===", 1)[1]
+        changes.append("orca_task_envelope_removed")
+    stripped = re.sub(r"<skill\b[^>]*>.*?</skill>", "", text, flags=re.DOTALL)
+    if stripped != text:
+        text = stripped
+        changes.append("skill_wrapper_removed")
+    # Credentials belong in ~/.env, not receipt bodies. Never include their values in metadata.
+    if config.api_key and config.api_key in text:
+        text = text.replace(config.api_key, "[REDACTED]")
+        changes.append("configured_api_key_redacted")
+    text, count = re.subn(
+        r"(?i)(\b(?:authorization\s*:\s*bearer|(?:api[_-]?key|access[_-]?token|password)\s*[:=])\s*)[^\s\"'`,;]+",
+        r"\1[REDACTED]", text,
+    )
+    if count:
+        changes.append("credential_assignment_redacted")
+    digest = lambda s: hashlib.sha256(s.encode("utf-8")).hexdigest()
+    return {"status": "recorded", "source": value.get("source", "explicit_local_input"),
+            "source_ref": value.get("source_ref"), "encoding": "utf-8",
+            "input_chars": len(original), "input_sha256": digest(original),
+            "stored_chars": len(text), "stored_sha256": digest(text),
+            "transformations": changes, "text": text}
+
+
+def recall_prompt_audit_lines(prompt: Optional[Dict[str, Any]]) -> List[str]:
+    prompt = prompt or {"status": "not_recorded", "reason": "原始用户输入未记录；不能用 query 或摘要复原"}
+    return ["## 原始用户 prompt（仅本地审计）", "",
+            "不受 4000 检索/注入预算截断，不进入额外 agent context、不再次上传；转换/脱敏见元数据。",
+            "", *markdown_json_lines({k: v for k, v in prompt.items() if k != "text"}), "",
+            *(markdown_fenced_lines(prompt["text"], "text") if "text" in prompt
+              else ["原始用户输入未记录；不能用 query 或摘要复原。"]), ""]
+
+
 def write_recall_result_file(
     config: Config,
     *,
@@ -2735,6 +2779,7 @@ def write_recall_result_file(
     injected_count: int,
     context_chars: int,
     max_chars: int,
+    prompt_audit: Optional[Dict[str, Any]] = None,
 ) -> Path:
     """Atomically persist a readable recall result outside model context."""
     source_name = _safe_filename_component(source, "agent")
@@ -2782,6 +2827,16 @@ def write_recall_result_file(
         "",
         *markdown_json_lines({"context_stats": context_stats, "context": context}),
         "",
+        *recall_prompt_audit_lines(prompt_audit),
+        "## 实际检索 query（发出的任务文本）",
+        "",
+        *markdown_fenced_lines(query, "text"),
+        "",
+        *markdown_json_lines({"chars": len(query), "sha256": hashlib.sha256(query.encode("utf-8")).hexdigest(),
+                              "retrieval_hints": (context_stats.get("feedback_hints") or {}).get("locators", [])}),
+        "",
+        "机器反馈定位提示单列，不能充当用户意图；服务端返回的 query 仍保留在完整响应中。",
+        "",
         "## 查询信息",
         "",
         "- generated_at: `%s`" % time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -2789,13 +2844,10 @@ def write_recall_result_file(
         "- session_id: `%s`" % session_id,
         "- project_id: `%s`" % project_id,
         "- duration_ms: `%s`" % duration_ms,
-        "- query: %s" % query,
         "",
         "### Retrieval",
         "",
-        "```json",
-        json.dumps(retrieval, ensure_ascii=False, indent=2) if retrieval else "null",
-        "```",
+        *markdown_json_lines(retrieval),
         "",
         "### Quality",
         "",
@@ -2843,17 +2895,15 @@ def write_recall_result_file(
                 "",
                 "### 摘要",
                 "",
-                summary.strip() if isinstance(summary, str) and summary.strip() else "（无摘要）",
+                *markdown_fenced_lines(summary if isinstance(summary, str) else "（无摘要）", "text"),
                 "",
                 "### 内容",
                 "",
-                fact_text(fact) or "（无内容）",
+                *markdown_fenced_lines(fact_text(fact) or "（无内容）", "text"),
                 "",
                 "### 元数据与 provenance",
                 "",
-                "```json",
-                json.dumps(metadata, ensure_ascii=False, indent=2),
-                "```",
+                *markdown_json_lines(metadata),
                 "",
             ]
         )
@@ -2863,6 +2913,7 @@ def write_recall_result_file(
         dir=str(path.parent),
         mode="w",
         encoding="utf-8",
+        newline="",  # Preserve raw CR/LF on Windows; hashes cover exact input text.
         delete=False,
     )
     temporary_path = Path(temporary.name)
@@ -3141,6 +3192,7 @@ def command_recall_feedback(args: argparse.Namespace, config: Config) -> int:
             "project_id": args.project, "query": args.query, "retrieval_id": args.retrieval_id,
             "note": args.note, "outcome": args.outcome, "actor": args.actor,
             "expected_signals": args.expected_signal, "expected_navigation": args.expected_navigation,
+            "invalidates_feedback_ids": getattr(args, "invalidates_feedback", []),
         })
         print(json.dumps(record, ensure_ascii=False))
         return 0
@@ -3163,13 +3215,17 @@ def remember_recall_navigation(config: Config, project_id: str, user_id: str,
     try:
         ids = remember_approved_navigation(config.state_dir, project_id=project_id, user_id=user_id,
                                            query=query, response=response, context=context)
-        return {"recorded_ids": ids, "trigger": "approved_navigation_observed", "outcome": "unverified"}
+        return {"recorded_ids": ids, "trigger": "task_navigation_observed", "outcome": "unverified"}
     except (OSError, ValueError, TypeError, KeyError):
         return {"recorded_ids": [], "error": "feedback_persistence_unavailable"}
 
 
 def command_search(args: argparse.Namespace, config: Config) -> int:
     started = time.monotonic()
+    # Opt-in stdin is local transport only. CLI/tool query is NOT the user's raw prompt.
+    prompt_audit = recall_prompt_audit(
+        read_hook_input() if getattr(args, "audit_prompt_stdin", False) else None, config
+    )
     query_stats = {"input_chars": len(args.query), "query_chars": len(args.query),
                    "max_chars": QUERY_MAX_CHARS, "compacted": False}
     if len(args.query) > QUERY_MAX_CHARS:
@@ -3209,6 +3265,7 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             profile.user_id,
             referenced_project_ids=referenced_projects,
             include_audit=True,
+            **({"retrieval_hints": feedback_hints["locators"]} if feedback_hints.get("locators") else {}),
         )
         facts = response["facts"]
         injection_results = response.get("injection_results")
@@ -3266,6 +3323,7 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
                     session_id=getattr(args, "session_id", None) or "session",
                     project_id=project_id,
                     query=args.query,
+                    prompt_audit=prompt_audit,
                     facts=facts,
                     injection_results=injection_results,
                     scope=scope,
@@ -3455,6 +3513,7 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
             profile.user_id,
             referenced_project_ids=referenced_projects,
             include_audit=True,
+            **({"retrieval_hints": feedback_hints["locators"]} if feedback_hints.get("locators") else {}),
         )
         facts = response["facts"]
         injection_results = response.get("injection_results")
@@ -3480,8 +3539,23 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
         }
         actual_stats = rendered_context_stats(audit, recalled, injected_count)
         feedback_checks = replay_feedback(config.state_dir, project_id=project_id, user_id=profile.user_id, query=query, context=recalled)
-        actual_stats.update({"feedback_hints": feedback_hints,
+        actual_stats.update({"feedback_hints": feedback_hints, "query_stats": query_stats,
+                            "feedback_checks": feedback_checks,
                             "feedback_capture": remember_recall_navigation(config, project_id, profile.user_id, original_query, response, recalled)})
+        try:
+            write_recall_result_file(
+                config, source=args.source, session_id=session_id, project_id=project_id, query=query,
+                prompt_audit=recall_prompt_audit({"text": prompt, "source": "UserPromptSubmit.prompt",
+                    "source_ref": {"session_id": session_id, "transcript_path": hook.get("transcript_path")}}, config),
+                facts=facts, injection_results=injection_results, scope=response.get("scope"), audit=audit,
+                server_injection_context=server_injection_context, injection_context_status=injection_context_status,
+                injection_suppression_reason=injection_suppression_reason, injection_context_error=injection_context_error,
+                server_response=response.get("raw_response"), retrieval=response.get("retrieval"), quality=response.get("quality"),
+                duration_ms=int((time.monotonic() - started) * 1000), context=recalled, context_stats=actual_stats,
+                injected_count=injected_count, context_chars=len(recalled), max_chars=args.max_chars,
+            )
+        except Exception:
+            pass  # Local audit failure must not block the user's task or expose raw input.
         if recalled:
             quality = response.get("quality")
             if isinstance(quality, dict):
@@ -3643,8 +3717,12 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--max-chars", type=int, default=4000)
     search.add_argument("--json", action="store_true")
     search.add_argument("--write-result-file", action="store_true")
+    search.add_argument("--audit-prompt-stdin", action="store_true",
+                        help="local-only JSON {text, source, source_ref}; never sent to Hub")
     search.add_argument("--session-id")
-    recall_feedback = commands.add_parser("recall-feedback", help="record explicit evaluation-only feedback; never admit a fact")
+    recall_feedback = commands.add_parser("recall-feedback", help="record explicit scoped feedback; never admit a fact")
+    recall_feedback.add_argument("--invalidates-feedback", action="append", default=[],
+                                 help="append an auditable human task-specific invalidation of an owned feedback ID")
     recall_feedback.add_argument("--project", required=True)
     recall_feedback.add_argument("--query", required=True)
     recall_feedback.add_argument("--retrieval-id", required=True)

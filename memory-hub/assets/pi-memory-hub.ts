@@ -56,7 +56,7 @@ import { Type } from "typebox";
 // v31：直接使用 Judge v15 查询级行动简报；UI 展示线索/来源和真实线索预览，不再展示记忆标题。
 // v32：支持 ws:/project: 追加 scope；只接受 Stage B 最终上下文，suppressed 时禁止客户端候选回退。
 // v33：输入独立 4000 字符预算，保留任务/标识/失败与 traceback，省略显式留痕。
-const EXTENSION_VERSION = "33";
+const EXTENSION_VERSION = "34";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -934,6 +934,20 @@ async function loadPersonaCard(
 }
 
 export default function memoryHubExtension(pi: ExtensionAPI) {
+	// Input is observed before skill/template expansion. Never persist it into the
+	// Pi session/trace or return it as tool content; only the local receipt consumes it.
+	const pendingPrompts = new Map<string, Record<string, unknown>>();
+	const activePrompts = new Map<string, Record<string, unknown>>();
+	pi.on("input", (event, ctx) => {
+		const id = ctx.sessionManager.getSessionId();
+		if (event.source !== "extension") {
+			pendingPrompts.set(id, { text: event.text, source: `pi.input.${event.source}`,
+				source_ref: { session_id: id, session_file: ctx.sessionManager.getSessionFile(),
+					captured_at: new Date().toISOString() } });
+		} else {
+			pendingPrompts.delete(id);
+		}
+	});
 	// v12 首次加载只扫描一次旧 trace 并批量补 marker；之后每个 session 仅做 O(1)
 	// 文件存在检查，避免 trace 随实战增长后拖慢首轮。
 	migrateBootstrapTraceOnce();
@@ -1198,6 +1212,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
+		pendingPrompts.clear();
+		activePrompts.clear();
 		lastCwd = ctx.cwd;
 		if (ctx.hasUI) {
 			try {
@@ -1227,6 +1243,10 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		cancelPendingFlush("prompt");
 
 		const sessionId = ctx.sessionManager.getSessionId();
+		const inputPrompt = pendingPrompts.get(sessionId);
+		pendingPrompts.delete(sessionId);
+		if (inputPrompt) activePrompts.set(sessionId, inputPrompt);
+		else activePrompts.delete(sessionId); // Missing input is not reconstructed from expanded prompt.
 		if (bootstrappedSessions.has(sessionId)) return;
 		if (hasCompletedBootstrap(sessionId)) {
 			bootstrappedSessions.add(sessionId);
@@ -1375,9 +1395,10 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			];
 			if (projectOverride) searchArgs.push("--project", projectOverride);
 			for (const project of referencedProjects) searchArgs.push("--referenced-project", project);
+			searchArgs.push("--audit-prompt-stdin");
 			const jsonResult = await runHub(
 				searchArgs,
-				undefined,
+				inputPrompt || {},
 				safeSpawnCwd(ctx.cwd),
 				bootstrapTimeoutMs(),
 				true,
@@ -1581,9 +1602,10 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			];
 			if (projectOverride) searchArgs.push("--project", projectOverride);
 			for (const project of referencedProjects) searchArgs.push("--referenced-project", project);
+			searchArgs.push("--audit-prompt-stdin");
 			const result = await runHub(
 				searchArgs,
-				undefined,
+				inputPrompt || {},
 				safeSpawnCwd(ctx.cwd),
 				bootstrapTimeoutMs(),
 				true,
@@ -1860,12 +1882,13 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				ctx.sessionManager.getSessionId(),
 			];
 			if (project) args.push("--project", project);
+			args.push("--audit-prompt-stdin");
 			const stopRecallIndicator = startRecallIndicator(ctx, projectHint, params.query);
 			// agent 回合内按 Esc → pi abort signal → 同步杀掉检索子进程（130），
 			// 不再挂到 searchTimeoutMs 超时才放行回合中断。
 			const result = await runHub(
 				args,
-				undefined,
+				activePrompts.get(ctx.sessionManager.getSessionId()) || {},
 				ctx.cwd,
 				searchTimeoutMs,
 				true,

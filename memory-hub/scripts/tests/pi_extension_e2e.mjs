@@ -503,6 +503,7 @@ try {
 				? "project:maindev start work with exact question"
 				: "start work with exact question",
 		].join("\n");
+		await handlers.get("input")({ text: firstPrompt, source: "interactive" }, ctx);
 		const firstStart = await handlers.get("before_agent_start")(
 			{ prompt: firstPrompt, systemPrompt: "base-system" },
 			ctx,
@@ -582,6 +583,10 @@ try {
 				"injected",
 			);
 			assert.equal(hookCalls("search").length, 1, "first prompt must search project memory once");
+			assert.equal(JSON.parse(hookCalls("search")[0].stdin).text, firstPrompt,
+				"audit stdin preserves pre-normalization/pre-project input, even above 4000 chars");
+			assert.ok(hookCalls("search")[0].argv.includes("--audit-prompt-stdin"));
+			assert.ok(!JSON.stringify(traceEntries("project_bootstrap")).includes(firstPrompt));
 			if (!projectDirectiveMode && !multilinePromptMode && !chatHubIdentityMode) {
 				assert.match(
 					hookCalls("search")[0].argv[1],

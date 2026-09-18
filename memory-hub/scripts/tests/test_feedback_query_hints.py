@@ -13,7 +13,7 @@ from recall_feedback import augment_query, record_feedback, remember_approved_na
 
 QUERY = "Quartz automation deployment failure，先找安全访问文档再核对现状"
 NAV = ".team/member/reference_access.md"
-EVIDENCE = f"ws:project-a 的 {NAV} 记录历史安全访问方式；需验证当前版本，不是故障根因。"
+EVIDENCE = f"Quartz automation 部署入口 ws:project-a 的 {NAV} 记录历史访问方式；需验证当前版本，不是故障根因。"
 CONTEXT = f"相关线索（非已确认答案）\n- 调查入口：{EVIDENCE}"
 
 
@@ -23,13 +23,14 @@ def response(*, approved=True):
             "rendered_items": [{"status": "related", "source_ids": ["e1"], "rendered_text": CONTEXT.splitlines()[1]}],
             "input_sources": [{"source_id": "e1", "result_id": "m-first", "evidence": EVIDENCE,
                 "content_source": {"layer": "approved" if approved else "distilled", "review_id": "review-first"},
+                "task_relevance": {"kind": "task_detail", "anchor": "Quartz", "explanation": "原任务部署该组件，提供其访问入口"},
                 "provenance": [{"project_id": "project-a", "memory_id": "m-first"}]}], "items": []}}}
 
 
 def seed(tmp_path, **overrides):
     return record_feedback(tmp_path, {"project_id": "project-a", "user_id": "user-a", "query": QUERY,
         "retrieval_id": "previous", "note": "Explicit investigation locator, not a proven fix",
-        "outcome": "unverified", "actor": "agent", "expected_signals": [], "expected_navigation": ["ws:project-a", NAV],
+        "outcome": "unverified", "actor": "human", "expected_signals": [], "expected_navigation": ["ws:project-a", NAV],
         **overrides})
 
 
@@ -60,8 +61,9 @@ def test_normal_receipt_automatically_persists_then_next_command_changes_request
     saved_ids = first["context_stats"]["feedback_capture"]["recorded_ids"]
     assert len(saved_ids) == 1  # No manual feedback command was used.
     second = run("Quartz deployment automation failure，查一下安全访问入口")
-    assert NAV in calls[1]["query"] and "未验证" in calls[1]["query"]
-    assert "不是故障根因" not in calls[1]["query"]  # No prior prose copied into the query.
+    assert calls[1]["query"] == "Quartz deployment automation failure，查一下安全访问入口"
+    assert NAV in calls[1]["retrieval_hints"]  # Locators never modify the task.
+    assert "不是故障根因" not in calls[1]["query"]
     assert calls[1]["referenced_project_ids"] == [] and calls[1]["include_audit"] is True
     assert calls[1]["user"] == "user-a" and calls[1]["project"] == "project-a"
     assert second["context_stats"]["feedback_hints"]["feedback_ids"] == saved_ids
@@ -69,7 +71,7 @@ def test_normal_receipt_automatically_persists_then_next_command_changes_request
     assert second["context"] == CONTEXT  # Server context only, not a client-added locator.
     records = [json.loads(line) for line in (tmp_path / "recall-feedback.jsonl").read_text(encoding="utf-8").splitlines()]
     assert len(records) == 1 and records[0]["outcome"] == "unverified"
-    assert records[0]["origin"] == "approved_navigation_observed"
+    assert records[0]["origin"] == "task_navigation_observed"
 
 
 @pytest.mark.parametrize("override", [
@@ -91,16 +93,18 @@ def test_explicit_query_specific_unhelpful_prevents_old_hint_resurrection(tmp_pa
     seed(tmp_path, outcome="unhelpful", actor="human")
     assert prepare(tmp_path)[0] == QUERY
     seed(tmp_path, outcome="helpful", actor="human")
-    assert NAV in prepare(tmp_path)[0]
+    assert NAV in prepare(tmp_path)[1]["locators"]
 
 
 def test_hint_budget_preserves_intent_and_diagnostics(tmp_path):
     seed(tmp_path)
-    query = QUERY + "\n上下文:\n" + "routine output\n" * 270 + "Traceback\nEngineError: resource not found"
+    query = QUERY + "\n上下文:\n" + "routine output\n" * 180 + "Traceback\nEngineError: resource not found"
     enriched, audit = prepare(tmp_path, query=query)
     assert len(enriched) <= 4000 and enriched.startswith(QUERY + "\n上下文:")
     assert "EngineError: resource not found" in enriched and "Traceback" in enriched
-    assert NAV in enriched and audit["scope_changed"] is False
+    assert enriched == query and NAV in audit["locators"] and audit["scope_changed"] is False
+    full = query + " " * (4000 - len(query))
+    assert prepare(tmp_path, query=full) == (full, {**audit, "locators": [], "feedback_ids": []})
 
 
 @pytest.mark.parametrize("kind", ["not-approved", "not-rendered", "not-source-verbatim", "no-owner-project", "suppressed"])
@@ -138,5 +142,5 @@ def test_cross_project_locator_needs_explicit_request_reference_not_inferred_ali
     query, _ = prepare(tmp_path, workspace_projects={"workspace-b": "project-b"})
     assert query == QUERY
     enriched, audit = prepare(tmp_path, referenced_projects=["project-b"], workspace_projects={"workspace-b": "project-b"})
-    assert NAV in enriched and "ws:workspace-b" in enriched
+    assert enriched == QUERY and NAV in audit["locators"] and "ws:workspace-b" in audit["locators"]
     assert audit["scope_changed"] is False  # Server still authorizes the caller-supplied reference.

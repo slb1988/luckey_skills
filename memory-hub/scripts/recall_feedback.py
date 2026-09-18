@@ -1,8 +1,8 @@
 """Private recall feedback: bounded query hints, never facts or automatic approval.
 
-Successful, source-verified approved navigation is remembered automatically. Later
-similar requests may use its locators to find candidates again, under the current
-identity/scope and normal Hub approval/A-B gates. No click telemetry or training.
+Only task-grounded, source-verified navigation can create reusable observations.
+Machine hints never modify the original task; old receipt-only observations are
+now audit-only. Human task-specific negatives cannot be overturned by repetition.
 """
 from __future__ import annotations
 
@@ -13,12 +13,12 @@ import re
 import time
 from pathlib import Path
 
-from recall_query import compact_query_context, QUERY_MAX_CHARS
+from recall_query import QUERY_MAX_CHARS
 
 LEDGER_NAME = "recall-feedback.jsonl"
 _LOCATOR = re.compile(
-    r"\bws:[A-Za-z0-9_.:-]+|(?:[A-Za-z]:)?(?:[\\/][\w.@~+-]+)+"
-    r"|[\w.@~-]+(?:[\\/][\w.@~+-]+)+|[\w-]+\.(?:py|md|ts|h|cpp|json|yaml|yml)\b"
+    r"\bws:[A-Za-z0-9_.:-]+|(?:[A-Za-z]:)?(?:[\\/][\w.@~+-]+)+[\\/]?"
+    r"|[\w.@~-]+(?:[\\/][\w.@~+-]+)+[\\/]?|[\w-]+\.(?:py|md|ts|h|cpp|json|yaml|yml)\b"
 )
 _HINT_HEADER = "检索定位提示（历史反馈，未验证；仅找候选，不能当作事实或根因）："
 
@@ -49,6 +49,17 @@ def record_feedback(state_dir: Path, record: dict) -> dict:
     owner = record.get("user_id")
     if owner is not None and (not isinstance(owner, str) or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", owner)):
         raise ValueError("invalid feedback owner")
+    invalidates = record.get("invalidates_feedback_ids", [])
+    if not isinstance(invalidates, list) or len(invalidates) > 16 or any(not isinstance(v, str) for v in invalidates):
+        raise ValueError("invalid feedback invalidation")
+    if invalidates:
+        if record["actor"] != "human" or record["outcome"] != "unhelpful" or not owner:
+            raise ValueError("invalidation requires explicit owner correction")
+        prior = {row.get("feedback_id"): row for row in _read_records(state_dir)}
+        if any(v not in prior or prior[v].get("user_id") != owner
+               or prior[v].get("project_id") != record["project_id"] for v in invalidates):
+            raise ValueError("invalidation target is not owned by this user/project")
+    record = {**record, "query": original_task_query(record["query"])}
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     record = {**record, "schema_version": "recall-feedback/2" if owner else "recall-feedback/1",
               "recorded_at": now, "admission": "retrieval_hint_only" if owner else "evaluation_only"}
@@ -68,7 +79,11 @@ def _anchors(query: str) -> set[str]:
     return ascii_terms | chinese
 
 
-def matching_feedback(state_dir: Path, *, project_id: str, query: str, user_id: str | None = None) -> list[dict]:
+def original_task_query(query: str) -> str:
+    return query.partition("\n" + _HINT_HEADER)[0]
+
+
+def _read_records(state_dir: Path) -> list[dict]:
     try:
         with (state_dir / LEDGER_NAME).open("rb") as handle:
             size = handle.seek(0, 2)
@@ -78,17 +93,35 @@ def matching_feedback(state_dir: Path, *, project_id: str, query: str, user_id: 
             lines = handle.read().decode("utf-8").splitlines()
     except (OSError, UnicodeError):
         return []
-    current = _anchors(query)
-    matches = []
-    for line in reversed(lines):
+    records = []
+    for line in lines:
         try:
             record = json.loads(line)
+            if isinstance(record, dict):
+                records.append(record)
+        except (ValueError, TypeError):
+            continue
+    return records
+
+
+def matching_feedback(state_dir: Path, *, project_id: str, query: str,
+                      user_id: str | None = None, limit: int | None = 8) -> list[dict]:
+    query = original_task_query(query)
+    current = _anchors(query)
+    matches = []
+    records = _read_records(state_dir)
+    invalidated = {target: row["feedback_id"] for row in records
+                   if row.get("actor") == "human" and row.get("outcome") == "unhelpful"
+                   and row.get("project_id") == project_id and row.get("user_id") == user_id
+                   for target in row.get("invalidates_feedback_ids", [])}
+    for record in reversed(records):
+        try:
             if (record.get("schema_version") not in {"recall-feedback/1", "recall-feedback/2"}
                     or record.get("project_id") != project_id
                     or record.get("admission") not in {"evaluation_only", "retrieval_hint_only"}
                     or (user_id is not None and record.get("user_id") not in {None, user_id})):
                 continue
-            previous = _anchors(record["query"])
+            previous = _anchors(original_task_query(record["query"]))
             common = current & previous
             signals = record.get("expected_signals") or []
             signal_hits = sum(signal.casefold() in query.casefold() for signal in signals)
@@ -96,12 +129,11 @@ def matching_feedback(state_dir: Path, *, project_id: str, query: str, user_id: 
             lexical_match = len(common) >= 2 and len(common) / max(1, min(len(current), len(previous))) >= 0.4
             if not (signal_match or lexical_match):
                 continue
-            matches.append(record)
-            if len(matches) >= 8:
-                break
+            matches.append({**record, **({"invalidated_by": invalidated[record["feedback_id"]]}
+                                        if record["feedback_id"] in invalidated else {})})
         except (KeyError, TypeError, ValueError, AttributeError):
             continue
-    return matches
+    return matches if limit is None else matches[:limit]
 
 
 def evaluate_feedback(record: dict, *, query: str, context: str) -> dict:
@@ -112,7 +144,7 @@ def evaluate_feedback(record: dict, *, query: str, context: str) -> dict:
         "outcome": record["outcome"], "actor": record["actor"], "admission": record["admission"],
         "missing_signals": [s for s in record.get("expected_signals", []) if normalize(s) not in query_text],
         "missing_navigation": [p for p in record.get("expected_navigation", []) if normalize(p) not in context_text],
-        "answer_validation": "not_evaluated",
+        "answer_validation": "not_evaluated", "invalidated_by": record.get("invalidated_by"),
     }
 
 
@@ -123,19 +155,29 @@ def replay_feedback(state_dir: Path, *, project_id: str, query: str, context: st
 
 def augment_query(state_dir: Path, *, project_id: str, user_id: str, query: str,
                   referenced_projects: list[str], workspace_projects: dict[str, str]) -> tuple[str, dict]:
-    """One request, unchanged ACL scope; feedback prose/ratings never enter the wire."""
+    """Return an unchanged task plus separate locator hints, never appended prose."""
+    query = original_task_query(query)
     allowed = {project_id, *referenced_projects}
     locators: list[str] = []
     used: list[str] = []
-    matches = matching_feedback(state_dir, project_id=project_id, query=query, user_id=user_id)
+    matches = matching_feedback(state_dir, project_id=project_id, query=query, user_id=user_id, limit=None)
     decisions: dict[str, str] = {}
     for record in matches:  # Latest explicit outcome wins within this task, never globally.
-        if record.get("user_id") == user_id and record.get("outcome") in {"helpful", "unhelpful"}:
+        if (record.get("user_id") == user_id and record.get("actor") == "human"
+                and record.get("outcome") in {"helpful", "unhelpful"}):
             for value in _safe_locators(record.get("expected_navigation") or []):
                 decisions.setdefault(value, record["outcome"])
-    for record in matches:
-        # Unbound legacy records remain audit-only, not silently attributed to whoever logs in next.
-        if record.get("user_id") != user_id or record.get("outcome") == "unhelpful":
+    for record in matches[:8]:
+        # Receipt alone never proves usefulness. Keep old auto observations in the
+        # ledger for audit, but do not reuse them or let them override user negatives.
+        if (record.get("user_id") != user_id or record.get("outcome") == "unhelpful"
+                or record.get("invalidated_by")
+                or record.get("origin") == "approved_navigation_observed"
+                or (record.get("actor") == "agent" and record.get("origin") != "task_navigation_observed")):
+            continue
+        if record.get("origin") == "task_navigation_observed" and not any(
+            anchor.casefold() in query.casefold() for anchor in record.get("task_anchors", [])
+        ):
             continue
         source_projects = set(record.get("source_project_ids") or [record["project_id"]])
         if not source_projects <= allowed:
@@ -147,7 +189,7 @@ def augment_query(state_dir: Path, *, project_id: str, user_id: str, query: str,
         for value in _safe_locators(values):
             # Only complete lexical locators, not instructions, quotes, source bodies, or credentials.
             if (decisions.get(value) == "unhelpful" or value in query or value in locators
-                    or len("\n".join([*locators, value])) > 400):
+                    or len("\n".join([*locators, value])) > min(400, max(0, QUERY_MAX_CHARS - len(query) - 1))):
                 continue
             locators.append(value)
             added = True
@@ -155,26 +197,16 @@ def augment_query(state_dir: Path, *, project_id: str, user_id: str, query: str,
             used.append(record["feedback_id"])
         if len(used) >= 2:
             break
-    audit = {"policy": "scoped-navigation-hints/1", "feedback_ids": used, "locators": locators,
-             "query_changed": False, "scope_changed": False, "fact_admission": False}
-    if not locators:
-        return query, audit
-    hint = _HINT_HEADER + "\n" + "\n".join(locators)
-    # The task/explicit scope stays before 上下文; only log context may be compacted.
-    intent, marker, context = query.partition("\n上下文:")
-    if not marker:
-        intent, sep, context = query.partition("\n")
-    overhead = len(intent) + len("\n上下文:\n") + len(hint) + 1
-    if overhead > QUERY_MAX_CHARS:
-        return query, {**audit, "feedback_ids": [], "locators": [], "skipped": "no_safe_budget"}
-    context = compact_query_context(context.strip(), QUERY_MAX_CHARS - overhead)
-    enriched = intent + "\n上下文:\n" + (context + "\n" if context else "") + hint
-    return enriched, {**audit, "query_changed": True, "query_chars": len(enriched)}
+    audit = {"policy": "task-grounded-hints/2", "feedback_ids": used, "locators": locators,
+             "query_changed": False, "scope_changed": False, "fact_admission": False,
+             "invalidated_feedback_ids": [r["feedback_id"] for r in matches if r.get("invalidated_by")]}
+    return query, audit
 
 
 def remember_approved_navigation(state_dir: Path, *, project_id: str, user_id: str,
                                  query: str, response: dict, context: str) -> list[str]:
-    """Automatic receipt trigger; observed navigation remains unverified, not helpful."""
+    """Only task-detail evidence may create a new hint; methods are not auto-learned."""
+    query = original_task_query(query)
     if not context:
         return []
     audit = response.get("audit") or {}
@@ -184,6 +216,13 @@ def remember_approved_navigation(state_dir: Path, *, project_id: str, user_id: s
             and isinstance(item.get("rendered_text"), str) and item["rendered_text"]
             and item["rendered_text"] in context for sid in item.get("source_ids", [])}
     navigation: list[str] = []
+    anchors: list[str] = []
+    matches = matching_feedback(state_dir, project_id=project_id, user_id=user_id, query=query, limit=None)
+    decisions: dict[str, str] = {}
+    for previous in matches:
+        if previous.get("actor") == "human" and previous.get("outcome") in {"helpful", "unhelpful"}:
+            for value in _safe_locators(previous.get("expected_navigation") or []):
+                decisions.setdefault(value, previous["outcome"])
     provenance = []
     projects = set()
     for source in stage_b.get("input_sources") or []:
@@ -192,13 +231,25 @@ def remember_approved_navigation(state_dir: Path, *, project_id: str, user_id: s
         source_projects = {row.get("project_id") for row in source.get("provenance") or [] if row.get("project_id")}
         if not source_projects:
             continue
+        relevance = source.get("task_relevance") or {}
+        anchor = relevance.get("task_anchor", relevance.get("anchor"))
+        evidence_anchor = relevance.get("evidence_anchor", relevance.get("anchor"))
+        normalize = lambda text: re.sub(r"\s+", "", text).casefold()
+        # A/B judges semantic usefulness; independently verify its two quotes here.
+        if (relevance.get("kind") != "task_detail" or not isinstance(anchor, str)
+                or not isinstance(evidence_anchor, str) or len(evidence_anchor.strip()) < 2
+                or len(anchor.strip()) < 2 or not relevance.get("explanation")
+                or normalize(anchor) not in normalize(query)
+                or normalize(evidence_anchor) not in normalize(str(source.get("evidence") or ""))):
+            continue
         # Paths must be literal in the approved evidence AND actually delivered context.
         evidence = re.sub(r"\bhttps?://[^\s)<>]+", " ", source.get("evidence") or "")
         values = _safe_locators([match.group().rstrip(".") for match in _LOCATOR.finditer(evidence)])
-        values = [value for value in values if value in context]
+        values = [value for value in values if value in context and decisions.get(value) != "unhelpful"]
         if not values:
             continue
         navigation.extend(values)
+        anchors.append(anchor)
         projects.update(source_projects)
         provenance.append({"result_id": source.get("result_id"), "content_source": source["content_source"]})
     navigation = list(dict.fromkeys(navigation))[:16]
@@ -206,12 +257,13 @@ def remember_approved_navigation(state_dir: Path, *, project_id: str, user_id: s
     if not navigation or not retrieval.get("retrieval_id"):
         return []
     for previous in matching_feedback(state_dir, project_id=project_id, user_id=user_id, query=query):
-        if (previous.get("user_id") == user_id and previous.get("origin") == "approved_navigation_observed"
+        if (previous.get("user_id") == user_id and previous.get("origin") == "task_navigation_observed"
                 and previous.get("expected_navigation") == navigation and previous.get("provenance") == provenance):
             return []  # No repetition-based promotion or endless self-reinforcement.
     saved = record_feedback(state_dir, {"project_id": project_id, "user_id": user_id, "query": query,
         "retrieval_id": retrieval["retrieval_id"], "expected_signals": [], "expected_navigation": navigation,
         "source_project_ids": sorted(projects), "provenance": provenance,
-        "note": "自动保存本次批准证据中实际呈现的导航；未验证当前文件状态、效果或根因",
-        "outcome": "unverified", "actor": "agent", "origin": "approved_navigation_observed"})
+        "task_anchors": list(dict.fromkeys(anchors)),
+        "note": "A/B 任务相关导航且两侧引用可核验；未验证效果，不自动复用泛化原则",
+        "outcome": "unverified", "actor": "agent", "origin": "task_navigation_observed"})
     return [saved["feedback_id"]]
