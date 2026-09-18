@@ -146,6 +146,12 @@ Hub HTTP API（9287）没有任何「给两条 memory 建关系」的端点；�
 服务端演化 LLM 网关未配置时关系缺席，但不影响写入与检索。存量同义实体碎片的合并另走 graph edits
 （见 SKILL.md「同义实体碎片」memory 块），与本管线无关。
 
+<memory category="core-rules">
+关系时间契约跨越 Hub 账本与 Graphiti overlay：`POST /memory-relations` 的 `effective_at` 是 `datetime`，不是任意非空字符串。Hub 若放行 `2026-07` 这样的月份值，关系与 outbox 可入账，镜像却会被 DTO 以 HTTP 422 永久拒绝。
+日期兼容性须在权威关系/outbox 入账前统一校验；不兼容值应拒绝，不能无依据补成月初或吞成“未知时间”。
+这一复现证明接口契约缺口，不证明历史某条 422 的具体字段；历史归因仍须核对原 payload 或验证响应。
+</memory>
+
 ## 错误码表
 
 | code | 处理 |

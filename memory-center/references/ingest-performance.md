@@ -53,6 +53,12 @@ FIFO 只保证尝试顺序，不保证成功前缀：早条抽取失败后，晚
 精确存在性仍不是抽取完成回执：`indexed` 时 episode 可见，后台实体/边抽取却可能未完成或失败。恢复必须核对正文应产生的事实边；消除假完成还需 Graphiti 的完成回执，不能把它视为已实现。
 </memory>
 
+<memory category="core-rules">
+confirm 的证据只对探测时的物理组与投递版本有效：payload 旧组中 UUID 可见，不能据此把当前账本的新组置为 `indexed`。
+结算必须同时校验 outbox 投递快照与 memory 账本快照；只比较 group 不足以识别同组重投。
+成功、缺失退避与永久错误 `_fail` 分支都需要这一约束：旧探测即使返回永久错误，也不得改写新投递状态或释放其新实体占槽。
+</memory>
+
 - 同 group 待确认项共享 `next_attempt_at`；到点后在 SQLite 写事务外精确批查，缺失项继续共享退避，新提交项跟随已排定轮次。
 - 有进展 → 退避重置为 poll 级（秒级紧跟下一轮）；无进展 → 指数退避封顶
   `outbox_confirm_max_backoff_seconds`。

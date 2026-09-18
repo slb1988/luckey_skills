@@ -38,6 +38,13 @@ WAL 的写锁可能落在 **`-shm`**，不能只查主 DB inode，也不能把�
 
 连续 busy timeout 只证明持续争用，**不证明同一个 writer 连续持锁整个窗口**；等待者日志中的栈也不能证明被指向的函数在持锁。预览 `llm.complete` 位于写事务外，不能从其邻近的 `BEGIN IMMEDIATE` 报错推断 LLM 持锁。没有现场或有效历史关联时，结论应保留未知，而不是归罪于日志最密集的进程。
 
+## Dream 终态空转的锁边界
+
+<memory category="core-rules">
+Dream 按 `local_date` 幂等；到每日调度时间后持续 poll，但当天 run 为 `completed` / `failed` 时已无须 claim。旧 `_claim_run` 在检查终态前就 `BEGIN IMMEDIATE`，因此没有业务写入的空转也会争抢 writer。
+只读终态预检负责跳过无工作的 poll；真正 claim 仍须在短写事务内复查 run 状态与全局租约。预检不能替代并发互斥，减少空转也不等于消除了其它持锁源。
+</memory>
+
 ## 只读诊断入口
 
 先按 `METADATA_DATABASE_PATH` 确认真实库路径。NAS 默认部署的命令：

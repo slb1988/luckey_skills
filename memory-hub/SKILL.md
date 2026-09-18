@@ -55,8 +55,8 @@ Dashboard 抽取审核在手机竖屏上以信息完整性优先：实体、边�
 |------|------|
 | 服务端部署/启动/重启/备份/自启/身份迁移/内容清洗与图谱重建 | [references/deploy.md](references/deploy.md) |
 | Dashboard 开发/部署/排障入口 | [references/dashboard.md](references/dashboard.md) |
-| SQL 锁 / SQLite 写锁、长事务、持锁者与等待者归因、锁诊断埋点 | [references/sqlite-lock-diagnostics.md](references/sqlite-lock-diagnostics.md) |
-| API 端点、写入流程、Idempotency-Key、错误码、常用 curl | [references/api-notes.md](references/api-notes.md) |
+| SQL 锁 / SQLite 写锁、长事务、持锁者与等待者归因、锁诊断埋点、Dream 终态空转 | [references/sqlite-lock-diagnostics.md](references/sqlite-lock-diagnostics.md) |
+| API 端点、写入流程、Idempotency-Key、关系时间契约、错误码、常用 curl | [references/api-notes.md](references/api-notes.md) |
 | Hook 安装/check/身份配置/环境变量/首轮召回/Pi 扩展机制与留痕/低价值过滤 | [references/agent-integration.md](references/agent-integration.md) |
 | 手动批量归档历史 session（upload_sessions.py、漏传回填、project 归属） | [references/upload-sessions.md](references/upload-sessions.md) |
 | 排障：检索 0 命中、长 prompt 主题遮蔽与规划证据误过滤/hook 验证/spool 积压/feedback 判死/triage 解析/catch-all 误归/chat-hub 信封淹没归档与人物归档身份/测试平台坑 | [references/troubleshooting.md](references/troubleshooting.md) |
@@ -65,7 +65,7 @@ Dashboard 抽取审核在手机竖屏上以信息完整性优先：实体、边�
 | 检索 scope 选择、已知 project 一览、别名映射 | [references/projects.md](references/projects.md) |
 | 全链路总览（拓扑/写入/检索/观测/隐患） | [references/system-overview.md](references/system-overview.md) |
 | auto-server 上的 Hub LAN 转发（:9287→10.77.77.6:9287）、无 sudo 时用 docker 特权容器代办 root 操作 | [references/auto-server-forward.md](references/auto-server-forward.md) |
-| outbox 精确确认/抽取验收边界/大批量 retry 判读 | [memory-center/references/ingest-performance.md](../memory-center/references/ingest-performance.md) |
+| outbox 精确确认/组与投递版本隔离/抽取验收边界/大批量 retry 判读 | [memory-center/references/ingest-performance.md](../memory-center/references/ingest-performance.md) |
 
 服务端仓库文档（NAS 项目 `docs/`）：`USAGE.md`、`API_CONTRACT.md`、`IMPLEMENTATION.md`、`DASHBOARD.md`、`REVIEW_PIPELINE.md`、`MULTI_USER_AUTH.md`、`GRAPH_CURATION.md`（图谱修订/实体合并）。
 
