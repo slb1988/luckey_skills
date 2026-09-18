@@ -71,6 +71,12 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 - 配置入口：`ws:autoserver-deveops` 的 `Teamcity_PLN/.teamcity/patches/buildTypes/TaskAiReview.kts`；生产与测试配置须保持上述依赖语义一致。
 </memory>
 
+<memory category="troubleshooting">
+- 已绑定原生 Pi 会话的 shelf 更新续评有跨轮 Agent 亲和性：`pyAutomation/backend/server/applications/ai_review/ai_worker.py::_trigger_extra_properties()` 读取 `pi_session_agent`，将 `DefaultAgent` 与 `override.dep.*.DefaultAgent` 同设为原 Agent 的精确正则，并携带 `AI_REVIEW_PI_SESSION_AGENT`；不按忙闲改选机器。
+- 根因是 `DevOps/AiReview/AiReviewRunner.py` 依赖构建机本地原生 session 文件；未恢复原会话就跨机续接会报 `SESSION_INVALID`。单删机器限制不能保住续接语义，清空会话换机也不是原会话续评。
+- 因此其他 WinBuilder 空闲仍可能不兼容：链首 Sync 等被绑定机器，下游等依赖。排查时核 Flow 与 Sync 的有效 Agent 参数及 Review 会话绑定，区分此约束与“同机锚点从未获得 Agent”。
+</memory>
+
 <memory category="common-patterns">
 - 普通网页 diff 来自建评审时落库的 `ai_review_files.diff_content` 文本快照，不是作者或构建机的实时 diff；删除 shelf 不会使已存 diff 同步消失。
 - “整文件对比”则实时读取 P4 shelf；shelf 已空时该接口可失败，即使同一页的普通 diff 仍能显示。
