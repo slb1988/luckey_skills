@@ -44,6 +44,19 @@ Collect 不启动模型；本地“实际评审”入口是 Runner。Publish 不
 
 失败应在模型启动前 fail-closed。不要为了“先出报告”绕开 merge evidence；否则 Pi 可能评的是旧 shelf、未合并树或另一条链的 workspace。
 
+<memory category="troubleshooting">
+- MainDev + Wwise 混合 CL 的完整视图来自虚拟流 `//CyanCookOfficialDepot/MainDev_Wwise`：`share ...` 加 `import+ Main/WwiseProject/... //CyanCookOfficialDepot/WwiseProject_main/...`，Wwise 工程落在 workspace 的 `Main/WwiseProject/`。
+- 已确认的 Collect 故障根因（build 23434 / CL 133169）：评审 client `WinBuilder3_MainDev`（`E:\WinBuilder3_MainDev`）绑定裸 `MainDev`，缺少上述映射，5 个 Wwise 文件从未进入该 workspace 的 opened 状态。
+- `P4UnshelveStage` 可跳过视图外文件、记入 `skipped_out_of_view`，同时保留全量 `files` 并报告 `result=merged`；该成功状态不保证全 shelf 已 opened。MergeGate 对 `describe -S` 全量文件逐一要求 opened，会把这种范围差异升级成整链 exit 6。
+- 放宽全量 opened 检测只改变失败方式，不能补齐 Wwise 内容；不能把门禁容忍当作完整工程视图问题已解决，也不能把未批准的视图迁移方案写成已上线事实。
+</memory>
+
+<memory category="common-patterns">
+- 业务 stream 与 client spec 的 `Stream` 是不同口径。Flow 的 `env.p4_stream` 同时影响 `{agent}_{stream}` workspace 命名、merge evidence 与 Publish 的 stream 元数据；改成 `_Wwise` 不只是切换视图，还会改变评审链的业务身份。
+- client 创建入口在 DevOps `P4Util.setup_workspace` / `P4SyncWorkspace.py`，按传入 stream 名设置 `//CyanCookOfficialDepot/<stream_name>`；TeamCity VCS root 的 `streamName` 则为 `//CyanCookOfficialDepot/%P4Stream%`。
+- 现有 client 视图与后续创建规则必须配套考虑；只手工改某台 client，不能消除新 agent 继续生成裸流 client 的来源。
+</memory>
+
 正确 diff 口径是固定 baseline B 到 merged workspace：
 
 - edit/integrate：`p4 print @B` 对本地 merged 内容；

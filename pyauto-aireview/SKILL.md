@@ -30,7 +30,7 @@ AI Review 负责从 shelf 发起、编译与模型评审、人工/系统决策�
 | 对象、流程与生命周期 | [architecture-lifecycle](references/architecture-lifecycle.md) |
 | API、表、worker、callback、配置、刷新与测试 | [backend-module](references/backend-module.md) |
 | 构建链、参数、Agent、Report/Notification 与耗时 | [teamcity-pipeline](references/teamcity-pipeline.md) |
-| Collect / MergeGate / Runner / Publish / Memory / Pi、AS warning 误分类 | [review-toolchain](references/review-toolchain.md) |
+| Collect / MergeGate、MainDev/Wwise 完整视图与 stream 参数耦合、Runner / Publish / Memory / Pi、AS warning 误分类 | [review-toolchain](references/review-toolchain.md) |
 | reviewer、jury、自批、代提交、mixed stream、P4错误与通知 | [decision-submit-notification](references/decision-submit-notification.md) |
 | 排队、慢、失败、错配、缺日志、错误 verdict | [diagnostics](references/diagnostics.md) |
 | 源码/运行时责任及工具迁移边界 | [workspace-agent-routing](references/workspace-agent-routing.md) |
