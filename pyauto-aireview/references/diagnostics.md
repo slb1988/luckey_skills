@@ -45,16 +45,9 @@ GET /ai_review/reviews/<id>/ai_summary
 
 ### 2.2 TeamCity
 
-使用 `teamcity-tool` 认证约定和环境 token，不把 token写入命令历史、报告或 skill。
+投递、队列/Agent 查询、参数白名单和历史占用取证集中见 [TeamCity 交互与 Agent 调度](teamcity-interaction.md)。使用受控认证入口，禁止输出凭证或全量 properties。
 
-```text
-GET /app/rest/builds/id:<BUILD>?fields=id,buildTypeId,state,status,queuedDate,startDate,finishDate,agent(name),versionedSettingsRevision(version),startProperties(property(name,value))
-GET /app/rest/builds/id:<FLOW>/snapshot-dependencies?fields=build(id,buildTypeId,state,status,startDate,finishDate,agent(name))
-GET /downloadBuildLog.html?buildId=<BUILD>
-GET /app/rest/builds/id:<BUILD>/artifacts/children/Saved/ai_review
-```
-
-REST直接依赖不一定是完整链，递归展开到 Sync。配置页面的 Agent条件不能替代具体 build 的实际 Agent/startProperties。
+REST 直接依赖不一定是完整链，递归展开到 Sync。配置页面的 Agent 条件不能替代具体 build 的实际 Agent/startProperties；当前空闲快照也不能证明投递时空闲。先解释首个阻塞节点，再按需获取日志和本轮 artifact。
 
 ### 2.3 构建 artifact
 
@@ -93,7 +86,7 @@ REST直接依赖不一定是完整链，递归展开到 Sync。配置页面的 A
 T0 Review created
 T1 AI job kicked/claimed
 T2 Flow trigger accepted
-T3 Flow真正入队/获得Agent
+T3 链首执行节点获得 Agent（Composite Flow 自身不占 Agent）
 T4 Sync start/end
 T5 Unshelve start/end
 T6 Build/AS/report start/end
@@ -132,7 +125,10 @@ T14 DB submitted/notification/client closure
 - 同秒/紧邻：snapshot sequencing；
 - 前置已结束但无 compatible agent：参数/requirement/pool/root；
 - 有 compatible agent但 busy：真实资源排队；
+- 其他机空闲但本轮精确钉原机：先核 Review 原生会话绑定，不默认换机；
 - Flow是 COMPOSITE：其 Agent空白正常。
+
+忙闲必须与投递时间对齐；正常容量等待、无可用兼容候选和查询失败的 tick/预算处理见 [TeamCity 交互](teamcity-interaction.md#4-tick容量等待与超时预算)。
 
 ### C. Pi step 20 分钟左右、0 tokens
 

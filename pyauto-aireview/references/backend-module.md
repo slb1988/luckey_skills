@@ -156,9 +156,12 @@ load_diff → trigger_compile → tc_inflight → await_compile → analyze
 
 触发后 `compile_result.callback_nonce` 是当前 callback 代际。不要在日志或报告中回显完整 URL。
 
+机器路由由 `_trigger_extra_properties` 统一下发 `DefaultAgent` 与 `override.dep.*.DefaultAgent`：首次保留配置允许的通用候选；已绑定原生会话的续评精确回原机。`get_agents()` 不是资源预留或完整兼容性判断，交互与调度契约见 [TeamCity 交互](teamcity-interaction.md)。
+
 ### 4.4 轮询、chain failure 与 merge gate
 
-- 所有非终态 TC 状态都会消耗 polling budget；默认约 3 小时，404 直接终结降级。
+- 轮询预算与正常容量等待须分开：含 `_queued_chain_has_capacity` 的版本对确认有兼容候选的 queued 容量等待持续 tick，不消耗 `COMPILE_TC_TIMEOUT_POLLS`，不重复投递；无可用兼容候选或探针失败仍保留原预算兜底。未包含此实现的版本仍可能对所有非终态计票，默认预算约 3 小时；不能据此保证线上已豁免。
+- 主 Flow 确认不存在与链首出列/状态推进不是同一类 404；具体队列探测、旧链 requeue 标记和验证边界见 [TeamCity 交互](teamcity-interaction.md#4-tick容量等待与超时预算)。
 - `_classify_chain_failure` 递归定位 sync/unshelve/build/ai_review 的首个真实失败，不把 snapshot dependency 级联报错当根因。
 - Build 成功、仅 AiReview 尾部失败时保持正确 compile 结论。
 - Sync/Unshelve 错误读取失败步骤日志；已知 transient 可按独立 chain retry 预算回到 trigger。

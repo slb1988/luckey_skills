@@ -30,6 +30,7 @@ AI Review 负责从 shelf 发起、编译与模型评审、人工/系统决策�
 | 对象、流程与生命周期 | [architecture-lifecycle](references/architecture-lifecycle.md) |
 | API、表、worker、callback、配置、刷新与测试 | [backend-module](references/backend-module.md) |
 | 构建链、参数、Agent、Report/Notification 与耗时 | [teamcity-pipeline](references/teamcity-pipeline.md) |
+| TeamCity 交互、首次择机/续评钉机、容量等待与 tick | [teamcity-interaction](references/teamcity-interaction.md) |
 | Collect / MergeGate、MainDev/Wwise 完整视图与 stream 参数耦合、Runner / Publish / Memory / Pi、AS warning 误分类 | [review-toolchain](references/review-toolchain.md) |
 | reviewer、jury、自批、代提交、mixed stream、P4错误与通知 | [decision-submit-notification](references/decision-submit-notification.md) |
 | 排队、慢、失败、错配、缺日志、错误 verdict | [diagnostics](references/diagnostics.md) |
@@ -72,9 +73,11 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 </memory>
 
 <memory category="troubleshooting">
+- 首次评审优先用配置允许的通用兼容候选投递，由 TeamCity 在实际可运行时择机；`get_agents()` 是瞬时状态快照，不是槽位预留或整链兼容性证明，不应据此提前钉死单机。
 - 已绑定原生 Pi 会话的 shelf 更新续评有跨轮 Agent 亲和性：`pyAutomation/backend/server/applications/ai_review/ai_worker.py::_trigger_extra_properties()` 读取 `pi_session_agent`，将 `DefaultAgent` 与 `override.dep.*.DefaultAgent` 同设为原 Agent 的精确正则，并携带 `AI_REVIEW_PI_SESSION_AGENT`；不按忙闲改选机器。
 - 根因是 `DevOps/AiReview/AiReviewRunner.py` 依赖构建机本地原生 session 文件；未恢复原会话就跨机续接会报 `SESSION_INVALID`。单删机器限制不能保住续接语义，清空会话换机也不是原会话续评。
 - 因此其他 WinBuilder 空闲仍可能不兼容：链首 Sync 等被绑定机器，下游等依赖。排查时核 Flow 与 Sync 的有效 Agent 参数及 Review 会话绑定，区分此约束与“同机锚点从未获得 Agent”。
+- 已确认的正常容量等待应持续 tick，不因机器全忙耗尽执行预算、误降级或重复投递；无兼容候选/查询失败与容量等待分开。具体查询、轮询版本边界和验收要求独立记录在 [TeamCity 交互](references/teamcity-interaction.md)。
 </memory>
 
 <memory category="common-patterns">

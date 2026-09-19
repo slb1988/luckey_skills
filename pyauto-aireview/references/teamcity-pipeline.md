@@ -142,6 +142,8 @@ Artifact 可能跨构建累积或被后续构建覆盖。分析本轮时按 buil
 
 报告时分别计算，不能把 Task 的 `queuedDate→startDate` 全叫排队。
 
+首次评审优先交 TeamCity 按通用兼容候选择机；原生会话续评保留原机亲和性。其他机器空闲不代表它在本轮兼容集合内。投递接口、Agent/依赖查询、历史忙闲证据及容量等待的 tick/预算契约集中见 [TeamCity 交互与 Agent 调度](teamcity-interaction.md)，不要用 `get_agents()` 的瞬时快照提前锁定首次构建机器。
+
 ### 6.2 Pi 慢的典型签名
 
 | 现象 | 优先判断 |
