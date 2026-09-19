@@ -186,6 +186,8 @@ capture/flush 全部 401 落 spool 堆积，而当时只有 check 有注册表�
 - **蒸馏丢信号**（`scripts/session_messages.py` / `scripts/memory_hook.py`）：真实任务在派发模板末尾 `=== TASK ===` 节，未剥信封就截「首个用户目标」前 700 字会只留模板；完成摘要可仅存在于 bash 工具调用 `orca orchestration send --type worker_done --body "..."`，随后 Pi assistant 文本为空，只抽 user/assistant 文本会漏掉结果。首轮 recall 的 TASK 清洗不等于 capture 蒸馏已支持。
 - **入库完成态错配**：`intake-filter` v2 把 pending CL / 未提交未部署当中间态拒绝，但该 worker 流程禁止提交，pending CL + 具体文件/机制/根因的完成汇报即 worker 终态。应按实质事实判定价值，既不能仅因未提交而拒绝，也不能仅凭 worker 身份放行；完成汇报不证明代码已提交或部署。
 - **rescue 不重建内容**：入库审核 rescue 只改变审核/入库状态，不修改 `distilled_content`；模板或空摘要即使获准入库，也不会恢复原会话中已被蒸馏丢弃的信息。这是内容损失，不是单纯审核状态错误。
+
+修复与救援（2026-09-19 已上线）：蒸馏器 `strip_orca_worker_envelope()`（剥派发信封取 TASK 正文）+ `extract_worker_done_summary()`（pi toolCall / codex function_call / custom_tool_call 含 JS exec 桥，占位符丢弃）+ `choose_session_result()`（更丰富的 worker_done 摘要优先于薄收尾文本），skill commit `f6f6c19`。服务端 full session 文件下载曾永远 403（`get_download_path` 只查 `session_versions.file_id` 漏 `full_file_id`），修复 commit `93d0928`（服务端仓库）。存量误拒用 `scripts/rescue_orca_worker_sessions.py` 重蒸馏重提交（默认 dry-run；幂等键绑内容哈希，内容不变自动跳过/被 exact 去重吸收）；intake-filter v3 已按 worker 完成态语义校准。救援后仍被拒的一般是结果本身缺失（worker 被杀/capability revoked 发不出 worker_done），属内容缺失而非误判。
 </memory>
 
 ### chat-hub（微信桥）会话归档成信封：distilled 预算被身份封套/语音元数据占满
