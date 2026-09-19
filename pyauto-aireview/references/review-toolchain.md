@@ -237,13 +237,13 @@ Collect 失败不等于 AS warning 命中。已确认的误分类路径是 Publi
 
 已核源码契约：Collect 独立记录当前 Task 身份绑定的原始错误；普通采集失败或不可用证据由 Publish 给 error/risk0，不读旧 Pi 结果、不等于 approve。认证后的真实 AS warning 仍锁存 reject/risk100，辅助 IO 错误不能撤销。旧 Collect 无失败侧录时指向原日志，不猜 warning。
 
-工具链自修改保护可由受信 DSL 记录本轮 `toolchain_guard.json` 并直接给人工处理 reject；该分支不执行被 shelf 覆盖的 Publish 脚本。Collect失败旧 flag 保持兼容不意味着它本身就是 AS warning 证据。callback仍需核当前代际是否应用，源码修复不证明线上已采用。
+工具链自修改保护已移除（pending CL 1804）：工具链迁出被审 depot 后 shelf 无法携带执行链代码，guard 只会误拦（如 Tools/AiReview 删除 CL 的评审）。Collect失败旧 flag 保持兼容不意味着它本身就是 AS warning 证据。callback仍需核当前代际是否应用，源码修复不证明线上已采用。
 
 ## 9. 安全边界
 
 已存在的保护：
 
-- Task 在执行前拒绝 shelf 修改 `Tools/AiReview/`（历史自卫条款：工具链已迁出被审 depot，shelf 无法再携带工具链，该 guard 只防旧时代 shelf）；
+- 工具链从受信 devops_root 执行，不执行被审 workspace 内容；
 - MergeGate 绑定本轮 CL/stream/client/baseline/build；
 - 模型元数据被 Publish 覆盖；
 - Pi 无 shell/P4/edit 工具；
