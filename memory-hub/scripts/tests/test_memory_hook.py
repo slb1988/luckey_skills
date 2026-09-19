@@ -574,11 +574,11 @@ class MemoryHookTest(unittest.TestCase):
             os.environ, {"MEMORY_HOOK_STATE_DIR": directory}, clear=True
         ):
             self.assertEqual(
-                project_id_for_cwd("D:\\Github\\Memory-Hub", "agent-history"), "memory-hub"
+                project_id_for_cwd(str(Path(directory) / "Memory-Hub"), "agent-history"), "memory-hub"
             )
-            self.assertEqual(project_id_for_cwd("D:\\MainDev", "agent-history"), "maindev")
+            self.assertEqual(project_id_for_cwd(str(Path(directory) / "MainDev"), "agent-history"), "maindev")
             self.assertEqual(
-                project_id_for_cwd("D:\\Github\\ObsidianVault", "agent-history"),
+                project_id_for_cwd(str(Path(directory) / "ObsidianVault"), "agent-history"),
                 "obsidianvault",
             )
             self.assertEqual(project_id_for_cwd("/home/sun/My App", "agent-history"), "my-app")
@@ -698,7 +698,7 @@ class MemoryHookTest(unittest.TestCase):
             root = Path(directory)
             transcript = root / "session.jsonl"
             transcript.write_text(
-                json.dumps({"type": "user", "message": {"content": "hi"}}),
+                json.dumps({"type": "user", "message": {"content": "修复归档的项目与来源归属"}}),
                 encoding="utf-8",
             )
             config = Config(
@@ -1927,14 +1927,12 @@ class MemoryHookTest(unittest.TestCase):
             with gzip.open(row["snapshot_path"], "rt", encoding="utf-8") as stored:
                 self.assertIsNone(json.load(stored)["user"])
 
-    def test_capture_skips_when_skip_env_set(self):
-        # MEMORY_HUB_SKIP_CAPTURE=1（auto-skill extraction 子 session 等 opt-out
-        # 场景）→ capture 直接返回，不入队任何 job。
+    def test_capture_skips_when_skip_env_and_signature_match(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             transcript = root / "session.jsonl"
             transcript.write_text(
-                json.dumps({"type": "user", "message": {"content": "remember"}}),
+                json.dumps({"type": "user", "message": {"content": "You are the Skill extraction sub-agent. Extract skills."}}),
                 encoding="utf-8",
             )
             config = Config(
@@ -1950,7 +1948,10 @@ class MemoryHookTest(unittest.TestCase):
             args = SimpleNamespace(
                 user_id=None, source="pi", flush_limit=10, verbose=False
             )
-            with patch.dict(os.environ, {"MEMORY_HUB_SKIP_CAPTURE": "1"}):
+            hook = {"session_id": "session-1", "transcript_path": str(transcript), "cwd": str(root)}
+            with patch.dict(os.environ, {"MEMORY_HUB_SKIP_CAPTURE": "1"}), patch(
+                "sys.stdin", io.StringIO(json.dumps(hook))
+            ):
                 self.assertEqual(command_capture(args, config, store), 0)
             self.assertEqual(store.status()["counts"], {})
             self.assertEqual(store.status()["unconfigured_jobs"], 0)

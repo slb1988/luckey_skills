@@ -9,7 +9,9 @@ developer/context records carried by ``response_item``.
 
 from __future__ import annotations
 
+import json
 import re
+import shlex
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 
@@ -231,6 +233,165 @@ def extract_session_pairs(
         if families[2]:
             return [pair for _, pair in families[2]]
     return [pair for record in records if (pair := extract_role_text(record))]
+
+
+ORCA_WORKER_PREFIX_RE = re.compile(
+    r"^\s*You\s+are\s+working\s+inside\s+Orca\b.*?\bdispatched\s+worker\b",
+    re.IGNORECASE | re.DOTALL,
+)
+ORCA_SECTION_RE = re.compile(r"^[ \t]*===[ \t]*([^=\r\n]+?)[ \t]*===[ \t]*\r?$", re.MULTILINE)
+
+
+def strip_orca_worker_envelope(text: str) -> str:
+    """Keep only the TASK section of an Orca dispatch; bare envelopes are noise."""
+    if not ORCA_WORKER_PREFIX_RE.match(text):
+        return text
+    sections = list(ORCA_SECTION_RE.finditer(text))
+    for index, section in enumerate(sections):
+        if section.group(1).strip() == "TASK":
+            end = sections[index + 1].start() if index + 1 < len(sections) else len(text)
+            return text[section.end():end].strip()
+    return ""
+
+
+FUNCTION_SHELL_CALL_NAMES = {"exec_command", "shell", "shell_command", "bash"}
+CUSTOM_SHELL_CALL_NAMES = FUNCTION_SHELL_CALL_NAMES | {"exec"}
+JS_EXEC_BRIDGE_RE = re.compile(r"""tools\.exec_command\(\s*\{\s*["']?cmd["']?\s*:\s*(["'])""")
+_JS_STRING_ESCAPES = {"n": "\n", "r": "\r", "t": "\t", "b": "\b", "f": "\f", "v": "\v"}
+# 派发模板含 worker_done 示例命令（--body "<3-sentence summary: ...>"），
+# 尖括号占位的 body 不是完成汇报，必须丢弃。
+WORKER_DONE_PLACEHOLDER_RE = re.compile(r"<.+>", re.DOTALL)
+
+
+def unwrap_js_exec_command(command: str) -> str:
+    """解开 codex JS 桥 ``tools.exec_command({cmd: "..."})`` 包装，返回内层 shell 命令。
+
+    非包装文本原样返回；字面量转义（\\" 与 \\\\ 等）按 JS 字符串规则还原。
+    """
+    match = JS_EXEC_BRIDGE_RE.search(command)
+    if not match:
+        return command
+    quote = match.group(1)
+    chars: List[str] = []
+    index = match.end()
+    while index < len(command):
+        char = command[index]
+        if char == "\\" and index + 1 < len(command):
+            escaped = command[index + 1]
+            if escaped == "u" and index + 5 < len(command):
+                try:
+                    chars.append(chr(int(command[index + 2:index + 6], 16)))
+                    index += 6
+                    continue
+                except ValueError:
+                    pass
+            chars.append(_JS_STRING_ESCAPES.get(escaped, escaped))
+            index += 2
+            continue
+        if char == quote:
+            break
+        chars.append(char)
+        index += 1
+    return "".join(chars)
+
+
+def _worker_done_command_summary(command: str) -> str:
+    if not re.search(r"\borca\s+orchestration\s+send\b", command) or "worker_done" not in command:
+        return ""
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()\n")
+        lexer.whitespace = " \t\r"
+        tokens = list(lexer)
+    except ValueError:
+        return ""
+    result = ""
+    separators = set(";&|()\n")
+    for index in range(len(tokens) - 2):
+        if tokens[index:index + 3] != ["orca", "orchestration", "send"]:
+            continue
+        if index and not set(tokens[index - 1]).issubset(separators):
+            continue
+        options: Dict[str, str] = {}
+        cursor = index + 3
+        while cursor < len(tokens) and not set(tokens[cursor]).issubset(separators):
+            token = tokens[cursor]
+            flag, equals, value = token.partition("=")
+            if flag in ("--type", "--subject", "--body"):
+                if not equals and cursor + 1 < len(tokens):
+                    cursor += 1
+                    value = tokens[cursor]
+                options[flag] = value
+            cursor += 1
+        if options.get("--type") == "worker_done" and options.get("--body", "").strip():
+            body = options["--body"].strip()
+            if WORKER_DONE_PLACEHOLDER_RE.fullmatch(body):
+                continue
+            subject = options.get("--subject", "").strip()
+            result = "%s: %s" % (subject, body) if subject else body
+    return result
+
+
+def _shell_call_command(call: Dict[str, Any]) -> Any:
+    arguments = call.get("arguments")
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except ValueError:
+            return None
+    if not isinstance(arguments, dict):
+        return None
+    return arguments.get("command") or arguments.get("cmd")
+
+
+def extract_worker_done_summary(events: Iterable[Dict[str, Any]]) -> str:
+    """Read the last Orca completion summary from Pi/Codex shell tool calls."""
+    result = ""
+    for event in events:
+        commands: List[Any] = []
+        message = event.get("message")
+        if event.get("type") == "message" and isinstance(message, dict) and message.get("role") == "assistant":
+            content = message.get("content")
+            if isinstance(content, list):
+                commands.extend(
+                    _shell_call_command(block)
+                    for block in content
+                    if isinstance(block, dict)
+                    and block.get("type") == "toolCall"
+                    and block.get("name") == "bash"
+                )
+        payload = event.get("payload")
+        if event.get("type") == "response_item" and isinstance(payload, dict):
+            name = str(payload.get("name", "")).rsplit(".", 1)[-1]
+            if payload.get("type") == "function_call" and name in FUNCTION_SHELL_CALL_NAMES:
+                commands.append(_shell_call_command(payload))
+            elif payload.get("type") == "custom_tool_call" and name in CUSTOM_SHELL_CALL_NAMES:
+                # codex exec 自定义工具：命令在 input 字符串里，常带 JS 桥包装
+                commands.append(payload.get("input"))
+        for command in commands:
+            if isinstance(command, list) and all(isinstance(part, str) for part in command):
+                if len(command) >= 3 and command[1] in ("-c", "-lc"):
+                    command = command[2]
+                else:
+                    command = " ".join(shlex.quote(part) for part in command)
+            if not isinstance(command, str):
+                continue
+            summary = _worker_done_command_summary(unwrap_js_exec_command(command))
+            if summary:
+                result = summary
+    return result
+
+
+def choose_session_result(last_assistant: str, worker_done_summary: str) -> Tuple[str, bool]:
+    """会话结果二选一，返回 (result, used_worker_done)。
+
+    worker 常在 worker_done 后补一句「已发送」式薄收尾，而 --body 三句摘要信息量
+    更高：摘要存在且（无助手文本或摘要更长）时用摘要，否则保留助手原文。
+    """
+    if worker_done_summary and (
+        not last_assistant.strip() or len(worker_done_summary) > len(last_assistant.strip())
+    ):
+        return worker_done_summary, True
+    return last_assistant, False
 
 
 # ---------------------------------------------------------------------------

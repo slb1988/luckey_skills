@@ -39,9 +39,12 @@ from session_messages import (
     chat_hub_speaker_note,
     chat_hub_speaker_title_prefix,
     chat_hub_speakers_from_pairs,
+    choose_session_result,
     extract_role_text,
     extract_session_pairs,
+    extract_worker_done_summary,
     strip_chat_hub_envelope,
+    strip_orca_worker_envelope,
 )
 
 
@@ -446,6 +449,7 @@ def session_user_texts(pairs: List[Tuple[str, str]]) -> Tuple[List[str], str, st
         if role == "user":
             text = strip_skill_wrapper(text)
             text, _speaker = strip_chat_hub_envelope(text)
+            text = strip_orca_worker_envelope(text)
             if not text:
                 continue
             if not is_noise_user_text(text):
@@ -678,18 +682,16 @@ def load_session_texts(job: sqlite3.Row) -> Tuple[List[str], str, str, str, List
     非 chat-hub 会话为 []。
     """
     pairs: List[Tuple[str, str]] = []
+    worker_result = ""
     job_keys = job.keys() if hasattr(job, "keys") else []
     full_path = job["full_path"] if "full_path" in job_keys else None
     if full_path and Path(full_path).is_file():
         payload = _read_gzip_payload(Path(full_path))
         events = (payload or {}).get("events")
         if isinstance(events, list):
-            pairs.extend(
-                extract_session_pairs(
-                    [event for event in events if isinstance(event, dict)],
-                    source=job["source"],
-                )
-            )
+            events = [event for event in events if isinstance(event, dict)]
+            pairs.extend(extract_session_pairs(events, source=job["source"]))
+            worker_result = extract_worker_done_summary(events)
     if not pairs:
         snapshot_path = job["snapshot_path"]
         if snapshot_path and Path(snapshot_path).is_file():
@@ -704,13 +706,26 @@ def load_session_texts(job: sqlite3.Row) -> Tuple[List[str], str, str, str, List
                     if role in ("user", "assistant") and isinstance(content, str):
                         pairs.append((role, content))
     if pairs:
-        texts = session_user_texts(pairs)
-        return texts + (chat_hub_speakers_from_pairs(pairs),)
+        user_texts, first_user, last_user, last_assistant = session_user_texts(pairs)
+        result = choose_session_result(last_assistant, worker_result)[0]
+        return user_texts, first_user, last_user, result, chat_hub_speakers_from_pairs(pairs)
     last_user = strip_skill_wrapper(job["last_user"] or "")
     last_user, _speaker = strip_chat_hub_envelope(last_user)
-    last_assistant = job["last_assistant"] or ""
+    last_user = strip_orca_worker_envelope(last_user)
+    last_assistant = choose_session_result(job["last_assistant"] or "", worker_result)[0]
     user_texts = [compact_text(last_user, 300)] if last_user else []
     return user_texts, last_user, last_user, last_assistant, []
+
+
+def build_distilled_summary(
+    goal: str, recent: str, result: str, speakers: Optional[List[Dict[str, Any]]] = None
+) -> str:
+    return "%s首个用户目标：%s。最近用户目标：%s。会话结果：%s" % (
+        chat_hub_speaker_note(speakers or []),
+        compact_text(goal, 700),
+        compact_text(recent, 700),
+        compact_text(result, 1400),
+    )
 
 
 def transcript_tail_interrupted(transcript_path: Path) -> bool:
@@ -1891,7 +1906,7 @@ class HubClient:
         version: int,
         file_id: str,
         title: str = "",
-        texts: Optional[Tuple[List[str], str, str, str]] = None,
+        texts: Optional[Tuple[List[str], str, str, str, List[Dict[str, Any]]]] = None,
         troubleshooting: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         # project/agent 归属跟随 job：project 按捕获时的工作目录分类，
@@ -1909,22 +1924,13 @@ class HubClient:
         topic = title or compact_text(goal, TITLE_MAX_CHARS) or "未命名会话"
         # chat-hub 会话标记对话主体：distilled 开头标注说话人，标题加 [主体] 前缀
         # （2026-09-06 用户定版：会话要分析对话的人的主体是谁，并做标记记录）。
-        speaker_note = chat_hub_speaker_note(speakers)
         if speakers:
             topic = chat_hub_speaker_title_prefix(speakers) + topic
         # 归档摘要只保留会话内容本身（用户目标/会话结果），不内嵌来源、标题、
         # 工作目录等元数据——元数据由 Hub 侧 source_description 携带（参考通道，
         # 不参与事实抽取）。否则 Graphiti 会把「会话标题」「工作目录」抽成实体，
         # 产生噪声节点（见 memory-center 2026-08-20 实体抽取噪声事故报告）。
-        distilled = (
-            "%s首个用户目标：%s。最近用户目标：%s。会话结果：%s"
-            % (
-                speaker_note,
-                compact_text(goal, 700),
-                compact_text(recent, 700),
-                compact_text(result, 1400),
-            )
-        )
+        distilled = build_distilled_summary(goal, recent, result, speakers)
         # The optional classifier block uses the same intake/approval chain and
         # existing review body display; absence/old cache/model failure is benign.
         block = render_troubleshooting(troubleshooting)
