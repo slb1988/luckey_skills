@@ -179,6 +179,15 @@ capture/flush 全部 401 落 spool 堆积，而当时只有 check 有注册表�
 **session 归错 project（如 admin_sun_depot_7184/MainDev/ObsidianVault 全落 `project:sun`）先查本机 catch-all**：state dir `project-aliases.local.json` 里 `{"aliases":{"*":"<id>"}}` 是 `install_hooks.py install --project <id>` 写入的整机 catch-all；2026-08 之前的旧版还可能因 agent 伪终端空输入，把主机名建议值以 `source: "prompt"` 静默写入；旧版还有第三条写入路径（local JSON「老是被修改」的机制）：`main()` 只要 `resolve_machine_project()` 返回 project_id——含 `source=existing` 仅仅读到已有配置——就调 `install_machine_project()` 把文件重写一遍，每次普通 install（skill 更新、agent 重装）都重断言错误 catch-all 并刷新 `updated_at`。`atomic_write` 每次覆盖前生成 `.memory-hub.bak`，state dir 里残留的多个含 catch-all 的 bak（updated_at 相隔几十秒 = 连续两次 install 的痕迹）不会被读取，可直接删。共享模板 `assets/project-aliases.json` 只有子目录/特定目录条目（backend/frontend→admin_sun_depot_7184、sununity→unity2018），**没有顶层目录自映射**；解析是 `aliases.get(name, aliases.get("*", name))`，未列名 cwd 全部落 `*`（2026-08-28 实测复现）。`--project` catch-all 只适合专用单项目机器，多项目工作站用了会吞掉所有未显式列名的项目——应删 `*`，按需保留具体目录映射（显式条目优先于 `*`）。注意本台 QNAP NAS 实为多项目机器（ObsidianVault/memory-hub/Container 等并存）：其 `install --project nas` 写入的 `{"*":"nas"}` catch-all 已于 2026-09-12 删除（备份 `project-aliases.local.json.removed-20260912.bak`），此后按 cwd 末级目录名小写派生（ObsidianVault→obsidianvault、memory-hub→memory-hub），勿再重装该 catch-all；历史 `project:nas` 下的旧记忆仍在原 scope，检索旧内容需显式 `project="nas"`。修复定版 commit `22c6589`（2026-08-30）：交互 prompt 路径整个删除，新 `apply_machine_project()` 只在显式 `--project`（`source=flag`）时写文件，已有配置只报告不重写；回归测试在 `scripts/tests/test_install_hooks.py`。排查路径：直接调 memory_hook.py 的别名解析实测各 cwd → spool.sqlite3 jobs 表按 local JSON mtime 分界统计错归 job。hub 上已错传的 session 不可变，按正确 project 补传只产生新版本，旧污染仍留在错 group。另注意：`.team/<member>/` 个人记忆若把错误配置记成「已固定，禁止重复确认」会固化错误，修复配置时需同步更正该条目。
 </memory>
 
+### Orca worker 会话误拒：存前抽取与完成态语义
+
+<memory category="troubleshooting">
+2026-09-19 排查确认的两层独立根因（后续修复/部署状态须另验）：
+- **蒸馏丢信号**（`scripts/session_messages.py` / `scripts/memory_hook.py`）：真实任务在派发模板末尾 `=== TASK ===` 节，未剥信封就截「首个用户目标」前 700 字会只留模板；完成摘要可仅存在于 bash 工具调用 `orca orchestration send --type worker_done --body "..."`，随后 Pi assistant 文本为空，只抽 user/assistant 文本会漏掉结果。首轮 recall 的 TASK 清洗不等于 capture 蒸馏已支持。
+- **入库完成态错配**：`intake-filter` v2 把 pending CL / 未提交未部署当中间态拒绝，但该 worker 流程禁止提交，pending CL + 具体文件/机制/根因的完成汇报即 worker 终态。应按实质事实判定价值，既不能仅因未提交而拒绝，也不能仅凭 worker 身份放行；完成汇报不证明代码已提交或部署。
+- **rescue 不重建内容**：入库审核 rescue 只改变审核/入库状态，不修改 `distilled_content`；模板或空摘要即使获准入库，也不会恢复原会话中已被蒸馏丢弃的信息。这是内容损失，不是单纯审核状态错误。
+</memory>
+
 ### chat-hub（微信桥）会话归档成信封：distilled 预算被身份封套/语音元数据占满
 
 <memory category="troubleshooting">
