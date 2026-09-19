@@ -16,6 +16,12 @@
 - `kept=0` 只表示本次没有被质量门禁放行的候选，不等于没有相关记忆，也不保证判分正确。先换关键词/显式 project，必要时按 [retrieval-eval.md](retrieval-eval.md) 排查。
 - 固定约30秒的 `RETRIEVAL_CORRECTION_RESOLVER_UNAVAILABLE` 曾由服务端 `min(30, remaining)` 截断正常慢模型引起。修复后 resolver/judge/格式重试共用可配置的110秒预算；耗尽返回可重试 RETRIEVAL_JUDGE_TIMEOUT，仍 fail-closed。用 request_id/retrieval_id 对照服务端阶段、耗时与异常类型，不能归咎于 HTTPS 或改走 v1 绕过。
 
+### search-v2 整请求 503 `RETRIEVAL_JUDGE_INVALID_RESPONSE`：先核对部署版本再怀疑代码
+
+<memory category="troubleshooting">
+历史根因（Stage A/B 重写前的构建，7e8b49f 时代）：judge 输出解析器对**单条** `injection_text > 320` 字符硬失败，整请求 fail-closed 503。现行代码（49e3e55 实证）该单条上限已删除（`RETRIEVAL_INJECTION_TEXT_MAX_CHARS` 不复存在），只剩整包 4000 字符预算（`retrieval_judge.py:24`），单条超长不再硬 fail；Stage A 请求级故障 fail-closed 503 本身仍是设计（api-notes.md「空失败原则」）。生产再现此 503 的第一动作是核对 NAS 部署版本（`git log -1` 是否含 Stage A/B 重写），已跑新构建仍 503 才另行取证——不要拿旧构建的 503 日志给现行代码开缺陷。
+</memory>
+
 ### 首轮预热 0 命中的时序类根因：目标记忆「尚未归档」；search 无查询缓存是设计
 
 <memory category="troubleshooting">
@@ -209,6 +215,12 @@ capture/flush 全部 401 落 spool 堆积，而当时只有 check 有注册表�
 ### Windows 本机 pytest 稳定 13 个失败（平台性问题）
 
 `scripts/tests/` 在 Windows 本机跑 pytest 稳定有 13 个用例失败（10 passed），失败点全在 tearDown 的 `shutil.rmtree`——spool.sqlite3 文件锁 PermissionError，属 Windows 平台既有环境问题（stash 验证未改动代码同样 13 败），不是 regression。评估改动是否破坏测试时对比改动前后的失败集合；要干净结果去 Linux/macOS 跑。
+
+### Windows 导入即炸：服务端包 `agent_integration.py` 顶层裸 `import fcntl`
+
+<memory category="troubleshooting">
+`src/memory_hub/agent_integration.py:4` 顶层裸 `import fcntl`（仅文件锁路径的 `fcntl.flock` 用到），Windows 无此模块——导入该 CLI 链的用例（如 test_auth_accounts）在收集期即炸，与上条「13 个 tearDown 锁失败」是两个独立的平台基线，均按既有平台问题延期未修。长期约束：服务端包模块会在 Windows 开发机被测试导入，Unix-only stdlib 一律不得顶层裸导入——lazy import 进锁函数或 `sys.platform` 守卫（现成范式：`.codex/hooks/log_event.py` 的 `try: import fcntl / except ImportError: fcntl = None`）。
+</memory>
 
 ### macOS 跑 tests 的姿势坑与平台性失败
 
