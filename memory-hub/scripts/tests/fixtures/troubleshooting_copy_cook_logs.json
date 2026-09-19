@@ -1,0 +1,15 @@
+{
+  "schema_version": "troubleshooting-distill-fixture/1",
+  "case_id": "copy-cook-logs-23084-pending-verification",
+  "note": "Minimized facts supplied by this task, not a replay/alteration of the historical 23084 receipt or proof of production validation.",
+  "user_messages": ["23084 Copy Cook Logs $dst: 解析错误，请排查修复。"],
+  "last_assistant": "症状：Copy Cook Logs $dst: 解析错误。已确认脚本为 BuildProjectWindows.kts。修复状态：将 $dst: 改为 ${dst}:，待新构建验证。根因尚未验证。验证点：新构建确认 Copy Cook Logs 不再出现解析错误。",
+  "troubleshooting": {
+    "symptom": "Copy Cook Logs $dst: 解析错误",
+    "component_or_script": "BuildProjectWindows.kts",
+    "verified_paths": ["BuildProjectWindows.kts"],
+    "root_cause": "unknown",
+    "fix_status": "将 $dst: 改为 ${dst}:，待新构建验证",
+    "verification_points": ["新构建确认 Copy Cook Logs 不再出现解析错误"]
+  }
+}

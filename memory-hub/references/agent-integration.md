@@ -479,6 +479,24 @@ User ID 解析优先级为命令行 `--user-id`、hook 输入的 `user_id`、
 
 ## 会话标题与低价值过滤判定
 
+### Live hook 排障结构（troubleshooting-v1）
+
+`memory_hook.py` 沿用一次 `llm_classify_session` 标题/价值请求，附加可选 `troubleshooting`：
+症状（symptom）、组件或脚本（component_or_script）、已验证路径（verified_paths）、根因
+（root_cause，可 unknown）、修复状态（fix_status，含具体修法及待验证限定）、验证点
+（verification_points）。`session_distill.py` 校验结构/长度与原文摘录；非法或虚构片段只丢该块，
+不阻断原归档。末助手输入窗口从 200 到 1400 字符，输出预算 1200 tokens，不增加模型调用。
+
+结构随 title-cache 的 snapshot hash 保存，在既有 `ensure_memory` 中附到三段式 distilled_content，
+Pi 本地提取稿也包含该块；既有 intake/extraction 审核详情的正文区直接显示六字段，无新 API/UI。
+仍必须通过原审核链，verified_paths 不代表生产验证，待新构建验证不能写成已完成。
+仅对启用 `MEMORY_HUB_TITLE_LLM=1` 且本次分类成功的新快照生效；默认关闭、超时、无字段、旧缓存、
+跳过 capture/低价值会话都可无结构，不补跑历史或覆盖回执。只见首尾样本而缺失中段排障结论时不得补造。
+批量 `upload_sessions.py` 的独立历史导入路径保持原状；本次只扩展 live hook。
+23084 的最小任务事实 fixture 在 `scripts/tests/fixtures/troubleshooting_copy_cook_logs.json`：
+脚本 BuildProjectWindows.kts、`${dst}:` 修法、待新构建验证、根因 unknown，不声称新构建已通过。
+
+
 `MEMORY_HUB_TITLE_LLM` 代码默认 `0`（关闭时用启发式标题、不走 LLM 判定），置 `1` 才走内网 vLLM（要开启的机器自行设该环境变量，不改代码默认值）。注意「关闭」只关掉 LLM 判定，**启发式低价值过滤始终生效**（`heuristic_meaningful`）：当一个会话的**全部** user 消息都是噪声时判低价值不上传——`is_noise_user_text` 把以 `<`/`/` 开头的消息（pi 的 skill 注入包装、slash 命令）和纯寒暄都视为噪声，且作用于**未剥 skill 包装的原始文本**，所以一个只有 skill 调用、没有任何口语化追问的会话（典型：单次 `git-tool update & commit`）即使 LLM 关闭也会被过滤（2026-08-22 实测）。低价值判定标准含**纯执行类例行运维**（git-tool update/sync/commit、任意项目的部署/发布/构建上传（前后端 build、dist 同步、服务重启）、skill 更新提交、memory-hub check/install、批量上传归档等按既定流程执行、只有命令执行结果的会话）——这类会话不上传；但运维中含真实故障排查/bug 修复/技术决策的仍有价值（2026-08-20 用户要求加入；2026-08-29 放宽到任意项目的部署发布类，prompt 见 memory_hook.py 与 upload_sessions.py 的 llm_classify_session，两处保持同步）。
 
 **判定材料必须是整个会话，用户目标必须保留**（2026-08-21 用户定版，曾因此误过滤）：① LLM 分类与标题的输入是整会话的非噪声用户消息（`session_user_texts`，条数 >8 时 `head_tail_sample` 首尾各 4 抽样），绝不能只喂窗口尾部——否则实质会话会被结尾的「commit」误杀（当日 job 125/149 实例）；② 归档摘要 distilled 为三段式「首个用户目标/最近用户目标/会话结果」，目标取**首个非噪声用户消息**且先剥 `<skill>...</skill>` 注入包装（`strip_skill_wrapper`——pi 用户消息常是整份 SKILL.md + 末尾一句真实问题，不剥会把目标污染成模板文本），空目标兜底链 first→last→title；③ live hook 上传时经 `load_session_texts` 从 spool full 包重取全量事件提取文本，不依赖 job 行的尾部快照列。

@@ -31,6 +31,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from session_distill import DISTILL_VERSION, TROUBLESHOOTING_PROMPT, parse_troubleshooting, render_troubleshooting
 from recall_query import build_recall_query, QUERY_MAX_CHARS
 from recall_feedback import record_feedback, replay_feedback, augment_query, remember_approved_navigation
 from session_messages import (
@@ -523,7 +524,7 @@ def llm_classify_session(user_texts: List[str], last_assistant: str) -> Optional
             for index, text in enumerate(head_tail_sample(user_texts))
         ]
     if last_assistant:
-        lines.append("助手最近回复: %s" % compact_text(last_assistant, 200))
+        lines.append("助手最近回复: %s" % compact_text(last_assistant, 1400))
     prompt = (
         "你是编程助手会话的归档助手。下面是整个会话的全部用户消息（条数过多时为首尾抽样），"
         "请据此判断这个会话是否有归档价值，并给出主题标题。\n"
@@ -534,14 +535,14 @@ def llm_classify_session(user_texts: List[str], last_assistant: str) -> Optional
         "按既定流程执行、只有命令执行结果、没有可复用技术内容的机械性维护。"
         "注意：运维会话中如果包含真实的故障排查、bug 修复或技术决策（如发现并修复了某个问题），"
         "仍有归档价值。\n"
-        "只输出 JSON：{\"meaningful\": true或false, \"title\": \"不超过20字的主题标题，meaningful为false时给空字符串\"}\n\n"
-        "整个会话的用户消息：\n" + "\n".join(lines)
+        "只输出 JSON：{\"meaningful\": true或false, \"title\": \"不超过20字的主题标题，meaningful为false时给空字符串\", \"troubleshooting\": null}\n"
+        + TROUBLESHOOTING_PROMPT + "\n整个会话的用户消息：\n" + "\n".join(lines)
     )
     base_url = os.environ.get("MEMORY_HUB_TITLE_LLM_BASE_URL", TITLE_LLM_DEFAULT_BASE_URL).rstrip("/")
     body = {
         "model": os.environ.get("MEMORY_HUB_TITLE_LLM_MODEL", TITLE_LLM_DEFAULT_MODEL),
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 128,
+        "max_tokens": 1200,
         "temperature": 0,
         "chat_template_kwargs": {"enable_thinking": False},
         "response_format": {"type": "json_object"},
@@ -572,7 +573,9 @@ def llm_classify_session(user_texts: List[str], last_assistant: str) -> Optional
             return None
         meaningful = verdict.get("meaningful")
         title = clean_llm_title(str(verdict.get("title") or ""))
-        return {"title": title, "meaningful": bool(meaningful)}
+        troubleshooting = parse_troubleshooting(verdict.get("troubleshooting"), "\n".join(lines))
+        return {"title": title, "meaningful": bool(meaningful), "distill_version": DISTILL_VERSION,
+                **({"troubleshooting": troubleshooting} if troubleshooting else {})}
     except Exception:
         return None
 
@@ -598,19 +601,24 @@ def load_title_cache(path: Path) -> Dict[str, Dict[str, Any]]:
                     cache[sha256] = {
                         "title": title,
                         "meaningful": bool(record.get("meaningful", True)),
+                        "troubleshooting": parse_troubleshooting(record.get("troubleshooting")),
+                        "distill_version": record.get("distill_version"),
                     }
     except OSError:
         pass
     return cache
 
 
-def append_title_cache(path: Path, sha256: str, title: str, meaningful: bool) -> None:
+def append_title_cache(path: Path, sha256: str, title: str, meaningful: bool,
+                       troubleshooting: Optional[Dict[str, Any]] = None) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as handle:
             handle.write(
                 json.dumps(
-                    {"sha256": sha256, "title": title, "meaningful": meaningful},
+                    {"sha256": sha256, "title": title, "meaningful": meaningful,
+                     "distill_version": DISTILL_VERSION,
+                     "troubleshooting": parse_troubleshooting(troubleshooting)},
                     ensure_ascii=False,
                 )
                 + "\n"
@@ -620,7 +628,8 @@ def append_title_cache(path: Path, sha256: str, title: str, meaningful: bool) ->
 
 
 def classify_snapshot(
-    config: "Config", sha256: str, user_texts: List[str], last_assistant: str
+    config: "Config", sha256: str, user_texts: List[str], last_assistant: str,
+    details: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, bool]:
     """Topic title + archival-worthiness for a snapshot; cached by content sha256.
 
@@ -631,6 +640,8 @@ def classify_snapshot(
     cache = load_title_cache(cache_path)
     cached = cache.get(sha256)
     if cached is not None:
+        if details is not None and cached.get("troubleshooting"):
+            details["troubleshooting"] = cached["troubleshooting"]
         return cached["title"], cached["meaningful"]
     verdict = llm_classify_session(user_texts, last_assistant)
     if verdict is not None:
@@ -641,7 +652,10 @@ def classify_snapshot(
         title = ""
     if not title:
         title = heuristic_title(user_texts)
-    append_title_cache(cache_path, sha256, title, meaningful)
+    troubleshooting = parse_troubleshooting((verdict or {}).get("troubleshooting"))
+    if details is not None and troubleshooting:
+        details["troubleshooting"] = troubleshooting
+    append_title_cache(cache_path, sha256, title, meaningful, troubleshooting)
     return title, meaningful
 
 
@@ -1878,6 +1892,7 @@ class HubClient:
         file_id: str,
         title: str = "",
         texts: Optional[Tuple[List[str], str, str, str]] = None,
+        troubleshooting: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         # project/agent 归属跟随 job：project 按捕获时的工作目录分类，
         # agent 取捕获来源（pi/claude/codex），与当前进程 config 无关。
@@ -1910,6 +1925,11 @@ class HubClient:
                 compact_text(result, 1400),
             )
         )
+        # The optional classifier block uses the same intake/approval chain and
+        # existing review body display; absence/old cache/model failure is benign.
+        block = render_troubleshooting(troubleshooting)
+        if block:
+            distilled += "\n\n" + block
         memory_draft_path = None
         if job["source"] == "pi":
             # 硬顺序：先持久化可读提取稿，再写 Hub。这样即使远端失败或摘要被预算
@@ -1960,11 +1980,13 @@ class HubClient:
         agent_id = job["source"] or self.config.agent_id
         user_id = job["user_id"]
         texts = load_session_texts(job)
+        classification: Dict[str, Any] = {}
         title, meaningful = classify_snapshot(
             self.config,
             job["sha256"],
             texts[0],
             texts[3],
+            details=classification,
         )
         if not meaningful:
             return {"status": "skipped_meaningless", "title": title}
@@ -1987,7 +2009,8 @@ class HubClient:
             )
             if latest.get("content_sha256") == job["sha256"]:
                 ensured = self.ensure_memory(
-                    job, latest_version, latest["file_id"], title, texts=texts
+                    job, latest_version, latest["file_id"], title, texts=texts,
+                    troubleshooting=classification.get("troubleshooting"),
                 )
                 return {"status": "unchanged", "version": latest_version, **ensured}
 
@@ -2057,7 +2080,8 @@ class HubClient:
             json_body=version_request,
         )
         version = int(version_response["version"])
-        ensured = self.ensure_memory(job, version, file_id, title, texts=texts)
+        ensured = self.ensure_memory(job, version, file_id, title, texts=texts,
+                                     troubleshooting=classification.get("troubleshooting"))
         return {
             "status": "captured",
             "version": version,
