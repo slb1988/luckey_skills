@@ -85,10 +85,11 @@ python scripts/review_queue.py apply decisions.json
 </memory>
 
 <memory category="core-rules">
-同组“新实体入图”受串行门禁约束：approve 成功不等于索引完成，批处理须等前一条 `indexed` 再批下一条。
+同组“新实体入图”受串行门禁约束：approve 成功不等于索引完成，批处理须等前一条 `indexed` 再批下一条
+（等待手段：轮询 review detail 的 `memory_status` 至 `indexed`）。
 这只串行化本执行者；Dashboard/其他 agent 仍可并发改变组门禁与预览，单条 `indexed` 不是全组就绪屏障。
 “同组存在尚未完成的新实体入图任务”是暂态依赖等待，不是永久拒绝：应自动退回等待，依赖完成后自动重建预览、按既有模式重审，无需人工重新入队。
-自动退回/恢复不等于自动 approve，也不改变审核模式；这是行为契约，实际部署状态另验。
+自动退回/恢复不等于自动 approve，也不改变审核模式；门禁以 `entity_admission_blocked` 暂态等待生效，预览重建后旧 snapshot_token 失效须重取（实体名也可能变）。
 重建后的预览不继承旧清理验收；重新核对事实与 novelty，不绕过门禁。
 内容分层、状态口径、语义快照和执行归因见 [审核内容、状态与快照](references/review-state-and-snapshots.md)。
 </memory>
