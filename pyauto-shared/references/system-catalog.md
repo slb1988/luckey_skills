@@ -29,7 +29,8 @@
 | 诊断与代码分析／业务 | 崩溃分析、错误页、代码图 | `crash_error_analysis/SKILL.md`、`codegraph/SKILL.md`、`diff_summarizer/` | 错误分析不必涉及 AI Review |
 | 账号与权限／公共能力 | 登录、用户、组、API token、LDAP管理 | `auth/SKILL.md`、`lldap_admin/SKILL.md`、`user_manage/` | 权限来源以当前接口/组策略为准，不能从内网可达推导授权 |
 | 服务状态／公共能力 | 健康、busy 与停机前检查 | `server_status/SKILL.md` | HTTP健康、busy和某业务完成是不同问题 |
-| 内容/设备/UE辅助／业务集合 | 设备、内容管理、版本与UE工具入口 | `device/`、`content_manager/`、`gameplay_tag_redirects/`、`ugs_pcb/`、`ugs_user_notification/`、`ue_launcher/`、`p4_pl/` | 此处只确认入口集合；具体用途/契约到模块核实，不虚构独立 skill |
+| UE Launcher 工具箱／业务 | 软件目录、手工上架、便携/安装包下载、客户端灰彩状态与安装启动 | [ue-launcher-toolbox](../../ue-launcher-toolbox/SKILL.md)；后端 `ue_launcher/`，客户端在 MainDev `Tools/ue-launcher` | 跨仓两端：服务端属本 depot，客户端属 MainDev；生产在 auto-server，与 NAS 无关 |
+| 内容/设备/UE辅助／业务集合 | 设备、内容管理、版本与UE工具入口 | `device/`、`content_manager/`、`gameplay_tag_redirects/`、`ugs_pcb/`、`ugs_user_notification/`、`p4_pl/` | 此处只确认入口集合；具体用途/契约到模块核实，不虚构独立 skill |
 | 其他集成／业务集合 | 外部任务、Git和记忆相关入口 | `tapd/`、`tencentgit/`、`memory_agent/` | 接口注册不证明外部服务部署位置或健康 |
 | Agent SDK／开发支持 | pyAutomation代理开发SDK及发布 | `pyAutomation/agent-sdk/SKILL.md` | 不等同于同名第三方 Agent SDK 技能 |
 
