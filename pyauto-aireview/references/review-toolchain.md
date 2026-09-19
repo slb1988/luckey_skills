@@ -1,6 +1,6 @@
 # AI Review 工具链
 
-本文以职责和契约组织。现行入口是 DevOps `DevOps/AiReview/`（`//depot/DevOps/`，ws:autoserver-deveops）——Task_AiReview 经 Resolve DevOps Toolchain Root 同步后以 devops_root 绝对路径调用；MainDev `Tools/AiReview/` 旧副本已废弃（删除中），业务 `pl-review` 规则仍留 MainDev。仍须区分工具根、被审根、规则根和产物根，不能机械替换路径。入口核验见 [路由](workspace-agent-routing.md)。
+本文以职责和契约组织。现行入口是 DevOps `DevOps/AiReview/`（`//depot/DevOps/`，ws:autoserver-deveops）——Task_AiReview 经 Resolve DevOps Toolchain Root 同步后以 devops_root 绝对路径调用；MainDev `Tools/AiReview/` 旧副本已删除（pending CL 133371），业务 `pl-review` 规则仍留 MainDev。仍须区分工具根、被审根、规则根和产物根，不能机械替换路径。入口核验见 [路由](workspace-agent-routing.md)。
 
 ## 1. 所有权与文件图
 
