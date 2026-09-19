@@ -14,6 +14,13 @@ pi session 文件名 `<ts>_<uuid>.jsonl` 的 uuid 即 session id，两边按 UUI
 签名排除 auto-skill extraction 等 LLM 分析子 session，最后以 `--hook-namespace` 调 upload_sessions.py
 幂等回填（可中断重跑）。
 
+跨客户端（pi + claude + codex）漏传检测没有现成一键脚本（backfill 脚本只覆盖 pi）：Hub 客户端 API
+无 list sessions 端点，只能本地枚举各端 session 文件 → 排除 spool 已完成/在途 job → 按三段式
+session_id `{source}:{project}:{uuid}`（uuid 即文件名，project 按别名映射推导）用
+`GET /v1/sessions/{id}` 逐个探测，404 = 确认漏传。判定时须先排除三类非漏传：spool 在途（queued 会
+自己传完，别急着补）、当前存活会话（hook 尚未收尾）、明确无归档价值的临时会话（如冒烟测试 cwd 的
+builder 产物）。
+
 ## 两条铁律（2026-08-20 用户定版，违反被明确纠正过）
 
 1. **默认必须双资产一起传（`--hook-namespace`）**：快照 + 完整 session 文件一次到位，禁止先用普通

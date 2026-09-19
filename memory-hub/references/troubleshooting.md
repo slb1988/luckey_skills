@@ -196,6 +196,12 @@ capture/flush 全部 401 落 spool 堆积，而当时只有 check 有注册表�
 修复与救援（2026-09-19 已上线）：蒸馏器 `strip_orca_worker_envelope()`（剥派发信封取 TASK 正文）+ `extract_worker_done_summary()`（pi toolCall / codex function_call / custom_tool_call 含 JS exec 桥，占位符丢弃）+ `choose_session_result()`（更丰富的 worker_done 摘要优先于薄收尾文本），skill commit `f6f6c19`。服务端 full session 文件下载曾永远 403（`get_download_path` 只查 `session_versions.file_id` 漏 `full_file_id`），修复 commit `93d0928`（服务端仓库）。存量误拒用 `scripts/rescue_orca_worker_sessions.py` 重蒸馏重提交（默认 dry-run；幂等键绑内容哈希，内容不变自动跳过/被 exact 去重吸收）；intake-filter v3 已按 worker 完成态语义校准。救援后仍被拒的一般是结果本身缺失（worker 被杀/capability revoked 发不出 worker_done），属内容缺失而非误判。
 </memory>
 
+### Orca worker 会话零 capture：release 直接杀 pi 进程，SessionEnd 不触发
+
+<memory category="troubleshooting">
+「Orca worker session 在 Hub 探测 404、spool 无任何记录、pi-trace 只有 `session_start`/`project_bootstrap` 而完全无 capture 事件」的定版根因（2026-09-20 漏传检测确认，19 个 worker session 同特征）：worker 完成任务被 release 时 pi 进程直接被杀，SessionEnd hook 没机会触发，capture 从未运行——不是上传失败、不是入库被拒、不是 spool 积压。链路健康时（同期 7 天 533 completed）也持续产生这类缺口，不会自愈，只能按漏传用 upload_sessions.py 手动补传（`--hook-namespace` + `MEMORY_HUB_TITLE_LLM=0`，见 upload-sessions.md）。与「Orca worker 会话误拒」是两个阶段的独立问题：误拒有 capture 但蒸馏/入库丢信号；本条 capture 从未发生，trace 里没有任何 capture 事件可查。
+</memory>
+
 ### chat-hub（微信桥）会话归档成信封：distilled 预算被身份封套/语音元数据占满
 
 <memory category="troubleshooting">
