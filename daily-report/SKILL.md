@@ -25,7 +25,7 @@ description: 每日日报生成器。合并飞书日报总结、ActivityWatch �
 - AW 提供**时间分配佐证**（花了多久、用了什么工具）
 - P4 提供**代码变更记录**（提交了什么、改了哪些文件）
 
-**无参数时**：仅用 AW + P4 数据生成条目。
+**无参数时**：可用 lark-cli 拉取目标日期群消息作为飞书语义源（见 [references/lark-messages.md](references/lark-messages.md)），或仅用 AW + P4 数据生成条目。
 
 ---
 
