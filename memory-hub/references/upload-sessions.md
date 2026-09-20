@@ -38,6 +38,21 @@ builder 产物）。
 slug 方案各家不同：`E:\sununity` 在 Claude 是 `E--sununity`，在 Pi 是 `--E--sununity--`——定位时按
 `sessions/` 实际列表匹配，不要自行推算。
 
+## 定时兜底 sweep（sweep_missed_sessions.py）
+
+`scripts/sweep_missed_sessions.py` 是本机（Windows，走 Hub API，不依赖 NAS SQLite）的漏传兜底：
+扫描三端 session 目录近 N 天文件（默认 10 天），按「本地文件 − spool completed − Hub 探测」
+三层比对定位缺口，逐个调 upload_sessions.py（`--hook-namespace` + `MEMORY_HUB_TITLE_LLM=0`）
+幂等补传。复用 memory_hook 的 project 派生口径；30 分钟内仍在写入的文件视为 live 跳过；
+spool 中 queued/retry 的本轮不碰（等 hook flush 自己完成）。
+
+已处理标识：state dir 的 `sweep-state.json` 按 uuid 记录 `{status,size,mtime,project,sid,ts}`，
+终态（uploaded/on-hub/spool-completed/skipped-*/ignored）且文件未变的直接跳过，内容增长后
+下一轮按新版本重传；`--ignore <uuid>...` 把人工确认不归档的 session 永久排除。典型触发场景：
+Orca worker 被 release 秒杀（run 中途杀进程，agent_end/SessionEnd 都不触发，见
+troubleshooting.md「Orca worker 会话零 capture」）。本机由 Orca automation `memory-hub-sweep`
+每日 05:30 执行（ObsidianVault workspace，provider pi）。
+
 ## 幂等保证
 
 对包装后的归档文档（`agent-session-archive/1`，服务端要求 session 文件必须是合法 JSON，
