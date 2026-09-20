@@ -111,7 +111,7 @@ for (key, fh), (rid, n, key_name, ts, _fh) in sorted(dedup.items()):
         if txt.strip():
             lines.append(f'===== {role} =====\n{txt}')
     fn = f'{key}_{rid[:13]}_{fh}.txt'
-    with open(os.path.join(OUT, fn), 'w') as f:
+    with open(os.path.join(OUT, fn), 'w', errors='replace') as f:
         f.write('\n\n'.join(lines))
     sz = os.path.getsize(os.path.join(OUT, fn))
     index.append((key, ts, n, sz, fn))
