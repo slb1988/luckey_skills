@@ -13,6 +13,8 @@ description: 每日日报生成器。合并飞书日报总结、ActivityWatch �
 - "daily report"
 - "write daily note"
 
+另有 Orca 定时任务自动触发（工作日 23:58，带 precheck 门禁，口径需与本文件同步）：见 [references/scheduled-automation.md](references/scheduled-automation.md)。
+
 ## 输入参数（ARGUMENTS）
 
 调用时可附带飞书日报总结作为参数，格式不限（自由文本、分点、表格均可）。内容通常包含：
