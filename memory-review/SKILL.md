@@ -37,6 +37,7 @@ python scripts/review_queue.py scan -o review_packet.json
 python scripts/review_queue.py apply decisions.json --dry-run
 python scripts/review_queue.py apply decisions.json
 ```
+大批量批准用 `scripts/drive_approvals.py` 驱动（按组交错+逐轮 rescan 取新 token+同组等 indexed+失败按未知回读核实）→ [批量批准驱动](references/batch-approval-driver.md)。
 
 **判断层（agent 的活，脚本不替代）**：脚本的确定性检查只做机械筛查（自环边、预览厚度、
 敏感模式、novelty 状态），以下必须逐条用判断力核对：

@@ -1,0 +1,12 @@
+{
+ "removals": [],
+ "rejections": [],
+ "approvals": [
+  {
+   "review_id": "01a0ba1e-d853-783c-bf15-0b8176915e73",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:c7b78044f1470aec0c6bdfc39b912f16b637955a340fe0b9439ce7bd4e844dab",
+   "rationale": "auto-review: AI Review 会话延续研究 PART_OF/PROPOSED_FOR 边有正文支撑（三表设计为助手建议如实标注）；两个 suspected 实体由批准重验归并 canonical；novelty=novel"
+  }
+ ]
+}
