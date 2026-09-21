@@ -6,6 +6,7 @@
 - 本机定位提示：`D:/Github/save_one_stroke`；其他机器按仓库 URL 定位实际检出目录，不把本机路径当部署路径。
 - 公网试玩：<https://game.luckeyhome.site/>。
 - 本地预览：在游戏仓库执行 `npm start`，默认 <http://localhost:4173/>；命令与端口若有变化，以该版本 `package.json` / 项目说明为准。
+- 直达单关的试玩链接：`<预览地址>#level=<URL 编码后的关卡路径>`，如 `http://localhost:4173/#level=course%2F01-reach-the-ground`（路径中的 `/` 需编码为 `%2F`，编码形态若与目标版本路由实现不一致以代码为准）。交付关卡批次时用此格式给出可试玩入口。
 
 游戏技术基线为纯静态 HTML/CSS/JS 与本地 Matter.js 0.20。Node 用于本地开发、工具与验证，不要求生产环境运行 Node 服务；实际依赖以目标版本为准。
 

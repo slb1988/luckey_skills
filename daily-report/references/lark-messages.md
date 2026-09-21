@@ -20,6 +20,10 @@
 
 命令完整参数见全局 lark-im skill（`+chat-list` / `+chat-messages-list` / `+messages-search`）。
 
+## 消息 JSON 结构（解析口径）
+
+`+chat-messages-list` 输出中，消息正文在每条消息的**顶层 `content` 字段**（JSON 字符串，内含 `text`），不在飞书 API 文档式的嵌套 `body.content` 里。写提取脚本按顶层 `content` 解析；若解析结果为空，先打印一条原始消息确认实际字段路径，不要凭文档假设嵌套结构（2026-09-20 会话实测踩过）。
+
 ## 日记落盘要求
 
 走 lark-cli 路径时，除 DailySucc 合并条目外，在日记中追加「## 飞书消息摘要」一节（DailySucc 之后、App 使用时长之前）。摘要口径（用户 2026-09-20 定版，优先于此前的全群归纳口径）：

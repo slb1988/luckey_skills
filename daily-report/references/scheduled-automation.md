@@ -5,7 +5,7 @@ daily-report 除手动触发外，还由 Orca automation 定时自动执行。
 ## Automation 配置
 
 - **名称/id**：`daily-report 工作日报` / `fbe8b4d8`（建于 2025-09-20）
-- **调度**：工作日 23:58（RRULE `BYDAY=MO-FR`，Asia/Shanghai）；错过宽限 5 分钟，基本不补跑——避免跨午夜补跑写出错误日期的日记
+- **调度**：工作日 23:59（RRULE `BYDAY=MO-FR`，Asia/Shanghai）；错过宽限 5 分钟，基本不补跑——避免跨午夜补跑写出错误日期的日记
 - **执行体**：pi agent，ObsidianVault 主 worktree（`workspaceMode: existing`，不另建 worktree）
 - **手动操作**：`orca automations run fbe8b4d8`（手动触发一次）、`orca automations runs fbe8b4d8`（运行历史）
 

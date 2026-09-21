@@ -8,6 +8,12 @@ outbox 重试与错误、最近更新的 session、Graphiti episode 探测、Hub
 
 排障入口优先级：面板 Overview 状态灯 → Outbox 页签（retry/failed 的 last_error）→ Graphiti 页签（episode 探测）→ 日志页签。
 
+Dream（#dream 页）是**只读巡检**：检测并记录异常，不自动修复，判读时注意三条口径：
+
+- run `completed` 只表示当天巡检跑完，**不代表发现的异常已修好**；同一批未处理异常会在后续每天的 run 里重复出现（重新记录），不是「每天又失败一次」，也不等于队列积压或服务故障。当前界面不区分新增/持续/已解决，看起来像重复报错列表。
+- 异常按类型分开处置：投递失败（如下游 422 永久拒绝，见 [api-notes.md](api-notes.md) 关系时间契约）只缺 Graphiti 镜像、Hub 关系账本仍有效；「Hub 标 `indexed` 但精确 episode 探针确认图中不存在」的投影缺失才是真实一致性问题，成因需另行追查。
+- 判 Dream 是否真在干活看 run 实际检查的 episode 数（空转时趋近 0），不能只扫 run 状态；outbox 健康看 completed 累计 + pending/retry 是否为 0。
+
 Graph 图谱页按 ~500 节点截断渲染：图谱里看似「孤立」的节点可能只是截断未画出其边，判实体碎片化前先用 API 核实边数/一度邻居，勿凭面板视觉下结论。
 
 Dashboard 开发在本机源码副本 `D:/Github/memory-hub` 进行，NAS `/share/Container/memory-hub` 只是部署目标（经 git push/pull 同步；本机直连 NAS 的 SSH key 未授权、SMB 无凭证，部署需在 NAS 上执行命令或提供 SSH 密码）。前端是 Vue 3 + TS + Vite，构建产物 `frontend/dist` **自 commit 2c3b935 起不再纳入 git 追踪**（.gitignore 已移除 dist）；NAS 上现已有 node v22（`~/.local/bin/node`），部署 = NAS 本地 `cd frontend && npm ci && npm run build`，dist 由 backend 直接托管（带 ETag/304 缓存）。legacy 后端 `src/memory_hub` 因历史原因保持不动，新功能只加在独立 `backend/`。
