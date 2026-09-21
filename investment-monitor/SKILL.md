@@ -12,7 +12,7 @@ description: 每日指数估值自动监控与低估提醒。每个工作日定�
 ```
 Windows 任务计划 (工作日 18:00)
   → run_investment_monitor.ps1   (C:\Users\admin\.violoop\workspace\, 设 FEISHU_APP_SECRET, 密钥不入库)
-  → daily_valuation_check.py     (本 skill scripts/, 实际运行 .violoop 部署副本)
+  → daily_valuation_check.py     (本 skill scripts/)
       ├─ 蛋卷估值 API → PE/PB 百分位分区
       ├─ akshare 东财 → QDII ETF 溢价 (可选, 失败不阻塞)
       ├─ 与 data/monitor_state.json 对比 → 状态变化事件
@@ -24,17 +24,16 @@ Windows 任务计划 (工作日 18:00)
 
 | 角色 | 路径 |
 |---|---|
-| 源码（编辑这里） | `.claude/skills/investment-monitor/`（skills submodule，用 git-tool 提交） |
-| 运行副本 | `C:\Users\admin\.violoop\skills\investment-monitor\`（git pull 同步） |
-| 数据/状态 | 运行副本下的 `data/`（`monitor_state.json` + 每日快照，不入库） |
+| 源码 = 运行位置 | `.claude/skills/investment-monitor/`（skills submodule，用 git-tool 提交） |
+| 数据/状态 | 同目录 `data/`（`monitor_state.json` + 每日快照，已被 skill 内 `.gitignore` 忽略） |
 | 密钥 wrapper | `C:\Users\admin\.violoop\workspace\run_investment_monitor.ps1` |
 
-部署流程：`.claude/skills` 改 → `git-tool commit skills` 推送 → `git -C C:\Users\admin\.violoop\skills pull`。
+单一运行位置：脚本直接从 `.claude/skills/investment-monitor/` 源码位置运行，`data/` 被 gitignore 不会弄脏 submodule，无需像 a-stock-quant 那样维护 `.violoop` 部署副本。改动流程：`git-tool commit skills` 提交推送即可。
 
 ## 常用运维
 
 ```powershell
-cd C:\Users\admin\.violoop\skills\investment-monitor\scripts
+cd D:\Github\ObsidianVault\.claude\skills\investment-monitor\scripts
 
 # 手动跑一次（正常变化检测 + 通知）
 python daily_valuation_check.py
