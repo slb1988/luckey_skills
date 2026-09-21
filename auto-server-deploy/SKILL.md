@@ -5,7 +5,9 @@ description: Full-stack deploy of the auto-server frontend and backend on dev@au
 
 # Auto-Server Full-Stack Deploy
 
-共性知识：[pyauto-shared](../pyauto-shared/SKILL.md)。先核实际 host／服务账号和在途副作用；下述本地命令仅供 auto-server 运行时执行，不代表当前会话就在该机器。
+共性知识：[pyauto-shared](../pyauto-shared/SKILL.md)。
+
+> ⚠️ **不需要 SSH**：`auto-server` 解析到 `127.0.1.1`，pi 本身就运行在这台机器上。直接用 `bash` 工具执行本地命令，**不要尝试 SSH**（`ssh dev@auto-server` 会因密钥问题失败）。
 
 ## 概述
 
