@@ -35,7 +35,7 @@ description: 每日日报生成器。合并飞书日报总结、ActivityWatch �
 
 ### Step 1 — 确定日期与目标路径
 
-日期：使用 currentDate（系统 context 已注入），或 `date "+%Y-%m-%d"`。
+日期：使用 currentDate（系统 context 已注入），或 `date "+%Y-%m-%d"`。**跨午夜运行**（如 00:00 刚过、定时任务滑点）：「今天」的日报目标是**刚结束的工作日**（currentDate − 1），不是新日历日——新日历日尚无工作证据，按它采集会三路皆空，写出空日记或误触发「无工作跳过」。
 
 **目标路径不要硬编码**——权威来源是 Daily Notes 插件配置：
 

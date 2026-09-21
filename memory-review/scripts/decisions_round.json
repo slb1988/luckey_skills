@@ -3,10 +3,40 @@
  "rejections": [],
  "approvals": [
   {
-   "review_id": "01a0ba1e-d853-783c-bf15-0b8176915e73",
+   "review_id": "01a0c301-8f7a-7ae7-bbc3-3ffcff9ad2ca",
    "content_mode": "curated",
-   "snapshot_token": "rs1:c7b78044f1470aec0c6bdfc39b912f16b637955a340fe0b9439ce7bd4e844dab",
-   "rationale": "auto-review: AI Review 会话延续研究 PART_OF/PROPOSED_FOR 边有正文支撑（三表设计为助手建议如实标注）；两个 suspected 实体由批准重验归并 canonical；novelty=novel"
+   "snapshot_token": "rs1:bb49a3ff14932f232f9fcbb136ab929b5aaab2dd52030595de9cd392b0da1a0e",
+   "rationale": "auto-review: Entity 行名前缀 fail-fast 校验 2 边有正文支撑（NAME_None 放行决策点如实标注）；novelty=novel"
+  },
+  {
+   "review_id": "01a0c2b1-1ce1-712d-bb63-30edeaf6fb9a",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:29f6f62dab3a529f7d94f5cdecb596527942531836e0474ebbb12ad6ff2d03fe",
+   "rationale": "auto-review: 关卡原型出处展示 IMPLEMENTS 边有正文支撑（15/50、105/105 测试、真实触摸未测如实标注）；novelty=evolution"
+  },
+  {
+   "review_id": "01a0c1c5-c4b1-730c-b964-baeac3d7003d",
+   "content_mode": "original",
+   "snapshot_token": "rs1:c16ab7c414c6e54af3e7529d6d2e71ab0ddfc761cbe081413e12b871933414d2",
+   "rationale": "auto-review: 空预览（0 实体 0 边）；正文有 CL1835 快捷方式地址更新与部署生效条件的实质记录，按 original 批准；novelty=evolution"
+  },
+  {
+   "review_id": "01a0c292-d73d-7e17-ba13-e164f28f7dab",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:80ebe3e3c0414c2d03dfa2fa94ccfc94b18e7f506eecf5b2da941b69140b9308",
+   "rationale": "auto-review: 50 关计划/source 字段契约/椅子原型关卡 4 边有正文支撑（用户批准原话与 v3 schema 细节）；novelty=evolution"
+  },
+  {
+   "review_id": "01a0c2f3-4059-7617-b51b-a67da50aed14",
+   "content_mode": "original",
+   "snapshot_token": "rs1:3e1d8484e45314e09d798221cafb75995e03030e2875ae3d175fc27543f50e62",
+   "rationale": "auto-review: preview_attempts=3 到限；正文有双时钟对账、gate1+空预览拒绝丢事实实例与 5.09% 空预览率等实质分析，按 original 批准；novelty=evolution"
+  },
+  {
+   "review_id": "01a0c14a-f443-77e1-a0be-e71bfacf6034",
+   "content_mode": "original",
+   "snapshot_token": "rs1:2527d3ee3acfeb241fe1351eff578bb4138a7005bae9eefabbcf28900f1c2da4",
+   "rationale": "auto-review: 空预览（0 实体 0 边）；正文有 09-20 蒸馏统计、根因链三连与机制类硬知识等实质内容，按 original 批准；novelty=evolution"
   }
  ]
 }
