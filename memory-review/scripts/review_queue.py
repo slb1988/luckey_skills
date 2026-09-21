@@ -28,10 +28,15 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 DEFAULT_BASE = "https://luckeyhome.site/memory-hub"
+
+SCAN_LIMIT = 200   # open 队列单次请求上限；返回达到上限即覆盖未确定
+DETAIL_WORKERS = 8  # 只读详情的有限并发上限；POST 不并发化
 
 # 高置信敏感信息模式（宁漏勿错：命中只升级人工，不自动拒）
 SENSITIVE_PATTERNS = [
@@ -191,40 +196,96 @@ def suggest_decision(detail: dict, flags: list[dict]) -> dict:
 # ---------------------------------------------------------------- scan
 
 
+def fetch_details(client, review_ids, progress=None):
+    """有限并发拉取详情（只读）。返回 (按输入顺序的成功详情列表, {完整ID: 错误})；
+    每个请求 ID 必居成功或错误集合之一，HTTP/解析失败不会变成“条目不在队列”。
+    首版不自动重试，避免隐藏失败和放大不明等待。"""
+    details: dict[str, dict] = {}
+    errors: dict[str, str] = {}
+    total = len(review_ids)
+    if not total:
+        return [], errors
+
+    done = 0
+    with ThreadPoolExecutor(max_workers=min(DETAIL_WORKERS, total)) as pool:
+        futures = {pool.submit(client.get, f"/review/extraction/{rid}"): rid for rid in review_ids}
+        for fut in as_completed(futures):
+            rid = futures[fut]
+            done += 1
+            try:
+                details[rid] = fut.result()
+                if progress:
+                    progress(done, total, rid, None)
+            except Exception as exc:
+                errors[rid] = f"{type(exc).__name__}: {exc}"
+                if progress:
+                    progress(done, total, rid, errors[rid])
+    return [details[rid] for rid in review_ids if rid in details], errors
+
+
+def build_packet_entry(d: dict) -> dict:
+    flags = check_item(d)
+    suggestion = suggest_decision(d, flags)
+    proposed = d.get("proposed") or {}
+    novelty = d.get("novelty") or {}
+    return {
+        **{field: d.get(field) for field in (
+            "memory_id", "session_id", "session_version", "scope_type", "group_id",
+            "status", "memory_status", "preview_attempts", "updated_at", "snapshot_token",
+        )},
+        "review_id": d["review_id"],
+        "project_id": d.get("project_id"),
+        "memory_type": d.get("memory_type"),
+        "summary": d.get("summary"),
+        "created_at": d.get("created_at"),
+        "entity_count": len(proposed.get("entities") or []),
+        "edge_count": len(proposed.get("edges") or []),
+        "novelty": novelty,
+        "distilled_content": d.get("distilled_content"),
+        "proposed": proposed,
+        "flags": flags,
+        "suggestion": suggestion,
+    }
+
+
 def cmd_scan(args) -> int:
     client = make_client(args)
-    queue = client.get("/review/extraction?status=open&limit=200")
+    t0 = time.monotonic()
+    try:
+        queue = client.get(f"/review/extraction?status=open&limit={SCAN_LIMIT}")
+    except Exception as exc:
+        print(f"队列列表请求失败：{type(exc).__name__}: {exc}；列表失败不能当作空队列，未产出审核包。",
+              file=sys.stderr)
+        return 1
     items = queue.get("items", [])
-    details = []
-    for it in items:
-        details.append(client.get(f"/review/extraction/{it['review_id']}"))
+    ids = [it["review_id"] for it in items]
+    coverage_certain = len(ids) < SCAN_LIMIT
+    print(f"open 队列返回 {len(ids)} 条（单次请求 limit={SCAN_LIMIT}，非原子快照）。", flush=True)
+    if not coverage_certain:
+        print(f"⚠ 返回数量已达 limit={SCAN_LIMIT}：队列覆盖未确定，可能有更多 open 条目；"
+              f"本次结果不能称为全队列扫描完成。", flush=True)
 
-    packet = []
-    for d in details:
-        flags = check_item(d)
-        suggestion = suggest_decision(d, flags)
-        proposed = d.get("proposed") or {}
-        novelty = d.get("novelty") or {}
-        packet.append({
-            **{field: d.get(field) for field in (
-                "memory_id", "session_id", "session_version", "scope_type", "group_id",
-                "status", "memory_status", "preview_attempts", "updated_at", "snapshot_token",
-            )},
-            "review_id": d["review_id"],
-            "project_id": d.get("project_id"),
-            "memory_type": d.get("memory_type"),
-            "summary": d.get("summary"),
-            "created_at": d.get("created_at"),
-            "entity_count": len(proposed.get("entities") or []),
-            "edge_count": len(proposed.get("edges") or []),
-            "novelty": novelty,
-            "distilled_content": d.get("distilled_content"),
-            "proposed": proposed,
-            "flags": flags,
-            "suggestion": suggestion,
-        })
+    def progress(done: int, total: int, rid: str, err) -> None:
+        print(f"  [{done}/{total}] {rid} " + ("详情 OK" if err is None else f"详情失败：{err}"), flush=True)
 
+    details, errors = fetch_details(client, ids, progress=progress)
+    print(f"详情请求 {len(ids)}：成功 {len(details)}，失败 {len(errors)}，"
+          f"耗时 {time.monotonic() - t0:.1f}s", flush=True)
+
+    packet = [build_packet_entry(d) for d in details]
     out_path = args.output or "review_packet.json"
+    if errors:
+        diag = {"complete": False, "coverage_certain": coverage_certain,
+                "requested": len(ids), "succeeded": len(details), "failed": len(errors),
+                "errors": errors, "items": packet}
+        diag_path = out_path + ".incomplete.json"
+        with open(diag_path, "w", encoding="utf-8") as fh:
+            json.dump(diag, fh, ensure_ascii=False, indent=1)
+        print(f"部分详情失败（{len(errors)}/{len(ids)}）：不发布正式审核包；"
+              f"诊断包（complete=false，含逐完整 ID 错误）已写 {diag_path}")
+        print("失败 ID：" + ", ".join(errors))
+        return 1
+
     with open(out_path, "w", encoding="utf-8") as fh:
         json.dump(packet, fh, ensure_ascii=False, indent=1)
 
@@ -281,6 +342,23 @@ def validate_decisions(decisions: dict) -> None:
         raise ValueError("同条记忆不能同时 APPROVE 与 REJECT")
 
 
+class ReceiptLedger:
+    """（新接口）提交意图与回执的 JSONL 持久化：POST 前写意图，响应后立即追加回执。
+    传输异常/超时记 kind=unknown（结果未知，不重发），不假定整批回滚。"""
+
+    def __init__(self, path: str):
+        self._fh = open(path, "a", encoding="utf-8")
+
+    def record(self, **entry) -> None:
+        entry.setdefault("ts", time.strftime("%Y-%m-%dT%H:%M:%S"))
+        self._fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        self._fh.flush()
+        os.fsync(self._fh.fileno())
+
+    def close(self) -> None:
+        self._fh.close()
+
+
 def cmd_apply(args) -> int:
     with open(args.decisions, encoding="utf-8") as fh:
         decisions = json.load(fh)
@@ -291,65 +369,111 @@ def cmd_apply(args) -> int:
         return 1
     client = make_client(args)
     dry = args.dry_run
+    ledger = ReceiptLedger(args.receipt_file) if getattr(args, "receipt_file", None) and not dry else None
 
     failures = 0
-
-    for rem in decisions.get("removals", []):
-        body = {"entities": rem.get("entities", []), "edges": rem.get("edges", [])}
-        if not body["entities"] and not body["edges"]:
-            continue
-        if dry:
-            print(f"[dry-run] REMOVE {rem['review_id'][:8]}: {json.dumps(body, ensure_ascii=False)[:160]}")
-            continue
-        status, resp = client.post(f"/review/extraction/{rem['review_id']}/remove", body)
-        ok = status == 200
-        failures += 0 if ok else 1
-        print(f"REMOVE {rem['review_id'][:8]} -> {status}{'' if ok else ' ' + json.dumps(resp, ensure_ascii=False)[:200]}")
-
-    if failures:
-        print(f"清理失败 {failures} 项；已停止，未发送批准或拒绝请求。")
-        return 1
-
-    # 每组共用 action/mode/rationale，各 review 保留自己的已审核 token。
-    tokens = {i["review_id"]: i["snapshot_token"] for i in decisions.get("approvals", [])}
-    groups: dict[tuple, list[str]] = {}
-    for item in decisions.get("approvals", []):
-        key = ("approve", item.get("content_mode", "original"), item.get("rationale") or None)
-        groups.setdefault(key, []).append(item["review_id"])
-    for item in decisions.get("rejections", []):
-        key = ("reject", None, item.get("rationale") or None)
-        groups.setdefault(key, []).append(item["review_id"])
-
-    for (action, mode, rationale), ids in groups.items():
-        body = {"review_ids": ids, "action": action, "acknowledge_novelty_warning": False}
-        if action == "approve":
-            body["content_mode"] = mode or "original"
-            body["expected_snapshot_tokens"] = {review_id: tokens[review_id] for review_id in ids}
-        if rationale:
-            body["rationale"] = rationale
-        if dry:
-            print(f"[dry-run] {action.upper()} x{len(ids)} mode={mode} rationale={str(rationale)[:60]}")
-            continue
-        status, resp = client.post("/review/extraction/actions", body)
-        results = resp.get("results", []) if isinstance(resp, dict) else []
-        for r in results:
-            ok = r.get("status") in {"approved", "rejected", "already_processed"}
+    try:
+        for rem in decisions.get("removals", []):
+            body = {"entities": rem.get("entities", []), "edges": rem.get("edges", [])}
+            if not body["entities"] and not body["edges"]:
+                continue
+            if dry:
+                print(f"[dry-run] REMOVE {rem['review_id'][:8]}: {json.dumps(body, ensure_ascii=False)[:160]}")
+                continue
+            if ledger:
+                ledger.record(kind="intent", action="remove", review_ids=[rem["review_id"]], body=body)
+            try:
+                status, resp = client.post(f"/review/extraction/{rem['review_id']}/remove", body)
+            except Exception as exc:
+                failures += 1
+                if ledger:
+                    ledger.record(kind="unknown", action="remove", review_ids=[rem["review_id"]],
+                                  error=f"{type(exc).__name__}: {exc}")
+                print(f"REMOVE {rem['review_id']} -> 请求异常（结果未知，不重发）：{exc}；已停止后续动作。")
+                break
+            if ledger:
+                ledger.record(kind="receipt", action="remove", http_status=status,
+                              results=[{"review_id": rem["review_id"],
+                                        "status": "ok" if status == 200 else "failed"}],
+                              **({} if status == 200 else {"error": json.dumps(resp, ensure_ascii=False)[:300]}))
+            ok = status == 200
             failures += 0 if ok else 1
-            print(f"{action.upper()} {r.get('review_id', '?')[:8]} -> {r.get('status')}"
-                  + (f" | {r.get('error')}" if r.get("error") else ""))
-            if r.get("status") == "review_changed":
-                print("快照已变化：停止批准，重新 scan 并逐条审核；不会自动换 token 重试。")
-        if not results:
-            failures += 1
-            print(f"{action.upper()} batch -> HTTP {status} {json.dumps(resp, ensure_ascii=False)[:300]}")
-        elif status != 200:
-            failures += 1
-        if failures:
-            print("已停止后续动作；保留已返回的逐项结果，不自动重试。")
-            break
+            print(f"REMOVE {rem['review_id']} -> {status}{'' if ok else ' ' + json.dumps(resp, ensure_ascii=False)[:200]}")
+            if not ok:
+                break
 
-    print("\n完成。" + ("（dry-run，未实际执行）" if dry else f"失败 {failures} 项。"))
-    return 1 if failures else 0
+        if failures:
+            print(f"清理失败 {failures} 项；已停止，未发送批准或拒绝请求。")
+            return 1
+
+        # 每组共用 action/mode/rationale，各 review 保留自己的已审核 token。
+        tokens = {i["review_id"]: i["snapshot_token"] for i in decisions.get("approvals", [])}
+        groups: dict[tuple, list[str]] = {}
+        for item in decisions.get("approvals", []):
+            key = ("approve", item.get("content_mode", "original"), item.get("rationale") or None)
+            groups.setdefault(key, []).append(item["review_id"])
+        for item in decisions.get("rejections", []):
+            key = ("reject", None, item.get("rationale") or None)
+            groups.setdefault(key, []).append(item["review_id"])
+
+        counts = {"approved": 0, "rejected": 0, "already_processed": 0}
+        unknown = 0
+        for (action, mode, rationale), ids in groups.items():
+            body = {"review_ids": ids, "action": action, "acknowledge_novelty_warning": False}
+            if action == "approve":
+                body["content_mode"] = mode or "original"
+                body["expected_snapshot_tokens"] = {review_id: tokens[review_id] for review_id in ids}
+            if rationale:
+                body["rationale"] = rationale
+            if dry:
+                print(f"[dry-run] {action.upper()} x{len(ids)} mode={mode} rationale={str(rationale)[:60]}")
+                continue
+            if ledger:
+                ledger.record(kind="intent", action=action, content_mode=mode, rationale=rationale,
+                              review_ids=ids,
+                              expected_snapshot_tokens=body.get("expected_snapshot_tokens"))
+            try:
+                status, resp = client.post("/review/extraction/actions", body)
+            except Exception as exc:
+                failures += 1
+                unknown += 1
+                if ledger:
+                    ledger.record(kind="unknown", action=action, review_ids=ids,
+                                  error=f"{type(exc).__name__}: {exc}")
+                print(f"{action.upper()} 批量请求异常（{len(ids)} 条结果未知，不重发）：{exc}；已停止后续动作。")
+                break
+            results = resp.get("results", []) if isinstance(resp, dict) else []
+            if ledger:
+                ledger.record(kind="receipt", action=action, http_status=status, results=results,
+                              **({} if results else {"error": json.dumps(resp, ensure_ascii=False)[:300]}))
+            for r in results:
+                st = r.get("status")
+                ok = st in {"approved", "rejected", "already_processed"}
+                if st in counts:
+                    counts[st] += 1
+                failures += 0 if ok else 1
+                print(f"{action.upper()} {r.get('review_id', '?')} -> {st}"
+                      + (f" | {r.get('error')}" if r.get("error") else ""))
+                if st == "review_changed":
+                    print("快照已变化：停止批准，重新 scan 并逐条审核；不会自动换 token 重试。")
+            if not results:
+                failures += 1
+                unknown += 1
+                print(f"{action.upper()} batch -> HTTP {status} {json.dumps(resp, ensure_ascii=False)[:300]}")
+            elif status != 200:
+                failures += 1
+            if failures:
+                print("已停止后续动作；保留已返回的逐项结果，不自动重试。")
+                break
+
+        tally = "，".join(f"{k}={v}" for k, v in counts.items() if v)
+        if unknown:
+            tally += f"，未知={unknown}"
+        print("\n完成。" + ("（dry-run，未实际执行）" if dry else f"{tally or '无动作'}。失败 {failures} 项。"))
+        return 1 if failures else 0
+    finally:
+        if ledger:
+            ledger.close()
 
 
 def main() -> int:
@@ -365,6 +489,9 @@ def main() -> int:
     p_apply = sub.add_parser("apply", help="执行决策文件")
     p_apply.add_argument("decisions", help="决策 JSON 文件路径")
     p_apply.add_argument("--dry-run", action="store_true", help="只打印不执行")
+    p_apply.add_argument("--receipt-file",
+                         help="（新接口）JSONL 结构化回执：POST 前持久化提交意图，响应后追加逐项回执；"
+                              "异常记 unknown 不重发")
 
     args = parser.parse_args()
     if args.command == "scan":

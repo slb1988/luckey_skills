@@ -27,17 +27,21 @@ memory → pending_intake → [关卡 1 intake 过滤] → pending_extraction �
 ## 标准工作流
 
 ```bash
-# 1) 扫描：拉队列 + 详情 + 确定性检查 → review_packet.json + 摘要表
+# 1) 扫描：拉队列 + 有限并发详情（上限 8）+ 确定性检查 → review_packet.json + 摘要表
+#    逐完整 ID 即时进度；部分失败不发布正式审核包，只写 <输出>.incomplete.json 诊断包并非零退出；
+#    返回达到 limit=200 上限时明确提示「覆盖未确定」，不能当作全队列扫描完成
 python scripts/review_queue.py scan -o review_packet.json
 
 # 2) 判断：逐条读 packet 的 distilled_content 与 proposed（实体/边），
 #    结合 flags/suggestion 做决策，写决策文件 decisions.json
 
-# 3) 执行（先 dry-run 核对，再实跑）
+# 3) 执行（先 dry-run 核对，再实跑）；--receipt-file（新接口）把提交意图/逐项回执写 JSONL
 python scripts/review_queue.py apply decisions.json --dry-run
 python scripts/review_queue.py apply decisions.json
 ```
-大批量批准用 `scripts/drive_approvals.py` 驱动（按组交错+逐轮 rescan 取新 token+同组等 indexed+失败按未知回读核实）→ [批量批准驱动](references/batch-approval-driver.md)。
+大批量批准用 `scripts/drive_approvals.py decisions.json --run-dir <目录>` 驱动（显式已审核决策含
+memory_id/group_id、snapshot_token 绑定不重取、同组等 indexed、未知回执不重发、
+回执/状态/日志落独立 run 目录可中断恢复）→ [批量批准驱动](references/batch-approval-driver.md)。
 
 **判断层（agent 的活，脚本不替代）**：脚本的确定性检查只做机械筛查（自环边、预览厚度、
 敏感模式、novelty 状态），以下必须逐条用判断力核对：
@@ -142,6 +146,8 @@ sk- 凭证此前漏报。
 
 apply 按 (action, content_mode, rationale) 分组，逐项 token 组装为 `expected_snapshot_tokens: {review_id: token}`；
 reject 不要求 token。同一 review 的清理与批准须拆阶段，不能给新预览套用旧验收。
+`drive_approvals.py` 的批量输入沿用该顶层 `approvals` 结构，每项另需 `memory_id`/`group_id`
+两个本地元数据字段（从实际审核的同一 scan 包原样带入，缺失或不一致在 POST 前阻塞）。
 scan 保留服务端 token、状态、attempts、memory/session/group 等元数据；未返回的字段留空，不推断版本或物理组。
 新客户端的批准需要支持快照契约的服务端；旧服务无 token 时仅可扫描，不能降级批准。
 接口与错误语义见 [审核状态与快照](references/review-state-and-snapshots.md)。
