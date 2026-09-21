@@ -1,0 +1,47 @@
+{
+  "skill_name": "vscode-as",
+  "evals": [
+    {
+      "id": 1,
+      "name": "contextual-async-editor-support",
+      "prompt": "这是只读接手演练，不执行工具修改任何工程或启动进程。MainDev 的 async FTask RunAsync(Context T) 运行测试已通过，但 VSCode 大纲里没有这个方法，await UISteps:: 后无提示。另有普通函数里的 int await 和 await() 必须保持兼容；仅删掉函数 async 后，未改的函数体也曾显示旧结果。请给出最小定位/修复路线、关键源码入口和验收证据，明确不该扩大到哪里。",
+      "expected_output": "以 PEG/作用域/contextual 关键字和缓存为首要根因，区分补全/语义/TextMate，使用真实模块样例验证而不改变已正常运行时。",
+      "files": [],
+      "expectations": [
+        "先定位声明解析/作用域，不把问题简化为只加 TextMate 关键字",
+        "说明 async/await 是上下文关键字，普通同名标识符必须保留",
+        "说明 async 上下文必须参与缓存失效并传播到嵌套/补全临时解析",
+        "说明 PEG 源重生成和至少一个真实模块回归，不能以构建证明 GUI/UE 联调",
+        "不声称已经修改/测试，不扩大为 UE runtime 改造或全量编译"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "attach-existing-development-host",
+      "prompt": "这是只读操作方案题，不实际启动/关闭进程或改配置。我已经打开日常 VSCode 和一个加载本地 AngelScript 扩展的 CLI 开发宿主，扩展源码窗口也在，9333 和 6009 都在监听。我要在代码提示处打源码断点，然后修改源码继续调；同事说把所有端口填成 27099 再 F5。请给我准确的窗口/配置/快捷键步骤，说明怎样判定跑的是我的源码，以及这与 AS 业务断点是否是一回事。",
+      "expected_output": "附加现有宿主，不重复启动；区分 Node inspector、UE TCP 和 DAP，给出 compile/reload 与真实路径日志证据。",
+      "files": [],
+      "expectations": [
+        "给出源码窗口的 Attach to Running Dev Host，而不是重复 Launch Client",
+        "区分 9333/6009 Node inspector、27099 UE TCP 与本地 DAP 通路",
+        "给出 parsed_completion.ts 的 Complete 断点和开发宿主 Ctrl+Space 触发",
+        "修改后 Ctrl+Shift+B 编译，只重载开发宿主，不关闭日常 VSCode/UE",
+        "要求扩展/LSP 路径和 workspace 日志证据，不把 TCP 建连等同 AS 断点验证"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "portable-vsix-distribution",
+      "prompt": "这是只读打包演练，不执行安装、打包或发布。我要把已修复的 Unreal AngelScript 扩展打成 VSIX 给同事，不想让他们准备源码和 Node。项目已经 esbuild bundle，Windows 生成的包有 languageclient 的 terminateProcess.sh，ZIP mode 是 100666；接收者包含 Windows 和 macOS。请给出最短打包/验证/安装方案、需要检查的文件和版本信息，以及能承诺和不能承诺的支持范围。",
+      "expected_output": "给出适用于此仓库的正式 vsce 流程，检查 dist 入口和外部 helper/许可、隔离安装与版本核对，并明确 macOS 权限/实测缺口。",
+      "files": [],
+      "expectations": [
+        "给出 vsce package --no-dependencies 并说明它以依赖已 bundle 为前提，不手工 zip 代替 VSIX",
+        "检查扩展/LSP/debugAdapter 的 dist 入口、非 JS helper 与许可，并排除本机配置/缓存",
+        "使用独立 user-data/extensions 试安装，检查 ID/版本和产物 hash，不替换日常扩展",
+        "不把 mode 100666 的 Windows 包宣称为 macOS 已可用，要求目标平台权限/退出重启验证",
+        "提醒同 ID 替换/自动更新风险，不发布 Marketplace，不把安装成功说成 UE 联调通过"
+      ]
+    }
+  ]
+}
