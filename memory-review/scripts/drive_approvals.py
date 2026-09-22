@@ -179,6 +179,8 @@ def correspondence_problem(item: dict, detail: dict):
             return f"当前详情缺少 {field}，对应关系无法确认"
         if current != item[field]:
             return f"{field} 不一致（决策 {item[field]} / 当前 {current}）"
+    if detail.get("status") in {"approved", "rejected"}:
+        return None
     token = detail.get("snapshot_token")
     if not token:
         return "当前详情缺少 snapshot_token，快照对应无法确认"
@@ -244,7 +246,8 @@ def apply_result(item: dict, status, client, run_dir: str, ours: bool) -> None:
         item["note"] = f"回执状态 {status}（未知/失败），不自动重发；只读核对"
 
 
-def run_apply_round(batch: list, args, client, run_dir: str, round_no: int) -> None:
+def run_apply_round(batch: list, args, client, run_dir: str, round_no: int) -> str | None:
+    run_dir = os.path.abspath(run_dir)
     round_path = os.path.join(run_dir, f"round-{round_no:03d}.decisions.json")
     receipt_path = os.path.join(run_dir, f"round-{round_no:03d}.receipts.jsonl")
     payload = {"removals": [], "rejections": [], "approvals": [
@@ -287,7 +290,13 @@ def run_apply_round(batch: list, args, client, run_dir: str, round_no: int) -> N
             it["attribution"] = "unknown-verified"
             it["note"] = "提交意图已持久化但无回执：结果未知，不重发；只读核对"
             verify_item(it, client, run_dir)
-        # 无意图：apply 在更早已停止，该项未提交，保持 pending
+        # 无意图的项保持 pending，但本轮必须停下，不能把子进程失败当进展。
+    unattempted = [it["review_id"] for it in batch
+                   if it["review_id"] not in intents and it["review_id"] not in results]
+    if unattempted:
+        log_path = os.path.join(run_dir, f"round-{round_no:03d}.apply.log")
+        return f"apply rc={rc}，{len(unattempted)} 项无提交记录；停止新增提交，请检查 {log_path}"
+    return None
 
 
 def resume_reconcile(state: dict, client, run_dir: str) -> None:
@@ -310,7 +319,7 @@ def resume_reconcile(state: dict, client, run_dir: str) -> None:
             it["state"] = "pending"  # 未尝试；组头轮转时会重新核对 token/组对应关系
 
 
-def finalize(state: dict, run_dir: str) -> int:
+def finalize(state: dict, run_dir: str, execution_error: str | None = None) -> int:
     """汇总退出：本批已对账结束 / 等待或待重审 / 未知结果 / 读取失败；后三类非零退出。
     不做末尾全队列 rescan。"""
     buckets: dict[str, list] = {k: [] for k in
@@ -332,6 +341,8 @@ def finalize(state: dict, run_dir: str) -> int:
             buckets[key].append(it)
 
     lines = ["===== 汇总 ====="]
+    if execution_error:
+        lines.append("执行错误：" + execution_error)
     labels = [
         ("done_receipt", "本次批准回执 → indexed"),
         ("done_verified", "未知回执核对后已批准（不计本次回执）"),
@@ -348,7 +359,7 @@ def finalize(state: dict, run_dir: str) -> int:
             continue
         lines.append(f"{label}：{len(rows)}")
         lines += [f"  {i['review_id']}  {i.get('note') or ''}".rstrip() for i in rows]
-    if buckets["read_failed"]:
+    if execution_error or buckets["read_failed"]:
         code = 4
     elif buckets["submitted_unknown"]:
         code = 3
@@ -417,7 +428,14 @@ def run_drive(state: dict, args, client, run_dir: str) -> int:
                 open_ids = None
                 log_line(run_dir, "queue",
                          f"open 列表读取失败：{type(exc).__name__}: {exc}；继续按完整 ID 直读组头核实")
-            details, errors = rq.fetch_details(client, [h["review_id"] for h in heads])
+            watchdog = Watchdog(run_dir, STALL_DUMP_AFTER)
+            try:
+                details, errors = rq.fetch_details(
+                    client, [h["review_id"] for h in heads],
+                    progress=lambda done, total, rid, err: log_line(
+                        run_dir, "detail", f"[{done}/{total}] {rid} " + (f"失败：{err}" if err else "读取完成")))
+            finally:
+                watchdog.cancel()
             by_id = {d["review_id"]: d for d in details}
             for h in heads:
                 rid = h["review_id"]
@@ -434,7 +452,7 @@ def run_drive(state: dict, args, client, run_dir: str) -> int:
                     h["state"] = "needs_rereview"
                     h["note"] = problem
                     progress_clock = progressed()
-                elif rs == "review":
+                elif rs == "review" or (rs == "preview_failed" and h["content_mode"] == "original"):
                     batch.append(h)
                 elif rs == "approved":
                     h["state"] = "done" if ms == "indexed" else "wait_indexed"
@@ -453,9 +471,12 @@ def run_drive(state: dict, args, client, run_dir: str) -> int:
         # 4) 本轮每组最多一条可执行项提交
         if batch:
             state["rounds"] = state.get("rounds", 0) + 1
-            run_apply_round(batch, args, client, run_dir, state["rounds"])
-            progress_clock = progressed()
+            execution_error = run_apply_round(batch, args, client, run_dir, state["rounds"])
+            if any(it["state"] != "pending" for it in batch):
+                progress_clock = progressed()
             save_state(run_dir, state)
+            if execution_error:
+                return finalize(state, run_dir, execution_error=execution_error)
             continue
 
         # 5) 全部暂不可执行：有限等待（单调时钟 + 预算），不空批早退

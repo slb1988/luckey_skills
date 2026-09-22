@@ -124,6 +124,11 @@ class FakeApply:
         self.calls.append(cmd)
         decisions_path = Path(cmd[cmd.index("apply") + 1])
         receipt_path = Path(cmd[cmd.index("--receipt-file") + 1])
+        child_cwd = Path(kwargs.get("cwd") or os.getcwd())
+        if not decisions_path.is_absolute():
+            decisions_path = child_cwd / decisions_path
+        if not receipt_path.is_absolute():
+            receipt_path = child_cwd / receipt_path
         payload = json.loads(decisions_path.read_text(encoding="utf-8"))
         rc, out = self.handler(payload, receipt_path, len(self.calls))
         return SimpleNamespace(returncode=rc, stdout=out, stderr="")
@@ -369,6 +374,80 @@ class DriveTests(OfflineGuard):
         self.assertEqual(states[rid(2)], "done")
         self.assertIn("并发/先前已批准", output)  # 组头终态单独归因，不计本次批准
         self.assertNotIn("本次批准回执 → indexed：2", output)
+
+    def test_relative_run_dir_survives_child_cwd_change(self):
+        decisions = self.payload([(1, "project:fake-a", "curated")])
+        client = FakeClient(details={rid(1): [
+            detail(rid(1), memory=mid(1), token=tok(1)),
+            detail(rid(1), memory=mid(1), status="approved", memory_status="indexed", token=tok(1))]})
+
+        def handler(payload, receipt_path, n):
+            self.assertTrue(receipt_path.is_absolute())
+            write_entries(receipt_path, approved_entries(payload))
+            return 0, "ok"
+
+        with tempfile.TemporaryDirectory(dir=os.getcwd()) as directory:
+            relative = os.path.relpath(Path(directory) / "run")
+            apply = FakeApply(handler)
+            code, _, _ = self.run_drive(decisions, client, apply, run_dir=relative)
+            self.assertEqual(code, 0)
+            self.assertTrue(Path(apply.calls[0][apply.calls[0].index("apply") + 1]).is_absolute())
+
+    def test_child_without_receipt_stops_once_and_can_resume(self):
+        decisions = self.payload([(1, "project:fake-a", "curated")])
+        client = FakeClient(details={rid(1): [detail(rid(1), memory=mid(1), token=tok(1))]})
+
+        def broken(payload, receipt_path, n):
+            if n > 1:
+                raise AssertionError("failed child was retried")
+            return 1, "FileNotFoundError: decisions.json"
+
+        apply = FakeApply(broken)
+        code, output, run_dir = self.run_drive(decisions, client, apply)
+        self.assertEqual(code, 4)
+        self.assertEqual(len(apply.calls), 1)
+        self.assertIn("round-001.apply.log", output)
+        self.assertEqual(self.states(run_dir)[rid(1)], "pending")
+        self.assertFalse((run_dir / "run.lock").exists())
+
+        def recovered(payload, receipt_path, n):
+            write_entries(receipt_path, approved_entries(payload))
+            return 0, "ok"
+
+        client.details[rid(1)] = [detail(rid(1), memory=mid(1), token=tok(1)),
+                                 detail(rid(1), memory=mid(1), status="approved",
+                                        memory_status="indexed", token=tok(1))]
+        code, _, _ = self.run_drive(decisions, client, FakeApply(recovered), run_dir=run_dir)
+        self.assertEqual(code, 0)
+        self.assertTrue((run_dir / "round-002.receipts.jsonl").exists())
+
+    def test_preview_failed_original_is_executable(self):
+        decisions = self.payload([(1, "project:fake-a", "original")])
+        client = FakeClient(details={rid(1): [
+            detail(rid(1), memory=mid(1), status="preview_failed", token=tok(1)),
+            detail(rid(1), memory=mid(1), status="approved", memory_status="indexed", token=tok(2))]})
+
+        def handler(payload, receipt_path, n):
+            write_entries(receipt_path, approved_entries(payload))
+            return 0, "ok"
+
+        apply = FakeApply(handler)
+        code, _, _ = self.run_drive(decisions, client, apply)
+        self.assertEqual(code, 0)
+        self.assertEqual(len(apply.calls), 1)
+
+    def test_terminal_status_token_change_is_not_a_new_review(self):
+        decisions = self.payload([(1, "project:fake-a", "curated"),
+                                  (2, "project:fake-b", "curated")])
+        client = FakeClient(details={
+            rid(1): [detail(rid(1), memory=mid(1), status="approved",
+                            memory_status="indexed", token=tok(9))],
+            rid(2): [detail(rid(2), group="project:fake-b", memory=mid(2),
+                            status="rejected", memory_status="rejected", token=tok(9))]})
+        code, output, run_dir = self.run_drive(decisions, client, FakeApply(refuse_apply))
+        self.assertEqual(code, 0)
+        self.assertEqual(self.states(run_dir), {rid(1): "done", rid(2): "skipped_terminal"})
+        self.assertNotIn("待重审", output)
 
     def test_all_preview_pending_waits_with_budget_then_blocks(self):
         decisions = self.payload([(1, "project:fake-a", "curated")])
