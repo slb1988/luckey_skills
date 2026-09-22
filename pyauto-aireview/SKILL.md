@@ -86,6 +86,12 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 - 快照不是完整文件备份：文本仅在差异未截断且基线匹配时可尝试重建，不能据此保证恢复；它不提供二进制内容备份。存储上限与 API 见 [backend-module](references/backend-module.md)。
 </memory>
 
+<memory category="troubleshooting">
+- SKILL 索引类漏检根因（Review 834 / MainDev CL 134117 查明）：pl-review 规则虽有 SKILL.index.json 专项（hash 比对、手改打回），但对 `.GUI/data` 三个行号拆分文件零条款；Collect/MergeGate/Runner/Publish 与后端 evaluate_ai_policy 全无任何索引一致性确定性检查（grep 零命中），唯一防线是 LLM 自觉。
+- 规则只链接未内联的契约文件（references/skill-index-format.md）时，低思考档位模型（kimi-k3 thinking=low）实测从未 read 该契约、也未取索引文件 diff，仅 wc -l 查行数即放行——关键契约必须内联进规则正文，或由确定性检查兑底。
+- 续评轮会短路：声明「manifest 一致，沿用首轮结论」即不再重新核对，首轮漏检在续评中必然延续。修复方案见 ObsidianVault 仓 `.claude/plans/AiReview-SKILL索引一致性确定性检查.md`。
+</memory>
+
 ## 修改与交付
 
 按 [pyauto-shared 共性边界](../pyauto-shared/references/common-practices.md) 路由及保护凭证；按实施参考核 opened/head/shelf、保留并行改动、分 depot 建专用 pending CL。不自动 submit、部署、重跑或改生产 DB。

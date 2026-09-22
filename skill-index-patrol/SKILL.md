@@ -28,6 +28,14 @@ Agenda 任务 ID：`agenda_1782391486987_0769ir3ao`（每 5 分钟）
 
 **只监控 `stats.totalFiles`**，其他字段（totalSections / totalTags）不报警。
 
+<memory category="troubleshooting">
+结构性盲区与生成器口径（2026-09 Review 834 / CL 134117 排查确认）：
+- patrol 只比对 totalFiles，看不到条目内容漂移，更看不到 `.GUI/data/` 三个行号拆分文件（skill-sections/tagindex/stats.json）——它们曾 40 天未随 SKILL 改动重生成（head 停 CL 123306）而零告警；行号漂移当前无任何监控。
+- totalFiles 下降不一定有单一责任 CL：263→260 查明是生成器改动（CL 128736，-17）叠加落后/脏工作区重生成震荡；勿假设「减少=有人删 SKILL」。
+- patrol 会静默停摆：2026-08-26 起 state 停在 CL 126545/count 263 约一个月，期间 127365、132709 两次大污染均未报警。排查漏报先看 state 文件 last_cl/last_count 是否仍在推进，再怀疑检测逻辑。
+- 生成器口径（解读告警必备）：`.team/**` 的 SKILL.md 按设计不入索引；纯 `<memory>` 块增删不改 title/description/tags，索引条目零变动是自洽的；本机 `Tools/PLAutomation/reports/` 快照目录会污染生成器 duplicates 检查，就地重生成验证前需先排除。
+</memory>
+
 ---
 
 ## 已知问题 & 修复
