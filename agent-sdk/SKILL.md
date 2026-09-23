@@ -128,6 +128,11 @@ pip install --index-url http://192.168.2.13:8080/simple/ --trusted-host 192.168.
 环境统一用 uv（`uv sync` 建 `.venv`），不要 `path` 指向本目录源码（那只用于本地改 SDK 联调）。
 agent 目录模板/冒烟步骤见 [patterns](references/patterns.md#部署)。
 
+**注意**：内网 pypiserver 的 `pyauto-agent` 可能严重滞后（2026-08 实测仅到 0.5.0，0.6.0+
+从未上传，服务本身也曾崩溃）——新版 wheel 的现行权威来源是平台自托管 `/computer/packages`
+（pyauto_agent 同在其中，见 [publishing](references/publishing.md) 第 4 步），可直接从平台
+packages 清单 curl wheel 本地安装。
+
 ## 发布新版本（仅在本工程执行）
 
 pypiserver 宿主 `192.168.2.13`（包存储 `/home/dev/pypi-server/packages/`，
@@ -156,7 +161,9 @@ pypiserver 宿主 `192.168.2.13`（包存储 `/home/dev/pypi-server/packages/`�
 <memory category="troubleshooting">
 `pyauto-computer 0.4.4` 的 supervisor 依赖 `<workroot>/.pyauto/host.pid` 判断受管 host 是否存活，
 不以端口监听或平台 online 为准。健康 host 丢失 PID 文件后，supervisor 会约每 10 秒重复拉起；
-原进程仍占端口时，新 host 以 Windows `WinError 10048` 退出并再次清掉 PID 文件，形成自维持循环。
+原进程仍占端口时，新 host 以端口占用错误退出（Windows `WinError 10048`；macOS/Linux
+`EADDRINUSE`——0.4.4 已实测 macOS 同样循环）并再次清掉 PID 文件，形成自维持循环。
+预防性的装机顺序见 [pyauto-computer](references/pyauto-computer.md)「装机顺序」。
 因此平台心跳或 `btw` 可显示 agent 空闲正常，仍须将端口 owner、PID 文件和 supervisor 日志交叉核对；
 `current_run.log` 是历史记录，不能单独证明当前仍有任务。
 </memory>

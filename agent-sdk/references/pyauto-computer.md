@@ -27,6 +27,11 @@
   心跳 TTL）。forget 只删本机映射，平台侧记录要到监控页删。
   **`start --autostart` 对已运行的 agent 不生效**（cmd_start 检测到运行中提前 return，
   走不到写标记）——要给在跑的 agent 开 autostart 必须先 stop 再 start --autostart。
+- **装机顺序**：`agent create --autostart` → `service install` 一次走完；**不要在
+  `service install` 之后再手动 `agent start`**——supervisor 已按 autostart 标记拉起 host，
+  手动 start 与之抢端口/PID 文件，会触发 host.pid 自维持循环（诊断见主 SKILL.md 末尾
+  troubleshooting memory；0.4.4 已实测 macOS 同样存在）。误触发处置：kill 占端口的
+  孤儿 host，supervisor 下一轮巡检重拉即稳定。
 - **host 的 skill**：默认 skill `run`——派发文本 → runtime CLI headless 一次性执行
   （cwd=workroot，输出截断 20000 字符，默认超时 1800s）→ 回传文本；`bus: @目标 消息`
   前缀走 hcom 总线出站。pi 适配器移植了 WinBuilder3MainAgent/pi_runner.py 的三个硬仗经验
@@ -49,6 +54,11 @@
   重载需 `echo <admin密码> | sudo -S -u admin /usr/bin/crontab /etc/config/crontab`
   （`crontab` 命令要 suid；`/etc/init.d/crond.sh restart` 非 admin 执行会 daemon_mgr
   segfault，别走那条路）。
+  **macOS 的坑：launchd 环境 PATH 极简**（无 `/opt/homebrew/bin`），supervisor 拉起的
+  host 找不到 pi 而反复起不来——且 `setup` 的 runtime 探测跑在用户 shell 里，**探测通过 ≠
+  launchd 下能拉起**。修法：给 supervisor 的 LaunchAgent plist 加 `EnvironmentVariables`
+  （`PATH` 含 `/opt/homebrew/bin`，并显式给 `PI_BIN=/opt/homebrew/bin/pi` 绝对路径），
+  unload/load 重载后生效。
 - **升级链路由 supervisor 唯一执行**：平台经心跳下发 `desired_versions` hint 到 workroot，
   supervisor 的 `_process_upgrades` 每轮巡检执行（先逐个 agent 升级，最后 CLI 经 detached
   `_self_upgrade` helper 自升级）。**supervisor 不跑则平台推了新版也不会升**；手动核对平台
@@ -145,3 +155,4 @@ curl -X POST http://<本机IP>:<port>/ -H "A2A-Version: 1.0" -H "Content-Type: a
 | Sun（admin 工作机） | #2 | sunlaibing（agent_id=30，runtime=pi） | 9100 | `C:\Users\admin` | autostart=on |
 | Sun（admin 工作机） | #2 | sun_maindev（runtime=pi） | 9101 | `D:\MainDev` | autostart=on；本机开机自启 = Startup 文件夹 `pyauto-supervisor.vbs`（域策略拒 schtasks，见上「自启模型」） |
 | VM-0-3-ubuntu (腾讯云 VPS) | #6 | vps-agent | 9100 | `/home/ubuntu` | 跨网段（经 10.77.77.4 访问平台），wg0 网卡；ufw 需显式 `allow 9100/tcp`；runtime=pi |
+| Sun MacBook Pro（macOS 15.6.1） | #9 | mac（runtime=pi） | 9100 | `/Users/sun` | 跨网段（WG 10.77.77.5，经 10.77.77.4 访问平台），`PYAUTO_PLATFORM_URL`/`no_proxy` 已写入 `~/.zshrc`；autostart=on；LaunchAgent 需注入 PATH+PI_BIN（见上「自启模型」） |
