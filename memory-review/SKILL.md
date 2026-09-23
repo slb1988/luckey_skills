@@ -42,6 +42,7 @@ python scripts/review_queue.py apply decisions.json
 大批量批准用 `scripts/drive_approvals.py decisions.json --run-dir <目录>` 驱动（显式已审核决策含
 memory_id/group_id、snapshot_token 绑定不重取、同组等 indexed、未知回执不重发、
 回执/状态/日志落独立 run 目录可中断恢复）→ [批量批准驱动](references/batch-approval-driver.md)。
+Windows 上 scan/drive 静默卡死（进程活着、0 TCP、无日志）的已实锤根因与 `no_proxy='*'` 绕行见该文「停滞根因」节。
 
 **判断层（agent 的活，脚本不替代）**：脚本的确定性检查只做机械筛查（自环边、预览厚度、
 敏感模式、novelty 状态），以下必须逐条用判断力核对：

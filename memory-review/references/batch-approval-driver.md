@@ -63,10 +63,16 @@ rationale` 之外**必须带 `memory_id` / `group_id`** 两个本地元数据字
 - 处置期间新 session 持续归档，队列会边审边涨——本轮批次的范围以扫描判断过的 packet 为准，
   新到条目另起一轮，不混入本次完成统计。
 
-## 停滞观测（根因未定位，勿声称已治愈）
+## 停滞根因已实锤：Windows urllib getfqdn（附绕行）
 
-2026-09-21 长批次静默 wedge（0 TCP + LpcReply 假象）的根因**仍未定位**。客户端侧的观测手段是
-`drive.log` 阶段日志（含最后真实进展时间、逐 ID 详情完成进度）与详情读取/apply 阶段的
-`stacks.txt` 定时栈转储，能定位最后活动阶段与完整 ID、区分活动与进展；发现停滞时保存日志/栈后人工终止该 run，再按上节恢复流程续跑，
-不能「杀掉后直接重跑」。scan 的详情读取已改有限并发（≤8），消除串行累计耗时这一已知诱因，
-但这不等于证明停滞根因已消除；`stacks.txt` 无法强制结束底层等待是已知限制。
+长批次静默 wedge（进程活着、0 TCP、CPU 不涨、无日志）2026-09-23 经 `stacks.txt` 实锤根因：
+`socket.getfqdn ← proxy_bypass_registry ← urllib urlopen`——Windows 注册表代理探测触发的
+DNS 调用无限阻塞（纯标准库 urllib 客户端问题，与服务端无关；2026-09-21 的 LpcReply wedge
+症状签名相同，按同一根因处置）。**绕行：跑 scan/drive 前置 `no_proxy='*' NO_PROXY='*'`**，
+让 urllib 走环境变量分支、完全跳过注册表探测；绕行后当日两批 41 条全程无卡死。
+
+客户端侧观测手段仍是 `drive.log` 阶段日志（含最后真实进展时间、逐 ID 详情完成进度）与
+`stacks.txt` 定时栈转储；发现停滞时保存日志/栈后人工终止该 run，再按上节恢复流程续跑，
+不能「杀掉后直接重跑」。`stacks.txt` 无法强制结束底层等待是已知限制。
+清理「wedged」python 进程前先核 CreationDate + 0 TCP——tasklist 里命令行相同的进程可能是
+几天前同命令行的残留（2026-09-23 实证两个 9/21 残留 scan 进程），误杀会毁掉仍在跑的 run。
