@@ -90,6 +90,14 @@ pi-btw 扩展同步基线：从 narumiruna/pi-extensions 的 commit `0eb67035f39
 
 </memory>
 
+<memory category="troubleshooting">
+chat-hub daemon 测试套件（`node --test .pi/extensions/chat-hub/daemon/test/*.test.ts`，Node 24 原生跑 TS）在 Windows 上有 ~10 项**平台性预存失败，非回归**：POSIX 0600 权限位断言（Windows 无意义）、macOS plist 断言、weixin `saveAccount` 的 fsync EPERM（2026-09 双速路由改造时基线确认）。根因规律：**Windows 上 `fsyncSync` 对只读 fd（`openSync(p,"r")`）必抛 EPERM，durable-write 必须先以 `"r+"` 打开再 fsync**——batches.ts 一直用 `"r+"` 故批次测试从来全绿；queue.ts/sessions.ts 已据此修复（12 项预存失败转绿），weixin `saveAccount` 属同类未修文件。新增落盘模块沿用 `"r+"` 模式；在 Windows 跑这套件先把这些平台项当基线，勿当回归追。
+</memory>
+
+<memory category="troubleshooting">
+chat-hub 常驻实例只部署在 Mac：launchd `site.luckey.chat-hub` 托管（plist `~/Library/LaunchAgents/site.luckey.chat-hub.plist`，RunAtLoad+KeepAlive，唤醒后应自愈），微信凭证与 `.local/chat-hub/` 只在 Mac（vault 在 `~/Documents/ObsidianVault/`），Windows 本机无实例、无 daemon。Mac 在另一物理网段（192.168.50.x），只能走 WireGuard 10.77.77.5 到达；Windows→Mac 从未配过 SSH、无 A2A agent、无 WOL 通道——Mac 睡眠/WG 掉线时**无法从 Windows 远程恢复监听**，只能现场唤醒。Mac 上手动拉起：`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/site.luckey.chat-hub.plist`；日志 `.local/chat-hub/logs/daemon.log`，健康信号 `pi rpc ready / canary ok / weixin connected`。迁到 Windows 常驻需搬凭证目录 + 修 piBin 路径 + 替代 launchd 的常驻方案，且必须 Mac 在线才能取凭证。
+</memory>
+
 <memory category="core-rules">
 chat-hub 入站消息可携带 `[chat-hub 可信逻辑说话人]` 信任块（网关生成，非用户输入）：字段 `profile_id` / `display_name` / `resolved_by`（如 `active`）/ `guidance`，标识本轮真实说话人。同一微信 DM 渠道的说话人可能不是 vault owner（已见家庭成员 profile：`xiaoyingtao`/小樱桃，一年级，guidance 要求简短友善表达且禁止披露成年用户私密记忆）。应答契约：(1) 按 `guidance` 调整语气与披露范围；(2) 说话人 ≠ owner 时，不得把 owner 的个人资料、偏好、私密记忆（含 Memory Hub 检索结果、日记内容）当作当前说话人的信息披露或归属给其；(3) “我今天做了什么”这类查询命中的是 owner 数据，先按信任块确认身份，非 owner 时引导其自述而非代答。**身份路由（2026-09-07 定版，家庭自用不做安全验证）**：默认身份恒为机主 sunlaibing——非默认身份只是滑动 TTL（默认 6h）的活动覆盖，`/new` 等会话重置命令也会复位身份；用户声明身份（“我是孙来兵/我是爸爸”，正文或语音）与封套不一致时，直接调 `chat_hub_switch_user` 工具切换并继续回答，不拒绝、不要求验证（切换从下一条消息起生效，当前轮正常作答）。
 </memory>
@@ -110,3 +118,4 @@ chat-hub 身份子系统结构（2026-09 排查确认）：逻辑身份按聊天
 - auto-server 上更新 `.pi/skills` 必须先 `cd /home/dev/.pi/skills`：更新脚本按 cwd 定位仓库根，在 `/home/dev` 下运行会静默失败（exit 128，无输出）。
 - `ws:<name>` 报 unknown workspace / no local binding → 见 [references/troubleshooting.md](references/troubleshooting.md) 第 6 节。
 - `workflow` 编排的 agent() 全部秒回 null（subagent 未启动）→ 见 [references/troubleshooting.md](references/troubleshooting.md) 第 8 节（tier 模型 `undefined.create`）。
+- Windows 下 `pi update` 报 `cannot self-update`（npm 全局 prefix 漂移）或 `EBUSY win32-platform.node`（其他 pi 进程持锁）→ 见 [references/troubleshooting.md](references/troubleshooting.md) 第 10 节。

@@ -231,4 +231,46 @@ tier 映射（`/workflows-models` 配置）把 tier 解析到 `anthropic/kimi-k3
 
 ---
 
+## 10. Windows 下 `pi update` 失败：cannot self-update / EBUSY win32-platform.node
+
+**症状 A**
+
+```
+error: pi cannot self-update this installation.
+This installation is not managed by a global npm install.
+```
+
+（但 pi 明明是 npm 全局装的，二进制就在 `%APPDATA%\npm\node_modules\@earendil-works\pi-coding-agent\`）
+
+**原因 A**
+
+pi 用 `npm root -g` 的结果判定自己是否 npm 全局安装，安装路径不匹配就拒绝自更新。Node.js 重装/升级会把内置的 `C:\Program Files\nodejs\node_modules\npm\npmrc`（内容 `prefix=${APPDATA}\npm`）清掉，npm 全局 prefix 随之漂移到 `C:\Program Files\nodejs`（此时 `npm ls -g` 显示为空），pi 的真实安装目录 `%APPDATA%\npm` 不再被认作全局根 → 误判为「非 npm 安装」。同机所有全局 CLI（pi/codex/claude 等）其实都装在 `%APPDATA%\npm`。
+
+**解决 A**
+
+```bash
+npm config set prefix "C:\Users\<user>\AppData\Roaming\npm"
+```
+
+写入**用户级** `~/.npmrc`，不动 Program Files 里的内置 npmrc——用户级配置优先级更高，下次 Node 重装也不会再丢。
+
+**症状 B**
+
+修好 A 后 `pi update` 走到安装阶段报 `EBUSY: resource busy or locked, ... win32-platform.node`。
+
+**原因 B**
+
+`win32-platform.node` 由 pi-tui 加载。pi 自带的 Windows 隔离机制（`prepareWindowsNpmSelfUpdate`）只能隔离**发起更新的那个进程自己**加载的 native 模块；本机其他正在运行的 pi 进程（TUI 会话、Orca worker 等）持有的文件锁它管不到，npm 覆盖该文件即 EBUSY。
+
+**解决 B**
+
+手动执行同一隔离手法：把被锁的 `.node` 文件 `mv` 走再 `cp` 回原路径（Windows 允许**重命名**已加载的 DLL，但不允许覆盖/删除），清掉 npm 残留的 staging 目录，重跑安装即成功。
+
+**注意**
+
+- 更新成功后，所有已在跑的 pi 进程仍是旧版本的内存镜像，新开会话才用新版。
+- `pi update` 不更新扩展，扩展需单独 `pi update --extensions`。
+
+---
+
 > 扩展**开发**细节（扩展布局、hook API、注册 provider、多机共享原则）见项目内 `.pi/extensions/SKILL.md`（pi-extensions 技能）。
