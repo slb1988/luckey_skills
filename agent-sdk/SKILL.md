@@ -168,6 +168,14 @@ pypiserver 宿主 `192.168.2.13`（包存储 `/home/dev/pypi-server/packages/`�
 `current_run.log` 是历史记录，不能单独证明当前仍有任务。
 </memory>
 
+<memory category="troubleshooting">
+「本机偶偶有黑框/控制台窗口一闪而过」可直接排除 agent 链路：pyauto-computer 的 supervisor 与
+host agent 全部是 `pythonw.exe` 无窗口进程，其拉起的子进程统一带 `CREATE_NO_WINDOW`/
+`DETACHED_PROCESS`，Windows 上不可能产生可见控制台窗口——转查本机计划任务等带控制台的
+周期性脚本。无窗口架构下的健康判据：`host.pid` 记录的 PID 与 agent 端口实际 owner 一致
+（不一致才怀疑 0.4.4 循环拉起），agent-card HTTP 实时可达即服务正常。
+</memory>
+
 ## 深入参考（按需查阅，正文不再展开）
 
 - [troubleshooting](references/troubleshooting.md) — 注册/心跳/代理 502/删除复活/锁排障/Windows subprocess 坑

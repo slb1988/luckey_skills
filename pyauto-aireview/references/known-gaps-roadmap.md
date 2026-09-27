@@ -64,6 +64,12 @@ Runner使用 `--print -- @file`；较旧Pi可能不支持 `--`。当前没有证
 
 Publish/curl失败可warning-only并保持TC绿色；完整callback URL还可能进入日志。需要持续核后端activity并改进脱敏/投递确认，不能只看build status。
 
+### 2.9 续评跨轮文件完整性
+
+现行续评输入只含当前 shelf 文件清单，没有结构化跨轮 added/removed 对账，且 prompt 允许复用前轮 findings 与结论；文件在 refresh 前从 shelf 减少时，后轮可以用未核实的解释（如“已随某 CL 提交”）消除异常并自动批准放行。
+
+设计方向（未实施）：本轮对当前内容独立评审，前轮评分/verdict/代码结论不可直接复用，历史 findings 与评论仅作复查线索并须针对本轮重新验证；各轮保留不可变文件清单并显式提供跨轮 added/modified/removed；文件减少且去向未经 P4 文件级核实时禁止自动批准。
+
 ## 3. 已退役行为：不要复活
 
 | 旧行为 | 现行替代 |

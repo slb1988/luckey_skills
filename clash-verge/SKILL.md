@@ -14,6 +14,10 @@ description: Clash Verge Rev（mihomo 内核）代理客户端的使用、排障
 5. **控制 API 走本机 IPC，不一定有 TCP 端口**。以运行时配置里的 `external-controller` / `external-controller-pipe` / `external-controller-unix` / `secret` 字段为准。
 6. **运行模式（Rule/Global）是运行时状态**。profile yaml 里的 `mode:` 只是初始值，GUI 切换只改运行时；排查时以 `GET /configs` 返回的 mode 为准，不要看 yaml 猜。
 
+<memory category="troubleshooting">
+Windows 本机的 mihomo 核心由 service 托管、独立于 UI 进程：**杀掉/退出 Clash Verge UI 不会断代理**（2026-09-22 误杀 UI 后实测 mixed 端口 7897 仍正常转发）。两个推论：① 「代理挂了」先核实是核心进程（verge-mihomo）没在跑、还是只是 UI 退了——只有前者才是代理真断；② 批量杀进程误伤 UI 不需要补救代理，重开 Verge 只是恢复托盘图标。
+</memory>
+
 ## 系统相关细节
 
 路径、IPC 方式、排查命令因系统而异，按需阅读：

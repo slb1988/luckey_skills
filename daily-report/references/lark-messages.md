@@ -6,6 +6,7 @@
 
 - `lark-cli im +messages-search`（跨群全局搜索）所需 scope **未授权**，调用报权限错误，不要依赖。
 - 唯一可行路径：`+chat-list` 枚举全部群 → 逐群 `+chat-messages-list` 按日期窗口拉取。
+- **Windows 上 lark-cli 是 .cmd shim**：Python `subprocess` 直接 `subprocess.run(["lark-cli", ...])` 启动失败，批量扫描脚本必须 `shell=True`（或显式 `cmd /c lark-cli ...`）才能调起。
 
 ## 流程
 

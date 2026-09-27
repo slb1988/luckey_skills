@@ -92,6 +92,34 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 - 续评轮会短路：声明「manifest 一致，沿用首轮结论」即不再重新核对，首轮漏检在续评中必然延续。修复方案见 ObsidianVault 仓 `.claude/plans/AiReview-SKILL索引一致性确定性检查.md`。
 </memory>
 
+<memory category="troubleshooting">
+- 代提交失败通知轰炸的根因二分（Review 726 等查明）：直提失败（approve 期间 head 前进 out-of-date、作者 client 仍开着文件）是正常业务（约占 60%），按设计进 `_auto_merge_submit` 兜底；真正致灾的是兜底自身两个缺陷。
+- `p4_adapter.prepare_merged_cl()` 的 sync 步用裸 `admin.run`，而 P4Python 默认 `exception_level=2`——warning 级输出 `file(s) up-to-date.` 也抛异常、炸掉整个合并（bot workspace haveRev 有历史残留时几乎必触发）。同文件 `_run_capture`（exception_level 临时置 0）就是干这个的但此处未用；正确性由 `_verify_have_revs` 兜底。
+- 作者原 CL 仍持有 +l 独占文件时，bot workspace unshelve 报 `can't edit exclusive file already opened`，auto-merge 同样必败，需独立处置策略。
+- `notify_submit_failed()` 收件人 = 作者 + 全部 role=1 admin + 评审群，无去重/节流，每次失败必发；用户点重试再失败会再发一轮（Review 726 曾 4 分半连败 4 次发 4 轮）。admin 收到高频 DM 是失败率 × 无节流的乘积，不是通知配置错误。
+</memory>
+
+<memory category="troubleshooting">
+- 代提交队首阻塞根因（Review 878 堵 927 查明）：评审原 CL 在 P4 已查询不到时，submit worker 把“CL 消失”误判为临时故障，约每 30 秒无限重试并死占队首，后续全部代提交（927、930）被堵。处置 = 管理端正常业务接口结束队首该单，队列即自动放行（927→CL 134731、930→CL 134732），无需手工重提或改库。
+- 重试分类契约：不可恢复错误必须明确失败并释放队列——原 CL 缺失走对账路径，确定性合并冲突（shelf 基线落后 head，如 qa-testcase-workflow/SKILL.md shelf 基于 #13 而 CL 134282 已至 #14）结束自动尝试转人工；仅临时性故障适合有限重试。源码修复由并行会话提交为 CL 1859（179 测试通过），是否已部署以线上版本核实。
+- 文件存在先行提交只说明有合并风险，不构成合并冲突证据；是否冲突以实际 unshelve/merge 结果为准，不能据此提前判死该单。
+</memory>
+
+<memory category="troubleshooting">
+- 续评文件流失放行根因（Review 892 查明）：续评续接前轮原生 Pi session，且本轮 `review_input.md` 明文允许"此前轮次的 findings 与代码分析结论可复用"；但输入只含当前 shelf 文件清单，无结构化跨轮 added/removed 对账，文件减少全靠模型自行发现。
+- 已确认的误判模式：模型为文件减少编造解释，把本轮 `baseline_cl` 当作"被移除文件已随该 CL 提交出库"的证据（892 中声称 CL 134463，实为无关关卡资源），随后围绕"上轮唯一 high 已修复"收口 approve 并自动提交。`baseline_cl` 只是本轮评审基线，不构成任何文件去向证明；"已在其他 CL 提交"类声称必须回查 P4 文件级内容核实。
+- 排查锚点：后端 refresh 日志记录 `kept:N removed:M`，是文件数变化的权威证据；代提交 CL 与提交时 shelf 一致即可排除"代提交漏交"；TC artifact 的 `runner_manifest.json` 可证是否续接前轮 session（该轮 transcript 未留存，模型实际验证命令无法复核）。
+- 跨轮完整性门禁设计方向见 [known-gaps-roadmap](references/known-gaps-roadmap.md) 2.9。
+</memory>
+
+<memory category="common-patterns">
+- 收益/打回量化统计的生产库口径边界（2026-09 只读实测）：`ai_review_activities` 有历史状态/决策/编译/AI 活动，但无 round_id，不能可靠关联逐事件轮次；生产库无 round/manifest 业务表（源码有模型未部署）。
+- `ai_reviews`/participants/`ai_findings`/`round_token` 都是当前态：findings 刷新会清理替换不能还原历史，`ai_review_jobs`/submit jobs 按 review 单行复用不是尝试历史，当前值不能倒填先前拒绝时的真值；DB 时间为 UTC。
+- rejected 状态 ≠ AI 拦截缺陷：作者自拒、代提交失败、合并冲突也产生打回事件；而 AI reject、编译 failed 只阻塞审批轴，不一定产生 rejected 状态。作者自拒也可能由有效 AI 意见触发。
+- 打回原因跨 `decision_made` 与 `status_changed.payload.reason` 两个来源，汇总必须按唯一活动 ID 互斥归类且合计=总事件数，关联不上保留 unknown；分类计数不闭合的占比表不得发布。
+- Pi/TC 主路径模型 usage 未完整回写，token 为 0 或无值可能是缺失而非零消耗。完整量化方案与基线见 ObsidianVault 仓 `.claude/plans/AIReview-Value-Metrics.md`。
+</memory>
+
 ## 修改与交付
 
 按 [pyauto-shared 共性边界](../pyauto-shared/references/common-practices.md) 路由及保护凭证；按实施参考核 opened/head/shelf、保留并行改动、分 depot 建专用 pending CL。不自动 submit、部署、重跑或改生产 DB。
