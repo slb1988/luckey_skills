@@ -16,7 +16,8 @@ Windows 任务计划 (工作日 18:00)
       ├─ 蛋卷估值 API → PE/PB 百分位分区
       ├─ akshare 东财 → QDII ETF 溢价 (可选, 失败不阻塞)
       ├─ 与 data/monitor_state.json 对比 → 状态变化事件
-      ├─ 飞书 bot DM 通知 (仅变化时; --force-notify 强制)
+      ├─ 微信推送 (主: POST chat-hub relay http://10.77.77.5:7399/send, 需 CHAT_HUB_RELAY_TOKEN)
+      ├─ 飞书 bot DM (微信失败时回落; 仅变化时; --force-notify 强制)
       └─ data/valuation_YYYY-MM-DD.md 每日快照
 ```
 
@@ -26,7 +27,7 @@ Windows 任务计划 (工作日 18:00)
 |---|---|
 | 源码 = 运行位置 | `.claude/skills/investment-monitor/`（skills submodule，用 git-tool 提交） |
 | 数据/状态 | 同目录 `data/`（`monitor_state.json` + 每日快照，已被 skill 内 `.gitignore` 忽略） |
-| 密钥 wrapper | `C:\Users\admin\.violoop\workspace\run_investment_monitor.ps1` |
+| 密钥 wrapper | `C:\Users\admin\.violoop\workspace\run_investment_monitor.ps1`（设 FEISHU_APP_SECRET 与 CHAT_HUB_RELAY_TOKEN） |
 
 单一运行位置：脚本直接从 `.claude/skills/investment-monitor/` 源码位置运行，`data/` 被 gitignore 不会弄脏 submodule，无需像 a-stock-quant 那样维护 `.violoop` 部署副本。改动流程：`git-tool commit skills` 提交推送即可。
 
@@ -72,6 +73,7 @@ schtasks /create /f /tn "InvestmentMonitor-DailyValuation" `
 | 现象 | 排查 |
 |---|---|
 | 没收到通知 | 先确认当天是否真的无状态变化（看快照文件）；再用 `--force-notify` 验证飞书链路 |
+| 微信推送失败 | relay 健康: `curl http://10.77.77.5:7399/health`（sock=true 才正常）；CHAT_HUB_RELAY_TOKEN 是否在 wrapper ps1 里设了；Mac 侧 `launchctl list \| grep chat-hub-relay` 与 `~/.chat-hub-relay/relay.log` |
 | 飞书发送失败 | `FEISHU_APP_SECRET` 是否在 wrapper ps1 里设了；open_id 走 `192.168.2.13:5000` 内网 API，连不上时检查网络/VPN |
 | 指数缺失告警 | 蛋卷改名或下线了该指数，浏览器开 `https://danjuanapp.com/djapi/index_eva/dj` 核对名称后改 `WATCHLIST` |
 | QDII 溢价一直失败 | akshare 接口抽风常见，升级：`pip install --upgrade akshare`；不影响估值监控主流程 |
