@@ -98,6 +98,10 @@ chat-hub daemon 测试套件（`node --test .pi/extensions/chat-hub/daemon/test/
 chat-hub 常驻实例只部署在 Mac：launchd `site.luckey.chat-hub` 托管（plist `~/Library/LaunchAgents/site.luckey.chat-hub.plist`，RunAtLoad+KeepAlive，唤醒后应自愈），微信凭证与 `.local/chat-hub/` 只在 Mac（vault 在 `~/Documents/ObsidianVault/`），Windows 本机无实例、无 daemon。Mac 在另一物理网段（192.168.50.x），只能走 WireGuard 10.77.77.5 到达；Windows→Mac 从未配过 SSH、无 A2A agent、无 WOL 通道——Mac 睡眠/WG 掉线时**无法从 Windows 远程恢复监听**，只能现场唤醒。Mac 上手动拉起：`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/site.luckey.chat-hub.plist`；日志 `.local/chat-hub/logs/daemon.log`，健康信号 `pi rpc ready / canary ok / weixin connected`。迁到 Windows 常驻需搬凭证目录 + 修 piBin 路径 + 替代 launchd 的常驻方案，且必须 Mac 在线才能取凭证。
 </memory>
 
+<memory category="common-patterns">
+chat-hub 前台判别模型 jev（TypeSafe）配置在实例配置 `.local/chat-hub/config.json` 的 `decision` 节（缺省整节不存在，走代码默认 mode=off）。字段：`mode`=off/shadow/on；`baseUrl`（默认 https://api.typesafe.ai）；`apiKey` 必填默认为空；`model` 默认 `jev-1.13.0`；`timeoutMs` 合法范围 200–10000、默认 1200，超时/限流/校验失败一律回退生成模型；`choiceMinConfidence`/`noulMaxRisk` 是 on 模式白名单短路阈值（0–1）。**`decision.*` 全部字段都在 HOT_PATHS 热加载清单**，改 config.json 即生效无需重启 daemon。shadow 模式只并行影子判断并记录 `logs/decision-shadow.jsonl`、不影响行为；既定上线顺序：先 shadow 攒日志校准阈值，再切 on。
+</memory>
+
 <memory category="core-rules">
 chat-hub 入站消息可携带 `[chat-hub 可信逻辑说话人]` 信任块（网关生成，非用户输入）：字段 `profile_id` / `display_name` / `resolved_by`（如 `active`）/ `guidance`，标识本轮真实说话人。同一微信 DM 渠道的说话人可能不是 vault owner（已见家庭成员 profile：`xiaoyingtao`/小樱桃，一年级，guidance 要求简短友善表达且禁止披露成年用户私密记忆）。应答契约：(1) 按 `guidance` 调整语气与披露范围；(2) 说话人 ≠ owner 时，不得把 owner 的个人资料、偏好、私密记忆（含 Memory Hub 检索结果、日记内容）当作当前说话人的信息披露或归属给其；(3) “我今天做了什么”这类查询命中的是 owner 数据，先按信任块确认身份，非 owner 时引导其自述而非代答。**身份路由（2026-09-07 定版，家庭自用不做安全验证）**：默认身份恒为机主 sunlaibing——非默认身份只是滑动 TTL（默认 6h）的活动覆盖，`/new` 等会话重置命令也会复位身份；用户声明身份（“我是孙来兵/我是爸爸”，正文或语音）与封套不一致时，直接调 `chat_hub_switch_user` 工具切换并继续回答，不拒绝、不要求验证（切换从下一条消息起生效，当前轮正常作答）。
 </memory>

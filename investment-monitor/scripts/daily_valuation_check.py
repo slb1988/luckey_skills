@@ -62,6 +62,10 @@ FEISHU_APP_SECRET = os.environ.get("FEISHU_APP_SECRET", "")
 FEISHU_BASE = "https://open.feishu.cn/open-apis"
 USER_LOOKUP_API = "http://192.168.2.13:5000/user/get_userinfo_by_p4id/sunlaibing"
 
+# 微信通知主渠道：chat-hub 中继 (Mac, 走 WireGuard; token 只从环境变量读, 不入库)
+CHAT_HUB_RELAY_URL = os.environ.get("CHAT_HUB_RELAY_URL", "http://10.77.77.5:7399/send")
+CHAT_HUB_RELAY_TOKEN = os.environ.get("CHAT_HUB_RELAY_TOKEN", "")
+
 DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
@@ -221,6 +225,20 @@ def send_feishu_dm(text, state):
     return ok
 
 
+def send_weixin(text):
+    if not CHAT_HUB_RELAY_TOKEN:
+        print("[warn] 未设置 CHAT_HUB_RELAY_TOKEN, 跳过微信通知")
+        return False
+    try:
+        resp = _http_json_post(CHAT_HUB_RELAY_URL, {"token": CHAT_HUB_RELAY_TOKEN, "text": text})
+        ok = bool(resp.get("ok"))
+        print(f"[notify] 微信推送{'成功' if ok else '失败: ' + str(resp)}")
+        return ok
+    except Exception as e:
+        print(f"[notify] 微信推送异常: {e}")
+        return False
+
+
 # ── 输出 ──────────────────────────────────────────────────────────────
 def build_overview_line(current):
     parts = []
@@ -297,7 +315,8 @@ def main():
         lines = [f"📊 估值监控 {TODAY}", ""]
         lines += events if events else ["(无状态变化, 此为强制全览)"]
         lines += ["", "全览: " + build_overview_line(current)]
-        send_feishu_dm("\n".join(lines), state)
+        if not send_weixin("\n".join(lines)):
+            send_feishu_dm("\n".join(lines), state)
         state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
     else:
         print("[notify] 无状态变化, 静默 (快照已落盘)")
