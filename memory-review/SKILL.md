@@ -57,8 +57,9 @@ Windows 上 scan/drive 静默卡死（进程活着、0 TCP、无日志）的已�
 4. **同 session 多版本**：同一 session 多次更新会产生多条待审记忆，内容常有重叠。
    novelty 演进分析（SUPERSEDES/CONFIRMS/REFINES）已让它们彼此可见，判了
    novel/evolution 的通常都可批；不必因为"看着像"就拒其中一条——去重是演进链的事。
-5. **content_mode 选择**：预览实体/边丰富且准确 → `curated`（Graphiti 高保真复现审核结果）；
-   预览薄（0 边）但正文有价值 → `original`（保留原蒸馏文）。
+5. **content_mode 选择**：按事实承载量而非边数选择；准确且保留实质增量的实体摘要也可单独用
+   `curated`。预览遗漏正文价值且正文适合入图时用 `original`；模式不替代事实核验。
+   零边、模板正文及建议/决策归属的判据见[预览质量模式](references/preview-quality-patterns.md)。
 6. **实体存在性标注只是参考，不是拒绝理由**（2026-09-06 起 detail 自带）：`entity_existence`
    （打开详情时实时查图谱）与 `entity_resolution`（preview 落库时的快照）标出
    已有 / 已有·近似 / 已有·多候选 / 新 / 未知。已有实体仍可能带来新边新事实——判重看
@@ -163,21 +164,9 @@ scan 保留服务端 token、状态、attempts、memory/session/group 等元数�
 队列内无重复；扫完 packet 后需在同批条目间横向比对 project/正文关键词，重复的二选一
 （通常拒预览更差的那份，拿不准就留队列升级）。
 
-<memory category="core-rules">
-错 scope 搬迁必须区分**物理写入组**与**逻辑检索 family**：exact content 去重只看同一物理
-`group_id`，但 novelty 候选与检索会展开 project merge family。因此
-`memory_search(project=target)` 命中、甚至 novelty=duplicate，都不能证明目标物理组已有副本；
-以 `GET /memories/{id}` 的 `group_id` 和 Graphiti `/episodes/{group}` 为准。若 duplicate 来自
-family 内的错误源组，只有在人工明确确认“这是 scope 修复”后才可带
-`acknowledge_novelty_warning=true` 批准目标组副本，再处理原条。
-
-已 indexed 的错误记忆用 admin memory invalidate：Hub 会置 `invalidated`、撤销未完成 outbox、
-调用 Graphiti `DELETE /episode/{uuid}` 并写 `graph_edits`。响应中的 `episode_deleted=true` 只表示
-删除调用成功，不证明关系级联完整；curated episode 实测可能出现 Episodic 节点已消失，但
-`RELATES_TO` 仍保留失效 UUID（包括只由该 episode 支撑的边）。失效后必须分别验证：① episode
-不在 `/episodes/{group}`；②图快照中没有仅引用失效 UUID 的边；③共享边仍有存活 episode 支撑。
-独占残留边与共享边的 provenance 污染是两类问题，不能把共享事实随独占边一起删除。
-</memory>
+错 scope 搬迁按**物理 group**核对副本，检索 family 命中不是搬迁完成证据；
+已 indexed 记忆失效后的 episode 与关系 provenance 验收，见
+[审核状态与快照：Scope 修复与失效验收](references/review-state-and-snapshots.md#scope-修复与失效验收)。
 
 <memory category="core-rules">
 「preview 高频出现图谱已有实体、看似无增量」是机制性噪音而非数据 bug（2026-09-06 线上取证：

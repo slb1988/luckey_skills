@@ -88,3 +88,19 @@ scan 将 token 与供审核的正文/预览一起保存，并保留状态、atte
 其他执行者可以处理本报告中的保留项或采取与原建议不同的决定。`already_processed`，以及复读时
 已为 approved/rejected 的条目，均应跳过，不重试、不改判，也不把它们计入自己的成功动作。
 不能仅凭 `decision_rationale` 为空推断操作者身份；归因须结合本次动作回执，报告并发变化即可。
+
+## Scope 修复与失效验收
+
+错 scope 搬迁必须区分**物理写入组**与**逻辑检索 family**：exact content 去重只看同一物理
+`group_id`，但 novelty 候选与检索会展开 project merge family。因此
+`memory_search(project=target)` 命中、甚至 novelty=duplicate，都不能证明目标物理组已有副本；
+以 `GET /memories/{id}` 的 `group_id` 和 Graphiti `/episodes/{group}` 为准。若 duplicate 来自
+family 内的错误源组，只有在人工明确确认“这是 scope 修复”后才可带
+`acknowledge_novelty_warning=true` 批准目标组副本，再处理原条。
+
+已 indexed 的错误记忆用 admin memory invalidate：Hub 会置 `invalidated`、撤销未完成 outbox、
+调用 Graphiti `DELETE /episode/{uuid}` 并写 `graph_edits`。响应中的 `episode_deleted=true` 只表示
+删除调用成功，不证明关系级联完整；curated episode 实测可能出现 Episodic 节点已消失，但
+`RELATES_TO` 仍保留失效 UUID（包括只由该 episode 支撑的边）。失效后必须分别验证：① episode
+不在 `/episodes/{group}`；②图快照中没有仅引用失效 UUID 的边；③共享边仍有存活 episode 支撑。
+独占残留边与共享边的 provenance 污染是两类问题，不能把共享事实随独占边一起删除。
