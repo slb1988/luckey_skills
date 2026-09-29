@@ -46,7 +46,7 @@ import { Type } from "typebox";
 //   Esc 中断 agent 回合时同步杀子进程，不再挂到 120s 超时。
 // v26：预热进度 widget 去掉 Esc/Ctrl+C 提示文案（用户反馈碍眼），取消功能
 //   本身保留、静默生效。
-// v27：新增 /memory-card 与 memory_persona_card；首轮 persona card 注入仅在
+// v27：新增 memory_persona_card；首轮 persona card 注入仅在
 //   MEMORY_HOOK_PI_PERSONA_CARD=1 时启用，默认关闭，并与既有 recall 独立 fail-open 组合。
 // v28：chat-hub 身份封套路由——首轮 prompt 的 profile_id 为非机主逻辑用户时，
 //   bootstrap 检索 project 改用该 profile_id（可用 MEMORY_HUB_CHAT_HUB_PROJECT_ROUTING=0
@@ -56,7 +56,7 @@ import { Type } from "typebox";
 // v31：直接使用 Judge v15 查询级行动简报；UI 展示线索/来源和真实线索预览，不再展示记忆标题。
 // v32：支持 ws:/project: 追加 scope；只接受 Stage B 最终上下文，suppressed 时禁止客户端候选回退。
 // v33：输入独立 4000 字符预算，保留任务/标识/失败与 traceback，省略显式留痕。
-const EXTENSION_VERSION = "34";
+const EXTENSION_VERSION = "35";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -872,7 +872,7 @@ function personaCardAutoEnabled(): boolean {
 }
 
 async function loadPersonaCard(
-	trigger: "bootstrap" | "command" | "tool",
+	trigger: "bootstrap" | "tool",
 	cwd: string,
 	sessionId: string | null,
 	personId?: string,
@@ -1788,27 +1788,6 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		if (isDurableOutcome(outcome) || isTerminalSkipOutcome(outcome)) {
 			deleteMarker(target.sessionId, outcome);
 		}
-	});
-
-	pi.registerCommand("memory-card", {
-		description: "Show the canonical Memory Hub persona card (optional person id argument)",
-		handler: async (args, ctx) => {
-			const personId = args.trim() || undefined;
-			const result = await loadPersonaCard(
-				"command",
-				ctx.cwd,
-				ctx.sessionManager.getSessionId(),
-				personId,
-			);
-			if (result.markdown) {
-				ctx.ui.notify(result.markdown, "info");
-			} else {
-				ctx.ui.notify(
-					`Memory Hub persona card unavailable (${result.outcome}).`,
-					"warning",
-				);
-			}
-		},
 	});
 
 	pi.registerTool({

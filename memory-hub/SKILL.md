@@ -156,7 +156,7 @@ Dashboard `#review-prompts` 管 6 个 prompt，改「什么样的人信息进画
 
 ## Hook 集成与批量归档
 
-三端（Claude Code / Codex / Pi）共用 `scripts/memory_hook.py`（仅标准库）：capture 先落本地 spool（fail-open 不丢）再上传；首轮自动召回 + 按需检索（Pi 用 `memory_search`，Claude/Codex 用 `search` CLI）。人物卡可手工运行 `memory_hook.py persona-card [--person-id ID]`（默认输出 Hub canonical Markdown，`--json` 输出原始结构）；Pi 另提供 `/memory-card` 与 `memory_persona_card`。安装、check、身份、环境变量、Pi 扩展机制 → [agent-integration.md](references/agent-integration.md)。**改 `assets/` 下的安装副本（pi 扩展模板、project-aliases.json）必须递增版本号并重跑 install**。
+三端（Claude Code / Codex / Pi）共用 `scripts/memory_hook.py`（仅标准库）：capture 先落本地 spool（fail-open 不丢）再上传；首轮自动召回 + 按需检索（Pi 用 `memory_search`，Claude/Codex 用 `search` CLI）。人物卡可手工运行 `memory_hook.py persona-card [--person-id ID]`（默认输出 Hub canonical Markdown，`--json` 输出原始结构）；Pi 另提供 `memory_persona_card` 工具，人物卡的人工查看和修改在 Web 端完成。安装、check、身份、环境变量、Pi 扩展机制 → [agent-integration.md](references/agent-integration.md)。**改 `assets/` 下的安装副本（pi 扩展模板、project-aliases.json）必须递增版本号并重跑 install**。
 
 <memory category="core-rules">
 Hook 链路有三个独立验收层级：① installer/check 只证明配置就绪；② trace/SQLite spool 持久记录证明本机已捕获并入队；③ Hub session version + full-session 文件证明远端上传完成。不得把 `check ok` 当作端到端收集成功；memory 尚在审核态不等于上传失败，只要 file/session 已入 Hub 即表示收集链路完成。
@@ -193,7 +193,7 @@ Pi 扩展 v22+：用户用 `/skill:name` 显式指定 skill 的首轮 prompt **�
 
 Pi 扩展 v25+：首轮预热（“正在检索并审核历史记忆…” widget）与 `memory_search` 检索**可按 Esc/Ctrl+C 中断**——取消即杀检索子进程、本轮不注入、agent 立即开始；trace outcome 记 `cancelled`，本会话不重试。Ctrl+C 只取消检索并照常透传给 pi（连按两次仍退出 pi）。
 
-Pi 扩展 v27+ 注册 `/memory-card` 与 `memory_persona_card`，两者始终可手工读取 Hub canonical card；首轮自动 card 注入只有 `MEMORY_HOOK_PI_PERSONA_CARD=1` 才启用，默认关闭。启用后 card（客户端防御上限 2500 字符）排在 project recall 前；任一请求失败都独立 fail-open 并写 `memory_persona_card` trace，不替代 `memory_search`，也不改变未 opt-in 的默认首轮行为。
+Pi 的 `memory_persona_card` 工具可按需读取 Hub canonical card，不提供人物卡 slash 命令；人工查看和修改在 Web 端完成。首轮自动 card 注入只有 `MEMORY_HOOK_PI_PERSONA_CARD=1` 才启用，默认关闭。启用后 card（客户端防御上限 2500 字符）排在 project recall 前；任一请求失败都独立 fail-open 并写 `memory_persona_card` trace，不替代 `memory_search`，也不改变未 opt-in 的默认首轮行为。
 
 批量归档历史 session 用 `scripts/upload_sessions.py`（漏传检测用 `backfill_missed_pi_sessions.py`），**执行前必须先读 [upload-sessions.md](references/upload-sessions.md)**。两条铁律（用户定版，违反被纠正过）：① 默认 `--hook-namespace` 双资产一起传；② project 归属先 `--dry-run` 出清单给用户 review，确认后才执行。
 

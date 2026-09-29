@@ -30,7 +30,7 @@ project hint 做一次 focused recall（limit=6、默认最多 4000 字符、120
 Claude/Codex 侧，Pi 侧用 `MEMORY_HOOK_PI_BOOTSTRAP_RECALL=0`。后续深挖用 `memory_search`（Pi）/
 `memory_hook.py search` CLI（Claude/Codex）；首次预算可用 `MEMORY_HOOK_PI_BOOTSTRAP_LIMIT` 与
 `MEMORY_HOOK_PI_BOOTSTRAP_MAX_CHARS` 调整（Pi），避免每个 session 固定注入大段历史。
-Pi 的 persona card 自动注入是独立能力：只有 `MEMORY_HOOK_PI_PERSONA_CARD=1` 才在首轮读取并把 Hub canonical Markdown 放在 recall 前，默认不请求、不注入；手工 `/memory-card` 与 `memory_persona_card` 不受该开关影响。
+Pi 的 persona card 自动注入是独立能力：只有 `MEMORY_HOOK_PI_PERSONA_CARD=1` 才在首轮读取并把 Hub canonical Markdown 放在 recall 前，默认不请求、不注入；`memory_persona_card` 工具不受该开关影响，人工查看和修改人物卡在 Web 端完成。
 行为契约写在 vault `AGENTS.md`「Memory Hub 按需检索」一节。
 
 search 输出不包含用户身份与概要（2026-08-20 起，format_context 已移除）：多身份场景下静态
@@ -141,7 +141,7 @@ Windows 写入注册表 `HKCU\Environment` 并广播 `WM_SETTINGCHANGE`；POSIX 
   session 的首个有效任务按 cwd/project 阻塞执行一次精炼背景检索（默认 limit=6、最多 4000 字符、120 秒超时）；
   纯寒暄本地跳过且不消耗召回机会。无结果、报错或超时均 fail-open，且完成请求后本 session 不重试；`agent_end`
   走 AFK 防抖上传（默认空闲 5 分钟才归档，新 prompt 取消重计），`session_shutdown` 立即归档。
-  v27 还必须注册 `/memory-card`、`memory_persona_card` 与默认关闭的 `MEMORY_HOOK_PI_PERSONA_CARD=1` opt-in 路径，card 客户端上限 2500 字符并独立 fail-open/trace。
+  Pi 保留 `memory_persona_card` 工具与默认关闭的 `MEMORY_HOOK_PI_PERSONA_CARD=1` opt-in 路径，不注册人物卡 slash 命令；card 客户端上限 2500 字符并独立 fail-open/trace。
 - 安装器返回的各 agent `ok=true`。服务健康检查失败可保留 durable spool，但必须明确报告"已安装、尚未端到端验证"，不得宣称上传链路正常。
 
 安装或升级后执行只读复检：
@@ -320,7 +320,7 @@ v12-v17 的玩家评分 UI、`pi-recall-scores.jsonl` 和 feedback 上报路径�
 modifyOtherKeys），与 pi-tui `matchesKey` 对齐但不引入运行时依赖。**v26 起取消功能静默生效，进度
 widget 不再显示 Esc/Ctrl+C 提示文案**（用户反馈碍眼），不要重新加回。
 
-**v27 起提供 persona card 三个入口**：`memory_hook.py persona-card`、Pi `/memory-card`、Pi `memory_persona_card`。CLI 默认先从 `GET /v1/persons` 找 owner 唯一 active self，再取 `/v1/persons/{id}/card`；`--person-id` 可绕过发现。默认打印 canonical Markdown，`--json` 原样输出 card 对象；401/404/多 active self/坏响应只给稳定错误，不回显 token 或服务端细节。Pi 首轮自动注入必须显式设 `MEMORY_HOOK_PI_PERSONA_CARD=1`，card 与 recall 独立 fail-open、组合时 card 在前，模型可见 card 最多 2500 字符；每次尝试只把状态/长度写 `memory_persona_card` trace，不把 card 正文写 trace。
+**Persona card 读取入口**：`memory_hook.py persona-card`、Pi `memory_persona_card` 工具；人工查看和修改在 Web 端完成，不提供 Pi slash 命令。CLI 默认先从 `GET /v1/persons` 找 owner 唯一 active self，再取 `/v1/persons/{id}/card`；`--person-id` 可绕过发现。默认打印 canonical Markdown，`--json` 原样输出 card 对象；401/404/多 active self/坏响应只给稳定错误，不回显 token 或服务端细节。Pi 首轮自动注入必须显式设 `MEMORY_HOOK_PI_PERSONA_CARD=1`，card 与 recall 独立 fail-open、组合时 card 在前，模型可见 card 最多 2500 字符；每次尝试只把状态/长度写 `memory_persona_card` trace，不把 card 正文写 trace。
 
 **v15 起 search-v2 会把 Hub 返回的 `retrieval_id/query_hash/policy_version` 透传给 Pi**；v18 又透传
 聚合 `quality` 元数据。当前评分由服务端在返回前完成并直接写 `retrieval_judgments`，不再依赖玩家

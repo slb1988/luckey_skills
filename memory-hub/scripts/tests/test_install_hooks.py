@@ -93,8 +93,7 @@ class InstallHooksTest(unittest.TestCase):
             self.assertIn("MEMORY_HOOK_PI_CAPTURE_DELAY_MS", content)
             self.assertIn("cancelPendingFlush", content)
             self.assertIn("catchupPending", content)
-            # v27: manual command/tool are always present; automatic card injection is exact opt-in.
-            self.assertIn('pi.registerCommand("memory-card"', content)
+            self.assertNotIn('pi.registerCommand("memory-card"', content)
             self.assertIn('name: "memory_persona_card"', content)
             self.assertIn("MEMORY_HOOK_PI_PERSONA_CARD", content)
             self.assertIn("personaCardMaxChars = 2500", content)

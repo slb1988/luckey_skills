@@ -165,7 +165,7 @@ class PiExtensionE2ETest(unittest.TestCase):
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "main")
 
-    def test_persona_card_default_off_but_manual_command_and_tool_work(self):
+    def test_persona_card_default_off_but_tool_works_without_slash_command(self):
         with tempfile.TemporaryDirectory() as directory:
             summary = self.run_driver(Path(directory), {"PERSONA_MANUAL": "1"})
             self.assertTrue(summary["ok"])
@@ -221,9 +221,9 @@ class PiExtensionE2ETest(unittest.TestCase):
             summary = self.run_driver(Path(directory), {"SEARCH_DIAGNOSTICS": "1"})
             self.assertEqual(summary["mode"], "search-diagnostics")
 
-    def test_pi_template_is_v34(self):
+    def test_pi_template_is_v35(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
-        self.assertIn('const EXTENSION_VERSION = "34";', template)
+        self.assertIn('const EXTENSION_VERSION = "35";', template)
 
     def test_project_bootstrap_default_timeout_is_two_minutes(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")

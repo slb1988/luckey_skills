@@ -128,7 +128,7 @@ try {
 	for (const event of ["session_start", "before_agent_start", "agent_end", "session_shutdown"]) {
 		assert.ok(handlers.has(event), `extension must register ${event}`);
 	}
-	assert.ok(commands.has("memory-card"), "extension must register /memory-card");
+	assert.equal(commands.has("memory-card"), false, "extension must not register /memory-card");
 	assert.ok(tools.has("memory_persona_card"), "extension must register memory_persona_card");
 
 	if (process.env.SEARCH_DIAGNOSTICS === "1") {
@@ -176,7 +176,7 @@ try {
 		assert.equal(traceEntries("search").at(-1).retrieval.retrieval_id, "retrieval-e2e");
 		console.log(JSON.stringify({ ok: true, mode: "search-diagnostics" }));
 	} else if (personaManualMode) {
-		// Default-off only governs automatic first-turn injection. Manual command/tool remain usable.
+		// Default-off only governs automatic first-turn injection.
 		await handlers.get("session_start")({}, ctx);
 		const firstStart = await handlers.get("before_agent_start")(
 			{ prompt: "manual persona test", systemPrompt: "base-system" },
@@ -184,9 +184,6 @@ try {
 		);
 		assert.match(firstStart.systemPrompt, /严格测试驱动/);
 		assert.equal(hookCalls("persona-card").length, 0, "default-off bootstrap must not request a card");
-		await commands.get("memory-card").handler("person-manual", ctx);
-		assert.equal(hookCalls("persona-card").length, 1);
-		assert.match(notifyCalls.at(-1).message, /canonical persona card/);
 		const toolResult = await tools.get("memory_persona_card").execute(
 			"persona-tool",
 			{ person_id: "person-tool" },
@@ -196,14 +193,14 @@ try {
 		);
 		assert.match(toolResult.content[0].text, /canonical persona card/);
 		assert.equal(toolResult.details.personId, "person-tool");
-		assert.equal(hookCalls("persona-card").length, 2);
+		assert.equal(hookCalls("persona-card").length, 1);
 		assert.deepEqual(
 			hookCalls("persona-card").map((entry) => entry.argv[entry.argv.indexOf("--person-id") + 1]),
-			["person-manual", "person-tool"],
+			["person-tool"],
 		);
 		assert.deepEqual(
 			traceEntries("memory_persona_card").map((entry) => entry.trigger),
-			["command", "tool"],
+			["tool"],
 		);
 		console.log(JSON.stringify({ ok: true, mode: "persona-manual" }));
 	} else if (personaOversizeMode) {
@@ -214,8 +211,6 @@ try {
 		);
 		const personaPrefix = firstStart.systemPrompt.split("# Memory Hub：")[0];
 		assert.equal((personaPrefix.match(/P/g) || []).length, 2500, "bootstrap card must be capped at 2500");
-		await commands.get("memory-card").handler("", ctx);
-		assert.equal(notifyCalls.at(-1).message.length, 2500, "command card must be capped at 2500");
 		const toolResult = await tools.get("memory_persona_card").execute(
 			"persona-tool",
 			{},
