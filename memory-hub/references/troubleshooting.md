@@ -16,6 +16,14 @@
 - `kept=0` 只表示本次没有被质量门禁放行的候选，不等于没有相关记忆，也不保证判分正确。先换关键词/显式 project，必要时按 [retrieval-eval.md](retrieval-eval.md) 排查。
 - 固定约30秒的 `RETRIEVAL_CORRECTION_RESOLVER_UNAVAILABLE` 曾由服务端 `min(30, remaining)` 截断正常慢模型引起。修复后 resolver/judge/格式重试共用可配置的110秒预算；耗尽返回可重试 RETRIEVAL_JUDGE_TIMEOUT，仍 fail-closed。用 request_id/retrieval_id 对照服务端阶段、耗时与异常类型，不能归咎于 HTTPS 或改走 v1 绕过。
 
+### `NETWORK_ERROR` 的 TLS/TUN 边界
+
+<memory category="troubleshooting">
+`memory_search` 的 `NETWORK_ERROR` 可由 HTTPS 握手阶段的 `SSLEOFError` 触发；数秒失败不等于检索预算耗尽，延长检索超时不能修复已断开的 TLS。此时尚未获得 HTTP 响应，与下节服务端 503 是不同层的故障。
+已确认的根因模式：默认公网路径经 Clash TUN 时 TLS 断开，但绕过 TUN 的物理出口对同一源站严格证书校验通过、内网重放原检索成功；这组对照定位到本机代理出口链路，而非 Hub 检索服务。不能只凭 `NETWORK_ERROR` 就套用此归因。
+Hook 已禁用显式代理，仍可能被系统 TUN 接管；`NO_PROXY` 不构成端到端直连保证。运行模式与路由语义见 [Clash Verge 的 Global 模式规则](../../clash-verge/SKILL.md#global-模式的两个铁律)。
+</memory>
+
 ### search-v2 整请求 503 `RETRIEVAL_JUDGE_INVALID_RESPONSE`：先核对部署版本再怀疑代码
 
 <memory category="troubleshooting">
