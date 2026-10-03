@@ -200,105 +200,11 @@ description: 花叔Design——用HTML做高保真原型、幻灯片、动画、
 
 **展示后必须停**：三方向摆出来后**结束回合等用户选择**，不得自行选定继续执行——包括 autonomous / 无人值守会话（这是真正只有用户能做的决策，停轮不算阻塞）。
 
-### 完整流程（7 个 Phase，顺序执行；Phase 3.5 是图片前置半步）
+### 完整流程（按需加载，但批准门不可跳过）
 
-**Phase 1 · 对话澄清需求 + 主动索要参考（不要跳过、不要直接开做）**
-先用**对话**了解（一次最多 3 个问题）：目标受众 / 核心信息 / 情感基调 / 输出格式。
-**同时必须主动索要参考材料**——这是最容易被跳过、却最该问的一步，一次问全：
-- 这个项目/产品**叫什么名字**？
-- 有没有 **logo、品牌色、VI、字体规范**？有就发我。
-- 有没有**你喜欢的参考**——某个网站 URL、一张截图、某个产品「就要那种感觉」？
-- 都没有也没关系，说一句「你看着办」，我直接做几版给你挑。
+**任何新视觉设计，开始 Phase 1 前必读 [三方向顾问详细流程](references/direction-workflow.md)**，按原 Phase 1–6（含 3.5）顺序执行：需求/参考 → ≥200 字重述 → ≥500 字 spec → 真图与具名 logo 前置 → 三套独立逻辑的真实视觉 → 展示后停下等用户选择 → 写 `direction-approved.md` → 返回主干。
 
-⏱️ **无应答策略**：问题发出后，若用户**没回应任何信息**（只丢了最初那句模糊需求就没下文）→ 不要枯等。按 best judgment 补齐假设（标 assumption），直接往下跑完 Phase 2-4 把三版真实视觉摆出来——**用「看得见的东西」代替继续追问**（正好呼应选择无效铁律）。
-
-> 用户给了**具体品牌/产品名（能去官网找到 logo 的那种，如 Stripe / DJI / 某 App）**或品牌资产/参考站 → **加走「§1.a 核心资产协议」取齐资产，但不跳出三方向门**：三个方向全部基于同一套真实品牌资产做，差异在设计诠释（旧规则「品牌名→跳出 Fallback」已废止，2026-07-18）。
-> ⚠️ **普通主题名不算品牌名**：「咖啡 / 鹦鹉 / 历史 / 健身」这类是**内容主题**，不是可找 logo 的品牌——不要跑去找「咖啡的 logo」空转。
-
-**Phase 2 · 顾问式重述**（**≥200 字**，把需求真正嚼透，不是敷衍一句）
-用自己的话深入重述本质需求、受众、场景、情感基调、用户没说出口的潜在期待。以「基于这个理解，我**直接做 3 个不同方向的真实版本给你看**」结尾——❌ 不要以「你想选哪个方向？」结尾（见 Phase 3 铁律）。
-
-**Phase 3 · 固化设计 spec（三套逻辑的共同输入）**
-
-把 Phase 1-2 澄清到的东西写成一份 **≥500 字的详尽设计 spec**——这是三个 subagent 的**唯一共同输入**，写薄了三版都会飘。必须覆盖：产品/项目是什么、目标受众与使用场景、核心信息与内容要点(分点列出主要板块)、情感基调与气质关键词、**输出格式与尺寸（必填——网页还是 PPT？具体像素？三个 subagent 必须统一用这个尺寸，否则三版尺寸不一无法横向对比）**、已知约束（品牌色/禁忌/必含元素）、图片需求（Phase 3.5 判断的结果）、视觉母题假设（这个内容独有的视觉元素/结构/隐喻，见工作流 Step 3 form推导五问）。它们各自独立工作、只看 spec、互不参考——所以 spec 越具体，三版越不会跑偏。
-
-**Phase 3.5 · 🔴 CHECKPOINT 图片素材前置（spawn 三套逻辑前必做，硬要求）**
-
-开工前先答一个问题：**这个设计，图片是不是内容必需的？**
-- 内容型（介绍鹦鹉 / 咖啡 / 历史 / 人物 / 产品 / 地点…）→ 图片几乎必需
-- 工具 / 数据 / 文档 / 纯观点型 → 可能不需要，判断后跳过取图
-- 拿不准是「内容必需」还是「装饰」→ **按内容必需处理**（宁可取真图）。⚠️「default 无生图」只指**装饰图默认不调生图模型**，不等于「内容图也不许有图」——内容必需的真图该取就取
-
-**图片必需 → 先制定获取策略、取齐真图，再 spawn 三套逻辑**（三个 subagent 共用同一批真图，只换设计），绝不边设计边用色块糊弄：
-
-| 内容类型 | 首选真图来源（公共领域 / 免版权优先） |
-|---|---|
-| 博物 / 历史 / 艺术 / 动植物 / 古典 | Wikimedia Commons、Met / Art Institute Open Access、Biodiversity Heritage Library（古典博物插画，如 Edward Lear / John Gould 鹦鹉图录） |
-| 通用生活 / 场景 / 产品摄影 | Unsplash、Pexels（免版权） |
-| 用户自己的产品 / 品牌 | 走 §1.a 核心资产协议取官方图 |
-| **设计中要点名 / 并列展示的具体产品·品牌（含第三方对比对象）** | **走 §1.a 取每个产品的官方 logo**（svgl API → simpleicons → Google favicon，见 `references/brand-asset-protocol.md` Step 3.1）。对比 / 榜单 / 评测 deck 必走这行 |
-
-🔴 **具名产品 logo 子门（spawn 三套逻辑前必过，硬要求）**：把设计里会出现的产品 / 品牌名**逐个列成清单**，确认每个都已取到官方 logo 并内嵌，再 spawn。**交付形态是「双击就能开」的单文件 HTML 时，logo/图片必须 base64 内嵌**——相对路径的交付物挪个目录就全员裂图（盲测实锤：`../assets/google.svg` 六个按钮全裂直接输掉评审）；仅多文件+启动说明的项目允许本地路径。**清单里有一个没取到 logo = 🛑 STOP 补齐**（实在取不到才退诚实 placeholder 并明说「X 的 logo 待补」）。三个 subagent 共用这批 logo。⚠️ 这是对比 / 榜单 / 评测 deck 最常见的翻车点——「只抽了品牌色就开做」就是漏了这道门（2026-06-06 五大 Coding Agent PPT 实测翻车，见 brand-asset-protocol 反例）。
-
-🛠️ **取图用现成脚本（别每次现写）**：`python3 scripts/fetch_images.py --query "英文关键词1" "英文关键词2" --out 项目/assets/img --count 2 --width 1600`——已内置清代理 + 合规 UA + 许可输出 + 失败兜底，下次只改关键词。
-
-- 取图后做**真图诚实性测试**：「去掉这张图，信息是否有损？」有损才用，别配 stock「灵感图」（那是 slop）
-- 取到的真图用 base64 内嵌或本地路径，传给三个 subagent 复用
-- ❌ **内容必需的图绝不用 CSS 色块 / SVG 几何糊弄**——鹦鹉网站没有鹦鹉图 = 失败
-- **取图失败三级兜底（不许卡死）**：① 公共领域库找不到 → 换 Unsplash/Pexels；② 全网取不到合适真图 → 用户确认有生图能力则走 `huashu-gpt-image` 以参考图为基底生成；③ 仍不行 → 标注「图待补」诚实 placeholder **继续 spawn 三套逻辑，不卡流程**，交付时一句话告诉用户「这版图是占位，真图待补」。⚠️ **取图失败是「降级继续」，不是 🛑 STOP**——别让取图卡死整个设计。
-
-> 来自花叔实测：鹦鹉案例里「先判断图片必需 → 选对获取策略（Edward Lear 公共领域博物插画）」是出彩的关键。**素材齐了再设计，不是边设计边占位。**
-
-**Phase 4 · 三套逻辑并行 subagent，各生成一版真实视觉（核心）**
-
-> ✅ **这是 Fallback 的 default 动作**：用户**无需主动要求**「用三套逻辑」「帮我找最佳设计师」——只要触发了顾问模式（用户没给明确风格参考），就**自动**并行跑这三套。目标是让什么都不懂的普通用户，零额外要求也能拿到顶级设计。
-
-> 🔴 **选择无效铁律**（花叔 2026-06 实测确认）：绝不让用户在「只有文字、没看到视觉」时选风格——用户没依据。所以不抛文字单选题，而是**并行启动 3 个 subagent 同时跑三套互补逻辑**，各产出一版真实视觉，一次性摆出来让用户选「看得见的东西」。三个 subagent **独立 context、互不参考**（避免趋同），并行是为了更快 deliver。
-
-> ⚙️ **不支持 spawn subagent 的 runtime（Codex / Cursor / 纯对话）**：改**串行**跑三套——每套开跑前只读 spec、清空对上一套的记忆、不许参考已生成的版本，并用三个不同 anchor（轮盘号 / 参照案例 / 设计师名）物理隔离趋同。串行也**必须出三版**，不许偷懒并成一版。spawn prompt 里只喂 spec，别把另两套的逻辑一起写进去。
-
-每个 subagent 拿同一份 spec + 同一份用户真实内容，各按一套逻辑产出一版**纯 HTML/CSS**（default 无生图）真实视觉：
-
-**逻辑一 · 🎲 秒数轮盘（随机 · 20 选 1）**
-跑 `date +%S` 取秒数，算 `秒数 % 20 + 1` 得 1-20，从 `design-styles.md` **对应分区**取那一号风格，subagent 严格按其视觉 DNA + HTML 实现做。分区三选一，按**产出形态**判不按题材判：
-- 可点击的站点/落地页/官网/Dashboard 原型 → **网页 20 种**
-- 要翻页的 deck/PPT/演示（含 deck 里的数据页）→ **PPT 20 种**
-- 一张或一组以数据为主角、能脱离交互独立阅读的图 → **信息图 20 种**
-
-作用：用时间掷骰子，强制打破模型「每次都偷选安全极简」的确定性偏好。抽到还原度<70% 的（如 Memphis 做旧纹理）须标注「该部分用纯色块降级，不假装做出原版质感」。
-
-⚠️ 信息图分区是 2026-08 补的。此前只有网页/PPT 两分，做信息图时轮盘只能落进网页分区，抽到的是社区站或落地页的风格，得靠临场硬掰才能成立——**别再把信息图往网页区塞**。
-
-**逻辑二 · 🏆 现实参照（标杆迁移）**
-选 1 个**世界上和该用户需求最相关、且你明确知道设计极出色（最好获奖：Awwwards / CSS Design Awards / FWA / Apple Design Award）**的真实网站 / PPT 模板 / iOS 原型作为参照标准。subagent 先用 WebSearch 核实该案例真实存在与其设计语言，拆解配色/字体/布局/标志元素，再迁移到用户内容上。作用：用真实世界的最高标准锚定，不靠凭空想象。
-
-**逻辑三 · 🧠 最佳设计师（深呼吸 · 顶级定制）**
-深呼吸一口，认真想：**假如预算没有上限，世界上最适合为「这个用户、这个产品」做设计的工作室 / 设计师是谁？**（如 Pentagram / Collins / IDEO / Jony Ive / 原研哉 / Stripe 设计团队…按产品调性选）subagent 启用该设计师/工作室的**设计思维与设计哲学**，从头为用户设计。作用：用顶级设计智慧做最契合的定制。
-
-并行执行规范（三个 subagent 共用）：
-- 用**用户真实内容**（非 Lorem），三版同内容只换设计逻辑，方便横向对比
-- **三版的布局骨架必须互异**：导航/构图/内容区结构至少一项结构性不同，不许两版共用同一骨架只换色换字体（盲测实锤：共用骨架会被评审一眼识破「换皮」）
-- 🔴 **可读性硬底线（任何风格温度都不豁免，包括「奢侈留白」的安静派）**：正文 ≥14px、标签/注释 ≥12px、正文对比度 ≥4.5:1；留白必须是**构图**（首屏有明确视觉锚点，视线有落点），不是内容缺席。盲测实锤：安静派做过头 = 「大片死白+微缩字号，第一眼像页面渲染坏了」，直接输给普通 baseline
-- 纯 HTML/CSS 单文件；**内容必需的图用 Phase 3.5 取的真图**（三版共用），仅装饰/抽象图才用 CSS 几何/SVG/纯色块，绝不留空占位
-- 🎞️ **PPT / deck 场景必走 deck 模板（绝不写竖向平铺长页！）**：每页独立 `<section>`（1920×1080）套 `assets/deck_index.html` 外壳，三版只换视觉风格、deck 骨架统一（架构规则与概览墙细节见「技术红线」+ `references/slide-decks.md`）。截图按**单页** 1920×1080 截；**单页内容绝不自带页码/进度标记**——页码由 deck 外壳统一承载（实测出过「02/03」+「6/16」双页码打架）。**多页deck走Fallback时，三版各出2页代表页**（兼作deck链的showcase），选定方向后再批量其余页
-- 存当前**项目目录**（`项目名/design-demos/[逻辑名].html`）——❌ 禁 `_temp/`（花叔铁律）
-- 截图：`npx playwright screenshot file:///path.html out.png --viewport-size=1440,900`（PPT 用 1920,1080）
-- ✅ **产出自检（防偷懒，进 Phase 5 前必查）**：确认 `design-demos/` 下真有 **3 个 .html**——少于 3 个 = 没走完三套逻辑，补齐再往下，不许只做一版交差
-- 三版全部完成后**一起展示三张截图**，每版标明：用了哪套逻辑、具体哪个风格/参照案例/设计师，一句话说为什么
-
-> 仅当用户**已确认有生图能力**时，AI 生成型风格才走 `huashu-gpt-image`（见 `design-styles.md` 尾部「AI 生图专用风格」）；否则一律 HTML。
-> 完整 60 种风格库（网页 20+PPT 20+信息图 20，含还原度/温度/HTML 实现/开源字体）→ `references/design-styles.md`。
-
-**Phase 5 · 用户基于「看到的真实视觉」选择**（第一次有效选择）：看完三版真实截图，选一版深化 / 混合（"轮盘版的配色 + 设计师版的布局"）/ 微调 / 全部重来 → 重跑三套逻辑。**用户选定后，立刻把「展示了哪几版、截图路径、用户选择原话」写入项目目录 `direction-approved.md`**（Gate文件协议）。
-
-**Phase 6 · 进入主干执行**
-用户选定（或混合）后 → 回到「核心哲学」+「工作流程」的 Junior Designer pass，把那一版做扎实。这时已有明确 design context，不再凭空。
-> 仅当走 AI 生图：提示词用「具体视觉特征 + 内容 + 技术参数」（写「赤陶橙 #C04A1A + 留白」不写「极简」），避开审美禁区 → 见 `huashu-gpt-image`。
-
-**真实素材优先原则**（涉及用户本人/产品时）：
-1. 先查用户配置的**私有 memory / config 路径**下的 `personal-asset-index.json`（各 runtime 按自身约定的 memory 目录；找不到就问用户）
-2. 首次使用：复制 `assets/personal-asset-index.example.json` 到上述私有路径，填入真实数据
-3. 找不到就直接问用户要，不要编造——真实数据文件不要放在 skill 目录内避免随分发泄露隐私
+详细流程保留素材失败降级、串行 runtime、可读性底线、deck 初稿规格、个人素材隐私约束和风格库选型；不能只凭本摘要开工。下方 Gate 文件协议继续适用。
 
 ## App / iOS 原型专属守则（速查版）
 
@@ -346,25 +252,8 @@ description: 花叔Design——用HTML做高保真原型、幻灯片、动画、
 7. **验证**：用Playwright截图（见 `references/verification.md`），检查控制台错误，发给用户。
    🛑 **检查点5：交付前自己肉眼过一遍浏览器**。AI写的代码经常有interaction bug。
 8. **总结**：极简，只说caveats和next steps。
-9. **（默认）导出视频 · 必带 SFX + BGM**：动画 HTML 的**默认交付形态是带音频的 MP4**，不是纯画面。无声版本等于半成品——用户潜意识感知「画在动但没声音响应」，廉价感的根源就在这里。流水线：
-   - **新动画项目默认 HyperFrames 后端**：`npm run check`（五门审计，暗色电影风 `--no-contrast`）→ `npx hyperframes render --fps 60` → `scripts/verify-video.sh` 产物硬校验。选型边界与老 demo 适配器配方见 `references/hyperframes-backend.md`；弱 runtime/单文件交付/纯交互演示仍走下面的自研管线
-   - `scripts/render-video.js` 录 25fps 纯画面 MP4（只是中间产物，**不是成品**）
-   - 需要**真 60fps / 确定性 / B站作品集交付**且动画走 Stage 时钟时，改用 `scripts/render-video-seek.js --fps=60`（逐帧 seek，免插帧、无黑帧，详见 `references/video-export.md`）
-   - `scripts/convert-formats.sh` 派生 60fps MP4 + palette 优化 GIF（视平台需要）
-   - `scripts/add-music.sh` 加 BGM（6 首场景化配乐：tech/ad/educational/tutorial + alt 变体）
-   - SFX 按 `references/audio-design-rules.md` 设计 cue 清单（时间轴 + 音效类型），用 `assets/sfx/<category>/*.mp3` 37 个预制资源，按配方 A/B/C/D 选密度（发布 hero ≈ 6个/10s，工具演示 ≈ 0-2个/10s）
-   - **BGM + SFX 双轨制必须同时做**——只做 BGM 是 ⅓ 分完成度；SFX 占高频、BGM 占低频，频段隔离见 audio-design-rules.md 的 ffmpeg 模板
-   - 交付前 `ffprobe -select_streams a` 确认有 audio stream，没有则不是成品
-   - **（终渲后）AI看片评审**（可选云能力，自备key+显式确认，见SECURITY.md）：`uv run scripts/cloud/ai-review-video.py --video <成片> --context 导演稿.md --yes` 出结构化报告（黑帧/死段/hero贯穿/过渡类型/音效空打），流程与局限见 `references/ai-video-review.md`；无key时用 `scripts/verify-video.sh` 截帧人工看
-   - **跳过音频的条件**：用户明确说「不要音频」「纯画面」「我要自己配音」——否则默认带。
-   - 参考完整流程见 `references/video-export.md` + `references/audio-design-rules.md` + `references/sfx-library.md`。
-9.5. **（带解说时走这条）解说驱动动画 · L2 长概念视频**：用户要做「5-20 分钟解释一个概念」、「带配音的教程」、「长篇科普视频」时——**不要先做动画再配音**，那会让画面节奏跟解说对不上。改走 `references/voiceover-pipeline.md` 的解说驱动流程：
-   - **写解说稿**（markdown，`## scene-id` 分段，`[[cue:xx]]` 标关键句）→ 解说稿是源代码，节奏靠它撑
-   - **跑 narrate-pipeline.mjs**（豆包 TTS · `.env` 配置音色）→ 输出 voiceover.mp3 + timeline.json（cue 时间是真实测出来的，不是按字符估算）
-   - **🛑 设计动画前先答铁律 3 条**：(1) hero element 是什么？(2) 它跨 7 段怎么 morph？(3) 任意一帧画面有运动吗？答不上不要写代码
-   - **写动画 HTML**：用 `assets/narration_stage.jsx`（NarrationStage + Scene + Cue + useNarration + useSceneFade + **Subtitles**）→ hero 直接放 `<NarrationStage>` 子级，不进 Scene；`<Subtitles />` 默认带（B 站风·深墨字+白光晕，按 timeline.chunks 自动切 ≤12 字短行不跨句号）
-   - **录最终 MP4**：`bash scripts/render-narration.sh demo.html --timeline=_narration/timeline.json [--bgm-mood=educational]` → 自动录无声 MP4 + 混入人声 + 可选 BGM
-   - **失败模式 #1（必须避免）**：每个 Scene 各自独立 layout + cue 用 fade-up + scene 切换整页 opacity 切换 = **带配音的 PowerPoint** = 质感归零。完整规则见 `references/voiceover-pipeline.md` 头部「铁律」章节。
+9. **（默认）导出视频 · 必带 SFX + BGM**：动画默认交付带音频 MP4；用户明确不要音频才跳过。执行前必读 [媒体交付 Step 9](references/media-delivery.md)，保留 HyperFrames / 自研管线的选型、真 60fps 条件、双轨音频和产物校验。可选云 AI 看片仍须自备 key + 显式确认（`SECURITY.md`），不因外置而变成默认授权。
+9.5. **带解说的长动画**：先写解说再设计动画；必读 [媒体交付 Step 9.5](references/media-delivery.md) 和 `references/voiceover-pipeline.md`，遵守 hero 连续运动、实测 cue 时间和默认字幕契约，不做「带配音的 PowerPoint」。
 10. **（可选）专家评审**：用户若提「评审」「好不好看」「review」「打分」，或你对产出有疑问想主动质检，按 `references/critique-guide.md` 走 5 维度评审——哲学一致性 / 视觉层级 / 细节执行 / 功能性 / 创新性各 0-10 分，输出总评 + Keep（做得好的）+ Fix（严重程度 ⚠️致命 / ⚡重要 / 💡优化）+ Quick Wins（5 分钟能做的前 3 件事）。评审设计不评设计师。
 
 **检查点原则**：碰到🛑就停下，明确告诉用户"我做了X，下一步打算Y，你确认吗？"然后真的**等**。不要说完自己就开始做。
@@ -511,7 +400,7 @@ Skill 路径引用均采用**相对本 skill 根目录**的形式（`references/
 **触发判定**（满足任一即进入）：无 spawn subagent 能力 / 驱动模型非 Claude / 上下文窗口小的 runtime（Codex、Gemini CLI、Copilot 等）。为什么：按满血流程跑，弱 runtime 中途爆上下文或偷工，产出反而更差（issue #2/#6/#41 用户复现不出效果的根因）。
 
 **降级动作（按吃紧程度逐级启用）**：
-1. 三版并行 → 串行：按上文 Phase 4「不支持 spawn subagent 的 runtime」规则执行（已有规则，直接引用）
+1. 三版并行 → 串行：按 [三方向详细流程](references/direction-workflow.md) Phase 4「不支持 spawn subagent 的 runtime」规则执行（已有规则，直接引用）
 2. 串行仍吃紧 → 只做 1 个主版 + 2 个轻量变体：变体只换色板/换排印，不换布局逻辑（为什么：布局重写最耗上下文，色板/排印变体便宜但仍给用户真实的选择依据）
 3. references 只读当前任务对应的 1 个文件，不全读（为什么：路由表的意义就是按需加载，全读必爆窗口）
 4. deck 默认单文件架构（`assets/deck_stage.js`）（为什么：多文件 + 概览墙依赖多轮文件操作，弱 runtime 容易半途而废留下坏 deck）

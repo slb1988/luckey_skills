@@ -15,7 +15,7 @@ obsidian version          # verify install
 obsidian vault=luckey vault
 ```
 
-**This user's vault:** `D:\Github\ObsidianVault\luckey` — **Vault name:** `luckey`
+**Vault name:** `luckey` — resolve its location on the current host (`obsidian vault=luckey vault`); in this workspace it is `<repo-root>/luckey`. Read `luckey/AGENTS.md` and `00_meta/rules/` before writing.
 
 ## Usage Pattern
 
@@ -58,9 +58,11 @@ obsidian vault=luckey backlinks file=<name>
 
 | Folder | Content |
 |--------|---------|
-| `002 Cards/` | Permanent notes / cards |
-| `003 Books/` | Book notes |
-| `301 Daily Notes/` | Daily notes (YYYY-MM-DD.md) |
+| `02_notes/<primary_domain>/` | Reusable notes; route by `00_meta/rules/routing-rules.md` |
+| `04_sources/books/` | Book sources and reading notes |
+| `02_notes/daily/` | Daily notes (YYYY-MM-DD.md); `.obsidian/daily-notes.json` owns this path |
+
+Do not recreate legacy folders. New folder names use snake_case, note filenames use kebab-case, and default YAML contains only a stable `id` (see vault rules).
 
 ## Python API Fallback
 
@@ -71,9 +73,11 @@ import sys
 sys.path.insert(0, ".claude/skills/cli-anything-obsidian/scripts")
 from obsidian_cli import *
 
-VAULT = "D:/Github/ObsidianVault/luckey"
-cmd_note_read("002 Cards/My Note", VAULT)
-cmd_note_create("002 Cards/New Note", content="# Title\n\nContent", vault_arg=VAULT)
+from pathlib import Path
+VAULT = str(Path("luckey").resolve())  # Run from the confirmed repo root.
+cmd_note_read("02_notes/knowledge_management/my-note", VAULT)
+# Choose an unused stable id according to the vault rules before creating.
+cmd_note_create("02_notes/knowledge_management/new-note", content="---\nid: n-example-new-note\n---\n# Title\n\nContent", vault_arg=VAULT)
 cmd_search("daily standup", vault_arg=VAULT)
 ```
 

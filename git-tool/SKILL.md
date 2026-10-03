@@ -75,7 +75,7 @@ git -C <repo_root> commit -m "chore: update .claude/skills submodule to latest"
 git -C <parent_submodule_path> submodule deinit -f <submodule_name>
 
 # 2. git rm：从 index 和 .gitmodules 中移除
-git -C <parent_submodule_path> git rm -f <submodule_name>
+git -C <parent_submodule_path> rm -f <submodule_name>
 
 # 3. 清理 .git/modules 缓存（防止重新 add 时冲突）
 rm -rf <parent_submodule_path>/.git/modules/<submodule_name>

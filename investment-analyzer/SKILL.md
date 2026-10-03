@@ -90,11 +90,12 @@ description: |
 
 将完整报告保存为 Obsidian 笔记：
 
-- **路径**：`luckey/002 Cards/指数基金估值分析-{YYYY-MM-DD}.md`
-- **frontmatter**：包含 title, date, tags（投资、指数基金、估值分析）
+- **先读规则并检索旧稿**：以 `luckey/AGENTS.md`、`luckey/00_meta/rules/` 为准。已归位的个人投资分析在 `luckey/06_life/self/`（如 `指数基金估值分析-2026-09-21.md`）；更新它时保持原路径，不另造副本。
+- **新报告路径**：按 routing-rules 判断。可重生成的 AI 估值报告保存为 `luckey/09_generated/index-valuation-{YYYY-MM-DD}.md`；用户确认作为个人投资决策记录保留时，使用 `luckey/06_life/self/index-valuation-{YYYY-MM-DD}.md`。不重建废弃目录。
+- **frontmatter**：遵循极简 schema，默认仅稳定 `id`；分析日期、标题和数据口径写正文，不强加 title/date/tags 字段。
 - 在末尾加上免责声明和数据来源
 
-如果用户目录结构不同，灵活调整保存路径。
+其他 vault 先读取其现行规则再确定路径，不照搬本仓库目录。
 
 ## 分析覆盖范围
 

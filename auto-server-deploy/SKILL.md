@@ -7,7 +7,7 @@ description: Full-stack deploy of the auto-server frontend and backend on dev@au
 
 共性知识：[pyauto-shared](../pyauto-shared/SKILL.md)。
 
-> ⚠️ **不需要 SSH**：`auto-server` 解析到 `127.0.1.1`，pi 本身就运行在这台机器上。直接用 `bash` 工具执行本地命令，**不要尝试 SSH**（`ssh dev@auto-server` 会因密钥问题失败）。
+> ⚠️ **先核对执行位置**：用 `hostname`、`whoami`、`pwd` 核实当前是 `dev@auto-server`，并确认 `/data/py_automation/backend` 与 `/data/py_automation/frontend` 是目标工作目录。仅在已确认的目标会话用本地 `bash`（无需再次 SSH）；异机先路由到 auto-server 运行时，无法确认则停止。主机别名或回环解析不证明当前会话位置。
 
 ## 概述
 
@@ -124,6 +124,8 @@ description: Full-stack deploy of the auto-server frontend and backend on dev@au
   前端 dist: /data/py_automation/frontend/dist/
   ✅ 前端构建产物已就绪
 ```
+
+前端发布回执遵循 [frontend-deploy](../auto-server-frontend-deploy/SKILL.md#发布验证与回执)：构建成功和 dist 存在只证明产物就绪，不单独证明线上已生效。
 
 也可手动验证：
 

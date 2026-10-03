@@ -1,8 +1,9 @@
 ---
 name: add-github-submodule
-title: Add GitHub Submodule
 description: Adds a GitHub repository as a git submodule to the luckey_skills repo root, then commits the result. Use this skill whenever the user provides a GitHub URL and asks to add it as a submodule, clone it into the repo, or reference it as a sub-repo. Triggers on phrases like "添加子仓库", "添加 github 子仓库引用", "add submodule", "git clone into repo", "add this GitHub repo", or any GitHub URL accompanied by an intent to track it in this repo.
-tags: [git, submodule, github, workflow]
+metadata:
+  title: Add GitHub Submodule
+  tags: [git, submodule, github, workflow]
 ---
 
 # Add GitHub Submodule

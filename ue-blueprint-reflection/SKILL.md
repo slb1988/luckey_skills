@@ -1,8 +1,9 @@
 ---
 name: ue-blueprint-reflection
-title: UE Blueprint/C++ Reflection API 参考
 description: UE C++ 反射读写 Blueprint 属性参考。涉及 FScriptMapHelper、FObjectProperty、FStructProperty、TMap/TArray/TSet 或容器属性遍历时使用。
-tags: [C++, Blueprint, Reflection, UE5, Editor-Tools, Data-Driven]
+metadata:
+  title: UE Blueprint/C++ Reflection API 参考
+  tags: [C++, Blueprint, Reflection, UE5, Editor-Tools, Data-Driven]
 ---
 
 # UE Blueprint/C++ Reflection API 参考

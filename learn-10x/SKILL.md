@@ -19,27 +19,29 @@ phase fits. Always start with Phase 0 to know where they stand.
 
 ## Phase 0: Vault Scan — Know What Already Exists
 
-Before generating anything, search the user's vault for existing knowledge on the topic.
+Before generating anything, read `luckey/AGENTS.md` and the current `luckey/00_meta/rules/` (routing, naming, metadata), then search for existing knowledge on the topic. Those rules override legacy paths/frontmatter in the bundled references; do not recreate old folders or introduce status/date/domain fields.
 
 **Search these locations:**
-- `luckey/002 Cards/` — concept and technical cards; check the `status` frontmatter field
-- `luckey/210 Learning & Reading/` — existing learning plans and study notes
+- `luckey/02_notes/<primary_domain>/` — concept and technical cards; read their content and learning evidence
+- `luckey/03_projects/personal/learning/` — existing learning plans and study notes (for example `ue-slate-learning-plan.md`)
+- `luckey/04_sources/` — related books, courses and external sources
 
 **What to look for:**
 1. Any card or file whose title or content matches the topic
-2. The `status` of matched files: `seed` | `growing` | `evergreen` | `archived`
+2. Learning evidence in the body/session checkboxes; if an old file has `status`, treat it as a historical hint, not a required schema
 3. Related topics that already exist (for wikilinks later)
 4. Any existing learning plan card (`[topic]-learning-plan.md`)
 
 **Report to the user:**
 - What prior knowledge cards exist and their maturity level
 - Whether a learning plan already exists (if so, read it and resume from the last session)
-- Which ladder levels are likely already covered based on existing `evergreen` cards
+- Which ladder levels are likely covered based on prior explanations and quiz evidence
 
+Use `seed` / `growing` / `evergreen` as learning-stage labels in the body, not YAML fields.
 If nothing exists → start from Phase 1 at Level 1.
-If `seed` cards exist → start from Level 2–3 on the ladder, skip basics.
-If `growing` cards exist → skip to Phase 3 (Quiz Me) to identify remaining gaps.
-If `evergreen` cards exist → the topic is already mastered; ask if user wants to go deeper.
+If `seed` evidence exists → consider Level 2–3 on the ladder, checking basics as needed.
+If `growing` evidence exists → skip to Phase 3 (Quiz Me) to identify remaining gaps.
+If `evergreen` evidence exists → ask whether to review or go deeper; a label alone is not proof of mastery.
 
 ---
 
@@ -66,20 +68,15 @@ marked complete. Only plan the remaining sessions.
 
 **Save output to vault:**
 ```
-luckey/210 Learning & Reading/[topic]-learning-plan.md
+luckey/03_projects/personal/learning/[topic-slug]-learning-plan.md
 ```
-Use this frontmatter:
+Reuse an existing plan at its stable path. For a new plan use a kebab-case topic slug and only a stable, unused `id` in YAML, per the vault metadata rules (the example id is not a reusable value):
 ```yaml
 ---
-type: project
-domain: ["[inferred domain]"]
-status: seed
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
-tags: [learning-plan, learn-10x]
-source: learn-10x skill
+id: n-example-learning-plan
 ---
 ```
+Keep stage labels, quiz results and next steps in the body, not mandatory metadata.
 Include a `## Sessions` section with checkboxes so the user can track progress:
 ```markdown
 ## Sessions
@@ -97,8 +94,8 @@ Use the Signal in the Noise prompt (Prompt 5). Run this once per topic, at the s
 This identifies the 5 highest-leverage resources and builds a 7-day starter path.
 
 **Save as a section inside the learning plan card** (append a `## Resources` section),
-or as a standalone `[topic]-resources.md` in `luckey/210 Learning & Reading/` if the user
-prefers to keep them separate.
+or as a standalone `[topic-slug]-resources.md` beside the plan in `luckey/03_projects/personal/learning/` if the user
+prefers to keep them separate. External source material itself belongs under `04_sources/` per the routing rules.
 
 ---
 
@@ -111,10 +108,10 @@ Session N]". Engage interactively — ask one question at a time, wait for answe
 each response, re-explain gaps.
 
 **After Quiz Me completes:**
-- If the user scored ≥ 7/10 average AND has no major gaps: upgrade the relevant concept
-  card's status from `seed` → `growing`
-- Tell the user explicitly: "Your [topic] card is now `growing` — you've demonstrated
-  working understanding. One more Feynman Loop pass will push it to `evergreen`."
+- If the user scored ≥ 7/10 average AND has no major gaps: record the score and a
+  `seed` → `growing` learning-stage update in the relevant card's body
+- Tell the user explicitly that the quiz shows working understanding and that a
+  Feynman Loop pass is the next check; do not create a YAML `status` field.
 
 Mark the completed session checkbox in the learning plan card.
 
@@ -128,19 +125,15 @@ Use the Cheat Sheet prompt (Prompt 4) to generate a scannable 5-minute review.
 
 **Save as a concept card:**
 ```
-luckey/002 Cards/[topic].md
+luckey/02_notes/[primary_domain]/[topic-slug].md
 ```
-Use this frontmatter:
+Choose the actual domain from `routing-rules.md` (for example UE concepts → `unreal`, general language concepts → `software`); reuse any existing authoritative card. New notes default to a stable, unused `id` only:
 ```yaml
 ---
-type: concept
-domain: ["[inferred domain]"]
-status: seed
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
-tags: [cheat-sheet, learn-10x]
+id: n-example-concept
 ---
 ```
+Put the initial `seed` stage and learning evidence in the body. Uncurated, regenerable AI drafts go to `09_generated/` until adopted as reusable notes.
 
 At the bottom of the card, include `[[wikilinks]]` to any related cards found in Phase 0:
 ```markdown
@@ -157,14 +150,16 @@ Feynman Loop prompt (Prompt 6).
 This is interactive — Claude explains, user explains back, Claude corrects gaps, repeat.
 The final output of the loop is a clean explanation the user can copy into their card.
 
-**After a clean Feynman Loop pass:** upgrade the concept card's status from `growing` →
-`evergreen`. Tell the user explicitly.
+**After a clean Feynman Loop pass:** record the explanation evidence and `growing` →
+`evergreen` stage in the card's body. Tell the user explicitly; no YAML status update.
 
 ---
 
-## Status Progression Summary
+## Learning-Stage Progression Summary
 
-| Phase completed | Card status |
+These labels describe body-level learning evidence, not vault metadata.
+
+| Phase completed | Learning stage |
 |---|---|
 | Cheat Sheet created (Phase 4a) | `seed` |
 | Quiz Me score ≥ 7/10 (Phase 3) | `growing` |
@@ -195,5 +190,5 @@ For a quick review before an exam/interview/project:
 ## Reference Files
 
 - `references/prompts.md` — all 6 verbatim prompts with [topic] placeholders
-- `references/vault-conventions.md` — frontmatter schema and status lifecycle
+- `references/vault-conventions.md` — historical learning-stage background only; its old directories and frontmatter schema are superseded by `luckey/AGENTS.md` and `00_meta/rules/`
 - `references/workflow.md` — decision tree for which phase to run next

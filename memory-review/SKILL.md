@@ -190,7 +190,5 @@ duplicate（误杀）。完整排查：`.claude/plans/MemoryHub抽取审核重�
 | POST | `/review/extraction/{id}/turns` | 与预览 LLM 多轮对话调整（复杂修正时用） |
 | POST | `/review/extraction/actions` | 批量 approve/reject；approve 必填 `expected_snapshot_tokens`；另带 `content_mode`、`acknowledge_novelty_warning`、`rationale` |
 
-直连 Hub 用 `http://10.77.77.6:9287/v1/...`（脚本 `--base-url` 自动适配前缀）。
-**注意（2026-09-06 实测修正）**：review 系列接口只在 dashboard BFF 上，直连 Hub :9287 会 404；
-本机直连应 `--base-url http://10.77.77.6:9288`。
+review 系列接口走 dashboard BFF；内网直连使用 `--base-url http://10.77.77.6:9288`，脚本自动适配 `/api/v1` 前缀。Hub :9287 的 `/v1` 是 Agent API，不提供 review 系列接口，不用它执行审核。
 服务端字段/状态机权威定义：`D:/Github/memory-hub/docs/REVIEW_PIPELINE.md`。

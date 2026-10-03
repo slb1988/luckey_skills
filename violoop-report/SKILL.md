@@ -7,10 +7,12 @@ description: 图文记录工具。当用户传来一张图片（截图/文件路
 
 记录工具：可带图片也可纯文字 → 上传 OSS → 追加到统一单文件。
 
-**记录文件（唯一固定）：**
+**记录文件（唯一固定，已归位）：**
 ```
-luckey/110 Utilities/violoop/user-feedback.md
+luckey/02_notes/software/violoop/user-feedback-20260702.md
 ```
+
+这是既有单文件的稳定路径，不按日期另建新文件。写前读取 `luckey/AGENTS.md` 与现行规则；找不到此文件时先定位或询问，不重建旧目录。
 
 ## 触发场景
 
@@ -63,7 +65,7 @@ $ossUrl = ($output | Select-String "^OSS_URL:").Line -replace "OSS_URL: ", ""
 
 ### Step 3：写入记录文件（插入到最前面）
 
-记录文件固定为 `luckey/110 Utilities/violoop/user-feedback.md`。
+记录文件固定为 `luckey/02_notes/software/violoop/user-feedback-20260702.md`。
 
 **新记录始终插入在文件顶部**（一级标题 `# 用户反馈记录` 之后，所有已有记录之前），保证最新的反馈排在最前面，不是追加到文件末尾。
 
@@ -99,7 +101,7 @@ $ossUrl = ($output | Select-String "^OSS_URL:").Line -replace "OSS_URL: ", ""
 
 📝 配字
 ![配字](ossUrl)
-📁 luckey/110 Utilities/violoop/user-feedback.md
+📁 luckey/02_notes/software/violoop/user-feedback-20260702.md
 ```
 
 **纯文字时：**
@@ -107,7 +109,7 @@ $ossUrl = ($output | Select-String "^OSS_URL:").Line -replace "OSS_URL: ", ""
 ✅ 已记录
 
 📝 用户说的话
-📁 luckey/110 Utilities/violoop/user-feedback.md
+📁 luckey/02_notes/software/violoop/user-feedback-20260702.md
 ```
 
 ## 注意事项

@@ -9,7 +9,7 @@ description: Deploy the auto-server Flask backend on dev@auto-server. Syncs late
 
 ## 概述
 
-在 `auto-server` 本地部署 py_automation Flask 后端。**pi 本身就运行在 auto-server 上**（`auto-server` 解析到 `127.0.1.1`），无需 SSH，直接用 bash 执行本地命令即可。
+在已确认的 `dev@auto-server` 会话部署 py_automation Flask 后端。执行下列命令前先核对 `hostname`、`whoami`、`pwd` 和目标目录 `/data/py_automation/backend`；主机别名或 `127.0.1.1` 解析不能证明当前会话就在目标机。若在其他主机，先路由到 auto-server 运行时再执行；无法确认则停止，不在当前机器尝试停服或部署。
 
 ## 快速开始
 
@@ -108,12 +108,33 @@ cd /data/py_automation/backend
 export P4CHARSET=utf8
 p4 -u admin_sun -p 192.168.2.13:1666 -c auto-server sync
 
-# 1.5 等待空闲（避免切到在途任务；确认风险后可跳过直接进 2）：
-for i in $(seq 1 30); do
-    curl -s --max-time 5 http://127.0.0.1:5000/server_status/busy | grep -q '"busy": *false' && break
-    echo "等待服务器空闲... ($i)"
-    sleep 10
-done
+# 1.5 等待空闲：连续两次明确 busy=false；错误/缺字段也视为忙。
+# 手动配方超时即放弃；强制部署须另获风险确认，不直接跳到停服。
+wait_for_idle() (
+    set -o pipefail
+    local deadline=$((SECONDS + 300)) idle_count=0 remaining request_timeout delay
+    while (( SECONDS < deadline )); do
+        remaining=$((deadline - SECONDS))
+        request_timeout=$((remaining < 5 ? remaining : 5))
+        if curl -fsS --max-time "$request_timeout" http://127.0.0.1:5000/server_status/busy |
+            python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("busy") is False else 1)' 2>/dev/null; then
+            idle_count=$((idle_count + 1))
+        else
+            idle_count=0
+        fi
+        if (( idle_count >= 2 && SECONDS < deadline )); then
+            return 0
+        fi
+        remaining=$((deadline - SECONDS))
+        (( remaining > 0 )) || break
+        delay=$((remaining < 10 ? remaining : 10))
+        echo "等待服务器连续两次空闲..."
+        sleep "$delay"
+    done
+    echo "等待空闲超时，放弃部署；未执行停服。" >&2
+    return 1
+)
+wait_for_idle || exit 1
 
 # 2. 停服（用 pgrep 找真实 PID，不要依赖 python3_pid.log）
 REAL_PID=$(pgrep -f "manage.py runserver")
@@ -184,9 +205,9 @@ grep '"pi_failed"' /data/py_automation/backend/.logs/feishu.log | tail -3
 
 ⚠️ 仓库里的 `start.sh` 未修（不加 pnpm、也不 source /etc/environment），手动 `./start.sh` 启动会同时踩 PATH 和 JWT_SECRET 两个坑——部署/重启一律走 deploy.sh，别用 start.sh。
 
-### 陷阱 1：不需要 SSH
+### 陷阱 1：不要把主机说明当现场事实
 
-`auto-server` 解析到 `127.0.1.1`，pi 本身就运行在这台机器上。直接使用 `bash` 工具执行本地命令，**不要尝试 SSH**（`ssh dev@auto-server` 会因密钥问题失败）。
+只有完成主机、用户和目录核对的 auto-server 会话才直接使用本地 `bash`，无需再次 SSH。其他会话须先路由到目标运行时；不要用主机名解析到回环地址来断言当前执行位置。
 
 ### 陷阱 2：PID 文件不可靠（关键）
 
@@ -239,7 +260,7 @@ AI review 的代提交**不是原子的**。approve 落库后 `_trigger_auto_sub
 </memory>
 
 - **P4 字符集**：服务器为 Unicode 模式，必须设置 `P4CHARSET=utf8`，否则 sync 会失败
-- **环境**：直接本地执行，不需要 SSH
+- **环境**：仅在已核实的 auto-server 会话本地执行；异机先路由
 - **PID**：`python3_pid.log` 写入不可靠，每次部署后/验证前必须用 `pgrep -f "manage.py runserver"` 修正
 - `app.log` 序号自动递增，旧日志不会被覆盖
 - `tmp/` 目录需定期手动清理

@@ -1,6 +1,6 @@
 ---
 name: orchestration-ops
-description: "编排纪律与 orca-coordinator 外挂（dispatch/wait/ack/settle/usage + 每次编排成本账单）。当协调 Orca worker、处理 ws: 任务派发、监督 DAG、收尾 dispatch、或需要某次编排的 token/成本账单时使用。命令语法一律以 `orca skills get orchestration` 和 `orca <cmd> --help` 实时输出为准（每个 Orca 版本首次使用时重读一次），本 skill 只装增量纪律。"
+description: "编排纪律与 orca-coordinator 外挂（dispatch/wait/ack/settle/usage + 每次编排成本账单）。当协调 Orca worker、处理 ws: 任务派发、监督 DAG、收尾 dispatch、或需要某次编排的 token/成本账单时使用。命令语法一律以 `orca skills get orchestration` 和 `orca COMMAND --help` 实时输出为准（每个 Orca 版本首次使用时重读一次），本 skill 只装增量纪律。"
 ---
 
 # Orchestration Ops（overlay，不克隆官方指南）

@@ -1,8 +1,9 @@
 ---
 name: agent-sdk
-title: 代理 Agent 开发指南（pyAutomation Agent 平台）
 description: 开发接入 pyAutomation Agent 平台的「代理 agent（proxy agent）」的权威参考——跑在用户电脑/云服务器上、通过 HTTP 接收平台派发任务的 A2A agent。当需要新建一个代理 agent、用 pyauto_agent SDK（AgentApp/@app.skill）写 agent、让构建机上的 agent 与 TeamCity 构建互斥（tc_agent_name / workspace 锁）、或发布 SDK 新版本到内网 PyPI 时使用本 skill。SDK 只在本工程（pyAutomation/agent-sdk/）内开发和发布；其他工程/机器只是使用方，从内网 PyPI 装包即可。
-tags: [A2A, ProxyAgent, AgentSDK, Pyauto-Agent, Python, TeamCity-Lock]
+metadata:
+  title: 代理 Agent 开发指南（pyAutomation Agent 平台）
+  tags: [A2A, ProxyAgent, AgentSDK, Pyauto-Agent, Python, TeamCity-Lock]
 ---
 
 # 代理 Agent 开发指南

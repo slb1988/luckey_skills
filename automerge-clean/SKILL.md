@@ -14,13 +14,13 @@ Cleans up the `AUTOMERGE_MainDev` Perforce workspace:
 
 ## P4 Environment
 
-All commands use these fixed credentials:
+All commands use these fixed connection settings; credentials come from outside the repository:
 
 | Variable | Value |
 |---|---|
 | `P4PORT` | `192.168.2.236:1666` |
 | `P4USER` | `CyanCookCI` |
-| `P4PASSWD` | `Cyancook1234!` |
+| `P4PASSWD` | Optional protected environment injection; prefer a valid P4 ticket |
 | `P4CHARSET` | `none` |
 | `P4CLIENT` | `AUTOMERGE_MainDev` |
 | `P4IGNORE` | (not set — handle all files) |
@@ -30,10 +30,13 @@ For convenience, export these before running steps manually:
 ```bash
 export P4PORT=192.168.2.236:1666
 export P4USER=CyanCookCI
-export P4PASSWD=Cyancook1234!
 export P4CHARSET=none
 export P4CLIENT=AUTOMERGE_MainDev
+# Use an existing ticket (P4TICKETS may point to a protected file outside the repo).
+p4 login -s
 ```
+
+If no valid ticket exists, stop and let the operator authenticate with interactive `p4 login`, or have an approved secret manager inject `P4PASSWD` into the process environment. Never paste its value into commands, Markdown, logs or shell history; disable shell tracing when credentials are injected. The examples below inherit authentication and do not set or rotate any password.
 
 ## Usage
 
@@ -42,7 +45,7 @@ Run the full cleanup in one shot or step-by-step.
 ### One-shot cleanup
 
 ```bash
-P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 revert //...
+P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 revert //...
 ```
 
 ### Step-by-step
@@ -50,7 +53,7 @@ P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=non
 #### 1. Check currently opened files
 
 ```bash
-P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 opened
+P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 opened
 ```
 
 #### 2. Revert all opened files
@@ -58,7 +61,7 @@ P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=non
 Files that are **checked out (edit)** — revert to depot version:
 
 ```bash
-P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 revert //...
+P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 revert //...
 ```
 
 #### 3. List & delete locally added files (not yet submitted)
@@ -66,16 +69,16 @@ P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=non
 First list files that are marked for add:
 
 ```bash
-P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 opened -a
+P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 opened -a
 ```
 
 After revert, files marked for add become untracked local files. Find and remove them:
 
 ```bash
 # Get list of added files before revert, then after revert delete them
-P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 revert //... 2>/dev/null
-P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 fstat -T depotFile -F "action==add" "//..." 2>/dev/null | while IFS= read -r line; do
-  local_file=$(P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 where "$line" 2>/dev/null | awk '{print $NF}')
+P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 revert //... 2>/dev/null
+P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 fstat -T depotFile -F "action==add" "//..." 2>/dev/null | while IFS= read -r line; do
+  local_file=$(P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 where "$line" 2>/dev/null | awk '{print $NF}')
   [ -n "$local_file" ] && rm -f "$local_file" && echo "Deleted: $local_file"
 done
 ```
@@ -85,16 +88,16 @@ done
 List pending changelists for this client:
 
 ```bash
-P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 changes -c AUTOMERGE_MainDev -s pending
+P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 changes -c AUTOMERGE_MainDev -s pending
 ```
 
 For each empty changelist (no files), delete it:
 
 ```bash
-for cl in $(P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 changes -c AUTOMERGE_MainDev -s pending 2>/dev/null | awk '{print $2}'); do
-  files=$(P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 describe -s "$cl" 2>/dev/null | grep -c "\.\.\. #")
+for cl in $(P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 changes -c AUTOMERGE_MainDev -s pending 2>/dev/null | awk '{print $2}'); do
+  files=$(P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 describe -s "$cl" 2>/dev/null | grep -c "\.\.\. #")
   if [ "$files" -eq 0 ]; then
-    P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 change -d "$cl" 2>/dev/null && echo "Deleted empty CL $cl"
+    P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 change -d "$cl" 2>/dev/null && echo "Deleted empty CL $cl"
   else
     echo "Skipping non-empty CL $cl ($files file(s))"
   fi
@@ -105,10 +108,10 @@ done
 
 ```bash
 # Should show: no opened files
-P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 opened
+P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 opened
 
 # Should show: nothing to reconcile
-P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4PASSWD=Cyancook1234! P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 status
+P4PORT=192.168.2.236:1666 P4USER=CyanCookCI P4CHARSET=none P4CLIENT=AUTOMERGE_MainDev p4 status
 ```
 
 ## Notes

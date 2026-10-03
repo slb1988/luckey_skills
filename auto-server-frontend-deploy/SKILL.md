@@ -13,7 +13,7 @@ description: Sync auto-server frontend code from Perforce and build for deployme
 
 ## 使用方式
 
-在 `dev@auto-server` 上执行以下命令：
+执行前用 `hostname`、`whoami`、`pwd` 核实当前是 `dev@auto-server`，并确认目标目录 `/data/py_automation/frontend`。仅在确认后的目标会话执行以下命令；异机先路由到 auto-server 运行时，无法确认则停止。主机别名或回环地址解析不是现场证明。
 
 ### 1. 同步代码 (Perforce)
 
@@ -34,7 +34,13 @@ cd /data/py_automation/frontend && P4CHARSET=utf8 p4 -u admin_sun -p 192.168.2.1
 cd /data/py_automation/frontend && npm run build
 ```
 
-构建产物生成后即可完成前端发布。
+构建成功只说明产物就绪；完成下面的发布验证后才能声称线上生效。
+
+## 发布验证与回执
+
+- 核对 `npm run build` 退出码为 0，且目标目录的 `dist/index.html` 与其引用的资源确实存在。
+- 按目标机实际 nginx 静态目录配置核对产物服务位置，再访问已确认的前端 URL，核验返回的首页/资源版本与本次产物一致；不要把后端健康检查当成前端生效证据。
+- 回报执行主机、目录、同步结果/版本、构建结果、产物路径和访问验证结果。未完成访问核验时写“构建完成，线上生效未验证”，不要只返回“已发布”。
 
 ## AI Review Markdown 渲染
 
@@ -47,7 +53,7 @@ AI Review 的标题、评论和编译分析是分散在 `ReviewDetail.vue`、`co
 
 ## 注意事项
 
-- 确保在 `dev@auto-server` 主机上执行（当前机器就是 auto-server，直接本地执行即可）
+- 只在已核实的 `dev@auto-server` 会话执行；不要假定当前机器就是目标机
 - **必须设置 `P4CHARSET=utf8`**，否则 P4 服务器会报 `Unicode server permits only unicode enabled clients` 导致同步静默失败
 - 确保 P4 用户 `admin_sun` 有权限访问仓库
 - 确保 Node.js 和 npm 依赖已安装（如未安装需先执行 `npm install`）

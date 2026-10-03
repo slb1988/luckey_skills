@@ -3,14 +3,15 @@
 Quick validation script for skills - minimal version
 """
 
+import argparse
 import sys
 import os
 import re
 import yaml
 from pathlib import Path
 
-def validate_skill(skill_path):
-    """Basic validation of a skill"""
+def validate_skill(skill_path, *, strict=False):
+    """Validate the local baseline, with one typed Pi extension unless strict."""
     skill_path = Path(skill_path)
 
     # Check SKILL.md exists
@@ -40,6 +41,9 @@ def validate_skill(skill_path):
 
     # Define allowed properties
     ALLOWED_PROPERTIES = {'name', 'description', 'license', 'allowed-tools', 'metadata', 'compatibility'}
+    # Project compatibility: Pi consumes this top-level boolean, not metadata.
+    if not strict:
+        ALLOWED_PROPERTIES.add('disable-model-invocation')
 
     # Check for unexpected properties (excluding nested keys under metadata)
     unexpected_keys = set(frontmatter.keys()) - ALLOWED_PROPERTIES
@@ -48,6 +52,10 @@ def validate_skill(skill_path):
             f"Unexpected key(s) in SKILL.md frontmatter: {', '.join(sorted(unexpected_keys))}. "
             f"Allowed properties are: {', '.join(sorted(ALLOWED_PROPERTIES))}"
         )
+
+    if 'disable-model-invocation' in frontmatter:
+        if type(frontmatter['disable-model-invocation']) is not bool:
+            return False, "disable-model-invocation must be a boolean"
 
     # Check required fields
     if 'name' not in frontmatter:
@@ -91,13 +99,16 @@ def validate_skill(skill_path):
         if len(compatibility) > 500:
             return False, f"Compatibility is too long ({len(compatibility)} characters). Maximum is 500 characters."
 
+    if 'disable-model-invocation' in frontmatter:
+        return True, "Skill is valid (project Pi compatibility: disable-model-invocation boolean)."
     return True, "Skill is valid!"
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python quick_validate.py <skill_directory>")
-        sys.exit(1)
-    
-    valid, message = validate_skill(sys.argv[1])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('skill_directory')
+    parser.add_argument('--strict', action='store_true',
+                        help='Use the original local whitelist without Pi extensions')
+    args = parser.parse_args()
+    valid, message = validate_skill(args.skill_directory, strict=args.strict)
     print(message)
     sys.exit(0 if valid else 1)

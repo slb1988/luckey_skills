@@ -1,9 +1,7 @@
 ---
 name: print
 description: 打印文件（图片、PDF、文档等）到本地或网络打印机。当用户提到"打印"、"打印机"、"打出来"、"打印图片"、"打印文件"、"打张图"、"print"、"打印到"、"帮我打印"、"发送到打印机"时触发。即使用户只说"把这个打印出来"、"帮我把这张图打出来"也应考虑使用此 Skill。
-compatibility:
-  - lp
-  - lpstat
+compatibility: Requires CUPS commands lp and lpstat on the selected print host.
 ---
 
 # print — 打印文件

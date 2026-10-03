@@ -74,6 +74,8 @@ Based on the user interview, fill in these components:
 `description` has a **1024-character hard limit** — over-limit descriptions get truncated and `scripts/quick_validate.py` rejects them. When trimming an over-limit description, trigger recall lives in terms, not prose: keep every proper noun, pipeline/build-config name, and bilingual trigger phrase; instead compress functional verb lists, drop duplicate keywords/case variants, and merge trigger clauses ("Also trigger when the user reports…" → "or reports…"). Always re-parse the YAML frontmatter after the edit.
 </memory>
 
+**Local validation profiles:** `python scripts/quick_validate.py PATH` uses this project's compatibility profile. It adds only the top-level boolean `disable-model-invocation` consumed by Pi; keep that key at the top level when manual-only invocation is intended. `--strict` uses the original local whitelist without that extension. This is a project compatibility policy, not a claim of upstream-standard conformance; arbitrary unknown keys remain errors. Display-only fields (title/tags/version/homepage/platforms) belong under `metadata`. Regression: `python -m unittest discover -s tests -p 'test_quick_validate.py'` from this skill directory.
+
 ### Security Check: Scan .claude/ for Sensitive Information
 
 Before finalizing a new or updated skill, check the `.claude/` directory for accidentally committed sensitive information. Skills and their references live under `.claude/skills/`, but the check should cover the whole `.claude/` tree because supporting files (plans, docs, hooks, settings) may also be affected.
@@ -181,7 +183,7 @@ Save test cases to `evals/evals.json`. Don't write assertions yet — just the p
 }
 ```
 
-See `references/schemas.md` for the full schema (including the `assertions` field, which you'll add later).
+See `references/schemas.md` for the full schema. Persistent test cases use **`evals[].expectations`** (a list of verifiable statements, added later), not an `assertions` field. For each run, copy those statements into **`eval_metadata.json.assertions`**; grader output is **`grading.json.expectations`** with `text`, `passed`, `evidence`. These are different file contracts, not interchangeable field names.
 
 ## Running and evaluating test cases
 
@@ -221,11 +223,11 @@ Write an `eval_metadata.json` for each test case (assertions can be empty for no
 
 ### Step 2: While runs are in progress, draft assertions
 
-Don't just wait for the runs to finish — you can use this time productively. Draft quantitative assertions for each test case and explain them to the user. If assertions already exist in `evals/evals.json`, review them and explain what they check.
+Don't just wait for the runs to finish — you can use this time productively. Draft quantitative assertions for each test case and explain them to the user. If `evals[].expectations` already exist in `evals/evals.json`, review them and explain what they check.
 
 Good assertions are objectively verifiable and have descriptive names — they should read clearly in the benchmark viewer so someone glancing at the results immediately understands what each one checks. Subjective skills (writing style, design quality) are better evaluated qualitatively — don't force assertions onto things that need human judgment.
 
-Update the `eval_metadata.json` files and `evals/evals.json` with the assertions once drafted. Also explain to the user what they'll see in the viewer — both the qualitative outputs and the quantitative benchmark.
+Once drafted, save the statements as `evals[].expectations` in `evals/evals.json` and as `assertions` in each run's `eval_metadata.json`. Keep these lists aligned; do not rename the persistent field to `assertions`. Also explain to the user what they'll see in the viewer — both the qualitative outputs and the quantitative benchmark.
 
 ### Step 3: As runs complete, capture timing data
 
@@ -440,42 +442,9 @@ After packaging, direct the user to the resulting `.skill` file path so they can
 
 ---
 
-## Claude.ai-specific instructions
+## Environment-specific adaptations
 
-In Claude.ai, the core workflow is the same (draft → test → review → improve → repeat), but because Claude.ai doesn't have subagents, some mechanics change. Here's what to adapt:
-
-**Running test cases**: No subagents means no parallel execution. For each test case, read the skill's SKILL.md, then follow its instructions to accomplish the test prompt yourself. Do them one at a time. This is less rigorous than independent subagents (you wrote the skill and you're also running it, so you have full context), but it's a useful sanity check — and the human review step compensates. Skip the baseline runs — just use the skill to complete the task as requested.
-
-**Reviewing results**: If you can't open a browser (e.g., Claude.ai's VM has no display, or you're on a remote server), skip the browser reviewer entirely. Instead, present results directly in the conversation. For each test case, show the prompt and the output. If the output is a file the user needs to see (like a .docx or .xlsx), save it to the filesystem and tell them where it is so they can download and inspect it. Ask for feedback inline: "How does this look? Anything you'd change?"
-
-**Benchmarking**: Skip the quantitative benchmarking — it relies on baseline comparisons which aren't meaningful without subagents. Focus on qualitative feedback from the user.
-
-**The iteration loop**: Same as before — improve the skill, rerun the test cases, ask for feedback — just without the browser reviewer in the middle. You can still organize results into iteration directories on the filesystem if you have one.
-
-**Description optimization**: This section requires the `claude` CLI tool (specifically `claude -p`) which is only available in Claude Code. Skip it if you're on Claude.ai.
-
-**Blind comparison**: Requires subagents. Skip it.
-
-**Packaging**: The `package_skill.py` script works anywhere with Python and a filesystem. On Claude.ai, you can run it and the user can download the resulting `.skill` file.
-
-**Updating an existing skill**: The user might be asking you to update an existing skill, not create a new one. In this case:
-- **Preserve the original name.** Note the skill's directory name and `name` frontmatter field -- use them unchanged. E.g., if the installed skill is `research-helper`, output `research-helper.skill` (not `research-helper-v2`).
-- **Copy to a writeable location before editing.** The installed skill path may be read-only. Copy to `/tmp/skill-name/`, edit there, and package from the copy.
-- **If packaging manually, stage in `/tmp/` first**, then copy to the output directory -- direct writes may fail due to permissions.
-
----
-
-## Cowork-Specific Instructions
-
-If you're in Cowork, the main things to know are:
-
-- You have subagents, so the main workflow (spawn test cases in parallel, run baselines, grade, etc.) all works. (However, if you run into severe problems with timeouts, it's OK to run the test prompts in series rather than parallel.)
-- You don't have a browser or display, so when generating the eval viewer, use `--static <output_path>` to write a standalone HTML file instead of starting a server. Then proffer a link that the user can click to open the HTML in their browser.
-- For whatever reason, the Cowork setup seems to disincline Claude from generating the eval viewer after running the tests, so just to reiterate: whether you're in Cowork or in Claude Code, after running tests, you should always generate the eval viewer for the human to look at examples before revising the skill yourself and trying to make corrections, using `generate_review.py` (not writing your own boutique html code). Sorry in advance but I'm gonna go all caps here: GENERATE THE EVAL VIEWER *BEFORE* evaluating inputs yourself. You want to get them in front of the human ASAP!
-- Feedback works differently: since there's no running server, the viewer's "Submit All Reviews" button will download `feedback.json` as a file. You can then read it from there (you may have to request access first).
-- Packaging works — `package_skill.py` just needs Python and a filesystem.
-- Description optimization (`run_loop.py` / `run_eval.py`) should work in Cowork just fine since it uses `claude -p` via subprocess, not a browser, but please save it until you've fully finished making the skill and the user agrees it's in good shape.
-- **Updating an existing skill**: The user might be asking you to update an existing skill, not create a new one. Follow the update guidance in the claude.ai section above.
+When running in Claude.ai or Cowork, read [environment-adaptations.md](references/environment-adaptations.md) before executing the loop. It preserves the serial/no-baseline fallback, headless viewer and feedback procedures, capability limits, and safe update/packaging rules; do not silently omit the applicable human review gate.
 
 ---
 

@@ -1,5 +1,65 @@
 # Skill Health Report — 2026-10-03
 
+## 整改记录 — 2026-10-04（文档与本地静态校验）
+
+相对报告提交 `1dee18f`，按 `.claude/plans/Skills静态健康整改.md` 的本轮范围整改。**下方 52 / 16 / 11 评级及逐项记录是 2026-10-03 历史基线，不是整改后的重新评分**；本轮没有重跑内容评分、Tier 2、A/B、线上运维或真实业务示例，不据结构通过宣称技能业务可靠或部署完成。
+
+### 已完成
+
+- `automerge-clean`：删除 SKILL 示例里的明文密码，改有效 P4 ticket / 仓库外受保护环境注入；保留账号和连接设置，未改真实密码、未轮换、未执行清理。基线中的轮换建议不是本轮操作授权。
+- 三个 auto-server 发布入口：命令前要求核对 host/user/cwd，异机先路由；不再凭回环解析断言当前会话在目标机。backend 手动配方连续两次明确空闲才放行，HTTP/JSON/字段异常重置计数，5 分钟到期失败退出，不再继续停服；这不代表线上 deploy.sh 被修改或验证。前端回执区分“产物就绪”和“线上生效已核验”。
+- 四个 vault 入口：按现行 `luckey/AGENTS.md`、routing/metadata 规则、Daily Notes 配置及已归位文件修正路径，不写 vault。日记为 `02_notes/daily`，书籍为 `04_sources/books`，学习计划为 `03_projects/personal/learning`；Violoop 继续写既有 `02_notes/software/violoop/user-feedback-20260702.md`，不另造日文件。新生成估值稿区分 `09_generated` 与确认保留的个人投资记录，旧稿保持稳定路径；学习阶段改为正文记录，不重引入废弃 YAML 字段。
+- 修正 git-tool 重复 `git`、langfuse 多镜像单次 pull、memory-review 的 9287/9288 review 路由冲突、Flux 尺寸倍数/比例。diagram-design 将 4px 网格限定为主要节点布局，明确字体和 primitive 例外，不改视觉风格；Luckey 出图前检测工具，无 `image_gen` 时必须如实标注未出图。
+- 11 份基线结构失败入口：展示元数据移入 `metadata`（保留原值、name、触发描述及已有 metadata），print compatibility 改字符串，orchestration-ops description 去尖括号。`skill-harvest` 的 `disable-model-invocation: true` 仍在顶层，人工触发语义不变。
+- 四份长入口按需拆到 8 份 references，保留 Office cookbook 示例、Diagram 六条连线规则/风格门/交付契约、Huashu 三方向真实初稿→用户选择→Gate 文件及媒体安全契约、skill-creator 环境适配。澄清持久测试用 `evals[].expectations`、运行 metadata 用 `assertions`、评分用 `grading.json.expectations`，没有混改 schema。
+
+### 结构校验口径与结果
+
+本机安装的 Pi `docs/skills.md` 明确支持顶层 `disable-model-invocation: true`，`dist/core/skills.js` 以 `=== true` 读取。为保留该行为，`quick_validate.py` 默认使用**项目 Pi 兼容口径**：只额外接受这个具体键，并严格要求 YAML boolean；未知键仍拒绝。新增 `--strict` 保留原本地白名单口径，**不将任一口径冒称为上游标准全面认证**。
+
+| 检查 | 实测结果 |
+|---|---|
+| 与历史报告相同的递归入口（含 6 份嵌套，不含 skill-eval 自身） | 79 份；兼容口径 79 通过；原严格白名单 78 通过 + 1 个明确例外（skill-harvest） |
+| 加上 skill-eval 自身 | 全项目 80 份；兼容口径 80 通过；严格白名单 79 通过 + 上述 1 个例外 |
+| 四份入口正文 / 整文件行数 | office-js 88 / 97；diagram-design 443 / 451；huashu-design 418 / 423；skill-creator 472 / 477；均 <500 |
+| 新增本地回归 | validator 6 tests + scoped static 10 tests，全部通过；其中 busy gate 含 8 组 stub fixture |
+| 移文保真 | Office 三本 cookbook、skill-creator 环境适配、Huashu 两段详细流程、Diagram primitive 示例及六条连线规则与基线逐段比对通过（仅引用迁移和明确整改条款除外） |
+| 引用与矛盾检查 | 新增/改动 Markdown 链接目标存在；活动旧路径、重复命令、端口/尺寸/网格矛盾的局部断言通过 |
+| 许可文件完整性 | 以下四份文件 SHA-256 与整改前一致，4/4；测试内固定基线哈希 |
+| Git 空白检查 | `git -C .agent/skills diff --check` 通过 |
+
+可重现命令（从 ObsidianVault 根目录运行；只执行本地校验，示例业务命令不执行）：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .agent/skills/skill-creator/tests -p 'test_quick_validate.py' -v
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .agent/skills/skill-eval/tests -p 'test_static_remediation.py' -v
+python3 .agent/skills/skill-creator/scripts/quick_validate.py .agent/skills/skill-harvest
+python3 .agent/skills/skill-creator/scripts/quick_validate.py --strict .agent/skills/skill-harvest
+# 最后一条预期 exit 1：仅严格白名单不接受该宿主行为键，并非兼容回归失败。
+git -C .agent/skills diff --check
+```
+
+busy fixture 只提取文档中的等待函数，以本地函数替代 curl 和时钟等待，停服门后仅打印哨兵；没有请求真实端点、kill、P4、Docker、部署、打印或外发。静态复核不是运行时/视觉验收。安全检查仅针对本次变更，报告只保留位置和处理边界，不记录凭据值；不声称完成全库 secrets 审计。
+
+### 用户已接受的保留项（不列待修或提交阻塞）
+
+本轮 Kimi K3 **新增**的凭据发现已获用户明确许可。以下原文件保持字节不变，不删除/脱敏改写、不轮换其中凭据，不把它们继续列为待修或提交阻塞，也不把实际值复制进本报告或新参考资料：
+
+- `qnap-perforce/references/p4d-server.md`
+- `frp-tunnel-setup/references/frp-setup-record.md`
+- `frp-tunnel-setup/references/frp-client-binding.md`
+- `memory-hub/references/deploy.md`
+
+授权只覆盖本轮新增项，不扩展至原报告的 automerge-clean 明文示例或其他未获许可凭据。第三方 axton 子模块、生产服务/配置、vault 笔记、`.obsidian`、主库其他会话改动未修改；提交和推送由协调者另行执行。
+
+### 未执行 / 后续范围
+
+全量 benchmarks、标准 eval 覆盖扩充、其他低于 500 行入口的额外拆分、部署/清理算法的真实行为验证均未执行，不是本轮完成声明的一部分。原报告的测试覆盖数字及剩余建议仍作为历史记录保留；此处没有生成第二份总结报告。
+
+---
+
+## 以下为 2026-10-03 历史基线（原评级与证据保留）
+
 **Skills scanned: 79 份 SKILL.md（78 个去重 name）；不含 skill-eval 自身。**
 
 **结论：功能描述普遍清楚，但静态高分不等于实际可靠；当前优先级是凭据、危险操作门禁和过期路径，然后统一元数据与补评测。**
