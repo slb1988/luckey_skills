@@ -1,7 +1,7 @@
 ---
 name: iflytek-learning-tablet
 title: 讯飞学习机系统排障与家长端管理
-description: 科大讯飞学习机的 Mac/电脑 ADB 连接、应用管家 Web 命令桥、系统排障及讯飞AI学家长端自动化。用户提到讯飞学习机、iFLYTEK、su30pro、rk3588s_su30pro_native、外部 adb 连不上、5555 拒绝连接、9898/cmd.html、应用管家执行命令、系统分析，或希望 AI 点击家长 App、分析使用习惯、限制动画/应用时长时使用。覆盖端口发现、权限、系统组件和家长端只读检查→确认限制→验证生效；不替代 kid-learning-journey 后台开发，不默认解锁、root、刷机或解除家长管理。
+description: 科大讯飞学习机的 Mac/电脑 ADB 一键连接、只读故障采集、历史快照对比、应用管家 Web 命令桥及讯飞AI学家长端自动化。用户提到讯飞学习机、iFLYTEK、su30pro、rk3588s_su30pro_native、外部 adb 连不上、5555 拒绝连接、9898/cmd.html、应用管家执行命令、系统分析、定期诊断或性能对比，或希望 AI 点击家长 App、分析使用习惯、限制动画/应用时长时使用。覆盖真实端口发现、系统资源与版本变化、家长端只读检查→确认限制→验证生效；不替代 kid-learning-journey 后台开发，不默认解锁、root、刷机或解除家长管理。
 tags: [iflytek, android, adb, learning-tablet, diagnostics, parent-control]
 ---
 
@@ -22,6 +22,7 @@ tags: [iflytek, android, adb, learning-tablet, diagnostics, parent-control]
 
 | 需求 | 按需读取 |
 |---|---|
+| 一键连接、只读故障采集、定期手动复采与历史对比 | [diagnostic-cli.md](references/diagnostic-cli.md) |
 | AI 操作讯飞AI学家长端、学习习惯、动画与应用限时、低年级专注管理 | [parent-app-focus-management.md](references/parent-app-focus-management.md) |
 | 硬件、Android/API、固件、分区和平台识别 | [platform.md](references/platform.md) |
 | ADB 拒绝连接、实际端口、授权、USB 与无线调试 | [adb-connection.md](references/adb-connection.md) |
@@ -42,7 +43,17 @@ tags: [iflytek, android, adb, learning-tablet, diagnostics, parent-control]
 
 ## 快速命令
 
-先把环境变量设为当前设备信息，`S="${DEVICE_IP}:${ADB_PORT}"`。
+常规连接与复采优先用标准库 CLI（命令相对本 Skill 目录）：
+
+```bash
+python3 scripts/tablet_diag.py connect "$DEVICE_IP"
+python3 scripts/tablet_diag.py collect "$DEVICE_IP" --label tablet-a
+python3 scripts/tablet_diag.py compare "$OLD_SNAPSHOT_JSON" "$NEW_SNAPSHOT_JSON"
+```
+
+`collect` 自动连接；`--label` 为同一设备长期固定的本地别名，不使用个人姓名或序列号。快照与摘要默认写项目 `.local/iflytek-learning-tablet/snapshots/`；退出码 **3 表示已保存但有缺失/错误**，不应丢弃结果。跨标签/型号对比同样返回 3 并省略差值；完整语义与解释边界见 CLI 参考。无定时任务、无默认日志/截图采集。
+
+需要手工分层排障时，把环境变量设为当前设备信息，`S="${DEVICE_IP}:${ADB_PORT}"`。
 
 ```bash
 adb connect "$S"
