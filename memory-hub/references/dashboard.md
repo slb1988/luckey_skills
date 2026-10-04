@@ -14,6 +14,17 @@ Dream（#dream 页）是**只读巡检**：检测并记录异常，不自动修�
 - 异常按类型分开处置：投递失败（如下游 422 永久拒绝，见 [api-notes.md](api-notes.md) 关系时间契约）只缺 Graphiti 镜像、Hub 关系账本仍有效；「Hub 标 `indexed` 但精确 episode 探针确认图中不存在」的投影缺失才是真实一致性问题，成因需另行追查。
 - 判 Dream 是否真在干活看 run 实际检查的 episode 数（空转时趋近 0），不能只扫 run 状态；outbox 健康看 completed 累计 + pending/retry 是否为 0。
 
+<memory category="troubleshooting">
+Dream **语义消费**不能沿用图谱巡检的 episode 计数作验收：run `completed` 与入选 session 数都不保证实际消费了消息。
+2026-10-04 核对的 `dream_semantic.py` 先按 session 更新时间截取候选配额，再按消息时间窗口过滤；无可消费消息的 session 因而可能反复占满配额，让 run 完成但零消费，并带来旧材料饥饿风险。
+已确认的是零消费及上述选择顺序，未证明材料丢失；消费进展须看实际消费消息数，不能用候选数或完成状态替代。
+</memory>
+
+<memory category="troubleshooting">
+关系 outbox 等待端点记忆通过抽取审核时走**依赖 defer**，不是 Graphiti 投递失败；2026-10-04 核对路径每 5 秒延后并写 SQLite，但保持 `attempt_count=0`、`last_error=null`。
+因此零尝试、无错误不代表未被调度或没有写库开销；应结合端点审核状态区分依赖等待与下游投递失败，也不要套用历史 `invalidated` 终态漏判的根因。
+</memory>
+
 Graph 图谱页按 ~500 节点截断渲染：图谱里看似「孤立」的节点可能只是截断未画出其边，判实体碎片化前先用 API 核实边数/一度邻居，勿凭面板视觉下结论。
 
 Dashboard 开发在本机源码副本 `D:/Github/memory-hub` 进行，NAS `/share/Container/memory-hub` 只是部署目标（经 git push/pull 同步；本机直连 NAS 的 SSH key 未授权、SMB 无凭证，部署需在 NAS 上执行命令或提供 SSH 密码）。前端是 Vue 3 + TS + Vite，构建产物 `frontend/dist` **自 commit 2c3b935 起不再纳入 git 追踪**（.gitignore 已移除 dist）；NAS 上现已有 node v22（`~/.local/bin/node`），部署 = NAS 本地 `cd frontend && npm ci && npm run build`，dist 由 backend 直接托管（带 ETag/304 缓存）。legacy 后端 `src/memory_hub` 因历史原因保持不动，新功能只加在独立 `backend/`。

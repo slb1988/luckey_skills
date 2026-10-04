@@ -53,7 +53,7 @@ Dashboard 抽取审核在手机竖屏上以信息完整性优先：实体、边�
 | 场景 | 文件 |
 |------|------|
 | 服务端部署/启动/重启/备份/自启/身份迁移/内容清洗与图谱重建 | [references/deploy.md](references/deploy.md) |
-| Dashboard 开发/部署/排障入口 | [references/dashboard.md](references/dashboard.md) |
+| Dashboard 开发/部署/排障、Dream 语义消费停滞与关系依赖等待 | [references/dashboard.md](references/dashboard.md) |
 | SQL 锁 / SQLite 写锁、长事务、持锁者与等待者归因、锁诊断埋点、Dream 终态空转 | [references/sqlite-lock-diagnostics.md](references/sqlite-lock-diagnostics.md) |
 | API 端点、写入流程、Idempotency-Key、关系时间契约、错误码、常用 curl | [references/api-notes.md](references/api-notes.md) |
 | Hook 安装/check/身份配置/环境变量/首轮召回/Pi 扩展机制与留痕/低价值过滤 | [references/agent-integration.md](references/agent-integration.md) |
