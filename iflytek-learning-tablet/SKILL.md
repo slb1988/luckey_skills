@@ -1,8 +1,8 @@
 ---
 name: iflytek-learning-tablet
-title: 讯飞学习机系统分析与排障
-description: 科大讯飞学习机的 Mac/电脑 ADB 连接、应用管家 Web 命令桥、系统组成与运行状态排障。用户提到讯飞学习机、iFLYTEK、su30pro、rk3588s_su30pro_native、学习机外部 adb 连不上、5555 拒绝连接、9898/cmd.html、应用管家执行命令或学习机系统分析时使用。覆盖实际端口发现、权限区分、定制桌面/管理服务、WebView、显示输入、存储电源和安全边界；不替代 kid-learning-journey 学习后台开发，也不默认解锁、root、刷机或解除家长管理。
-tags: [iflytek, android, adb, learning-tablet, diagnostics]
+title: 讯飞学习机系统排障与家长端管理
+description: 科大讯飞学习机的 Mac/电脑 ADB 连接、应用管家 Web 命令桥、系统排障及讯飞AI学家长端自动化。用户提到讯飞学习机、iFLYTEK、su30pro、rk3588s_su30pro_native、外部 adb 连不上、5555 拒绝连接、9898/cmd.html、应用管家执行命令、系统分析，或希望 AI 点击家长 App、分析使用习惯、限制动画/应用时长时使用。覆盖端口发现、权限、系统组件和家长端只读检查→确认限制→验证生效；不替代 kid-learning-journey 后台开发，不默认解锁、root、刷机或解除家长管理。
+tags: [iflytek, android, adb, learning-tablet, diagnostics, parent-control]
 ---
 
 # 讯飞学习机
@@ -16,11 +16,13 @@ tags: [iflytek, android, adb, learning-tablet, diagnostics]
 - 不收集账号、学习内容、照片、Wi-Fi 密码、ADB 私钥或整机 bugreport。临时诊断输出存本地忽略目录，不把原始截图/序列号放进共享知识。
 - 重启、`adb tcpip`、`setprop`、修改 settings、授权/禁用/卸载应用、打开摄像头/麦克风、清理数据、root/刷机属于另一次明确授权的变更，不是默认检查步骤。
 - 网页操作会进入设备命令终端；需要切换前台页面时先说明，不自动关闭安全策略或常驻服务。
+- 家长端任务只查看经授权的应用用时与现有限制；具体应用/时段调整经家长确认后再保存，不把设备维护用时全部算作孩子学习或娱乐。
 
 ## 模块导航
 
 | 需求 | 按需读取 |
 |---|---|
+| AI 操作讯飞AI学家长端、学习习惯、动画与应用限时、低年级专注管理 | [parent-app-focus-management.md](references/parent-app-focus-management.md) |
 | 硬件、Android/API、固件、分区和平台识别 | [platform.md](references/platform.md) |
 | ADB 拒绝连接、实际端口、授权、USB 与无线调试 | [adb-connection.md](references/adb-connection.md) |
 | `cmd.html`、从 Mac 发命令、取回输出、HTTP 200 却无执行 | [web-command-bridge.md](references/web-command-bridge.md) |
@@ -28,9 +30,9 @@ tags: [iflytek, android, adb, learning-tablet, diagnostics]
 | 卡顿、容量、电池、温度、屏幕、触控/笔、音视频硬件 | [health-peripherals.md](references/health-peripherals.md) |
 | 调试暴露面、SELinux、启动锁、系统更新和维护边界 | [security-maintenance.md](references/security-maintenance.md) |
 
-不要为单一连接故障加载并执行所有模块；用户要求系统盘点时才分模块批量采集。
+不要为单一连接故障加载并执行所有模块；用户要求系统盘点时才分模块批量采集。家长端 UI 任务直接走对应参考，不执行下面的 ADB 诊断流程。
 
-## 最短执行流程
+## 最短执行流程（设备连接与排障）
 
 1. **确认现场**：当前 IP、应用管家是否运行、问题是否只影响电脑直连。先 `adb devices -l`、目标端口连通性检查，不扫描整个网段。
 2. **发现端口**：优先已有 USB/ADB 会话或学习机命令终端；读取 `getprop service.adb.tls.port` 与 `ss -lnt`。只有 Web 可用时，使用 Web 桥接参考和脚本。不要从口令猜端口。
