@@ -8,6 +8,22 @@ outbox 重试与错误、最近更新的 session、Graphiti episode 探测、Hub
 
 排障入口优先级：面板 Overview 状态灯 → Outbox 页签（retry/failed 的 last_error）→ Graphiti 页签（episode 探测）→ 日志页签。
 
+## Session token 与费用统计
+
+<memory category="troubleshooting">
+session 的 `latest` 不保证是完整 session：Pi 新版本若仅有窗口快照，按最新版本重建用量会删除此前从完整版本提取的统计，这是已在线上确认的归零根因；窗口缺用量或缺完整文件不能当作零消耗。
+Codex `input_tokens` 已包含缓存 token，缓存是其子集，计算总量不能再加一次；`last_token_usage` 是单次用量而非累计计数，不能按累计值做差分，也不能在详情累计时覆盖此前记录。
+汇总/详情的统计语义需同步覆盖服务仓库 `src/memory_hub/application/session_usage.py`、`backend/dashboard_backend/usage_scan.py` 与 `frontend/src/utils/sessionParse.ts`。
+证据边界：Pi 根因已线上确认，Codex 错算已代码复现但线上影响范围未核实；此次只读调研不代表已修复、部署或重算历史统计。
+</memory>
+
+<memory category="core-rules">
+费用缺失不等于免费：调研时统计链路只累计 Pi 原始 `cost.total`，Claude/Codex 缺费用记录应视为未知，而不是零费用。
+原始 cost 未经换汇；UI 固定显示 `¥` 不构成人民币计价依据，必须核对源记录的币种，不能由展示符号推断。
+</memory>
+
+## Dream 与其他排障入口
+
 Dream（#dream 页）是**只读巡检**：检测并记录异常，不自动修复，判读时注意三条口径：
 
 - run `completed` 只表示当天巡检跑完，**不代表发现的异常已修好**；同一批未处理异常会在后续每天的 run 里重复出现（重新记录），不是「每天又失败一次」，也不等于队列积压或服务故障。当前界面不区分新增/持续/已解决，看起来像重复报错列表。
