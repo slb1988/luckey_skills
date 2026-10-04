@@ -19,6 +19,8 @@ import hashlib
 import json
 import os
 import re
+import socket
+import ssl
 import sqlite3
 import subprocess
 import sys
@@ -1696,7 +1698,9 @@ class StateStore:
                     last_error = ?, updated_at = ?
                 WHERE job_id = ? AND state = 'uploading'
                 """,
-                (compact_text(str(error), 2000), time.time(), job_id),
+                (json.dumps(search_error_diagnostics(error), ensure_ascii=False)
+                 if isinstance(error, HubError) else compact_text(str(error), 2000),
+                 time.time(), job_id),
             )
 
     def status(self) -> Dict[str, Any]:
@@ -1721,6 +1725,25 @@ class StateStore:
                 "SELECT COUNT(*) AS count FROM jobs WHERE user_id=?",
                 (UNCONFIGURED_USER_ID,),
             ).fetchone()["count"]
+            now = time.time()
+            pending = connection.execute(
+                """SELECT COUNT(*) AS pending_count, MIN(created_at) AS oldest,
+                          COALESCE(MAX(attempts), 0) AS max_pending_attempts,
+                          COALESCE(SUM(created_at <= ?), 0) AS aged_pending_count,
+                          COALESCE(SUM(attempts >= 10), 0) AS retry_warning_count
+                   FROM jobs WHERE state IN ('queued', 'uploading')""", (now - 3600,),
+            ).fetchone()
+            recovered = connection.execute(
+                """SELECT COUNT(*) AS completed_high_retry_7d,
+                          COALESCE(MAX(attempts), 0) AS max_completed_attempts_7d
+                   FROM jobs WHERE state='completed' AND updated_at >= ? AND attempts >= 10""",
+                (now - 7 * 86400,),
+            ).fetchone()
+            queue_health = {**dict(pending), **dict(recovered)}
+            oldest_pending = queue_health.pop("oldest")
+            queue_health["oldest_pending_age_seconds"] = (
+                max(0, int(now - oldest_pending)) if oldest_pending is not None else None
+            )
             oldest_created_at = oldest["created_at"] if oldest else None
             oldest_error = oldest["last_error"] if oldest else None
             latest_failed_at = latest_failed["updated_at"] if latest_failed else None
@@ -1738,6 +1761,7 @@ class StateStore:
             "default_user_id": self.config.default_user_id,
             "identity_source": self.config.identity_source,
             "counts": counts,
+            "queue_health": queue_health,
             "unconfigured_jobs": unconfigured,
             "oldest_queued_at": oldest_created_at,
             "last_error": oldest_error,
@@ -1761,6 +1785,7 @@ class HubError(RuntimeError):
         request_id: Optional[str] = None,
         retrieval_id: Optional[str] = None,
         retryable: Optional[bool] = None,
+        transport: Optional[Dict[str, Any]] = None,
     ) -> None:
         super().__init__(message)
         self.status_code = status_code
@@ -1768,6 +1793,38 @@ class HubError(RuntimeError):
         self.request_id = request_id
         self.retrieval_id = retrieval_id
         self.retryable = retryable
+        self.transport = transport
+
+
+def transport_diagnostics(reason: Exception, base_url: str, path: str) -> Dict[str, Any]:
+    """Classify transport failures, never copy exception text, URL paths or userinfo."""
+    if isinstance(reason, ssl.SSLCertVerificationError):
+        layer = "tls_certificate"
+    elif isinstance(reason, ssl.SSLError):
+        layer = "tls"
+    elif isinstance(reason, socket.gaierror):
+        layer = "dns"
+    elif isinstance(reason, TimeoutError):
+        layer = "timeout"
+    elif isinstance(reason, (ConnectionError, BrokenPipeError)):
+        layer = "connection"
+    else:
+        layer = "network"
+    operation = next((name for prefix, name in (
+        ("/v1/memories/search", "search"), ("/v1/files/", "file_upload"),
+        ("/v1/sessions/", "session"), ("/v1/memories", "memory"),
+    ) if path.startswith(prefix)), "other")
+    diagnostic: Dict[str, Any] = {"layer": layer, "operation": operation,
+                                  "error_type": type(reason).__name__}
+    parsed = urllib.parse.urlsplit(base_url)
+    host = parsed.hostname or ""
+    if re.fullmatch(r"[A-Za-z0-9.:-]{1,253}", host):
+        diagnostic["host"] = host
+    for key in ("errno", "winerror"):
+        value = getattr(reason, key, None)
+        if type(value) is int:
+            diagnostic[key] = value
+    return diagnostic
 
 
 def job_idempotency_key(kind: str, job: sqlite3.Row) -> str:
@@ -1876,6 +1933,7 @@ class HubClient:
                 str(error.reason),
                 error_code="REQUEST_TIMEOUT" if isinstance(error.reason, TimeoutError) else "NETWORK_ERROR",
                 retryable=True,
+                transport=transport_diagnostics(error.reason, self.config.hub_url, path),
             )
         except OSError as error:
             # http.client 会把对端 RST（WinError 10054 / ECONNRESET）以裸 OSError
@@ -1885,6 +1943,7 @@ class HubClient:
                 str(error),
                 error_code="REQUEST_TIMEOUT" if isinstance(error, TimeoutError) else "NETWORK_ERROR",
                 retryable=True,
+                transport=transport_diagnostics(error, self.config.hub_url, path),
             )
         if not payload:
             return {}
@@ -3180,6 +3239,8 @@ def search_error_diagnostics(error: Exception) -> Dict[str, Any]:
     if not isinstance(code, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]{0,127}", code):
         code = "HTTP_ERROR" if getattr(error, "status_code", None) else "HUB_UNAVAILABLE"
     result: Dict[str, Any] = {"code": code}
+    if isinstance(error, HubError) and error.transport:
+        result["transport"] = error.transport
     status = getattr(error, "status_code", None)
     if type(status) is int and 100 <= status <= 599:
         result["http_status"] = status

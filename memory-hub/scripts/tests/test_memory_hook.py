@@ -475,6 +475,25 @@ class MemoryHookTest(unittest.TestCase):
                 store.status()["counts"], {"queued": 1, "superseded": 1}
             )
 
+    def test_status_exposes_old_queue_and_recovered_retry_storm(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(json.dumps({"type": "user", "message": {"content": "remember"}}))
+            store = StateStore(self.config(directory))
+            jobs = [store.enqueue(self.profile(), "pi", sid, str(root), transcript)
+                    for sid in ("waiting", "recovered")]
+            with store.connect() as connection:
+                connection.execute("UPDATE jobs SET created_at=100, updated_at=8000, attempts=12 WHERE job_id=?", (jobs[0]["job_id"],))
+                connection.execute("UPDATE jobs SET created_at=100, updated_at=8000, attempts=267, state='completed' WHERE job_id=?", (jobs[1]["job_id"],))
+            with patch("memory_hook.time.time", return_value=9000):
+                health = store.status()["queue_health"]
+            self.assertEqual(health["oldest_pending_age_seconds"], 8900)
+            self.assertEqual(health["aged_pending_count"], 1)
+            self.assertEqual(health["retry_warning_count"], 1)
+            self.assertEqual(health["completed_high_retry_7d"], 1)
+            self.assertEqual(health["max_completed_attempts_7d"], 267)
+
     def test_status_explains_terminal_failed_jobs(self):
         # StateStore 旧方法大量使用 sqlite context manager（只 commit 不 close），
         # Windows 测试进程退出前可能仍持数据库句柄；这里关注返回契约而非临时文件清理。

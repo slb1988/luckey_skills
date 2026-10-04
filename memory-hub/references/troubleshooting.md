@@ -12,7 +12,8 @@
 
 - Pi v28及更早把 timeout / empty / error 统一成 `Memory Hub is unavailable or no matching memory was found.`；旧日志不能仅凭这句话归因，必须看 exitCode/quality 或 CLI 同 query 复现。
 - **v29**：成功零结果明确 `completed successfully ... no matching memory`，附候选/保留数；真正失败/超时抛 Pi 工具错误（isError=true），不会当作空结果。取消仍单独报告，不自动重试。
-- CLI `search --json` 失败以非零退出码输出 `{outcome, error}`；error 仅含 code、http_status、retryable、request_id、retrieval_id 的安全字段。Pi 与 hook trace 均保留该诊断，不输出原始stderr/HTML/响应正文/凭据。子进程启动失败为 HOOK_START_FAILED；坏成功响应为 BAD_RESPONSE，不能伪装成 empty。
+- CLI `search --json` 失败以非零退出码输出 `{outcome, error}`；error 含 code、http_status、retryable、request_id、retrieval_id 的安全字段。网络异常另有 `transport`（layer、error_type、errno/winerror、host、operation），区分 DNS、TLS/证书、连接与超时；只记主机和固定操作分类，不记 URL userinfo/path/query 或异常正文。CLI、hook trace 和 spool 的 HubError 保留该字段；Pi 扩展的简短错误仍仅呈现原有字段，可从 hook trace 查看分层细节。子进程启动失败为 HOOK_START_FAILED；坏成功响应为 BAD_RESPONSE，不能伪装成 empty。
+- `memory_hook.py status` 的 `queue_health` 同时看 queued/uploading：最老年龄、≥1小时任务数、≥10次重试数，以及过去7天虽 completed 但≥10次重试的任务数/最大次数；最终 completed 不能抹掉长尾异常。这是诊断与阈值提示，不增加超时、不关闭 TLS、不切地址或自动丢弃队列；历史 NETWORK_ERROR 根因仍需新的分层证据确认。
 - `kept=0` 只表示本次没有被质量门禁放行的候选，不等于没有相关记忆，也不保证判分正确。先换关键词/显式 project，必要时按 [retrieval-eval.md](retrieval-eval.md) 排查。
 - 固定约30秒的 `RETRIEVAL_CORRECTION_RESOLVER_UNAVAILABLE` 曾由服务端 `min(30, remaining)` 截断正常慢模型引起。修复后 resolver/judge/格式重试共用可配置的110秒预算；耗尽返回可重试 RETRIEVAL_JUDGE_TIMEOUT，仍 fail-closed。用 request_id/retrieval_id 对照服务端阶段、耗时与异常类型，不能归咎于 HTTPS 或改走 v1 绕过。
 

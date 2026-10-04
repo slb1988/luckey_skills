@@ -1,5 +1,7 @@
 import io
 import json
+import socket
+import ssl
 import tempfile
 import unittest
 import urllib.error
@@ -69,7 +71,25 @@ class SearchDiagnosticsTest(unittest.TestCase):
                 code, output, stderr, _ = self.run_command(error)
                 self.assertEqual(code, 1)
                 self.assertEqual(json.loads(output), {"outcome": "timeout", "error": {
-                    "code": "REQUEST_TIMEOUT", "retryable": True}})
+                    "code": "REQUEST_TIMEOUT", "retryable": True,
+                    "transport": {"layer": "timeout", "operation": "search",
+                                  "error_type": "TimeoutError", "host": "memory.test"}}})
+                self.assertNotIn("secret", output + stderr)
+
+    def test_network_failures_report_layer_without_exception_text(self):
+        for error, layer in [
+            (socket.gaierror(-2, "secret host lookup"), "dns"),
+            (ssl.SSLCertVerificationError(1, "secret certificate"), "tls_certificate"),
+            (ConnectionResetError(54, "secret reset"), "connection"),
+        ]:
+            with self.subTest(layer=layer):
+                code, output, stderr, calls = self.run_command(urllib.error.URLError(error))
+                self.assertEqual((code, calls), (1, 1))
+                transport = json.loads(output)["error"]["transport"]
+                self.assertEqual(transport["layer"], layer)
+                self.assertEqual(transport["host"], "memory.test")
+                self.assertEqual(transport["operation"], "search")
+                self.assertEqual(transport["errno"], error.errno)
                 self.assertNotIn("secret", output + stderr)
 
     def test_bad_success_payload_is_failure_not_empty(self):
