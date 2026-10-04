@@ -25,6 +25,11 @@ Use `.claude/skills/curate-luckey-vault/` if the `.agents/skills` compatibility 
 4. Read [vault-map.md](references/vault-map.md) when the target area is unfamiliar or routing is ambiguous. Live rules and filesystem state override this snapshot.
 5. Inspect candidate documents, headings, inbound links, nearby directory conventions, and `git status` before asking the user questions. Ask only for product intent or a material tradeoff that cannot be discovered.
 
+<memory category="common-patterns">
+`reading-wiki/.llmwiki/state.json` stores incremental hashes, not the compiler; `llmwiki` is installed independently of the vault. Compiler availability is a target-machine property, not a property of the committed wiki, so a historical "CLI lost" note does not establish a need to reimplement it.
+A working CLI/lint is not a Luckey adapter: stable note-ID mapping, retrieval-scope/`ai_ignore` filtering and controlled writeback require separate validation before reuse.
+</memory>
+
 ## Route content
 
 Apply the first matching rule from `routing-rules.md`:
