@@ -10,20 +10,20 @@
 - 三个 auto-server 发布入口：命令前要求核对 host/user/cwd，异机先路由；不再凭回环解析断言当前会话在目标机。backend 手动配方连续两次明确空闲才放行，HTTP/JSON/字段异常重置计数，5 分钟到期失败退出，不再继续停服；这不代表线上 deploy.sh 被修改或验证。前端回执区分“产物就绪”和“线上生效已核验”。
 - 四个 vault 入口：按现行 `luckey/AGENTS.md`、routing/metadata 规则、Daily Notes 配置及已归位文件修正路径，不写 vault。日记为 `02_notes/daily`，书籍为 `04_sources/books`，学习计划为 `03_projects/personal/learning`；Violoop 继续写既有 `02_notes/software/violoop/user-feedback-20260702.md`，不另造日文件。新生成估值稿区分 `09_generated` 与确认保留的个人投资记录，旧稿保持稳定路径；学习阶段改为正文记录，不重引入废弃 YAML 字段。
 - 修正 git-tool 重复 `git`、langfuse 多镜像单次 pull、memory-review 的 9287/9288 review 路由冲突、Flux 尺寸倍数/比例。diagram-design 将 4px 网格限定为主要节点布局，明确字体和 primitive 例外，不改视觉风格；Luckey 出图前检测工具，无 `image_gen` 时必须如实标注未出图。
-- 11 份基线结构失败入口：展示元数据移入 `metadata`（保留原值、name、触发描述及已有 metadata），print compatibility 改字符串，orchestration-ops description 去尖括号。`skill-harvest` 的 `disable-model-invocation: true` 仍在顶层，人工触发语义不变。
+- **Frontmatter 更正（用户明确要求）**：此前将展示元数据移入 `metadata` 是误改，现已将 9 份受影响 frontmatter 与 `1dee18f` 原头部逐字恢复。`title`、`tags` 和原有顶层 `version`/`homepage`/`platforms` 保持顶层；原有 `metadata` 子树、字段顺序和值保留，由校验器适配项目既有格式。print compatibility 字符串与 orchestration-ops description 的独立修复保留。`skill-harvest` 的 `disable-model-invocation: true` 仍在顶层，人工触发语义不变。
 - 四份长入口按需拆到 8 份 references，保留 Office cookbook 示例、Diagram 六条连线规则/风格门/交付契约、Huashu 三方向真实初稿→用户选择→Gate 文件及媒体安全契约、skill-creator 环境适配。澄清持久测试用 `evals[].expectations`、运行 metadata 用 `assertions`、评分用 `grading.json.expectations`，没有混改 schema。
 
 ### 结构校验口径与结果
 
-本机安装的 Pi `docs/skills.md` 明确支持顶层 `disable-model-invocation: true`，`dist/core/skills.js` 以 `=== true` 读取。为保留该行为，`quick_validate.py` 默认使用**项目 Pi 兼容口径**：只额外接受这个具体键，并严格要求 YAML boolean；未知键仍拒绝。新增 `--strict` 保留原本地白名单口径，**不将任一口径冒称为上游标准全面认证**。
+`quick_validate.py` 的默认和 `--strict` 两种项目口径均接受既有顶层 `title`、`tags`、`version`、`homepage`、`platforms`；不要求迁移到 `metadata`。默认口径另外接受 Pi 的顶层 `disable-model-invocation` 且严格要求 YAML boolean，`--strict` 仅排除该 Pi 行为扩展；未知键仍拒绝。这里的 strict 是项目字段校验，不再称原白名单，也**不冒称上游标准全面认证**。Pi 对该行为键的读取依据仍为 `docs/skills.md` 与 `dist/core/skills.js` 的 `=== true`。
 
 | 检查 | 实测结果 |
 |---|---|
-| 与历史报告相同的递归入口（含 6 份嵌套，不含 skill-eval 自身） | 79 份；兼容口径 79 通过；原严格白名单 78 通过 + 1 个明确例外（skill-harvest） |
-| 加上 skill-eval 自身 | 全项目 80 份；兼容口径 80 通过；严格白名单 79 通过 + 上述 1 个例外 |
-| 四份入口正文 / 整文件行数 | office-js 88 / 97；diagram-design 443 / 451；huashu-design 418 / 423；skill-creator 472 / 477；均 <500 |
-| 新增本地回归 | validator 6 tests + scoped static 10 tests，全部通过；其中 busy gate 含 8 组 stub fixture |
-| 移文保真 | Office 三本 cookbook、skill-creator 环境适配、Huashu 两段详细流程、Diagram primitive 示例及六条连线规则与基线逐段比对通过（仅引用迁移和明确整改条款除外） |
+| 与历史报告相同的递归入口（含 6 份嵌套，不含 skill-eval 自身） | 79 份；兼容口径 79 通过；项目 strict 78 通过 + 1 个明确例外（skill-harvest 的 Pi 行为键） |
+| 加上 skill-eval 自身 | 全项目 80 份；兼容口径 80 通过；项目 strict 79 通过 + 上述 1 个例外 |
+| 四份入口正文 / 整文件行数 | office-js 88 / 97；diagram-design 443 / 451；huashu-design 418 / 423；skill-creator 474 / 479；均 <500 |
+| 本地回归 | validator 6 tests + scoped static 10 tests，全部通过；新增格式断言先复现迁移错误，再修复通过；busy gate 含 8 组 stub fixture |
+| 格式与移文保真 | 9 份 frontmatter 与 1dee18f 原头部逐字一致，正文与 9ab9c8a 一致；Office 三本 cookbook、skill-creator 环境适配、Huashu 两段详细流程、Diagram primitive 示例及六条连线规则逐段比对通过（仅引用迁移和明确整改条款除外） |
 | 引用与矛盾检查 | 新增/改动 Markdown 链接目标存在；活动旧路径、重复命令、端口/尺寸/网格矛盾的局部断言通过 |
 | 许可文件完整性 | 以下四份文件 SHA-256 与整改前一致，4/4；测试内固定基线哈希 |
 | Git 空白检查 | `git -C .agent/skills diff --check` 通过 |
@@ -35,7 +35,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .agent/skills/skill-cr
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .agent/skills/skill-eval/tests -p 'test_static_remediation.py' -v
 python3 .agent/skills/skill-creator/scripts/quick_validate.py .agent/skills/skill-harvest
 python3 .agent/skills/skill-creator/scripts/quick_validate.py --strict .agent/skills/skill-harvest
-# 最后一条预期 exit 1：仅严格白名单不接受该宿主行为键，并非兼容回归失败。
+# 最后一条预期 exit 1：项目 strict 不接受 Pi 行为扩展；两种口径都接受顶层 title/tags 等既有字段。
 git -C .agent/skills diff --check
 ```
 
@@ -59,6 +59,8 @@ busy fixture 只提取文档中的等待函数，以本地函数替代 curl 和�
 ---
 
 ## 以下为 2026-10-03 历史基线（原评级与证据保留）
+
+**更正：本历史段中“把顶层展示字段归入 metadata”的建议已撤销，不能再作为实施依据。原校验器拒绝这些字段是与项目格式不兼容，不是迁移项目格式的理由；当前规范与校验结果以本报告首部为准。**
 
 **Skills scanned: 79 份 SKILL.md（78 个去重 name）；不含 skill-eval 自身。**
 

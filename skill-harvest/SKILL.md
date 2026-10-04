@@ -1,9 +1,8 @@
 ---
 name: skill-harvest
+title: Post-Task Knowledge Harvest
 description: 任务结束后，从会话中提取结构性/架构性知识（继承链、正确 API、配置配对、扩展点模式）并写入对应 SKILL.md。用户说"整理到SKILL.md"、"document this"、"add to skill"、"总结一下"时触发；也在发现类层次、API 表面、配置耦合等知识后主动触发。只捕获"系统如何工作"，不记录错误日志或调试过程。
-metadata:
-  title: Post-Task Knowledge Harvest
-  tags: [Documentation, SKILL-md, Knowledge-Management, ProjectLungfish, Workflow, Post-Task]
+tags: [Documentation, SKILL-md, Knowledge-Management, ProjectLungfish, Workflow, Post-Task]
 disable-model-invocation: true
 ---
 

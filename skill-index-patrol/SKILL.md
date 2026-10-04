@@ -1,9 +1,8 @@
 ---
 name: skill-index-patrol
+title: SKILL.index.json 巡检
 description: 监控 P4 各分支 SKILL.index.json 的 totalFiles 数量，发现减少时通知飞书群并 DM 真正的责任人。当用户提到"SKILL 数量减少"、"巡检漏报"、"谁删了 SKILL"、"patrol 脚本"时触发。
-metadata:
-  title: SKILL.index.json 巡检
-  tags: [P4, Feishu, Patrol, SKILL, CI]
+tags: [P4, Feishu, Patrol, SKILL, CI]
 ---
 
 # SKILL.index.json 巡检

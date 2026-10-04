@@ -64,19 +64,14 @@ class StaticRemediationTests(unittest.TestCase):
         self.assertIs(frontmatter(text("skill-harvest/SKILL.md"))["disable-model-invocation"], True)
         self.assertTrue(validator.validate_skill(ROOT / "skill-eval", strict=True)[0])
 
-    def test_metadata_preserves_names_descriptions_and_display_values(self):
+    def test_metadata_preserves_original_frontmatter_layout(self):
         names = ["agent-sdk", "drawio-skill", "memory-hub", "merge-engine-skills", "post-to-wechat",
                  "skill-harvest", "skill-index-patrol", "ue-blueprint-reflection", ".claude/skills/add-github-submodule"]
-        display = {"title", "tags", "version", "homepage", "platforms"}
         for name in names:
             rel = name + "/SKILL.md"
-            old, new = frontmatter(baseline(rel)), frontmatter(text(rel))
-            self.assertEqual(old["name"], new["name"], rel)
-            self.assertEqual(old["description"], new["description"], rel)
-            for key in display & old.keys():
-                self.assertEqual(old[key], new["metadata"][key], f"{rel}: {key}")
-            for key, value in old.get("metadata", {}).items():
-                self.assertEqual(value, new["metadata"][key], f"{rel}: metadata.{key}")
+            original = re.match(r"^---\n.*?\n---\n", baseline(rel), re.S).group(0)
+            current = re.match(r"^---\n.*?\n---\n", text(rel), re.S).group(0)
+            self.assertEqual(original, current, rel)
 
     def test_four_protected_files_are_unchanged(self):
         for rel, expected in PROTECTED.items():

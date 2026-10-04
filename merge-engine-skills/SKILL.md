@@ -1,9 +1,8 @@
 ---
 name: merge-engine-skills
+title: Merge Engine SKILL.md Files
 description: Copies SKILL.md files (and their sibling references/ directories) from d:\MainDev\Engine\ into the current project's Engine\ directory, preserving the same relative path structure. Use this skill when the user wants to sync, pull, or copy Engine SKILL.md documentation from the MainDev source into the local UnrealEngine-Angelscript repo. Triggers on phrases like "copy engine skills", "sync engine SKILL.md", "pull SKILL from MainDev", "merge engine docs", or "遍历 Engine SKILL.md".
-metadata:
-  title: Merge Engine SKILL.md Files
-  tags: [Documentation, Engine-Modification, SKILL.md, Sync, Engine]
+tags: [Documentation, Engine-Modification, SKILL.md, Sync, Engine]
 ---
 
 # Merge Engine SKILL.md Files

@@ -1,4 +1,4 @@
-"""Local whitelist and Pi boolean compatibility fixtures; no business operations."""
+"""Project frontmatter and Pi boolean compatibility fixtures; no business operations."""
 import importlib.util
 from pathlib import Path
 import tempfile
@@ -49,9 +49,16 @@ class QuickValidateTests(unittest.TestCase):
             self.assertFalse(valid)
             self.assertIn("Unexpected key", message)
 
-    def test_display_metadata_and_compatibility(self):
-        self.assertTrue(self.validate("metadata:\n  title: Example\n  tags: [local]\ncompatibility: CUPS lp and lpstat\n")[0])
-        self.assertFalse(self.validate("compatibility: [lp, lpstat]\n")[0])
+    def test_project_metadata_preserves_top_level_and_existing_metadata(self):
+        extra = (
+            "title: Example\ntags: [local, regression]\nversion: 1.2.3\n"
+            "homepage: https://example.com\nplatforms: [macos, linux]\n"
+            "metadata:\n  author: Existing author\ncompatibility: CUPS lp and lpstat\n"
+        )
+        for strict in (False, True):
+            with self.subTest(strict=strict):
+                self.assertTrue(self.validate(extra, strict=strict)[0])
+                self.assertFalse(self.validate("compatibility: [lp, lpstat]\n", strict=strict)[0])
 
 
 if __name__ == "__main__":

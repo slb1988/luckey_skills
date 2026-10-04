@@ -11,7 +11,7 @@ import yaml
 from pathlib import Path
 
 def validate_skill(skill_path, *, strict=False):
-    """Validate the local baseline, with one typed Pi extension unless strict."""
+    """Validate project frontmatter; strict excludes Pi-only behavior fields."""
     skill_path = Path(skill_path)
 
     # Check SKILL.md exists
@@ -39,8 +39,10 @@ def validate_skill(skill_path, *, strict=False):
     except yaml.YAMLError as e:
         return False, f"Invalid YAML in frontmatter: {e}"
 
-    # Define allowed properties
-    ALLOWED_PROPERTIES = {'name', 'description', 'license', 'allowed-tools', 'metadata', 'compatibility'}
+    ALLOWED_PROPERTIES = {
+        'name', 'description', 'license', 'allowed-tools', 'metadata', 'compatibility',
+        'title', 'tags', 'version', 'homepage', 'platforms',
+    }
     # Project compatibility: Pi consumes this top-level boolean, not metadata.
     if not strict:
         ALLOWED_PROPERTIES.add('disable-model-invocation')
@@ -107,7 +109,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('skill_directory')
     parser.add_argument('--strict', action='store_true',
-                        help='Use the original local whitelist without Pi extensions')
+                        help='Validate project metadata without Pi-only behavior fields')
     args = parser.parse_args()
     valid, message = validate_skill(args.skill_directory, strict=args.strict)
     print(message)
