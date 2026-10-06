@@ -26,7 +26,9 @@
 
 先读模块自己的 `SKILL.md` 与最窄 reference，但遇到版本冲突时以当前源码和运行时为准。
 
-## 2. 数据模型：9 张表
+## 2. 数据模型：12 张表
+
+2026-10-06 生产实测共 12 表；后三张（round_manifests / result_versions / removal_confirmations）为源码模型已部署，早期“9 表”口径过期。
 
 ### `ai_reviews`
 
@@ -72,6 +74,18 @@
 ### `ai_review_config`
 
 单行 jury 配置：成员与要求票数；实时读取，不依赖进程缓存。
+
+### `ai_review_round_manifests`
+
+每轮评审清单：`review_id+round_no` 唯一、`cl`、`shelf_fingerprint`、`files`(JSON)、`pi_session_id`。
+
+### `ai_review_result_versions`
+
+结果版本：`review_id`、`round_no`、`comment_version`、`execution_token`、`source`、`accepted`、`payload`(JSON)；对应 `GET /ai_review/reviews/<id>/result_versions`。
+
+### `ai_review_removal_confirmations`
+
+文件移除确认：`review_id+round_no+depot_path` 唯一、`confirmed_by`；对应 `POST /ai_review/reviews/<id>/confirm_removals`。
 
 ## 3. API 路由
 

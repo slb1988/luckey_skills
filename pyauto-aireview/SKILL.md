@@ -106,6 +106,15 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 </memory>
 
 <memory category="troubleshooting">
+- 生产 `AI_REVIEW_GROUP_CHAT_ID` 为空（2026-10-06 @auto-server 实测）＝群通知从未启用，全部通知只发私信卡片；“群里没收到通知”先核此键，不是卡片发送失败；`notify_submit_failed()` 收件人中的“评审群”因此实际是空操作。
+- ai_review 后端存在硬编码凭证（LLM key、MySQL 密码、飞书 secret），是已确认缺陷不是样板：轮换凭证必须改源码并重启服务；复刻或改造时必须改 env 注入。
+</memory>
+
+<memory category="code-locations">
+- ASD-STE100 中文复刻手册（2026-10-06 交付）：`luckey/02_notes/toolchain/pyautomation-ai-review-manual.md`——27 项 feature 及验收、12 表与全部配置键的生产生效值、TC buildType 依赖、8 步验收清单；带 文件:行号 的事实底稿在 `.local/aireview-manual/source-facts-report.md`。
+</memory>
+
+<memory category="troubleshooting">
 - 代提交队首阻塞根因（Review 878 堵 927 查明）：评审原 CL 在 P4 已查询不到时，submit worker 把“CL 消失”误判为临时故障，约每 30 秒无限重试并死占队首，后续全部代提交（927、930）被堵。处置 = 管理端正常业务接口结束队首该单，队列即自动放行（927→CL 134731、930→CL 134732），无需手工重提或改库。
 - 重试分类契约：不可恢复错误必须明确失败并释放队列——原 CL 缺失走对账路径，确定性合并冲突（shelf 基线落后 head，如 qa-testcase-workflow/SKILL.md shelf 基于 #13 而 CL 134282 已至 #14）结束自动尝试转人工；仅临时性故障适合有限重试。源码修复由并行会话提交为 CL 1859（179 测试通过），是否已部署以线上版本核实。
 - 文件存在先行提交只说明有合并风险，不构成合并冲突证据；是否冲突以实际 unshelve/merge 结果为准，不能据此提前判死该单。
@@ -118,8 +127,15 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 - 跨轮完整性门禁设计方向见 [known-gaps-roadmap](references/known-gaps-roadmap.md) 2.9。
 </memory>
 
+<memory category="troubleshooting">
+- 快车道 Review 本地不收口根因（Review 1089 / CL 136030→136031 查明）：代提交 `submit -e` 成功后 `review.cl` 被 rename 成提交后 CL 号，而 watcher 发现逻辑 `RequestReview.py::find_review_item_in_items` 只按当前 `cl` 匹配；设计假设提交前必有轮询窗口锁定 review id。
+- 后端 `ai_reviews` 表无 `original_cl` 列，`_review_brief` 只下发当前 cl；original_cl 仅存于 `cl_submitted` activity payload，rename 之后列表接口无法再关联作者的原 CL。
+- script_rule 快车道（`table_export_fastpath.py`，无 AI/编译）全生命周期约 2 秒 < watcher 10 秒发现轮询间隔，窗口被整体跳过 → finalize_sync 与 cleanup_empty_cl 不执行：本地留空壳 pending CL、相关文件 have 落后 head；watcher 空转到 1 小时超时后弹误导提示「CL 长时间未在网页发起 Review」（实为已提交）。
+- AI/编译路径生命周期为分钟级，rename 前必然锁定 id，故仅快车道触发；每个快车道 Review 约 80% 概率复现（2s 窗口 vs 10s 轮询）。正解是发现逻辑按 `cl` 或 `original_cl` 匹配，缩短轮询间隔治标不治本。
+</memory>
+
 <memory category="common-patterns">
-- 收益/打回量化统计的生产库口径边界（2026-09 只读实测）：`ai_review_activities` 有历史状态/决策/编译/AI 活动，但无 round_id，不能可靠关联逐事件轮次；生产库无 round/manifest 业务表（源码有模型未部署）。
+- 收益/打回量化统计的生产库口径边界（2026-09 只读实测）：`ai_review_activities` 有历史状态/决策/编译/AI 活动，但无 round_id，不能可靠关联逐事件轮次；生产库 2026-10-06 实测已部署 round_manifests/result_versions/removal_confirmations（共 12 表，见 backend 参考），此前“9 表/模型未部署”结论过期，但存量历史事件仍无轮次关联。
 - `ai_reviews`/participants/`ai_findings`/`round_token` 都是当前态：findings 刷新会清理替换不能还原历史，`ai_review_jobs`/submit jobs 按 review 单行复用不是尝试历史，当前值不能倒填先前拒绝时的真值；DB 时间为 UTC。
 - rejected 状态 ≠ AI 拦截缺陷：作者自拒、代提交失败、合并冲突也产生打回事件；而 AI reject、编译 failed 只阻塞审批轴，不一定产生 rejected 状态。作者自拒也可能由有效 AI 意见触发。
 - 打回原因跨 `decision_made` 与 `status_changed.payload.reason` 两个来源，汇总必须按唯一活动 ID 互斥归类且合计=总事件数，关联不上保留 unknown；分类计数不闭合的占比表不得发布。
