@@ -99,6 +99,13 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 </memory>
 
 <memory category="troubleshooting">
+- SKILL_INDEX_CHECK=unavailable 降级根因（Review 1097 查明）：DevOps 侧确定性检查自 CL 1851（2026-09-22）在线，但 Collect `_run_builder_probe`（`AiReviewContextCollect.py:995-1001`）用 #head 生成器跑 `--out-dir` 探测，而 MainDev head 生成器无 argv/--out-dir 处理 → 探测 fixture 被就地写入 `.GUI/data` → fail-closed 判 `builder_unsupported`。根因是生成器 --out-dir 能力（原 CL134180）pending 被删、从未入库；修复 = 重建生成器 CL（--out-dir rootDir 零写 + --strict），落地后 unavailable 降级直接消失。
+- 五态契约无闸门（现行规则自 CL 134397 入库）：`unavailable`/`skipped` 态只规定人工四点核对义务，无 severity floor、无「未验证→不得 approve」条款；检查点 1 失败无 severity/verdict 映射（四点中仅检查点 4 手改痕迹写了直接打回）。模型在 unavailable 下披露「未核对」后给 low 严格符合规则字面——压低 verdict 须在 Publish 做确定性兜底（unavailable+触索引 → 强制 high+reject/risk100），只改规则文本不够。
+- 幽灵条目事故实证（检查点 1 描述的事故真实发生）：audio-grill、audio-qc-workbench、yue2-workbench 三个 SKILL.md 从未在 depot（p4 fstat 实证），系脏工作区扫描进索引；下一班重生成（SKILL.index.json#564 / CL 136104）全部静默消失。凡是「新增条目但 file 本体不在本 CL」必须 p4 fstat 核 depot 存在，确认不在 = 至少 high+reject。
+- 修复计划已更新于 `.claude/plans/AiReview-SKILL索引一致性确定性检查.md`（MainDev 生成器重建、pl-review 规则 6 处修订、Publish 确定性兜底、2026-09-22 起触索引且 approve 的窗口审计）。
+</memory>
+
+<memory category="troubleshooting">
 - 代提交失败通知轰炸的根因二分（Review 726 等查明）：直提失败（approve 期间 head 前进 out-of-date、作者 client 仍开着文件）是正常业务（约占 60%），按设计进 `_auto_merge_submit` 兜底；真正致灾的是兜底自身两个缺陷。
 - `p4_adapter.prepare_merged_cl()` 的 sync 步用裸 `admin.run`，而 P4Python 默认 `exception_level=2`——warning 级输出 `file(s) up-to-date.` 也抛异常、炸掉整个合并（bot workspace haveRev 有历史残留时几乎必触发）。同文件 `_run_capture`（exception_level 临时置 0）就是干这个的但此处未用；正确性由 `_verify_have_revs` 兜底。
 - 作者原 CL 仍持有 +l 独占文件时，bot workspace unshelve 报 `can't edit exclusive file already opened`，auto-merge 同样必败，需独立处置策略。
