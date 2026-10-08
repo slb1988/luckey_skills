@@ -19,6 +19,12 @@ description: "编排纪律与 orca-coordinator 外挂（dispatch/wait/ack/settle
 5. worker_done 后处理整批 Delivery 的每条消息再 ack；question 必回，release 前校验
    taskId+dispatchId。
 
+<memory category="core-rules">
+- `worker-start --spec` 可不建 task 直接派发，但前提是发起终端已绑定 Run；未绑定时派发失败、
+  不建 run（事后表现为 run 列表没有新 run）。直派顺序固定为：建 Run → 绑定终端 → worker-start。
+  排障时看派发输出的头部报错，tail 截断会漏掉。
+</memory>
+
 ## orca-coordinator 外挂
 
 脚本：`<skill 目录>/orca_coordinator.py`（Python 单文件，stdlib）。
