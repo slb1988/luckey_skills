@@ -73,6 +73,10 @@ pi-btw 扩展同步基线：从 narumiruna/pi-extensions 的 commit `0eb67035f39
 `SessionManager.listAll()` 会**递归扫描** `~/.pi/agent/sessions/` 的所有子目录，凡是 `.jsonl` 结尾的文件都会进会话列表——所以批量清理会话时不能把裸 .jsonl 挪进 `backup/` 之类子目录（会以伪项目 `backup` 重新污染列表）。既定约定：打包成 `.tar.gz` 存 `~/.pi/agent/sessions/backup/`，先校验归档再删原件，并在该目录 `README.md` 的 Records 节登记。auto-skill extraction 子会话曾是主要污染源（累计数千个），2026-08 已修根因：extraction 子会话改用 `SessionManager.inMemory()`，不再落盘；之后再看到 extraction 会话说明扩展是旧版，从 MainDev 同步 auto-skill 即可。
 </memory>
 
+<memory category="troubleshooting">
+pi 切到官方 `anthropic/claude-*` 模型即 400 `invalid_request_error`："Third-party apps now draw from your extra usage, not your plan limits"。**已确认根因：Anthropic 服务端计费政策变更**——第三方应用（pi 用 Claude 订阅 OAuth token 直连官方 anthropic provider）改扣预付 extra usage 余额、不再吃订阅 plan 额度，余额为 0 即整轮拒绝；第一方 Claude Code 客户端仍走 plan 额度。**服务端强制判定，客户端没有任何配置可绕过/拒绝**。处置二选一：claude.ai/settings/usage 充值 extra usage；或 pi 内弃用官方 anthropic provider，`/model` 改选 `pl-anthropic/kimi-k3`（本机网关 192.168.2.13:8600）或 `openai-codex/*`，并把 `anthropic/claude-*` 从 `~/.pi/agent/settings.json` 的 `enabledModels` 移除防误选。
+</memory>
+
 <memory category="common-patterns">
 
 ## chat-hub 微信桥事务与外发契约
@@ -123,3 +127,4 @@ chat-hub 身份子系统结构（2026-09 排查确认）：逻辑身份按聊天
 - `ws:<name>` 报 unknown workspace / no local binding → 见 [references/troubleshooting.md](references/troubleshooting.md) 第 6 节。
 - `workflow` 编排的 agent() 全部秒回 null（subagent 未启动）→ 见 [references/troubleshooting.md](references/troubleshooting.md) 第 8 节（tier 模型 `undefined.create`）。
 - Windows 下 `pi update` 报 `cannot self-update`（npm 全局 prefix 漂移）或 `EBUSY win32-platform.node`（其他 pi 进程持锁）→ 见 [references/troubleshooting.md](references/troubleshooting.md) 第 10 节。
+- `anthropic/claude-*` 报 400 "extra usage, not your plan limits" → Anthropic 第三方应用计费政策变更（服务端强制，无客户端绕过），见上方 troubleshooting memory。
