@@ -243,6 +243,6 @@ load_diff → trigger_compile → tc_inflight → await_compile → analyze
 - notification/comment/no-review-channel；
 - P4 adapter、diff cap、submit validation。
 
-相关 gate 测试位于 `tests/unit/p4_trigger_validate/`；RequestReview 客户端测试位于 `tests/unit/test_request_review*.py`；TeamCity DSL 有独立结构/步骤测试。
+相关 gate 测试位于 `tests/unit/p4_trigger_validate/`；RequestReview 客户端测试已随 13-depot CL 1827 退役迁往 236 depot，与源码同仓：`//depot/DevOps/test_request_review*.py`（按路径 import 同目录 `dist/RequestReview.py`）；TeamCity DSL 有独立结构/步骤测试。
 
 先跑与改动直接相关的定向测试，再按风险决定完整 AI Review suite。测试进程不得连接生产 DB/P4/通知/callback；任何真实集成动作都需用户单独授权。
