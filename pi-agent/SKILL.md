@@ -31,6 +31,10 @@ description: Pi agent（pi，@earendil-works 的 coding agent）使用与排障�
 内置模型目录给每个模型标了默认 `contextWindow`（如 `openai-codex/gpt-6-astra` = 272000，该值同时是长上下文计价分界），这是 pi 侧配置值而非服务端/硬件限制。覆盖入口：`~/.pi/agent/models.json` 的 `providers.<provider>.modelOverrides.<modelId>.contextWindow`（如设 1000000），改完 `/model` 重选或重启生效，`pi --list-models <关键字>` 验证。三个坑：(1) **不要改 `models-store.json`**——会被刷新的缓存；(2) `maxTokens` 是最大输出长度，与上下文窗口无关，别动；(3) override 只影响 pi 的上下文显示和自动压缩阈值，**不能解除服务端实际上下文上限**，超限请求照样被拒，且长上下文消耗更多额度。
 </memory>
 
+<memory category="common-patterns">
+gpt-6-astra（openai-codex provider，ChatGPT Codex 后端）的「极速/Fast mode」= 请求 payload 里的 `service_tier: "fast"`；Fast 档按 **2x 配额**消耗，pi 计费已内置该倍率，会话成本显示即真实档位。pi 无配置开关：`modelOverrides` 只支持 contextWindow/cost/samplingParams 等键，**不支持 `serviceTier`**；`gpt-6-astra-fast` 变体只存在于 Vercel AI Gateway 目录，openai-codex 渠道选不到。可行注入点：pi 核心把 Codex 请求 payload 经过 `before_provider_request` 扩展事件，handler 返回修改后的 payload 即可注入字段（按 `payload.model` 过滤目标模型）。现成实现：全局扩展 `~/.pi/agent/extensions/astra-fast.ts`（默认开，`/fast` 命令切换；Windows 对应 `C:\Users\admin\.pi\agent\extensions\`），扩展改动需重启 pi 生效。
+</memory>
+
 <memory category="troubleshooting">
 `ws:` 路由（`.pi/extensions/workspace-routing` → `.claude/scripts/agent_control/agentctl.py`）先从共享 catalog `.claude/agent-control/workspaces.json` 与本机 `workspaces.json` 匹配 workspace 名称，再解析本地绑定/远程路由；机器路径绑定不共享。
 已确认的漏发现根因：`list_workspaces()` 只合并 catalog 与本机 bindings；`resolve_workspace()` 对二者之外的新名称先报 `unknown workspace`，到不了后面的只读 Orca fallback。**Orca repo/worktree 已登记，不代表 workspace 可发现**。
