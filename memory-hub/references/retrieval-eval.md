@@ -43,6 +43,37 @@ release 只做明确授权的运维。
 `SyncStaticMeshAssetMetaDT`、删除 10 行、最终 214 行；v1 只返回工具机制，属于取错，
 不是存错。超时配置与 thinking 配置两个成功 case 的原文也完整。
 
+## 在线召回"漏了大头"的分层定位（stage-A/B slots 管线）
+
+"存错/取错"六步解决存侧与 v1/v2 检索层；slots 管线（policy `v2-fts-stage-ab-slots-…`）的
+取错侧要再分五层。第一证据源是本地审计文件
+`~/.local/state/memory-hub-hook/recall-results/<agent>/<project>/<ts>Z-<session_id>-<retrieval_id>.md`
+——含最终注入原文、context_stats、原始 prompt、实际 query、policy_version 与 stage_a/stage_b
+完整结构化审计 + 服务端原始响应；只有 `injection_context` 进入模型，其余仅供审计，
+定位一次漏召回不需要服务端访问。
+
+<memory category="common-patterns">
+search-v2 llm 模式漏斗（service.py / retrieval_judge.py 定版语义）：fusion 池 top-30
+（`candidate_limit = min(max(limit×3, 20), 30)`）→ judge 池 10 条
+（`select_memory_results_for_llm_judge`：词面前缀 + 最多 2 个 correction rescue + 最多 3 个
+主题覆盖位——目标在 top-30 内也可能被挤出 10 槽）→ Stage A 逐条判 0–3，kept = rating ≥
+min_rating（默认 2）→ 确定性后处理 → Stage B 只接收 kept 源 → reconcile 按槽位对账 →
+渲染注入（预算 4000 字符）。分层判读（对审计文件逐项核对）：
+1. `stage_a.judgments` 找不到目标 result_id → fusion/judge 池层（FTS miss 或 10 槽挤压）。
+2. 有 judgment 但 rating<2 → judge 拒绝层。被拒项 evidence/rationale 为空是契约设计
+   （低分不要求引用）；要看被拒候选是什么，只能拿 result_id 调 `GET /v1/memories/{id}`。
+3. judgment 出现 `model_rating` ≠ `rating` → 被结构层改分：`task_navigation.origin=
+   structural_floor` 是 navigation_floor 保底提升（`retrieval_navigation_floor_enabled`
+   默认 False，policy_version 含 `floor1` 才启用；有 conflict 的不提升，见 audit 的
+   `navigation_floor.promoted_ranks`）；conflict 注「已自动降级」是 enforce_slot_support
+   把不支撑任何槽位的高分项压到 min_rating−1。
+4. 过了 A 但不在 `stage_b.input_sources` / 被列入 excluded_source_ids → Stage B 层。
+5. `stage_b.items` 有而 `rendered_items` 没有 → 渲染层：`status=unknown`（source_ids=[]）的
+   槽位仅供审计、绝不注入；同结论按指纹去重，多槽位并成一条并追加「；{槽位}：同一结论」；
+   单行超预算被逐条跳过（看 context_stats.chars vs max_chars）；conclusion/label 命中
+   元数据正则（UUID、session_id 等）则整个渲染 fail-closed 返回 None（表现为 suppressed）。
+</memory>
+
 ## 运行命令
 
 先验证黄金集格式：
