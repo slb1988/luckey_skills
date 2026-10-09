@@ -216,7 +216,7 @@ load_diff → trigger_compile → tc_inflight → await_compile → analyze
 - 一次明确失败后停止，不套 AI worker 自动重试；
 - `SubmitOutcomeUnknown` 写 manual_required，禁止猜测最近 CL；
 - stale running 用只读 `cl_state` 对账成 done/requeue/manual；
-- sweep 只做 ghost/CL-missing 对账，不是循环 submit。
+- sweep 只做 ghost/CL-missing 对账，不是循环 submit；但 ghost 补入队不查 `integrity_state==blocked`，被完整性门禁 blocked 的单会被当幽灵单无限补入队（每 10 分钟一条 `integrity_gate_blocked` 活动并刷新 update_time），详见 SKILL.md 代提交完整性门禁 blocked 死循环条。
 
 详细业务见 [decision-submit-notification](decision-submit-notification.md)。
 

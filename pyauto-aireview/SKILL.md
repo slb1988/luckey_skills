@@ -128,6 +128,12 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 </memory>
 
 <memory category="troubleshooting">
+- 代提交完整性门禁 blocked 死循环根因（Review 1157 / CL 136348 查明）：作者把文件撤出 shelf 时，门禁拿前轮 manifest 留存的 shelf sha256 核该文件当前 head 内容，不一致即 fail-closed 拦截（`head content differs from the removed shelf revision`）；SKILL.index.json 这类自动化高频维护文件（head 持续前进）即使撤出本身安全也必触发。
+- 唯一放行通道 `POST /ai_review/reviews/<id>/confirm_removals` 要求 reviewer 确认；自批单参与者只有作者 + `__ai__`，无人有资格确认 → 永久卡住（设计缺口）。运行时解锁 = 先加一名人工 reviewer 再调 confirm_removals，确认后自动重触发代提交，无需重跑 review。
+- 两个补偿缺陷使 blocked 单永续循环：`submit_retry_sweep`/`_reconcile_ghost_submit` 补入队前不查 `integrity_state==blocked`，blocked 单被当幽灵单每 10 分钟重复补入队，每次拦截新记一条 `integrity_gate_blocked` 活动并刷新 update_time 续期宽限（1157 已 130+ 条且仍在循环）；且 blocked 状态零通知，作者完全无感知。
+</memory>
+
+<memory category="troubleshooting">
 - 续评文件流失放行根因（Review 892 查明）：续评续接前轮原生 Pi session，且本轮 `review_input.md` 明文允许"此前轮次的 findings 与代码分析结论可复用"；但输入只含当前 shelf 文件清单，无结构化跨轮 added/removed 对账，文件减少全靠模型自行发现。
 - 已确认的误判模式：模型为文件减少编造解释，把本轮 `baseline_cl` 当作"被移除文件已随该 CL 提交出库"的证据（892 中声称 CL 134463，实为无关关卡资源），随后围绕"上轮唯一 high 已修复"收口 approve 并自动提交。`baseline_cl` 只是本轮评审基线，不构成任何文件去向证明；"已在其他 CL 提交"类声称必须回查 P4 文件级内容核实。
 - 排查锚点：后端 refresh 日志记录 `kept:N removed:M`，是文件数变化的权威证据；代提交 CL 与提交时 shelf 一致即可排除"代提交漏交"；TC artifact 的 `runner_manifest.json` 可证是否续接前轮 session（该轮 transcript 未留存，模型实际验证命令无法复核）。
@@ -139,6 +145,13 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 - 后端 `ai_reviews` 表无 `original_cl` 列，`_review_brief` 只下发当前 cl；original_cl 仅存于 `cl_submitted` activity payload，rename 之后列表接口无法再关联作者的原 CL。
 - script_rule 快车道（`table_export_fastpath.py`，无 AI/编译）全生命周期约 2 秒 < watcher 10 秒发现轮询间隔，窗口被整体跳过 → finalize_sync 与 cleanup_empty_cl 不执行：本地留空壳 pending CL、相关文件 have 落后 head；watcher 空转到 1 小时超时后弹误导提示「CL 长时间未在网页发起 Review」（实为已提交）。
 - AI/编译路径生命周期为分钟级，rename 前必然锁定 id，故仅快车道触发；每个快车道 Review 约 80% 概率复现（2s 窗口 vs 10s 轮询）。正解是发现逻辑按 `cl` 或 `original_cl` 匹配，缩短轮询间隔治标不治本。
+</memory>
+
+<memory category="troubleshooting">
+- RequestReview 二次发起 shelve -r 覆盖丢文件根因（Review 1167 / CL 136406 查明）：首次 launch shelve 成功后 `revert -w` 把文件还原出工作区（评审期 shelf 是唯一内容副本）；评审中往 CL 补拖文件再点 Request Review，`ensure_shelved` 的 `p4 shelve -r -c <cl> -Af` 以当前 open 集合整体替换 shelf——open 只剩新拖入文件，原 shelved 副本全部销毁。逻辑 bug 非时序竞态；修复并重新分发前，「评审中补文件再点 Request Review」是 team-wide 数据丢失风险。
+- 漏洞形状：shelf-only 复用路径只覆盖零 open 文件；「上轮 shelf 留存 + 本轮新 open」的混合状态落 replace 路径即丢数据。launcher 二次发起不查后端同 CL 非终态 review、不走 refresh 通道（refresh 已有 shelf_fingerprint + removal_confirmations 门禁，可强制导入复用）。
+- 诊断锚点：launcher 逐 launch 时序在 `%LOCALAPPDATA%\Epic Games\RequestReview\watch.log`；本地「字节快照」只是 SHA-256 摘要、不作内容备份，内容级恢复只剩后端 `ai_review_files.diff_content` 快照（截断/基线限制见前述快照条）。
+- 修复方案见 ObsidianVault 仓 `.claude/plans/RequestReview二次发起shelf覆盖丢文件.md`（shelve -r 守卫 + launcher in-flight 检查 + watcher restore 对账）；修复经 dist 自更新链重新分发到各机 P4VUtils 才生效。
 </memory>
 
 <memory category="common-patterns">
