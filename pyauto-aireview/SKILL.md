@@ -160,6 +160,8 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 - rejected 状态 ≠ AI 拦截缺陷：作者自拒、代提交失败、合并冲突也产生打回事件；而 AI reject、编译 failed 只阻塞审批轴，不一定产生 rejected 状态。作者自拒也可能由有效 AI 意见触发。
 - 打回原因跨 `decision_made` 与 `status_changed.payload.reason` 两个来源，汇总必须按唯一活动 ID 互斥归类且合计=总事件数，关联不上保留 unknown；分类计数不闭合的占比表不得发布。
 - Pi/TC 主路径模型 usage 未完整回写，token 为 0 或无值可能是缺失而非零消耗。完整量化方案与基线见 ObsidianVault 仓 `.claude/plans/AIReview-Value-Metrics.md`。
+- P0 只读报表已固化（2026-10-09）：`auto-server:/home/dev/aireview_metrics/p0_report.py`（凭据从 prod.py 解析不落脚本，READ ONLY 事务兜底）；首报（9/9–10/9 队列 N=890）打回分类首次闭合（139 事件 unknown=0）：作者自拒 94 / auto-merge 25 / reviewer 15 / 冲突 4 / admin 1。
+- 两个数据坑：activities 与 reviews 的 P4 用户名大小写不一致（如 shenshuo vs ShenShuo），跨表比较必须大小写不敏感；判作者自拒优先用 decision_made payload 的 `self_reject`/`role` 可核实字段。`compile_finished` 存在 `refresh_superseded` 变体（payload 无 result 键），不计入 passed/failed 任一结果。
 </memory>
 
 ## 修改与交付
