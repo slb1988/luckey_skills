@@ -1,7 +1,9 @@
 # Memory Hub 已知 Project 一览
 
-Memory Hub 提供 `GET /v1/projects` 列出已知 project（含 memory/session 计数与最近活动时间），检索前优先调用它；
-本表记录每个 project 的用途，**发现新 project 时追加**。
+Memory Hub 提供 `GET /v1/projects` 列出已知 project（含 memory/session 计数、最近活动时间、
+**简介与归并名单**），检索前优先调用它；Pi 扩展用 `memory_projects` 工具可查同一份目录。
+**简介与归并沿革以服务端 `project_profile` 为准**（dashboard `#projects` 页维护/生成简介）；
+本表只补充背景说明，**发现新 project 时追加**。
 
 检索时的规则：
 
@@ -89,6 +91,10 @@ Memory Hub 提供 `GET /v1/projects` 列出已知 project（含 memory/session �
 `--existing-map` + `--skip-existing` 跳过，避免双轨重复。
 2026-08 Codex 归档（238 sessions）同轨执行：`--hook-namespace`（agent-id 默认 codex），
 别名全部由安装的 JSON 提供，无需 CLI 传入；LLM 判定 35 个低价值会话未上传。
+
+## Project 归并（治理碎片 project 的既有入口）
+
+project 过多/碎片化时**不需要新写管线**，归并能力已存在：服务端 `POST /v1/project-merges`（merge 只建映射、可逆；另有固化/consolidate 操作），dashboard `#projects` 页（`https://luckeyhome.site/memory-hub/#projects`）已有合并/解除/固化 UI。2026-09 盘点根 project 一度达 51 个，大量碎片来自 catch-all 残留（如旧 `sun`）与一次性 scratch cwd，治理时优先归并到 `agent-history` 等兜底盘。
 
 ## scope 速查
 
