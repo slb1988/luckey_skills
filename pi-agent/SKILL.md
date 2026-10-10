@@ -13,12 +13,14 @@ description: Pi agent（pi，@earendil-works 的 coding agent）使用与排障�
 |------|------|
 | 全局配置 | `~/.pi/agent/settings.json` |
 | 全局模型/提供商配置 | `~/.pi/agent/models.json`（`modelOverrides` 覆盖内置模型参数；`models-store.json` 是缓存勿改） |
+| 全局 MCP servers | `~/.pi/agent/mcp.json`（严格 JSON：注释/尾逗号/BOM/空文件均非法） |
 | 全局扩展（单文件 .ts） | `~/.pi/agent/extensions/` |
 | 全局 npm 包 | `~/.pi/agent/npm/node_modules/` |
 | 系统全局 npm 包 | `/opt/homebrew/lib/node_modules/` |
 | 调试日志 | `~/.pi/agent/pi-debug.log` |
 | 会话历史 | `~/.pi/agent/sessions/` |
 | 项目配置 | `<project>/.pi/settings.json` |
+| 项目 MCP servers | `<project>/.pi/mcp.json`（同名条目可覆盖/禁用全局注册） |
 | 项目扩展 | `<project>/.pi/extensions/` |
 
 ## 参考文档
@@ -122,8 +124,17 @@ chat-hub 身份子系统结构（2026-09 排查确认）：逻辑身份按聊天
 编程式续接 Pi 会话（按 UUID resume）时，调用方必须自行预校验 session 文件存在且非空：文件缺失或为空会被 Pi **静默**当作全新会话启动——不报错、不警告，历史上下文直接丢失，无法靠 Pi 的错误信号发现 resume 失败。本地无网络探针 24 项断言验证（2026-09，AI Review 会话续接调研）；应用实例：DevOps AI Review Runner 的 `Review.id ↔ Pi session UUID` 一对一绑定，方案见 `.claude/plans/AIReview会话续接与MemoryHub接入.md` §10。
 </memory>
 
+<memory category="troubleshooting">
+REA（npm 包 `rea-agents`，reverse-engineer-anything）`setup --client pi` 报不支持的根因：**npm 发布版（≤6.3.0）不含 pi 客户端**（只有 omp/claude/codex 等），pi 支持只在 GitHub main 未发布——main 的 README 已写 pi 安装步骤，容易误以为 npm 版可用。本机处置（2026-10）：clone main 到 `/Users/sun/Documents/GitHub/rea`（基线 commit bdddddcc）`npm ci` 构建后全局 link，**全局 `rea` 是指向该 clone 的符号链接，删目录即全局命令挂掉**；待 npm 发布含 pi 的版本后 `npm i -g rea-agents@latest && rea setup --client pi --yes` 切回官方渠道。rea 要求 Node 22.19+/24.11+/26+。
+</memory>
+
+<memory category="common-patterns">
+REA↔Pi 注册形态：setup 只写 user scope——`~/.pi/agent/mcp.json` 的 `mcpServers.rea`（stdio，命令 `rea mcp`）+ skill 装到 `~/.agents/skills/reverse-engineer-anything/`；项目级 `.pi/mcp.json` 的同名条目可覆盖/禁用 user 条目（user 注册 aligned 但某项目里 rea 不可用时先查它）。`rea doctor --client pi` 的健康判据是 registration+skill aligned；`environment_healthy:false` 仅表示可选原生二进制分析引擎（Ghidra/IDA/Hopper）未配，JS/Electron/网站/.NET 静态分析开箱即用（要 Ghidra 设 `GHIDRA_INSTALL_DIR`）。改动 MCP 配置后已开的 pi 会话需 `/reload` 才加载；Pi 无 profiles，`OMP_PROFILE`/`PI_PROFILE`/`PI_CONFIG_DIR`/enabledServers 均不影响注册，目标目录由 `PI_CODING_AGENT_DIR` 决定。
+</memory>
+
 ## 快速排查
 
+- `rea setup --client pi` 报不支持 / rea 命令突然消失 / 某项目里 rea 不可用 → 见上方 REA 两条 memory。
 - 扩展加载失败，先 `pi -ne`（无扩展启动）确认是扩展问题还是 pi 本身问题。
 - 报错细节看 `~/.pi/agent/pi-debug.log`。
 - 扩展冲突 / 插件卸载 / 配置问题 → 读 [references/troubleshooting.md](references/troubleshooting.md)。
