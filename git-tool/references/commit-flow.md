@@ -41,6 +41,8 @@ git -C <submodule_path> add -A
 git -C <submodule_path> commit -m "update: <由改动内容自动生成的简短描述>"
 ```
 
+> **skills 仓库例外**：仓库内长期存在运行残留 untracked 文件（见文末「Scoped 提交的残留甄别」），scoped commit 时不要 `add -A`，改为精确 stage 目标文件。
+
 **Step 5：推送 submodule**
 
 ```bash
@@ -72,3 +74,15 @@ git -C <repo_root> push origin $(git -C <repo_root> branch --show-current)
 <submodule_path>：已提交并推送（<commit hash 前7位>）
 主库：submodule 指针已更新并推送（<commit hash 前7位>）
 ```
+
+---
+
+## Scoped 提交的残留甄别（2026-10 实测）
+
+skills 仓库长期存在一批运行残留 untracked 路径，**不属于 skill 本体，不要提交**：
+
+- `memory-review/`：`*.log`（drive/scan）、`decisions_*`、`review_packet*`、`receipts_*`、`run_*/` 等工作文件
+- `daily-report/logs/`
+- `vscode-as-workspace/`（skill-eval 工作区；同类 `*-workspace` 目录在 `.gitignore` 已有先例，残留模式稳定后也可补进 `.gitignore`）
+
+**untracked 文件的入库判定**：先查是否被 tracked 文档/代码引用——被引用的必须随 commit 入库（实测：`daily-report/scripts/run_scheduled.ps1` 与 `scheduled_prompt.txt` 被 `references/scheduled-automation.md` 引用，漏交会破坏文档引用）；纯运行产物一律不提交。
