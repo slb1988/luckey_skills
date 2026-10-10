@@ -57,3 +57,12 @@ Perforce have-list 不保留已同步删除的文件；目标 CL 只有删除时
 2. **pi 模型歧义（首次失败的来源）**：agent 上多 provider 都有 kimi-k3（anthropic/opencode-go 已认证），裸名报 `Model "kimi-k3" is ambiguous across providers`。修复：`env.PI_MODEL` 用 `anthropic/kimi-k3`（provider 前缀）。探测 agent pi 环境的方法：临时给 TaskPrintP4Ignore 挂诊断步骤（`pi --version`、`pi --list-models kimi`、`pi auth print-api-key --provider X` 探测认证、打完即撤）；**单独触发带 `%reverse.dep.*.DefaultAgent|.*%` 参数的任务会 "no compatible agents"——必须经 Flow 触发或在 trigger 里显式传参**（reverse.dep 由 Flow 顶层定义提供）。
 
 其他：pi 评审步骤已改 session 落盘（`--session-dir Saved/ai_review/sessions`，随 artifactRules 发布）；**不要加 `--session-id`**——新建会话时 pi 会向 stdout 打 warning 行，污染 pi_out.txt 使整体 JSON 解析失败，且 extract_json 的倒序 raw_decode 扫描会误抓评审 JSON 尾部无 verdict 的嵌套 findings 对象（build 14242 "invalid verdict: None"）——publish 脚本 step-3 已修（CL 126229：跳过无 verdict 键的 dict）。用户本地 pending CL 126136 修复了 Collect 脚本拉编译日志的 406（/snapshot-dependencies 子资源端点在 TC 2026.1 上 406，须用 builds 资源 fields 形式）。端到端验证：14265（UELinux 增量 SUCCESS）+ 14266（verdict=approve risk=12，session jsonl 落盘）。
+
+## PL_SmokeTest 红 = 先查 WinTest1 显卡状态，别当代码回归（2026-10 实证）
+
+**配置配对（无备选）**：`PL_SmokeTest` 只兼容 **WinTest1** 一台 agent——机器故障期间该配置必然持续红，无法迁移到其他构建机。其「Run Smoke Test」步用 Gauntlet 启动 EditorGame 跑 SmokeTestMap，**硬性要求真实 GPU 提供 D3D12 RHI**。
+
+**GPU 掉卡的失败签名**（与代码回归的区分点：挂在 RHI 初始化阶段，游戏代码尚未执行）：
+`D3D12CreateDevice failed with code 0x887A0004`（DXGI_ERROR_UNSUPPORTED，重复数次）→ `Found D3D12 adapter: Microsoft Basic Render Driver`（只剩 0MB 显存软件渲染器）→ `Failed to choose a D3D12 Adapter` → Gauntlet OperationalException，ExitCode=152。该签名横跨多个 CL 区间逐字一致即可排除 CL 引入，代码库无需改动（build #1505–1507 跨三个 CL 区间同签名实证）。
+
+**根因环境**：WinTest1 是 RDP 远程管理机（成功构建的 LogInit 可见 `GPU: Microsoft Remote Display Adapter`），独显（RTX 3060）可在无人值守窗口从系统枚举中消失——Windows Update 夜间替换驱动、驱动崩溃被系统禁用（设备管理器 Code 22/43）、硬件掉卡皆可能。修复动作全在机器侧（启用设备 / 重装或回滚驱动 / 重启 / 查 PCIe 接触），恢复后用 dxdiag 验证 D3D12 可用再重跑。

@@ -76,3 +76,11 @@ DNS 调用无限阻塞（纯标准库 urllib 客户端问题，与服务端无�
 不能「杀掉后直接重跑」。`stacks.txt` 无法强制结束底层等待是已知限制。
 清理「wedged」python 进程前先核 CreationDate + 0 TCP——tasklist 里命令行相同的进程可能是
 几天前同命令行的残留（2026-09-23 实证两个 9/21 残留 scan 进程），误杀会毁掉仍在跑的 run。
+
+## 已知本地崩溃：state 原子保存撞 Windows 瞬时文件锁（WinError 5）
+
+`os.replace(state.json)` 可能被瞬时文件锁拒绝（PermissionError WinError 5，疑似 Defender/索引器），
+驱动带栈**直接退出**——与上节 getfqdn wedge（进程活着、0 TCP、无日志）症状相反，别按停滞处置。
+原子替换失败时旧 state.json 完好、已提交轮次的 decisions/receipts 也都在盘上，不构成 state 损坏；
+按「run 目录与中断恢复」标准流程处置即可（只读核对回执 → 确认旧进程已停 → 删 run.lock →
+同一命令恢复），未尝试项不丢。2026-10-09 实证：round 6 后崩溃，恢复后跑完剩余 11 条。

@@ -113,6 +113,12 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 </memory>
 
 <memory category="troubleshooting">
+- 代提交失败误报根因（CL 136681 查明）：同一 review 可被并发重复执行 `submit_shelved_cl`（`ai_review_submit_jobs.review_id` UNIQUE 不覆盖并发执行本身）；自批后两个并发执行中，先看到 shelf 已被消费者报 `does not have shelved files` 并给全 admin 发失败 DM，另一执行 19 秒后成功 rename 为 CL 136995 入库——**收到失败通知不代表提交失败，先核 P4 回执/rename 再处置**。根治方向 = per-review 提交锁。
+- 通知链锚点：`submit_worker.py:632/634` 失败 → `service.py:2473` emit('submit_failed') → `notification.py:708` 订阅器 → `notify_submit_failed()`（`notification.py:601`；`:608` role=1 全 admin、`:610` 与作者并集、`:625` 逐个私信）。无配置开关。
+- `does not have shelved files` 属不可恢复错误但未分类，不走 `_reject_review_for_submit_failure`（`service.py:2458`，auto-merge 确定性冲突同款自动打回路径）；一次失败即停后，唯一放大器是人工「重试提交」（`api.py:1194` → `retry_submit` 无次数限制），每点一次重新入队再发一轮 DM。2026-10 实测 30 天 107 次 ≈ 3.5/天（out-of-date 39 / no files 33 / +l 锁 21 / no shelved files 11）。
+</memory>
+
+<memory category="troubleshooting">
 - 生产 `AI_REVIEW_GROUP_CHAT_ID` 为空（2026-10-06 @auto-server 实测）＝群通知从未启用，全部通知只发私信卡片；“群里没收到通知”先核此键，不是卡片发送失败；`notify_submit_failed()` 收件人中的“评审群”因此实际是空操作。
 - ai_review 后端存在硬编码凭证（LLM key、MySQL 密码、飞书 secret），是已确认缺陷不是样板：轮换凭证必须改源码并重启服务；复刻或改造时必须改 env 注入。
 </memory>
@@ -152,6 +158,12 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 - 漏洞形状：shelf-only 复用路径只覆盖零 open 文件；「上轮 shelf 留存 + 本轮新 open」的混合状态落 replace 路径即丢数据。launcher 二次发起不查后端同 CL 非终态 review、不走 refresh 通道（refresh 已有 shelf_fingerprint + removal_confirmations 门禁，可强制导入复用）。
 - 诊断锚点：launcher 逐 launch 时序在 `%LOCALAPPDATA%\Epic Games\RequestReview\watch.log`；本地「字节快照」只是 SHA-256 摘要、不作内容备份，内容级恢复只剩后端 `ai_review_files.diff_content` 快照（截断/基线限制见前述快照条）。
 - 修复方案见 ObsidianVault 仓 `.claude/plans/RequestReview二次发起shelf覆盖丢文件.md`（shelve -r 守卫 + launcher in-flight 检查 + watcher restore 对账）；修复经 dist 自更新链重新分发到各机 P4VUtils 才生效。
+</memory>
+
+<memory category="troubleshooting">
+- RequestReview 占用中止后「再点无反应」死锁根因（CL 136952 查明；前科 CL 136637 同死法，系统性缺陷非偶发）：首次发起 shelve 用 `p4 shelve -Af -c <cl>`，`-Af` 只是「只 shelve 文件」选择符、不是 force（源码注释误称「追加刷新」）；一旦 CL 上留有 shelf，之后每次发起都被服务器拒 `already shelved, use -f to update`（rc=1）→ 脚本判死 exit 1。
+- 死锁闭环：首次点击 shelve 成功后检测到文件被 UE 占用 → 弹框中止，但 shelf 完整留在 CL 上（设计如此）→ 第二次起永远死在 shelve 步，走不到占用检查/开网页，关掉 UE 解除占用也不自愈；只有手动 `p4 shelve -d -c <cl>` 删残留 shelf（或 revert）才能恢复。
+- 静默放大器：该 rc=1 失败路径只 print 不调 `notify_user` 弹框，而 P4V「Request Review」自定义工具不开控制台窗口 → 用户观感是「点了毫无反应」（watch.log 有 `launcher abort: shelve failed` 但无 POPUP 行）。修复方向 = shelve 加真 `-f`、already-shelved 走 coverage 校验视为成功、发起前中止路径补弹框。
 </memory>
 
 <memory category="common-patterns">

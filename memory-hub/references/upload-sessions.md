@@ -53,6 +53,12 @@ Orca worker 被 release 秒杀（run 中途杀进程，agent_end/SessionEnd 都�
 troubleshooting.md「Orca worker 会话零 capture」）。本机由 Orca automation `memory-hub-sweep`
 每日 05:30 执行（ObsidianVault workspace，provider pi）。
 
+输出解读（回报/告警时按此判断，勿把 exit 1 当脚本崩溃）：
+- 退出码：`return 1 if failed else 0`——**exit 1 仅表示 failed>0**，脚本本身正常跑完；SUMMARY 行才是结果本体。
+- `probe HTTP <code> <sid> — 本轮跳过`：Hub 探测失败（HTTP -1 = 网络层连不上 Hub），**不计入 failed**，下轮自动重试；一批 probe 失败集中出现时说明当时 Hub 连通性异常。
+- `failed <sid>` 行**不带错误文本**（upload_sessions.py 的 stderr 不外传）；要查真实原因需对该 sid 单独手跑 upload_sessions.py。
+- failed/probe 跳过均非终态，不污染 sweep-state.json 终态标记，下轮 sweep 自动重试，无需人工清理 state。
+
 ## 幂等保证
 
 对包装后的归档文档（`agent-session-archive/1`，服务端要求 session 文件必须是合法 JSON，

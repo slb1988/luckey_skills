@@ -1,114 +1,356 @@
 {
- "removals": [],
  "approvals": [
   {
-   "review_id": "01a0b2c8-b2a4-7441-8272-622ccbf47594",
+   "review_id": "01a12458-d7db-7309-aaef-f6ad23635eb7",
+   "memory_id": "01a12458-b3f3-7241-868f-7e0a0155b710",
+   "group_id": "project:admin_sun_depot_7184",
    "content_mode": "curated",
-   "snapshot_token": "rs1:27f1fd3b72e48becf0198f9084cb66b217e2b08a9a27d67b06dc0df79ad30f96",
-   "rationale": "auto-review: skill-harvest 过滤规则与 perforce 服务实体均有正文支撑，边 fact 与蒸馏文一致；novelty=novel"
+   "snapshot_token": "rs1:43aaa793c9d3a2459713ff70f8ca578e555caa0d48573d1adccd81dae92a70fe",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
   },
   {
-   "review_id": "01a0b288-7fd1-786f-a02d-6eb131435d8e",
+   "review_id": "01a1244e-bb90-7426-8e2c-220fcde9da9a",
+   "memory_id": "01a1244e-8dc3-7b18-81ea-04d4655cd970",
+   "group_id": "project:obsidianvault",
    "content_mode": "curated",
-   "snapshot_token": "rs1:7b399e46cc61ff5438660ac38627054dbb47956d47aa14b384290b5618c3a9c0",
-   "rationale": "auto-review: recall 三层审计实体与 3 条边均有正文支撑，未确认建议已如实标注；novelty=novel"
+   "snapshot_token": "rs1:8853001f2b516b10582339d977a4fa78e1b72010c5ca12970b67287e527e7941",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=novel"
   },
   {
-   "review_id": "01a0b286-7a48-7dac-9080-0b6575b16b99",
+   "review_id": "01a123ee-604b-7c0a-a7e6-3771072cfd0e",
+   "memory_id": "01a123ec-f755-79bb-aeec-2751170ce82b",
+   "group_id": "project:admin_sun_depot_7184",
    "content_mode": "curated",
-   "snapshot_token": "rs1:174a92b10e983c560c469b482b465fad7c6cc6ba5c4d64f4dc23fd5566d421e3",
-   "rationale": "auto-review: ue-launcher 清理策略实体/边与正文一致；novelty=novel"
+   "snapshot_token": "rs1:e18b60bfb617a249409a4d7b7aee5eb5ebde67bc7404e67cfcf55f8e8839c278",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=novel"
   },
   {
-   "review_id": "01a0b26f-439a-7e2f-a3a8-01fbc40f3111",
+   "review_id": "01a123ed-5fd6-7b05-9fb6-d9950f0cbb6b",
+   "memory_id": "01a123ec-ad01-763f-8be1-0af4cc97eca4",
+   "group_id": "project:admin_sun_depot_7184",
    "content_mode": "curated",
-   "snapshot_token": "rs1:7f378c66dec342ff602ef0adc6f67ec581ef62a3c7ef143cf0277783b229284b",
-   "rationale": "auto-review: $dst: 驱动器限定变量坑与 kts 修复事实均有正文支撑；novelty=novel"
+   "snapshot_token": "rs1:466d05ac01d5235e65d33c03a009f854f149eceb1686f6a3d612f27600bdc12d",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
   },
   {
-   "review_id": "01a0b268-d345-74e9-bb7b-4f87eca0f953",
+   "review_id": "01a123df-ada4-7da1-8487-d2662250d6d4",
+   "memory_id": "01a123df-66ee-7218-96e3-ea52f48f7645",
+   "group_id": "project:admin_sun_depot_7184",
    "content_mode": "curated",
-   "snapshot_token": "rs1:2421829d6fac20856d044acfa302123ba3c1f29554c27b54e43b0b4945413e86",
-   "rationale": "auto-review: P4 sync strict 移除决策与 up-to-date 日志行为均有正文支撑，SUPERSEDES 演进链可见；novelty=evolution"
+   "snapshot_token": "rs1:0d438fef6ed648266efc314381156f182b9ab53dd78b344ecea069200706f5bf",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=novel"
   },
   {
-   "review_id": "01a0b263-d1b6-7291-b9ef-b7f280cc9f32",
+   "review_id": "01a122a4-8a18-7117-89d7-c6eee1aebf99",
+   "memory_id": "01a12299-81b0-7efa-8e5f-5821c7b071f1",
+   "group_id": "project:maindev",
    "content_mode": "curated",
-   "snapshot_token": "rs1:a156cbb51e898b199fbc8348fb95a918b37f4abca6a54d6cace31390f622be29",
-   "rationale": "auto-review: 两样本对比与 task-grounded-hints 归因均有正文支撑，未确认方向如实标注；novelty=evolution"
+   "snapshot_token": "rs1:7174e2d3b7b2500a613ae66579292fbf2009dc639ee9e21d54629a5a2a774ce5",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
   },
   {
-   "review_id": "01a0b258-e76b-74da-ad05-09d60ebd8431",
+   "review_id": "01a122a3-558e-7528-93a2-bc0fc0220308",
+   "memory_id": "01a12299-4709-7c4c-8b8f-fc74ee8fc9f6",
+   "group_id": "project:maindev",
    "content_mode": "curated",
-   "snapshot_token": "rs1:93ec2631bda867fbe607f9b3f16921cdd7e2c9b42081918a3e1cabcd99983c76",
-   "rationale": "auto-review: recall 范围过滤决策与通用排障本地化约定有正文支撑；novelty=evolution"
+   "snapshot_token": "rs1:d40a0b4706e6c04df5255d74348ef2a2411c73ebfdfd48de0fe05ecf272582ec",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
   },
   {
-   "review_id": "01a0b1ea-d3c4-7e4e-a92d-6441a3a3a7f1",
+   "review_id": "01a122a2-2d69-7563-9afd-2b57b4e2dd1a",
+   "memory_id": "01a12298-9306-70be-a34d-df7a51b865a8",
+   "group_id": "project:maindev",
    "content_mode": "curated",
-   "snapshot_token": "rs1:d5f044eb2aef6d33d40ac5962b502c2cc1a8fefb9e6e778fb38cb4cb7770e08b",
-   "rationale": "auto-review: 4000 字符预算与关联导航机制均有正文支撑，未达标部分如实保留；novelty=novel"
+   "snapshot_token": "rs1:f03d6bde3997cce520a5638a0bbdc801982e262ed301b7f436cf2bb4c7c4104c",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=novel"
   },
   {
-   "review_id": "01a0b1e9-a64e-70b8-b976-2235404835ba",
+   "review_id": "01a1229f-a306-7afd-9445-53a8c6c31296",
+   "memory_id": "01a12297-2bf8-714e-a8fb-1dd05a9a4bcf",
+   "group_id": "project:maindev",
    "content_mode": "curated",
-   "snapshot_token": "rs1:5dfd217fa71edd745be3ff8eaa609da72b5408aa583db80ebe14ed31ab4713ba",
-   "rationale": "auto-review: @CYANCOOK 约定与 async-stepout-fix 单函数方案均有正文支撑，待批准状态如实标注；novelty=evolution"
+   "snapshot_token": "rs1:0f03ad79af920a3385ffbc3bd29e4152f0020904df222f9ec7050a27a5d1a6d3",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=novel"
   },
   {
-   "review_id": "01a0b1e1-8f0f-7cbe-b421-b468dca862df",
+   "review_id": "01a1229d-6ddf-78f6-9332-6fb9ab03299e",
+   "memory_id": "01a12296-dc3c-79c3-b987-bacb76bd9d8c",
+   "group_id": "project:maindev",
    "content_mode": "curated",
-   "snapshot_token": "rs1:f9c03c1bffc71da4e66f783e43167635ddaa7bf4c4ca523be48819dc11c5835f",
-   "rationale": "auto-review: notify_subscribers 开关移除决策与验证结果均有正文支撑；novelty=novel"
+   "snapshot_token": "rs1:e687bb2d7f499ea26b1f7bb4157fb796cb7a0ff4fd5ca84a5809e11e0ebc5d53",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=novel"
   },
   {
-   "review_id": "01a0aedb-a6a2-78c7-bb56-c7af5cadc786",
+   "review_id": "01a1229a-7cfc-7163-8f84-7cfacd40c1e9",
+   "memory_id": "01a12295-ba56-75df-889f-342917a38dc0",
+   "group_id": "project:maindev",
    "content_mode": "curated",
-   "snapshot_token": "rs1:56c4a4c0cfa5070e49c7e5cf12182357ab24c22c4e70e83b6acfcd05219493d4",
-   "rationale": "auto-review: plan-review-gate 工作流与 @CYANCOOK 标注约定有正文支撑；novelty=novel"
+   "snapshot_token": "rs1:bcb921ec879fd1f658321fcce9638efe74c8bee5453cd2418ded36e8ce91be6f",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
   },
   {
-   "review_id": "01a0b318-a5f1-71d4-92ce-c82e1e193bf3",
+   "review_id": "01a12299-77f8-75d9-ab31-c9f3ca5fbabb",
+   "memory_id": "01a12295-8282-7e4b-8b63-bc5a7ec9dec6",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:d03fd9138f8799e715995b58d2d2ed1e12ac173af71d5abfef8ae1a852083c15",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a12297-102f-7cbd-973a-fb2a74ef3fa5",
+   "memory_id": "01a12294-c4a8-73f9-ab03-e1c90da31543",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:7857e1805210101f3b440d9da71f7813ab85fbe935ff72ec7eb4314836f40500",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=novel"
+  },
+  {
+   "review_id": "01a12295-d206-7d94-8348-0357fbf11974",
+   "memory_id": "01a12294-8a85-79d7-b2a3-108bebaa99ca",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:20754a70a838c7f0237e7e6f208bb3b244ee422b049c2cb3dea4a9837bfc52d1",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a12294-a6b7-7f91-8363-a31cb890a09b",
+   "memory_id": "01a12294-47f6-7d99-ac22-f24772dbad10",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:fb1a1344f11ecc367b18198aa3b7fdbc4558a826a2d918ad16d6160468c8611c",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=novel"
+  },
+  {
+   "review_id": "01a12252-5394-7f9e-8844-34e575d56e23",
+   "memory_id": "01a1224d-a3f9-70a6-9613-fa19517d9552",
+   "group_id": "project:admin_sun_depot_7184",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:110ef8481414eefa7e272b7c7692abb5628f686b9c02d446610b2424301c762b",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a12251-6cf4-79f5-acfc-57cb62d7025b",
+   "memory_id": "01a1224d-a209-7e23-9a1b-df2908ef6ab6",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:8f3940dee3067e78b17f429f756ebb23553cccda413e42aa168a61737428356c",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a12250-970b-71f7-bd0f-16e322d0866e",
+   "memory_id": "01a1224b-9ae1-73da-9d91-1e4e1edc557b",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:1475960ff5352e2dfd7e5529e7c5e6f4a1ed5ba0bd84507a7ba9f6e2f5106dec",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a1224f-249b-7677-a798-53b5ea840347",
+   "memory_id": "01a1224a-fb91-7a9c-ae96-cb7098018aa5",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:e0be6ed97391cf296285fac672cd5d5a314edccb511f0f3f3474fad8354ab964",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=novel"
+  },
+  {
+   "review_id": "01a1224e-6667-73a7-b87f-ae50795d1d5b",
+   "memory_id": "01a1224a-fb64-729a-8bb1-3f005f148ba2",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:fb550069f1056d84f0324a46c4baa52b7ee703d64170772c0565b5ebe4d31049",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a1224d-daf4-753c-bfa7-6b700d6ed2ca",
+   "memory_id": "01a12249-9e1e-73f8-8128-1accbe28d4dd",
+   "group_id": "project:admin_sun_depot_7184",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:366e647fa053caf0f01595e3c439b241d33ad9a3bf85e2f9f1aa452309f9c687",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=novel"
+  },
+  {
+   "review_id": "01a1224c-d1dc-7328-bae6-423b7c74e4d9",
+   "memory_id": "01a12248-c3ea-743b-9afa-95b00b492be8",
+   "group_id": "project:auto-server",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:935a30a27f3ee6592555edc596edda533f6cb9fb2e0440c892504cd9728624de",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a1224b-894b-7d7b-a592-754d6182c889",
+   "memory_id": "01a12248-c1c9-751d-95b8-5888139a4fdb",
+   "group_id": "project:auto-server",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:5c624fd5dff0cefe551ce96da1ebe6011dc5538736009865f7d1bed55afccb6a",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a1224a-febe-7508-b83e-106962f8e41a",
+   "memory_id": "01a12247-dded-7748-b81d-a756dbb2286d",
+   "group_id": "project:admin_sun_depot_7184",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:03e2699bfe4a18bb366c24f1f5799366ea8a6f48cf03d7c50b4e1ab1940b36e5",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a1224a-46d4-751a-8e61-5975884f6c3a",
+   "memory_id": "01a12247-42b1-7c29-9e7f-4d42ddb372c1",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:32428f1d600ede9d0bbf3ac9813cd8921c705de7bf55232356be8f4058b84b3c",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a12249-24b8-7dac-87a0-2823b23abc06",
+   "memory_id": "01a12247-4291-7de2-94e3-c070c541cbc6",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:067fa218cb9c8ec2c46304df498ddbcb513f99fb48c822fc8081464f006acec1",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a12248-381e-7139-8315-56bb744e6397",
+   "memory_id": "01a12247-426f-791e-bb0d-dd565ef29e9b",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:31fc0d5d16c3e1e7dfad997fa028cc990c8cb8f9dc40928587ba9446853e61b4",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a12246-d072-7a92-8f7b-cbe437d211b4",
+   "memory_id": "01a12245-b35f-7d2d-b6c4-df7233963035",
+   "group_id": "project:admin_sun_depot_7184",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:2c992334b0c3df314cef2ff84468ce41edf5751189eb104d1acb966eea1d7b41",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=novel"
+  },
+  {
+   "review_id": "01a12246-1a19-7e5b-9e80-8b1aa4420ef8",
+   "memory_id": "01a12244-f1b7-7d4c-9409-b64105cbf2c9",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:325c0b2a6238bd7584ab35322de46a3db5ec27327e77c56bde535c785756a12a",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a12244-edc9-7491-969a-88b4212e1198",
+   "memory_id": "01a12243-e731-74fc-93e1-a74762d9265c",
+   "group_id": "project:admin_sun_depot_7184",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:e6118f822ac8d82db129420f1a0f4e42e8b690eaf96ffd0be2a4c39589c479e7",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a12243-7a64-779b-b775-c6332beff88e",
+   "memory_id": "01a12243-5aa0-7f01-b392-1734fa111c88",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:4980de749d6ed0b44b2ea10ca7c2f52decd1a40ac1b298c3defc90a9727e1262",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=novel"
+  },
+  {
+   "review_id": "01a12241-f6b0-7022-9a32-9aece61ed790",
+   "memory_id": "01a12241-d58c-7baf-a06a-877a543e3f1b",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:6095134f19be097c7f724e9c5d6be13d1f9bfcced074add864aa1e12827478d4",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a12163-bb83-7376-a6a5-b54c25fdb054",
+   "memory_id": "01a12163-965f-7145-a005-943a8860006a",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:f47189455f1c43fbf4d13131b813c971ca0a8acbb6ce55c62ec1a87bf66034d7",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a1213e-832b-756c-95bf-34884c5c23ba",
+   "memory_id": "01a1213d-d335-7e8c-9a5c-04338bd9b787",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:0b0bbc1f53ec525b586e752e4ce13cbb2c45a7ed20ab64150cbd833d7756110f",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=novel"
+  },
+  {
+   "review_id": "01a120bf-fbef-7c08-8d73-0f8eb5082713",
+   "memory_id": "01a120bf-26b0-70e5-b6be-cc15c7aca3ac",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:355b5c3ffc934e3bb65665a68a45f9c728822cb437aa2a8471e508ad4af76dd9",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a1201e-b2fc-71e2-81a4-5df57fe62012",
+   "memory_id": "01a1201e-1def-72f4-ab40-f27f7143f497",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:27bcc3b1da8e452a91fa8b5596b1abeafba81d3f0103b233c3919508720093fc",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a12325-82c3-7139-9724-cd1bd30bb3e7",
+   "memory_id": "01a12324-7d1a-7809-91c3-6288cb8e77fd",
+   "group_id": "project:obsidianvault",
    "content_mode": "original",
-   "snapshot_token": "rs1:fea886639c6bf424a1a612ab572f1524b6118624b22389cfd2067c3c17092f98",
-   "rationale": "auto-review: 预览薄（2实体0边）但蒸馏文含构建免审批新策略与 StepOver 实测结果；novelty=evolution，按 original 保留原文"
+   "snapshot_token": "rs1:1e71b2f53f76c582a5c6364fe23118e511f01da28db125a500c23a8db5f3bbd9",
+   "rationale": "auto-review: 预览生成失败/为空，但正文含实质长期价值，按 original 入库；novelty=evolution"
   },
   {
-   "review_id": "01a0b312-1e91-7027-a47a-99d9118844a0",
+   "review_id": "01a12324-7002-7f25-b6bd-c1ae56eb6978",
+   "memory_id": "01a12324-4b21-714b-abb2-1f8ab2bed9d6",
+   "group_id": "project:admin_sun_depot_7184",
    "content_mode": "original",
-   "snapshot_token": "rs1:435abb990f01bd9345455c8343e688a416711808ceb69a836d8559414c1d9602",
-   "rationale": "auto-review: 预览薄（1实体0边）但蒸馏文含规范与用户手动构建通过事实；novelty=evolution，按 original 保留原文"
+   "snapshot_token": "rs1:b24ec7f8ab60ccdba1d9ee96b8bbe1018a76ac93935a36040dfdc8a07eb62775",
+   "rationale": "auto-review: 预览生成失败/为空，但正文含实质长期价值，按 original 入库；novelty=novel"
   },
   {
-   "review_id": "01a0b287-b03c-7dd9-93ac-303bcd9175ab",
+   "review_id": "01a1229b-5672-7cc4-b327-fec429a52d7f",
+   "memory_id": "01a12295-f28d-76b4-9880-847b0ae77d4d",
+   "group_id": "project:maindev",
    "content_mode": "original",
-   "snapshot_token": "rs1:6afc57c5b19a4d137879362e78a0c737dc79e102c90d64d281bd96df7781a714",
-   "rationale": "auto-review: 预览薄（1实体0边）但流水线不可断点续跑结论有长期价值；novelty=evolution，按 original 保留原文"
+   "snapshot_token": "rs1:7a6ae5f74e240394ea714d1241182ae7e4d4ba5123fd51712dbb850fb185b712",
+   "rationale": "auto-review: 预览生成失败/为空，但正文含实质长期价值，按 original 入库；novelty=evolution"
   },
   {
-   "review_id": "01a0b1c4-b174-7fd6-95b4-418bbc18bd52",
+   "review_id": "01a120be-ad2d-717c-8bf4-01a9879ba37f",
+   "memory_id": "01a120be-6573-7261-ad67-aa36962a1335",
+   "group_id": "project:obsidianvault",
    "content_mode": "original",
-   "snapshot_token": "rs1:128c48f98d1ea243296c9101d3619941b57d04cb1b1e3c94b6c374bbf37c7a01",
-   "rationale": "auto-review: 预览薄（2实体0边）但 B1 阶段 StepWatch 失败与互审状态有长期价值；novelty=evolution，按 original 保留原文"
+   "snapshot_token": "rs1:8b08dda62ba05bbe2c3efa09c8f184fd2cf9f3454a7527cd4fcfbace96072160",
+   "rationale": "auto-review: 预览生成失败/为空，但正文含实质长期价值，按 original 入库；novelty=evolution"
   },
   {
-   "review_id": "01a0b1c1-9282-7047-8980-a7d24efb0d4f",
+   "review_id": "01a120a5-ad75-7a3e-bb37-bb5cb0f1db52",
+   "memory_id": "01a120a5-614d-70fd-9f69-f6624d5b3819",
+   "group_id": "project:admin_sun_depot_7184",
    "content_mode": "original",
-   "snapshot_token": "rs1:07c0c276657277220a287045cf9ecef2776131665a41aca87531cde505a48c49",
-   "rationale": "auto-review: 预览薄（2实体0边）但 P4SyncWorkspace/P4Util 改动状态有长期价值；novelty=evolution，按 original 保留原文"
+   "snapshot_token": "rs1:178aa9085c4ae106ee71ac4fedcf1fae27f5de82ce29695a5a47356185b74386",
+   "rationale": "auto-review: 预览生成失败/为空，但正文含实质长期价值，按 original 入库；novelty=evolution"
   },
   {
-   "review_id": "01a0b2ee-5ec5-7c07-a315-4d2e2d0862f5",
+   "review_id": "01a12055-7b34-7db8-b2c4-f7e1ff411ecb",
+   "memory_id": "01a12055-2c89-77d1-80b0-833107061322",
+   "group_id": "project:obsidianvault",
    "content_mode": "original",
-   "snapshot_token": "rs1:5219d810a8b6f43bb2118d86e277d71031c4835dc27d9b59bccc1357ebe97744",
-   "rationale": "auto-review: preview_failed(attempts=3) 预览不可用，但蒸馏正文为 2026-09-17 日蒸馏成果摘要，含多条长期经验，按 original 跳过预览批准"
+   "snapshot_token": "rs1:7709b84736f9cfa365bd2a1ff2319f6d3913f1c78efd0ed51ebcd66f88c99952",
+   "rationale": "auto-review: 预览生成失败/为空，但正文含实质长期价值，按 original 入库；novelty=evolution"
   },
   {
-   "review_id": "01a0adf9-e17e-776a-a83a-ab2f1721c7ce",
+   "review_id": "01a1201e-27b9-7297-99e7-0f1fa0c32662",
+   "memory_id": "01a1201d-c27c-7da7-9b7e-dd0b29231995",
+   "group_id": "project:obsidianvault",
    "content_mode": "original",
-   "snapshot_token": "rs1:cde7e1bf337346c4daa6fa87e341f1a3f3de3f2c4f672ae6b838e107011d09c2",
-   "rationale": "auto-review: preview_failed(attempts=3) 预览不可用，但正文含异步测试文件守卫方向与保留/清理判定，有长期价值，按 original 跳过预览批准"
+   "snapshot_token": "rs1:bf5ace99670e5fea2a2fc0b6068b6bf2e77fcc0b1ba4e68828ad4a56cc40051f",
+   "rationale": "auto-review: 预览生成失败/为空，但正文含实质长期价值，按 original 入库；novelty=novel"
+  },
+  {
+   "review_id": "01a11d1b-0607-7944-be32-0f1c9253822e",
+   "memory_id": "01a11d1a-a2cd-7c8e-a0d1-a77641a8ae83",
+   "group_id": "project:obsidianvault",
+   "content_mode": "original",
+   "snapshot_token": "rs1:51616cda98c17c74252fc670317b62608c4e8ba7264a518016aefaa5b7e2382c",
+   "rationale": "auto-review: 预览生成失败/为空，但正文含实质长期价值，按 original 入库；novelty=evolution"
   }
- ],
- "rejections": []
+ ]
 }

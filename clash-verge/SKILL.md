@@ -14,6 +14,14 @@ description: Clash Verge Rev（mihomo 内核）代理客户端的使用、排障
 5. **控制 API 走本机 IPC，不一定有 TCP 端口**。以运行时配置里的 `external-controller` / `external-controller-pipe` / `external-controller-unix` / `secret` 字段为准。
 6. **运行模式（Rule/Global）是运行时状态**。profile yaml 里的 `mode:` 只是初始值，GUI 切换只改运行时；排查时以 `GET /configs` 返回的 mode 为准，不要看 yaml 猜。
 
+<memory category="core-rules">
+节点导入入口的边界：Verge「订阅导入」只认返回 Clash YAML 的**订阅 URL**（机场后端一般按 UA 自动返回 Clash 格式，http 链接可直接导入）；`vless://`/`vmess://` 等**单节点分享链接不能直接导入**，需手工转成 Clash YAML 的 `proxies:` 条目，经「新建 → 本地（Local）」粘贴或把 yaml 文件拖进订阅页。协议支持：mihomo 内核原生支持 VLESS + Reality + `xtls-rprx-vision` flow（原版 Clash Premium 才不支持 VLESS），转换时分享链接里的参数可全部照抄。
+</memory>
+
+<memory category="core-rules">
+vless:// 分享链接 → mihomo YAML 字段映射：`uuid`/`server`/`port`/`network` 同名照抄；`security=reality` → `tls: true` + `reality-opts:`；`sni` → `servername`；`pbk` → `reality-opts.public-key`；`sid` → `reality-opts.short-id`；`fp` → `client-fingerprint`；`flow` 照抄；`encryption=none` 不落字段。Local profile 的启用语义：**点选启用一个本地配置会整体替换当前活动配置**（没带规则时等效 `MATCH,PROXY` 全局模式），不是"往现有订阅里加一个节点"；要把单节点注入现有订阅共存，用 Merge 的 `prepend-proxies`。
+</memory>
+
 <memory category="troubleshooting">
 Windows 本机的 mihomo 核心由 service 托管、独立于 UI 进程：**杀掉/退出 Clash Verge UI 不会断代理**（2026-09-22 误杀 UI 后实测 mixed 端口 7897 仍正常转发）。两个推论：① 「代理挂了」先核实是核心进程（verge-mihomo）没在跑、还是只是 UI 退了——只有前者才是代理真断；② 批量杀进程误伤 UI 不需要补救代理，重开 Verge 只是恢复托盘图标。
 </memory>
@@ -86,6 +94,10 @@ intercom.io  intercomcdn.com
 ```
 
 **建议给 OpenAI 建独立 select 分组，不要直接指主代理分组**：OpenAI 封香港 IP，主分组一旦被切到香港节点就全灭；独立分组可以固定到美国/日本节点，不受日常切换影响。
+
+<memory category="troubleshooting">
+Antigravity（Google IDE）走代理四要点：① 内置 agent 组件不一定遵循系统代理，须开 TUN 模式兜底接管全部流量；② 出口节点须在支持地区——**香港不支持**，韩国/日本/美国可用，登录全程保持同一地区别中途换节点；③ 登录报 "Your current account is not eligible" **不是网络问题**，是 Google 账号地区被判不合格（绑 +86 手机号 / payments.google.com 付款资料在中国 / 注册地中国），解法：换外区注册的干净账号，或改付款资料地区（一年只能改一次）；④ OAuth 授权回调走 localhost，TUN 下不受影响，但浏览器若装了独立代理插件须让 localhost 直连。
+</memory>
 
 ## Global 模式的两个铁律
 

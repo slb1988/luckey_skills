@@ -1,0 +1,6 @@
+生成今天的每日日报，严格按 .claude/skills/daily-report/SKILL.md 流程执行：
+1. 飞书语义源走 lark-cli 路径（references/lark-messages.md）：+chat-list --page-all 拉全量群，逐群 +chat-messages-list 拉今天消息；「飞书消息摘要」按参与过滤口径——只写我实际发言/讨论/推进的内容，技术/开发优先，精简不发散
+2. 三路合并：lark 消息 + ActivityWatch（references/activitywatch-api.md，curl 必须 -sL）+ P4 三台服务器（references/p4-changelist.md，236 非 unicode 不设 charset，13/10.77 需 P4CHARSET=utf8）
+3. 目标文件 luckey/02_notes/daily/<今天 YYYY-MM-DD>.md（路径以 luckey/.obsidian/daily-notes.json 为准）；文件已存在则用 Edit 合并，不 Write 覆盖；模板区块保持原样
+4. 若三路均无当日工作证据（无 P4 CL、飞书无我发言、AW 基本无活跃），不创建文件，直接回复「今日无工作记录，跳过」
+完成后回复：写入路径、DailySucc 条数、上下班时间、数据缺口（如有）。
