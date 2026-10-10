@@ -3,19 +3,11 @@ name: memory-hub
 title: Memory Hub（Agent 中心记忆网关）
 description: Memory Hub（agent 中心记忆网关）使用与运维指南。覆盖 HTTP API 写入/检索、检索 eval、session 不可变版本、scope/group_id、幂等与错误码，以及为 Claude Code、Codex、Pi 自动安装、检查、召回、持久化和补传 hooks。当用户提到 memory-hub、memory hub、记忆网关、agent 记忆、memory eval/记忆评估/检索评估、session 归档/版本、记忆检索/写入、服务排障，或在 Memory Hub 语境输入 install、安装、配置、检查、补传 Agent hooks 时触发。提到 SQL 锁/sql锁、SQLite 锁、数据库写锁、database is locked、SQLITE_BUSY、SQLITE_LOCKED、持锁进程定位或审核队列卡住时也触发，加载 SQLite 跨进程锁诊断上下文；明确属于其他数据库的任务仍按对应项目处理。注意与 memory-center 区分：memory-center 覆盖后端 Graphiti/Neo4j，memory-hub 覆盖面向 Agent 的 HTTP 网关与 SQLite 控制面。
 tags: [memory-hub, sqlite, SQL锁, 写锁, 锁诊断, database-is-locked, worker]
-argument-hint: "[deploy | dashboard | sql-lock | api | hooks | upload-sessions | troubleshoot | cleanup | eval | projects | overview]"
+argument-hint: "[setup | deploy | upload-sessions]"
 argument-options: |
-  deploy — 服务端部署/启动/重启/备份/自启/迁移（references/deploy.md）
-  dashboard — Dashboard 排障、session token/费用统计（references/dashboard.md）
-  sql-lock — SQLite 写锁、持锁者与等待者归因（references/sqlite-lock-diagnostics.md）
-  api — 端点/写入流程/Idempotency-Key/错误码/curl（references/api-notes.md）
-  hooks — 三端 hook 安装/check/身份/首轮召回（references/agent-integration.md）
-  upload-sessions — 手动批量归档历史 session（references/upload-sessions.md）
-  troubleshoot — NETWORK_ERROR/检索 0 命中/spool 积压等排障（references/troubleshooting.md）
-  cleanup — 误归档 session 定点清理 runbook（references/cleanup-misscoped-sessions.md）
-  eval — 检索 eval 黄金集/指标门禁/部署验收（references/retrieval-eval.md）
-  projects — 检索 scope 选择与别名映射（references/projects.md）
-  overview — 全链路总览（拓扑/写入/检索/观测）（references/system-overview.md）
+  setup — 三端 hook 安装/check/身份配置（references/agent-integration.md）
+  deploy — 服务端更新发布/重启/备份（references/deploy.md）
+  upload-sessions — 批量归档历史 session（references/upload-sessions.md）
 ---
 
 # Memory Hub（Agent 中心记忆网关）
