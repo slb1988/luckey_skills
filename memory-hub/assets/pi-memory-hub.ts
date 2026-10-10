@@ -56,7 +56,12 @@ import { Type } from "typebox";
 // v31：直接使用 Judge v15 查询级行动简报；UI 展示线索/来源和真实线索预览，不再展示记忆标题。
 // v32：支持 ws:/project: 追加 scope；只接受 Stage B 最终上下文，suppressed 时禁止客户端候选回退。
 // v33：输入独立 4000 字符预算，保留任务/标识/失败与 traceback，省略显式留痕。
-const EXTENSION_VERSION = "35";
+// v36：project 目录（project_profile）接入——session_start 后台刷新
+//   `memory_hook.py projects`（服务端聚合 + 本地 12h 缓存）；首轮注入尾部追加
+//   「可用 project 一览」摘要（仅带简介的根 project，上限 1200 字符），
+//   新增 memory_projects 工具查全表；memory_search 传入已归并 source 名时
+//   结果附「已归并到根」提示。客户端零阻塞：缓存缺失时首轮不注入目录。
+const EXTENSION_VERSION = "36";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -595,6 +600,78 @@ function scoreToFeedbackType(score: number): string | null {
 }
 
 // fire-and-forget：detached + unref，pi 退出不等子进程；失败静默（只留 trace）。
+interface ProjectCatalogEntry {
+	project_id: string;
+	description?: string | null;
+	description_source?: string | null;
+	memory_count?: number;
+	session_count?: number;
+	last_activity_at?: string | null;
+	merged_sources?: string[];
+}
+
+// project-catalog.json 由 `memory_hook.py projects` 写入（12h TTL 自管理）；
+// 扩展只读缓存文件，bootstrap 热路径零子进程。
+function readProjectCatalog(): ProjectCatalogEntry[] | null {
+	try {
+		const raw = readFileSync(join(stateDir, "project-catalog.json"), "utf-8");
+		const parsed = JSON.parse(raw) as { projects?: unknown };
+		if (!parsed || !Array.isArray(parsed.projects)) return null;
+		return parsed.projects.filter(
+			(entry): entry is ProjectCatalogEntry =>
+				Boolean(entry) &&
+				typeof entry === "object" &&
+				typeof (entry as ProjectCatalogEntry).project_id === "string",
+		);
+	} catch {
+		return null;
+	}
+}
+
+// 首轮注入的目录摘要：只放带简介的根 project（服务端已按最近活动倒序），
+// 无简介时整段省略（简介批量生成前不打扰）。
+function projectCatalogDigest(maxChars: number): string {
+	const projects = readProjectCatalog();
+	if (!projects) return "";
+	const described = projects
+		.filter((p) => typeof p.description === "string" && p.description)
+		.slice(0, 10);
+	if (!described.length) return "";
+	const lines = described.map(
+		(p) => `- ${p.project_id}（${p.memory_count ?? 0} 条）：${p.description}`,
+	);
+	lines.push(
+		projects.length > described.length
+			? `…共 ${projects.length} 个；需要其他 scope 用 memory_projects 工具查全表。`
+			: "需要简介/完整列表用 memory_projects 工具。",
+	);
+	return clipText(lines.join("\n"), maxChars);
+}
+
+// 已归并 source → 根 的本地索引（供 memory_search 提示；服务端本就会 family 展开）。
+function mergedSourceRoots(): Map<string, string> {
+	const map = new Map<string, string>();
+	for (const p of readProjectCatalog() ?? []) {
+		for (const source of p.merged_sources ?? []) map.set(source, p.project_id);
+	}
+	return map;
+}
+
+function refreshProjectCatalogInBackground(cwd: string): void {
+	try {
+		const child = spawn(python, [memoryHook, "projects", "--json"], {
+			cwd,
+			env: process.env,
+			stdio: "ignore",
+			detached: true,
+			windowsHide: true,
+		});
+		child.unref();
+	} catch {
+		// 目录预热失败不阻断主流程（下轮 session_start 重试）。
+	}
+}
+
 function fireAndForget(args: string[], cwd: string): void {
 	try {
 		const child = spawn(python, [memoryHook, ...args], {
@@ -1227,6 +1304,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			session_id: ctx.sessionManager.getSessionId(),
 			cwd: ctx.cwd,
 		});
+		refreshProjectCatalogInBackground(safeSpawnCwd(ctx.cwd));
 		// 运行中守卫而非一次性开关：catch-up 可能因 enqueue 超时保留 marker、或超过
 		// 扫描上限遗留 marker——长驻进程的后续 session_start（如进程内 /new）必须重试。
 		if (!skipCapture && !catchupRunning) {
@@ -1718,7 +1796,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			});
 		}
 		markBootstrapDone(sessionId, { cwd: ctx.cwd, outcome });
-		if (!recalled && !personaMarkdown) return;
+		const catalogDigest = projectCatalogDigest(1200);
+		if (!recalled && !personaMarkdown && !catalogDigest) return;
 
 		const injections: string[] = [];
 		// Persona 部分只使用 Hub canonical markdown；客户端不重排、不二次渲染。
@@ -1729,6 +1808,12 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				"以下是历史检索结果，仅作为背景；若与当前代码或用户指令冲突，以当前事实为准。",
 				"",
 				recalled,
+			].join("\n"));
+		}
+		if (catalogDigest) {
+			injections.push([
+				"# Memory Hub：可用 project 一览（memory_search 的 project scope 从这里选）",
+				catalogDigest,
 			].join("\n"));
 		}
 		const injection = injections.join("\n\n");
@@ -1828,6 +1913,73 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
+		name: "memory_projects",
+		label: "Memory Projects",
+		description:
+			"List all Memory Hub project scopes with brief descriptions, memory/session counts, " +
+			"and merged-in legacy names. Use to pick the right `project` scope for memory_search " +
+			"when the task may belong to a project other than the current working directory.",
+		parameters: Type.Object({
+			refresh: Type.Optional(Type.Boolean({
+				description: "Bypass the 12h local cache and refetch from the server",
+			})),
+		}),
+		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+			const args = ["projects", "--json"];
+			if (params.refresh) args.push("--refresh");
+			const result = await runHub(
+				args,
+				activePrompts.get(ctx.sessionManager.getSessionId()) || {},
+				ctx.cwd,
+				searchTimeoutMs,
+				true,
+				signal,
+			);
+			if (result.code !== 0) {
+				const message = "Memory Hub project catalog unavailable: " +
+					clip(result.stdout || `exit ${result.code}`);
+				trace("projects", {
+					session_id: ctx.sessionManager.getSessionId(),
+					exit_code: result.code,
+					duration_ms: result.durationMs,
+					outcome: "error",
+				});
+				throw new Error(message);
+			}
+			const parsed = lastJsonLine(result.stdout) as {
+				projects?: ProjectCatalogEntry[];
+				stale?: boolean;
+			} | null;
+			const projects = parsed && Array.isArray(parsed.projects) ? parsed.projects : [];
+			const lines = projects.map((p) => {
+				const merged = (p.merged_sources ?? []).length
+					? ` ← 归并: ${(p.merged_sources ?? []).join(", ")}`
+					: "";
+				const desc = p.description ? ` — ${p.description}` : "";
+				return `- ${p.project_id}（${p.memory_count ?? 0} 条记忆 / ${p.session_count ?? 0} sessions）${desc}${merged}`;
+			});
+			const text = clipText(
+				`Memory Hub 共 ${projects.length} 个 project scope` +
+					(parsed?.stale ? "（本地缓存，刷新失败）" : "") +
+					"：\n" + (lines.join("\n") || "（空）"),
+				8000,
+			);
+			trace("projects", {
+				session_id: ctx.sessionManager.getSessionId(),
+				exit_code: result.code,
+				duration_ms: result.durationMs,
+				outcome: "ok",
+				count: projects.length,
+				stale: parsed?.stale ?? false,
+			});
+			return {
+				content: [{ type: "text", text }],
+				details: { count: projects.length, stale: parsed?.stale ?? false },
+			};
+		},
+	});
+
+	pi.registerTool({
 		name: "memory_search",
 		label: "Memory Search",
 		description:
@@ -1897,6 +2049,9 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			const context = parsed && typeof (parsed as { context?: unknown }).context === "string"
 				? (parsed as { context: string }).context.trim()
 				: "";
+			// 归并提示：agent 传的是已归并的 source 名时告知根 project（服务端检索已
+			// 按 family 展开，结果本身不受影响）。
+			const mergedRoot = project ? mergedSourceRoots().get(project) : undefined;
 			const suppressionStatus = contextSuppressionStatus(contextStats);
 			const outcome = result.code === 130 ? "cancelled"
 				: error ? (["REQUEST_TIMEOUT", "RETRIEVAL_JUDGE_TIMEOUT"].includes(String(error.code))
@@ -1914,7 +2069,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				context,
 				resultFile,
 			});
-			const text = context || (outcome === "cancelled"
+			const text = (context || (outcome === "cancelled"
 				? "Memory Hub search was cancelled by the user."
 				: error
 					? `Memory Hub search ${outcome === "timeout" ? "timed out" : "failed"}; this is not a zero-result search. ${JSON.stringify(error)}`
@@ -1922,7 +2077,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 						? `Memory Hub found candidates but produced no safe actionable context (${suppressionStatus || "stage_b_not_actionable"}). Raw candidates were deliberately not injected; continue from current code and user context without automatically retrying.`
 						: "Memory Hub search completed successfully, but no matching memory was found"
 							+ (quality ? ` after the quality gate (candidates: ${quality.candidates ?? "?"}, kept: ${quality.kept ?? 0}).` : ".")
-							+ " Try different keywords or an explicit project.");
+							+ " Try different keywords or an explicit project.")) +
+				(mergedRoot ? `\n\n（注：「${project}」已归并到根 project「${mergedRoot}」，检索已按归并 family 自动展开；后续可直接用根名。）` : "");
 			trace("search", {
 				session_id: ctx.sessionManager.getSessionId(),
 				cwd: ctx.cwd,

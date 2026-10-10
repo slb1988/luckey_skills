@@ -3201,6 +3201,76 @@ def persona_card_error_code(error: Exception) -> str:
     return "HUB_UNAVAILABLE"
 
 
+PROJECT_CATALOG_FILENAME = "project-catalog.json"
+# project 目录（id/简介/归并）低频变化：本地缓存 12h，失败回退陈旧缓存。
+PROJECT_CATALOG_TTL_SECONDS = 12 * 3600
+
+
+def command_projects(args: argparse.Namespace, config: Config) -> int:
+    """列出当前身份可见的全部 project（含简介与归并名单），供 agent 选检索 scope。"""
+    cache_path = config.state_dir / PROJECT_CATALOG_FILENAME
+    cached: Optional[Dict[str, Any]] = None
+    if cache_path.exists():
+        try:
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            cached = None
+    fetched_at = (cached or {}).get("fetched_at")
+    fresh = bool(
+        cached
+        and isinstance(fetched_at, (int, float))
+        and time.time() - fetched_at < PROJECT_CATALOG_TTL_SECONDS
+    )
+    if fresh and not getattr(args, "refresh", False):
+        payload = dict(cached)
+        payload["stale"] = False
+        print(json.dumps(payload, ensure_ascii=False))
+        return 0
+    try:
+        profile = request_user_profile(
+            config,
+            explicit_user_id=getattr(args, "user_id", None),
+            explicit_display_name=getattr(args, "display_name", None),
+            explicit_summary=getattr(args, "summary", None),
+        )
+        if not profile_is_ready(profile):
+            print(setup_reminder(config, profile), file=sys.stderr)
+            return 2
+        assert profile is not None
+        project_id = project_id_for_cwd(os.getcwd(), config.archive_project_id)
+        # /v1/projects 是全量聚合查询，实测可超 8s 默认超时；目录类请求放宽到 30s
+        slow_config = replace(config, timeout_seconds=30.0)
+        response = HubClient(slow_config).request("GET", "/v1/projects", project_id, profile.user_id)
+        projects = (response or {}).get("projects")
+        if not isinstance(projects, list):
+            raise HubError("unexpected projects response", error_code="BAD_RESPONSE")
+        record = {"fetched_at": time.time(), "projects": projects}
+        try:
+            config.state_dir.mkdir(parents=True, exist_ok=True)
+            temp_path = cache_path.with_suffix(".tmp")
+            temp_path.write_text(
+                json.dumps(record, ensure_ascii=False), encoding="utf-8"
+            )
+            temp_path.replace(cache_path)
+        except OSError:
+            pass  # 缓存写失败不阻塞主流程
+        print(json.dumps({"stale": False, **record}, ensure_ascii=False))
+        return 0
+    except Exception as error:
+        if cached:
+            payload = dict(cached)
+            payload["stale"] = True
+            payload["refresh_error"] = search_error_diagnostics(error)
+            print(json.dumps(payload, ensure_ascii=False))
+            return 0
+        print(
+            "memory hook projects: %s"
+            % json.dumps(search_error_diagnostics(error), ensure_ascii=False),
+            file=sys.stderr,
+        )
+        return 1
+
+
 def command_persona_card(args: argparse.Namespace, config: Config) -> int:
     try:
         profile = request_user_profile(
@@ -3796,6 +3866,16 @@ def build_parser() -> argparse.ArgumentParser:
     persona_card.add_argument("--summary")
     persona_card.add_argument("--project")
     persona_card.add_argument("--json", action="store_true")
+    projects = commands.add_parser(
+        "projects",
+        help="list known projects with descriptions and merge lineage (cached 12h)",
+    )
+    projects.add_argument("--source", choices=("claude", "codex", "pi"))
+    projects.add_argument("--user-id")
+    projects.add_argument("--display-name")
+    projects.add_argument("--summary")
+    projects.add_argument("--json", action="store_true")
+    projects.add_argument("--refresh", action="store_true", help="忽略本地缓存强制刷新")
     search = commands.add_parser("search")
     search.add_argument("query")
     search.add_argument("--source", choices=("claude", "codex", "pi"))
@@ -3874,6 +3954,8 @@ def main() -> int:
         return command_search(args, config)
     if args.command == "persona-card":
         return command_persona_card(args, config)
+    if args.command == "projects":
+        return command_projects(args, config)
     if args.command == "feedback":
         return command_feedback(args, config)
     if args.command == "recall-feedback":
