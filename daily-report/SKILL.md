@@ -156,6 +156,7 @@ curl 失败时用 Playwright fallback 访问 `http://localhost:5600`（见 refer
 
 数据来源：Step 2 的全量 app 聚合。规则：
 - **window bucket 当日 0 事件**（窗口 watcher 未运行）→ 不生成表格，在表格位置标注「窗口监控未运行，无数据」，不要编造数据；AFK bucket 可能仍正常，Step 5 工作时间不受影响
+- **非 0 事件也可能等于未运行**：全天仅零星事件且以 LockApp 锁屏时长为主、事件集中在当天某个时间点之后才开始出现，同时 AFK bucket 显示长时间正常活跃 → 窗口 watcher 当天大部分时间未运行（稍晚才恢复），App 表格同样按「无有效数据」标注，不要用零星锁屏时长凑表
 - 按时长降序；时长 < 2min 忽略
 - **排除** `LockApp.exe`（锁屏，非活动时间）
 - `unknown` 保留，标注「未识别窗口」并加表注

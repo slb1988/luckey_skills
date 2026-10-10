@@ -20,6 +20,8 @@
 3. 按活跃度筛选：当日无消息的群跳过（实例：134 群中 21 个活跃、共 751 条），活跃群消息全部过完。
 4. 用户本人发言单独按 sender 过滤确认一遍，避免遗漏「用户自己在群里说了什么」。
 
+**用户本人 sender open_id**（2026-10-10 已确认，直接复用，不要每次重新辨认）：`ou_a8b2ca2c9728cd02bf7079a6dfadf2d2`（孙来兵）。按此 open_id 过滤「实际发言」口径。
+
 命令完整参数见全局 lark-im skill（`+chat-list` / `+chat-messages-list` / `+messages-search`）。
 
 ## 消息 JSON 结构（解析口径）
