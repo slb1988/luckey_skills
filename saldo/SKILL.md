@@ -5,12 +5,12 @@ description: Saldo（复刻 Percento 的 Flutter 资产快照记账 App）开发
 
 # Saldo
 
-复刻 `/Applications/Percento.app`（macOS Catalyst）的自有实现：Flutter 3.41.9 + drift 2.30 + Riverpod + Decimal。本 skill 只做路由——读最少的文件拿上下文，细节一律以仓库内文档为准。
+复刻 `/Applications/Percento.app`（macOS Catalyst）的自有实现：Flutter 3.41.9 + drift ^2.30（解析 2.34.4）+ Riverpod + Decimal。本 skill 只做路由——读最少的文件拿上下文，细节一律以仓库内文档为准。
 
 ## 入场顺序
 
 1. `~/Documents/Src/saldo/AGENTS.md` — 硬规则（金额禁 float / as-of 重建 / tombstone / 每批必 commit + CHANGELOG）
-2. `docs/architecture.md` — 分层、五表模型、复式转账、汇率、里程碑
+2. `docs/architecture.md` — 分层、四表模型、复式转账、汇率、里程碑
 3. 对应模块 `lib/**/SKILL.md` — 模块级坑与约定
 4. 本尊行为/文案疑问 → `docs/hopper/`（61 模块逆向 md + `strings/Localizable.zh-Hans.txt` 术语表 + guide/）；i18n 术语必须对齐该表
 5. 产品蓝图与本尊 8 实体 REA 结论 → vault `.claude/plans/类Percento记账App克隆蓝图.md`、`percento-rea-findings.md`
@@ -19,9 +19,9 @@ description: Saldo（复刻 Percento 的 Flutter 资产快照记账 App）开发
 
 | 模块 | 一句话 |
 |---|---|
-| `data/` | drift 五表（accounts/entries/account_groups/settings/fx_rates）+ fx_service + event_log（JSONL 事件日志） |
+| `data/` | drift 四表（accounts/entries/settings/fx_rates）+ fx_service + event_log（JSONL 事件日志） |
 | `features/home/` | macOS 三栏 shell：侧栏（wordmark/四导航/收藏/齿轮）+ 分类手风琴 |
-| `features/accounts/` | 详情页（增减金额\|修改余额分段动作）、表单、组、排序中点 |
+| `features/accounts/` | 类型选择页（分类横幅默认收起点击展开）→表单、详情页（增减金额\|修改余额分段动作）、排序中点；分组概念已移除勿再引入 |
 | `features/entries/` | 记账；快照制核心——Entry.balance = 变动后余额 |
 | `features/transfer/` | 复式转账：单事务两条互链 Entry，四象限差额规则 |
 | `features/charts/` | 趋势图 as-of 逐日重建；TrendPoint 按分类合计（byCategory） |
@@ -36,5 +36,12 @@ description: Saldo（复刻 Percento 的 Flutter 资产快照记账 App）开发
 - **UI 对标本尊**：`open -a` 启动两个 app；截图用 `screencapture -x -l <kCGWindowNumber>`（**不是** kCGWindowID，Swift 侧读不出；窗口列表脚本 `/tmp/windump.swift`）；Percento 无窗时 `pkill -x Percento && sleep 2 && open -a Percento`。
 - **i18n**：`lib/l10n/app_en.arb`（模板）+ `app_zh.arb`，改后 `flutter gen-l10n`；UI 禁硬编码文案。
 - **改 drift schema** 后 `dart run build_runner build -d`。
+- **golden 视觉验证**：测试里先加载 Arial Unicode 等字体否则中文变豆腐块；测试字体不含 Material Icons 字形，golden 里图标呈方块属预期（真机正常）。
 - **每批收尾**：`flutter analyze` 零问题 + `flutter test` 全绿 → 更新 CHANGELOG.md + 相关 SKILL.md → git commit（英文信息，不留脏工作区）。
 - 当前进度与版本：看 `CHANGELOG.md` 顶部 Unreleased + 最新 tag。
+
+<memory category="code-locations">
+Percento 本尊（/Applications/Percento.app, Catalyst）bundleId = `com.jakehao.mocha-dark`——
+用 Orca computer use / computer-use 工具做对标探索时按此 bundleId 启动与定位目标 app（`open -a` 按名字即可，但 computer-use 的 app 列表/状态接口用 bundleId）。
+注意截图可能滞后于 accessibility 树：树已渲染新页面但截图还停在旧页时，重新抓一次截图即可，不要误判为点击未生效。
+</memory>
