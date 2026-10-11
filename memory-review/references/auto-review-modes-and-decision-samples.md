@@ -17,6 +17,13 @@
 - **权威在 DB**；`data/review-feedback/extraction-decision-samples.jsonl`（`REVIEW_FEEDBACK_DIR` 配置）只是**镜像**——镜像失败绝不阻塞决策，只记 error 日志；可用 `python3 scripts/export_decision_samples.py` 从 DB 整体重建。
 - 支持按项目 / 时间 / 记忆 ID 导出，供后续用大模型定位排查、优化上游抽取审核 prompt。
 
+## 运行时切换方式与 auto 门禁（v20）
+
+- 切换 API：`PUT /api/v1/review/settings`（dashboard BFF 前缀），字段 `extraction_auto_review_mode`，值 `off|shadow|auto`；写 DB、短缓存、跨进程生效，**无需重启服务**。dashboard 前端开关走的也是这个接口。
+- 切 `auto` 前先确认 `extraction-review-auto` prompt 在位——auto 模式依赖它做决策。
+- **auto 的服务端硬门禁（代码写死，不随配置放宽）**：绝不 auto reject——LLM 判拒自动降级为 escalate 留人工；命中敏感内容、novelty=duplicate、分析 failed、LLM 置信度 <0.75 均转人工。auto 批准的 rationale 带 `auto-review:` 前缀留痕。
+- token 成本：auto 下每条新记忆烧一次 LLM 调用；off 期零消耗。
+
 ## 拒绝原因弹框
 
 Dashboard 抽取审核的拒绝入口统一弹框填原因，textarea **可选**（空 / 纯空白允许，取消无动作，原话只做 trim）；经既有 rationale 链路落 `decision_rationale` 列并进入决策样本；详情抽屉对已决记录显示处置理由。

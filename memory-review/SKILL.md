@@ -95,9 +95,15 @@ Windows 上 scan/drive 静默卡死（进程活着、0 TCP、无日志）的已�
 同组“新实体入图”受串行门禁约束：approve 成功不等于索引完成，批处理须等前一条 `indexed` 再批下一条
 （等待手段：轮询 review detail 的 `memory_status` 至 `indexed`）。
 这只串行化本执行者；Dashboard/其他 agent 仍可并发改变组门禁与预览，单条 `indexed` 不是全组就绪屏障。
-“同组存在尚未完成的新实体入图任务”是暂态依赖等待，不是永久拒绝：应自动退回等待，依赖完成后自动重建预览、按既有模式重审，无需人工重新入队。
-自动退回/恢复不等于自动 approve，也不改变审核模式；门禁以 `entity_admission_blocked` 暂态等待生效，预览重建后旧 snapshot_token 失效须重取（实体名也可能变）。
-重建后的预览不继承旧清理验收；重新核对事实与 novelty，不绕过门禁。
+“同组存在尚未完成的新实体入图任务”是暂态依赖等待，不是永久拒绝。
+
+**服务端 schema v27 起（2026-10-11 部署）：人工/Agent 批准撞门禁改为排队执行**——
+回执 `status=queued`，批准意图（含已审 snapshot token）落 `extraction_approval_queue`，
+预览与 token 保持有效、不重取重审；review worker 的 drain 队列在门禁排空后按 FIFO 执行
+（token CAS + 既有批准路径），排队期间预览被改动则丢弃排队项重新审核。
+detail/队列响应带 `approval_queued` 与 `entity_admission_in_flight` 字段可供只读核对。
+auto-review（`llm:auto-review`）撞门禁仍走旧路径：回 preview_pending 废止预览、重建后重审
+（旧 snapshot_token 失效须重取，重建预览不继承旧清理验收，须重新核对事实与 novelty）。
 内容分层、状态口径、语义快照和执行归因见 [审核内容、状态与快照](references/review-state-and-snapshots.md)。
 </memory>
 
@@ -163,6 +169,9 @@ scan 保留服务端 token、状态、attempts、memory/session/group 等元数�
 的 worker 侧 + 编排侧两个会话可能都被判 novel。判了 novel 不代表
 队列内无重复；扫完 packet 后需在同批条目间横向比对 project/正文关键词，重复的二选一
 （通常拒预览更差的那份，拿不准就留队列升级）。
+但「二选一」只适用同组/同 scope：跨组副本（如 worker 侧落 admin_sun、编排侧落 obsidianvault）
+各自索引进不同图谱，不构成同图重复；各侧正文有独有内容（编排账单、竞态根因等）时双侧均可批
+（实证：01a12539/01a1253b、01a124f8/01a124f9 双侧批准并 indexed）。
 
 错 scope 搬迁按**物理 group**核对副本，检索 family 命中不是搬迁完成证据；
 已 indexed 记忆失效后的 episode 与关系 provenance 验收，见
@@ -189,6 +198,7 @@ duplicate（误杀）。完整排查：`.claude/plans/MemoryHub抽取审核重�
 | POST | `/review/extraction/{id}/remove` | 按 name/三元组移除预览条目（不经 LLM） |
 | POST | `/review/extraction/{id}/turns` | 与预览 LLM 多轮对话调整（复杂修正时用） |
 | POST | `/review/extraction/actions` | 批量 approve/reject；approve 必填 `expected_snapshot_tokens`；另带 `content_mode`、`acknowledge_novelty_warning`、`rationale` |
+| PUT | `/review/settings` | 运行时切换 `extraction_auto_review_mode`（off/shadow/auto），DB 持久化无需重启 |
 
 review 系列接口走 dashboard BFF；内网直连使用 `--base-url http://10.77.77.6:9288`，脚本自动适配 `/api/v1` 前缀。Hub :9287 的 `/v1` 是 Agent API，不提供 review 系列接口，不用它执行审核。
 服务端字段/状态机权威定义：`D:/Github/memory-hub/docs/REVIEW_PIPELINE.md`。

@@ -34,7 +34,7 @@ description: Saldo（复刻 Percento 的 Flutter 资产快照记账 App）开发
 ## 工作流速查
 
 - **UI 对标本尊**：`open -a` 启动两个 app；截图用 `screencapture -x -l <kCGWindowNumber>`（**不是** kCGWindowID，Swift 侧读不出；窗口列表脚本 `/tmp/windump.swift`）；Percento 无窗时 `pkill -x Percento && sleep 2 && open -a Percento`。
-- **无头 UI 验证（saldo 自身 build）**：`pkill -x saldo && open build/macos/Build/Products/Debug/saldo.app`。Flutter macOS 的语义控件暴露进 System Events AX 树，可按标签点：`osascript -e 'tell application "System Events" to tell process "saldo" to click (button "退出示例" of … of window 1)'`（`entire contents of window 1` 列全部）。`click at {x,y}` 用屏幕逻辑坐标（CGWindow bounds 就是逻辑点），命中该点**最前台**的窗口——点击前先确认目标 app 窗口在最前，否则点到别的 app。
+- **无头 UI 验证（saldo 自身 build）**：`pkill -x saldo && open build/macos/Build/Products/Debug/saldo.app`。Flutter macOS 的语义控件暴露进 System Events AX 树，可按标签点：`osascript -e 'tell application "System Events" to tell process "saldo" to click (button "退出示例" of … of window 1)'`（`entire contents of window 1` 列全部）。`click at {x,y}` 用屏幕逻辑坐标（CGWindow bounds 就是逻辑点），命中该点**最前台**的窗口——点击前先确认目标 app 窗口在最前，否则点到别的 app。AX 树只剩窗口标题时先解锁语义：`set value of attribute "AXEnhancedUserInterface" of process "saldo" to true`。
 - **i18n**：`lib/l10n/app_en.arb`（模板）+ `app_zh.arb`，改后 `flutter gen-l10n`；UI 禁硬编码文案。
 - **改 drift schema** 后 `dart run build_runner build -d`。
 - **golden 视觉验证**：测试里先加载 Arial Unicode 等字体否则中文变豆腐块；测试字体不含 Material Icons 字形，golden 里图标呈方块属预期（真机正常）。

@@ -169,7 +169,7 @@ bash ~/.pi/skills/git-tool/git-tool-commit.sh   # 提交所有有改动的 submo
 
 三个层次的变更一次搞定：主库代码、submodule 内变更、主库指针。
 
-**适用边界（2026-08 实测）：** 脚本的「提交主库」实为 `git add -A`（tracked + untracked 全量，自动提交信息 `update: <文件名>`），不止 tracked 改动。用户要求 scoped 提交（如只说「commit skills」）而主库还有无关未提交改动时，**不要用本脚本**——无关改动会被一并卷入。改用手动精确流程：submodule 内 commit+push → 主库只 `add <submodule_path>` 提交指针。（实测：主库 `.pi/extensions/auto-skill/index.ts` 的未提交改动就差点被「commit skills」卷进去。）
+**适用边界（2026-08 实测）：** 脚本的「提交主库」实为 `git add -A`（tracked + untracked 全量，自动提交信息 `update: <文件名>`），不止 tracked 改动。用户要求 scoped 提交（如只说「commit skills」）而主库还有无关未提交改动时，**不要用本脚本**——无关改动会被一并卷入。改用手动精确流程：submodule 内 commit+push → 主库只 `add <submodule_path>` 提交指针。手动流程还有一个坑：若主库 index 里已有用户预先 staged 的无关文件，`add` 之后接普通 `git commit` 会把它们一并卷入——必须 pathspec 提交 `git commit -m "..." -- <submodule_path>`，只落指针、无关暂存原样保留（2026-10 实测命中）。（实测：主库 `.pi/extensions/auto-skill/index.ts` 的未提交改动就差点被「commit skills」卷进去。）
 
 ---
 
