@@ -3,11 +3,11 @@ name: git-tool
 description: "Git 主库 + submodule 更新/提交工具：update（递归同步远端）、commit（提交+更新指针）、upcommit（单个 submodule 一键提交+同步+指针，默认 skills）。git-tool update/commit/upcommit、提交/同步 submodule 时触发。冲突即中断并给手动命令。"
 argument-hint: "[upcommit [submodule] | update | update submodule | commit [submodule名]]"
 argument-options: |
-  upcommit [submodule] — 单个 submodule（默认 skills）update & commit 一键：提交本地改动 + rebase 远端 + 推送 + 更新主库指针
-  update — 主库 pull + 所有 submodule 递归更新到远端最新（sync 等同）
-  update submodule — 仅更新 submodule，跳过主库 pull（主库工作区有改动时用）
-  commit — 提交主库 + 所有有改动的 submodule（全量 add -A，scoped 提交勿用）
-  commit <submodule名> — 仅提交指定 submodule 并更新主库指针（推荐手动精确流程）
+  upcommit [submodule] — submodule 一键提交+同步+更新指针（默认 skills）
+  update — 主库 + 所有 submodule 同步远端
+  update submodule — 仅同步 submodule
+  commit — 提交主库 + 所有有改动的 submodule
+  commit <submodule名> — 仅提交指定 submodule
 ---
 
 # git-tool: 递归更新主库 + 所有 Submodule
