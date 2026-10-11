@@ -1,6 +1,6 @@
 ---
 name: git-tool
-description: "Git 仓库工具，支持三个命令：(1) update/sync 将主仓库和所有 git submodule 递归更新到远端最新；(2) commit [submodule名] 将指定 submodule 的本地变更提交并推送，再同步更新主仓库的 submodule 指针；(3) upcommit [submodule] 一键完成单个 submodule（默认 skills）的提交本地改动+对齐远端+推送+更新主库指针。当用户说 git-tool update、git-tool sync、git-tool commit skills、git-tool upcommit、提交 submodule、同步 submodule 时触发。出现冲突或错误时立即中断，给出具体的手动解决命令。"
+description: "Git 主库 + submodule 更新/提交工具：update（递归同步远端）、commit（提交+更新指针）、upcommit（单个 submodule 一键提交+同步+指针，默认 skills）。git-tool update/commit/upcommit、提交/同步 submodule 时触发。冲突即中断并给手动命令。"
 argument-hint: "[upcommit [submodule] | update | update submodule | commit [submodule名]]"
 argument-options: |
   upcommit [submodule] — 单个 submodule（默认 skills）update & commit 一键：提交本地改动 + rebase 远端 + 推送 + 更新主库指针
