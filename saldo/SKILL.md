@@ -41,6 +41,11 @@ description: Saldo（复刻 Percento 的 Flutter 资产快照记账 App）开发
 - **每批收尾**：`flutter analyze` 零问题 + `flutter test` 全绿 → 更新 CHANGELOG.md + 相关 SKILL.md → git commit（英文信息，不留脏工作区）。
 - 当前进度与版本：看 `CHANGELOG.md` 顶部 Unreleased + 最新 tag。
 
+<memory category="core-rules">
+saldo 仓库挂着 Orca 自动提交器：你改的代码可能在你 commit 前就被它以自己的提交（如 87a5a85）收走，导致你的 commit 只剩 CHANGELOG/SKILL 文档。
+收尾 commit 后若发现代码文件不在提交里，先 `git log --oneline -5` + `git status` 确认——大概率已被自动提交、工作区是干净的，不要重复 add 或误判丢改动；只需保证文档/CHANGELOG 进入自己的提交即可。
+</memory>
+
 <memory category="code-locations">
 Percento 本尊（/Applications/Percento.app, Catalyst）bundleId = `com.jakehao.mocha-dark`——
 用 Orca computer use / computer-use 工具做对标探索时按此 bundleId 启动与定位目标 app（`open -a` 按名字即可，但 computer-use 的 app 列表/状态接口用 bundleId）。
