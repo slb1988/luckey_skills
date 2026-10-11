@@ -29,7 +29,7 @@ description: Saldo（复刻 Percento 的 Flutter 资产快照记账 App）开发
 | `features/history/` | 全账户流水，行首分类色竖条 |
 | `features/import_export/` | Percento CSV 契约（9 列 zh-Hans/min2max5/按年拆/无 BOM）；导入幂等+转账互链 |
 | `features/notices/` | 顶部提示条系统 |
-| `features/settings/` | 设置 + 诊断（事件日志查看/导出） |
+| `features/settings/` | 设置页全量（主货币/主题色/示例/指南/回收站/备份/应用锁/自动刷新）+ 诊断；settings 键枚举在 providers.dart |
 
 ## 工作流速查
 
@@ -44,4 +44,10 @@ description: Saldo（复刻 Percento 的 Flutter 资产快照记账 App）开发
 Percento 本尊（/Applications/Percento.app, Catalyst）bundleId = `com.jakehao.mocha-dark`——
 用 Orca computer use / computer-use 工具做对标探索时按此 bundleId 启动与定位目标 app（`open -a` 按名字即可，但 computer-use 的 app 列表/状态接口用 bundleId）。
 注意截图可能滞后于 accessibility 树：树已渲染新页面但截图还停在旧页时，重新抓一次截图即可，不要误判为点击未生效。
+</memory>
+
+<memory category="code-locations">
+Percento 活体数据库（REA/数据实证入口）：`~/Library/Containers/<UUID>/Data/Library/Application Support/Percento/Model.sqlite`——Catalyst 应用的 UUID 容器（本机 3BEC34F8-3C1E-45B6-9E29-CD69276D9453），**不在** app group `group.app.percento`。WAL 模式，分析前先 cp 快照副本再查，勿碰活库。
+运行时根因：`decimalMigrated=1` 后旧 Double 金额列冻结写 0、`Account.lastEntryBalance` 缓存失效，余额权威来源 = 最新 Entry 的 `decimalBalance`；Decimal 列在 sqlite 按 REAL 存储。
+完整实证见 `.claude/plans/percento-rea-findings.md`「运行时数据库实证」一节。
 </memory>
