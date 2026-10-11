@@ -1,6 +1,6 @@
 ---
 name: git-tool
-description: "Git 主库 + submodule 更新/提交工具：update（递归同步远端）、commit（提交+更新指针）、upcommit（单个 submodule 一键提交+同步+指针，默认 skills）。git-tool update/commit/upcommit、提交/同步 submodule 时触发。冲突即中断并给手动命令。"
+description: "Git 主库+submodule 一键脚本：update（同步远端）、commit（提交+指针）、upcommit（单 submodule 一键，默认 skills）。git-tool、提交/同步 submodule 时触发。"
 argument-hint: "[upcommit [submodule] | update | update submodule | commit [submodule名]]"
 argument-options: |
   upcommit [submodule] — submodule 一键提交+同步+更新指针（默认 skills）
