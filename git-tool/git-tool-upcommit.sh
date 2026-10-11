@@ -24,6 +24,7 @@ SUB="$(cd "$SUB" && pwd)"
 
 # superproject (empty for standalone clones such as ~/.pi/skills — pointer step then skipped)
 MAIN="$(git -C "$SUB" rev-parse --show-superproject-working-tree 2>/dev/null || true)"
+[[ -n "$MAIN" ]] && MAIN="$(cd "$MAIN" && pwd)"  # normalize to same path style as SUB
 
 info "submodule:    $SUB"
 if [[ -n "$MAIN" ]]; then info "superproject: $MAIN"; else warn "no superproject — pointer step will be skipped"; fi
