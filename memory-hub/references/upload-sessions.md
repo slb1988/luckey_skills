@@ -12,7 +12,8 @@ capture 只处理当前 live transcript）。
 pi session 文件名 `<ts>_<uuid>.jsonl` 的 uuid 即 session id，两边按 UUID 求 diff（local − hub）=
 全量漏传清单——比查 spool/pi-trace 更直接，且能覆盖 hook 上线前的历史 session。脚本再按首条 user 消息
 签名排除 auto-skill extraction 等 LLM 分析子 session，最后以 `--hook-namespace` 调 upload_sessions.py
-幂等回填（可中断重跑）。
+幂等回填（可中断重跑）。**该脚本需直接读 Hub SQLite（sessions 表），只能在能访问 Hub 数据目录的机器上跑
+（NAS 本机）；普通工作站跑不了全量 diff**，跨端漏传检测只能用下面的 HTTP 逐个探测或 sweep 深扫。
 
 跨客户端（pi + claude + codex）漏传检测没有现成一键脚本（backfill 脚本只覆盖 pi）：Hub 客户端 API
 无 list sessions 端点，只能本地枚举各端 session 文件 → 排除 spool 已完成/在途 job → 按三段式
@@ -52,6 +53,10 @@ spool 中 queued/retry 的本轮不碰（等 hook flush 自己完成）。
 Orca worker 被 release 秒杀（run 中途杀进程，agent_end/SessionEnd 都不触发，见
 troubleshooting.md「Orca worker 会话零 capture」）。本机由 Orca automation `memory-hub-sweep`
 每日 05:30 执行（ObsidianVault workspace，provider pi）。
+
+**宽窗口深扫必须放后台跑**：Hub 探测是单线程串行 HTTP（逐个 `GET /v1/sessions/{id}`），60 天窗口约
+314 个待探测对象跑满 10 分钟交互超时仍未完成；探测本身只读无副作用，中断可直接重跑（终态才写入
+sweep-state.json）。
 
 输出解读（回报/告警时按此判断，勿把 exit 1 当脚本崩溃）：
 - 退出码：`return 1 if failed else 0`——**exit 1 仅表示 failed>0**，脚本本身正常跑完；SUMMARY 行才是结果本体。
