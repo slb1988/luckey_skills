@@ -23,6 +23,7 @@
 | GET | `/v1/projects` | 列出已知 project（含 memory/session 计数，用于选择检索 scope） |
 | POST | `/v1/memories/{memory_id}/invalidate` | **admin**：单条强制遗忘——status=invalidated、取消在途 outbox、Graphiti episode 级联删除、审计留痕；审核中的 memory 报 409（走 review reject）；随 session 删除的报 409 |
 | POST | `/v1/sessions/batch-delete` | session 级软删 + Graphiti 清理（episodes/memories/files 级联，幂等）；体：`{"schema_version":"session-batch-delete/1","session_ids":[...]}` |
+| DELETE | `/v1/projects/{project_id}` | **admin**：project 整体删除（级联记忆/图谱/源文件，不可逆）；守卫、级联顺序与去重保护见下文「删除/失效的四种路径」 |
 
 **手工 POST /v1/memories 也进审核管线**：写完状态是 `pending_extraction`（关卡 2 待审），不是立即 indexed；
 需 review approve（original/curated）后才出队进 Graphiti、检索可见。轮询 `GET /v1/memories/{id}` 看到
@@ -168,13 +169,23 @@ Hub HTTP API（9287）没有任何「给两条 memory 建关系」的端点；�
 
 所有错误返回 `error.code/message/request_id/retryable/details`，`request_id` 同时出现在 `X-Request-Id` 响应头。
 
-## 删除/失效的三种路径（按粒度选择）
+## 删除/失效的四种路径（按粒度选择）
 
 | 场景 | 路径 | 效果 |
 |---|---|---|
 | memory 还在审核队列（pending_intake/pending_extraction） | review reject（memory-review skill） | 终态，不进图谱；此时调 invalidate 会 409 |
 | memory 已 indexed，但其 session 仍要保留 | `POST /v1/memories/{id}/invalidate`（admin） | status=invalidated、在途 outbox 取消、Graphiti episode 级联删除、`graph_edits` 审计留痕；检索不再命中；同内容可重新学习 |
 | 整个 session 归错 scope / 整体移除 | `POST /v1/sessions/batch-delete` | 软删 session + 级联清 memories/episodes/files，幂等；返回逐 session 的 `episodes_deleted/memories_affected/files_removed` |
+| 整个 project 误传/废弃，连图谱一起移除 | `DELETE /v1/projects/{project_id}`（admin，不可逆） | 级联删 Graphiti 分组 + SQLite 全部关联表 + 无共享引用的源文件 |
+
+`DELETE /v1/projects/{id}` 的非显然语义（93701b4 实证）：
+- **守卫**：参与过 project 合并映射 → 409；被 active person 用作 default_project → 409；本地无此 project → 404（幂等，重复删安全）。
+- **顺序固定**：先删 Graphiti 分组（失败 503，SQLite 一行不动，可整体重试）→ 单事务级联删 SQLite 关联表（memories/sessions/versions/files/review/intake/outbox/关系账本/insight 等，FTS 触发器自动清）→ 提交后才 best-effort 删他组游离 episode 与源文件。
+- **内容寻址去重保护**：源文件按 SHA-256 共享，同一 SHA 仍被其他 session 引用时只删元数据、不动文件。
+- **部分失败不静默**：502 `PROJECT_DELETE_PARTIAL`，响应带逐表计数与失败明细。
+- Dashboard BFF 侧有对应鉴权代理 `DELETE /api/v1/projects/{id}`（面板 Projects 页删除按钮走它，输入 project 名二次确认）。
+
+**admin 鉴权口径与 docs 矩阵不符（93701b4 实测）**：`docs/MULTI_USER_AUTH.md` 称 project-merges 等管理端点需 session token，实际仅 `/v1/admin/*` 强制 `token_type=session`；数据面 admin 端点（含 project delete）只校验 `role=admin`——**admin 角色的 agent token 也能调删除**。是否收紧未定时，排查「权限够不够」按 role 而非 token_type 判。
 
 服务器侧 SQLite 手术（cleanup-misscoped-sessions.md runbook）只在以上端点都不够用时才需要。
 
