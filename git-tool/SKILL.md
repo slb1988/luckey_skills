@@ -1,6 +1,13 @@
 ---
 name: git-tool
-description: "Git 仓库工具，支持两个命令：(1) update/sync 将主仓库和所有 git submodule 递归更新到远端最新；(2) commit [submodule名] 将指定 submodule 的本地变更提交并推送，再同步更新主仓库的 submodule 指针。当用户说 git-tool update、git-tool sync、git-tool commit skills、提交 submodule、同步 submodule 时触发。出现冲突或错误时立即中断，给出具体的手动解决命令。"
+description: "Git 仓库工具，支持三个命令：(1) update/sync 将主仓库和所有 git submodule 递归更新到远端最新；(2) commit [submodule名] 将指定 submodule 的本地变更提交并推送，再同步更新主仓库的 submodule 指针；(3) upcommit [submodule] 一键完成单个 submodule（默认 skills）的提交本地改动+对齐远端+推送+更新主库指针。当用户说 git-tool update、git-tool sync、git-tool commit skills、git-tool upcommit、提交 submodule、同步 submodule 时触发。出现冲突或错误时立即中断，给出具体的手动解决命令。"
+argument-hint: "[upcommit [submodule] | update | update submodule | commit [submodule名]]"
+argument-options: |
+  upcommit [submodule] — 单个 submodule（默认 skills）update & commit 一键：提交本地改动 + rebase 远端 + 推送 + 更新主库指针
+  update — 主库 pull + 所有 submodule 递归更新到远端最新（sync 等同）
+  update submodule — 仅更新 submodule，跳过主库 pull（主库工作区有改动时用）
+  commit — 提交主库 + 所有有改动的 submodule（全量 add -A，scoped 提交勿用）
+  commit <submodule名> — 仅提交指定 submodule 并更新主库指针（推荐手动精确流程）
 ---
 
 # git-tool: 递归更新主库 + 所有 Submodule
@@ -9,12 +16,21 @@ description: "Git 仓库工具，支持两个命令：(1) update/sync 将主仓�
 
 | 命令 | 说明 |
 |------|------|
+| `git-tool upcommit [submodule]` | 单个 submodule（默认 skills）一键：提交本地 tracked 改动 + rebase 远端 + 推送 + 更新主库指针 |
 | `git-tool update` / `git-tool sync` | 主库 pull + 所有 submodule 更新到远端最新 |
 | `git-tool update submodule` | 仅更新 submodule，跳过主库 pull（工作区有改动时使用） |
 | `git-tool commit` | 提交主库 + 所有有改动的 submodule，更新指针并推送 |
 | `git-tool commit <submodule名>` | 仅提交指定 submodule（已废弃，推荐用一键脚本） |
 
 > 详细执行流程：[commit-flow](references/commit-flow.md) · [update-flow](references/update-flow.md) · [conflict-resolution](references/conflict-resolution.md) · [troubleshooting](references/troubleshooting.md) · [env-protection](references/env-protection.md)
+
+---
+
+## `git-tool upcommit [submodule]`（单个 submodule 一键 update & commit，默认 skills）
+
+脚本 `git-tool-upcommit.sh`：默认作用于脚本自身所在仓库（即 skills submodule），也可传路径指定其他 submodule。流程：submodule 提交本地 **tracked** 改动（`add -u`）→ fetch + rebase 远端 → push → 主库 pathspec 提交指针（不卷无关暂存）→ push。无 superproject（如 `~/.pi/skills` 独立克隆）时自动跳过指针步骤。
+
+边界：**untracked 文件不会自动入库**，脚本列出清单，`git add` 后重跑即会被带上；rebase / push 冲突立即中断并报手动解决路径。
 
 ---
 
@@ -149,8 +165,9 @@ git -C <parent> commit -m "chore: inline <name>, drop submodule link"
 推荐用脚本替代手动交互流程，避免浪费 token：
 
 ```bash
-bash ~/.pi/skills/git-tool/git-tool-update.sh   # 更新（任意目录下执行均可，脚本自动定位仓库）
-bash ~/.pi/skills/git-tool/git-tool-commit.sh   # 提交所有有改动的 submodule
+bash ~/.pi/skills/git-tool/git-tool-update.sh    # 更新（任意目录下执行均可，脚本自动定位仓库）
+bash ~/.pi/skills/git-tool/git-tool-commit.sh    # 提交所有有改动的 submodule
+bash ~/.pi/skills/git-tool/git-tool-upcommit.sh  # 单个 submodule（默认 skills）update & commit 一键
 ```
 
 路径按本机实际环境替换（`~/.claude/skills/...` 等），找不到时 agent 应按上文的定位优先级自行探测。
