@@ -9,6 +9,10 @@ description: "编排纪律与 orca-coordinator 外挂（dispatch/wait/ack/settle
 `orca skills get orchestration` / `orca <cmd> --help`**，不要凭记忆或本文件猜。
 本文件只装官方指南之外的增量纪律与外挂工具。
 
+<memory category="core-rules">
+stablyai/orca 的全局 skills（orchestration / orca-linear / computer-use）已是「发现 stub」分发：`~/.agents/skills/<name>/SKILL.md` 只剩 stub，完整指南由 `orca skills get <name>` 在运行时按本机 Orca 版本加载（旧版全量本地 SKILL.md 已被上游移除）。推论：(1) 不要把本地 stub 当文档真源引用其细节；(2) 不要在 `~/.agents/skills/` 内写本地注解——更新/重装即被上游覆盖；增量纪律一律落本仓库 skill。
+</memory>
+
 ## 编排纪律（五条，2026-09-20 定版）
 
 1. 调查类 worker 的 spec 直接授权「用仓库内凭据做只读实测探针」，探针不进协调者会话。
@@ -23,6 +27,10 @@ description: "编排纪律与 orca-coordinator 外挂（dispatch/wait/ack/settle
 - `worker-start --spec` 可不建 task 直接派发，但前提是发起终端已绑定 Run；未绑定时派发失败、
   不建 run（事后表现为 run 列表没有新 run）。直派顺序固定为：建 Run → 绑定终端 → worker-start。
   排障时看派发输出的头部报错，tail 截断会漏掉。
+</memory>
+
+<memory category="troubleshooting">
+`npx skills` 更新器报「没有有效记录 / 技能已是最新，不做更改」但内容明显过期时，根因通常是 `~/.agents/.skill-lock.json` 缺该 skill 的 source 记录——更新器按锁文件比对，无记录即跳过。修复：`npx skills add https://github.com/stablyai/orca --skill <name> --global` 重装，重写锁记录（source/hash/updatedAt），用 `skills list --global` 验证。安装输出尾部 `"PromptScript does not support global skill installation"` 为无害报错：18 个 agent 安装目标中仅此一个不支持全局安装，主目录、锁文件及其余目标均正常。
 </memory>
 
 ## orca-coordinator 外挂
