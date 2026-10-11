@@ -241,6 +241,12 @@ def apply_result(item: dict, status, client, run_dir: str, ours: bool) -> None:
     elif status == "review_changed":
         item["state"] = "needs_rereview"
         item["note"] = "快照已变化：不自动换 token/重发；重新审核后生成新决策"
+    elif status == "queued":
+        # 服务端 v27+：批准已排队（同组入图在途），drain 排空后自动执行；
+        # 预览与 token 不失效，等价已受理，照常等 indexed（等待更久属正常）。
+        item["state"] = "wait_indexed"
+        item["attribution"] = "receipt" if ours else "concurrent"
+        item["note"] = "批准已排队（同组入图在途），门禁排空后服务端自动执行"
     else:
         item["state"] = "submitted_unknown"
         item["note"] = f"回执状态 {status}（未知/失败），不自动重发；只读核对"
