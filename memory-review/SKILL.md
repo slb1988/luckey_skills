@@ -107,6 +107,11 @@ auto-review（`llm:auto-review`）撞门禁仍走旧路径：回 preview_pending
 内容分层、状态口径、语义快照和执行归因见 [审核内容、状态与快照](references/review-state-and-snapshots.md)。
 </memory>
 
+<memory category="troubleshooting">
+Dashboard 横幅「同组入图任务在途，批准已排队，完成后自动执行（无需重新审核）」= 上述 v27 排队机制的设计行为，不是故障；不要重复点批准（会再落一条排队项），等待 drain 即可。
+仅当排队超过 ~10–15 分钟不动才介入，按序只读核对：① detail 的 `approval_queued` / `entity_admission_in_flight`；② 同组前一条 `memory_status` 是否一直不到 `indexed`；③ 该组 outbox 是否有 `retry/failed` 积压（relation 缺 episode 503、`RELATION_RETRY_EXHAUSTED`）；④ hub-worker / review worker 存活与 SQLite 写锁。
+</memory>
+
 <memory category="core-rules">
 批准动作的 HTTP 回执与服务端提交是不同边界：`503 / memory-hub: timed out` 不证明
 批准未执行或已回滚；实测回读可已为 review `approved`、memory `indexed`。

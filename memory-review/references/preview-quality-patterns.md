@@ -4,6 +4,7 @@
 |------|------|
 | 自环边（`user -HAS_PREFERENCE-> user`、`x.vue -FIXES-> x.vue`） | remove 该边后 approve |
 | Orca 派发模板污染：`orca(Project)` 被当作评审对象项目的属主 | remove 实体（级联清边） |
+| Memory Hub 服务端自身实现事实错挂 `graphiti` 实体（实证 01a12ca5：`extraction_approval_queue` SQLite 表、批准排队/drain 是 Hub 服务端改动，预览抽成 `graphiti -IMPLEMENTS-> extraction-approval-queue`） | 组件边界归属错误——`graphiti` 是 Hub 使用的图谱库，不是 Hub 服务层改动的属主；remove 该实体级联清边，重拉新快照核对后再批 |
 | 预览 0 边 | 边数只是厚度提示，不是模式门禁；按下文核对实体摘要承载的事实与正文增量 |
 | novelty=evolution（演进链 SUPERSEDES/REFINES 旧记忆） | 演进有保留价值，但仍须核对当前正文及预览；它不认证事实真伪或完成状态 |
 | 个人偏好类记忆（硬件选型、购物兴趣） | 可批；这类画像是设计内的记忆类型 |
