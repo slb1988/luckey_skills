@@ -5,7 +5,7 @@ description: Saldo（复刻 Percento 的 Flutter 资产快照记账 App）开发
 
 # Saldo
 
-复刻 `/Applications/Percento.app`（macOS Catalyst）的自有实现：Flutter 3.41.9 + drift ^2.30（解析 2.34.4）+ Riverpod + Decimal。本 skill 只做路由——读最少的文件拿上下文，细节一律以仓库内文档为准。
+复刻 `/Applications/Percento.app`（macOS Catalyst）的自有实现：Flutter 3.47.7 + drift ^2.30（解析 2.34.4）+ Riverpod + Decimal。本 skill 只做路由——读最少的文件拿上下文，细节一律以仓库内文档为准。
 
 ## 入场顺序
 
@@ -56,4 +56,10 @@ Percento 本尊（/Applications/Percento.app, Catalyst）bundleId = `com.jakehao
 Percento 活体数据库（REA/数据实证入口）：`~/Library/Containers/<UUID>/Data/Library/Application Support/Percento/Model.sqlite`——Catalyst 应用的 UUID 容器（本机 3BEC34F8-3C1E-45B6-9E29-CD69276D9453），**不在** app group `group.app.percento`。WAL 模式，分析前先 cp 快照副本再查，勿碰活库。
 运行时根因：`decimalMigrated=1` 后旧 Double 金额列冻结写 0、`Account.lastEntryBalance` 缓存失效，余额权威来源 = 最新 Entry 的 `decimalBalance`；Decimal 列在 sqlite 按 REAL 存储。
 完整实证见 `.claude/plans/percento-rea-findings.md`「运行时数据库实证」一节。
+</memory>
+
+<memory category="core-rules">
+Flutter SDK 已升级 3.41.9 → 3.47.7（Dart 3.13.5，2026-10 经 stash→upgrade→stash pop 零冲突完成）。两条连带影响：
+1. flutter_tools 前台重试补丁（CHANGELOG 记载的 `MacOSDevice.onAttached` 修复）已在 3.47.7 上重打并重编译验证通过——补丁仍必需（上游未修），今后任何 `flutter upgrade` / `brew upgrade flutter` 后仍须重打。
+2. drift 锁 2.30.x 的前提已消失：当初锁定是因为 Flutter 3.41.9 钉死 meta 1.17.0 与 drift_dev ≥2.34.6 冲突；3.47 的 meta pin 已变，下次 `flutter pub get` 时可重新评估 drift/drift_dev 升级（也可能出现新冲突，先跑一遍再动）。
 </memory>
