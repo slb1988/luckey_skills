@@ -51,3 +51,12 @@ Dashboard 开发在本机源码副本 `D:/Github/memory-hub` 进行，NAS `/shar
 
 Hub（:9287）与 Dashboard BFF（:9288）是两个独立进程、各读各的 env：Hub 读 `ENVIRONMENT`，Dashboard BFF 读 `DASHBOARD_` 前缀（`DASHBOARD_ENVIRONMENT` / `DASHBOARD_API_KEY` / `DASHBOARD_HUB_API_KEY`）。面板登录覆盖层（LoginView）只在收到 401 时弹出：前端 `api.overview()` 或 `/auth/me` 返回 401 → 抛 AuthError → `store.authRequired=true` → 显示 LoginView。`DASHBOARD_ENVIRONMENT` 为 development/test 且未设 `DASHBOARD_API_KEY` 时，BFF 对无 token 请求回退 dev admin（200），登录页永不弹出、账号管理请求也因无 token 被 Hub 拒 401。设 `DASHBOARD_ENVIRONMENT=release` 即强制登录（账号口令 → hub `/auth/login` 发 session token），前端无需重构建。
 
+<memory category="common-patterns">
+加「AI 生成 + 人工可改」字段或 per-account 状态的既定先例（2026-10 session-star 功能规划时逐条代码核实，计划见 `.claude/plans/MemoryHub会话收藏与AI命名.md`）：
+- AI 派生字段照 `project_profile` 的 auto/manual CAS：manual 来源永不被 AI 重生成覆盖——`service.py:6649` 守卫、`service.py:6716` 重生成 SQL 过滤 `description_source != 'manual'`。
+- 服务端内联 LLM 调用复用 `ReviewLLMClient`（`infrastructure/llm.py:38`）：app 容器在 `src/memory_hub/app.py:49` 注入 `MemoryHubService(llm=)`；`insight_llm_*` 配置缺省时复用 review 配置（app.py:56）。
+- per-account 状态按 `idempotency_principal`（`domain/identity.py`）的账号主体约定隔离。
+- Dashboard BFF 列表缓存对 per-user 字段天然安全：`apply_caching` 的 `etag_salt` 已纳入用户名（`dashboard_backend/cache.py:127`、`routers.py:96 _etag_salt`），新增 per-user JOIN 字段无需改缓存键。
+- `delete_project`（`service.py:8899`）的级联是**逐表显式 DELETE 清单**——新增 project/session 级表必须登记进去（取舍口径见仓库 docs/API_CONTRACT.md），漏登记会留孤儿行。
+</memory>
+
