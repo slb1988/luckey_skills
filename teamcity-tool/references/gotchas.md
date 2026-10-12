@@ -95,3 +95,9 @@ Agent 必须用 Java 21，老 Java 的 agent 能连上但**无法跑新构建**�
 - `Hide for me` / `Hide for everyone` 只隐藏大日志提醒，不删除日志、不释放空间。
 - 构建页 `Actions → Remove` 或按 build ID 的 REST 删除面向整个构建，日志与构建历史记录一起删除；没有用户产物也不等于“只删日志”。要求保留构建记录时不能用该入口，删除整个构建需另行确认范围。
 - `auto-server` 的 TeamCity 日志存储启用了 **ZFS 压缩**；大日志提醒显示的逻辑大小可远大于实际占盘，不能直接当作预计释放量。清理前分别核对精确逻辑字节数、实际占盘与 GB/GiB 阈值，不仅看取整后的 UI 大小。
+
+## Failure conditions：execution timeout 与「无输出超时」
+
+- TeamCity **没有原生「step 无输出 N 分钟判失败」**（那是 Jenkins build-timeout 插件的能力）；对应机制只有总时长超时 `failureConditions { executionTimeoutMin = N }`。
+- **Composite 配置上的 `executionTimeoutMin` 计量整链跨度**（首个依赖启动 → 最后一个依赖结束），不是单步耗时；超时触发后整条链停止——运行中的依赖被 stop、排队中的取消——agent 占用随之释放，不区分挂在哪一步。这正是防「链无声挂住占着构建机」的手段。
+- 配置入口：versioned settings 下 `patches/buildTypes/<Name>.kts` 加 `failureConditions { executionTimeoutMin = N }`，P4 提交后由 TC 自动同步生效。超时值应先核对近期构建耗时分布再定（2026-10 实证：PLN_FlowAiReview 近期全绿耗时 3.7~21.9 分钟，配 30 分钟）。

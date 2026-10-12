@@ -56,7 +56,7 @@ Always read the reference file before acting — it contains the actual paths, p
 | Build chain 参数所有权、override/reverse 解析、隐式 Agent 要求、工作区、安全重排与验证（chain 问题先读） | `references/build-chain-parameters.md` |
 | Kotlin DSL、VCS/checkout 与链配置补充 | `references/build-chain-lessons.md` |
 | Agent 名称正则、白名单与 Pool | `references/agent-pinning.md` |
-| Non-obvious traps（含构建日志清理范围与 ZFS 空间口径） | [references/gotchas.md](references/gotchas.md) |
+| Non-obvious traps（含构建日志清理范围与 ZFS 空间口径、executionTimeout 链级语义/无「无输出超时」） | [references/gotchas.md](references/gotchas.md) |
 | 打包管线 (PL_BuildProjectWindows / PL_BuildUgsBinaries / UAT cook) | `references/package-pipeline.md` |
 | Checkout 目录自动清理事故 (DirectoryMap cleaner, 192h expiry) | `references/checkout-dir-auto-clean.md` |
 | 构建失败排障（Copy Cook Logs / PowerShell 插值、Sync 固定基线校验、UBT mutex；PL_SmokeTest 仅兼容 WinTest1 + GPU 掉卡失败签名）与重编归因（Linux/Windows 链全量重编、增量缓存健康判定） | `references/troubleshooting.md` |
