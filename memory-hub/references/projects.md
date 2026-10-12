@@ -63,6 +63,8 @@ Memory Hub 提供 `GET /v1/projects` 列出已知 project（含 memory/session �
 三端 hook capture 与 `upload_sessions.py` 批量归档共用；`check` 对本地副本做版本比对，
 修改模板后递增 `version` 并重跑 install。优先级：内置默认 < `MEMORY_HUB_PROJECT_ALIASES`
 环境变量 < 安装的 JSON < CLI `--project-alias`。
+目标 project 无需预先在 Hub 存在：group_id 由服务端按身份逐请求计算，首次写入（capture 或批量归档）
+即自动新建对应 scope（碎片 project 正是这样长出来的）；新增指向全新 project 的别名时不存在服务端预建步骤。
 
 > **本机级映射优先**：state dir 的 `project-aliases.local.json`（`install --project <id>` 写入
 > `{"aliases":{"*":"<id>"}}`，机器级、不进 git）设置后覆盖共享模板，本机 capture/search/批量归档
