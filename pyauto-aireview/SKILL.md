@@ -146,6 +146,12 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 </memory>
 
 <memory category="troubleshooting">
+- MergeGate `MERGE_EVIDENCE_INVALID`（opened action ≠ shelved action）中的 add→edit 漂移是**作者基线过期**的真实冲突（Review 1349 查明）：shelf 中文件 action=add，但他人 CL 已先把同 depot 路径提交入库，`p4 unshelve` 只能 open 成 `edit`——应 fail-closed 打回，作者 sync 后重新 shelve 再发起评审，不做豁免放行。
+- 报错分类契约（DevOps CL 1941）：`AiReviewMergeGate.py::_exists_at_baseline` 用 `p4 files -m1 path@baseline` 探测仅用于报错分类——实锤基线已存在同路径文件时报专门的 `SHELF_BASE_STALE`（含漂移文件、基线 CL、sync+重新 shelve 指引）；探测失败/基线不存在/基线为 delete/其余 action 漂移仍报原 `MERGE_EVIDENCE_INVALID`，exit 6 不变。
+- CL 1941 提交并经 TC devops bootstrap 同步前线上仍是旧行为，同类漂移单走 backend_degraded 人工评审。
+</memory>
+
+<memory category="troubleshooting">
 - 续评文件流失放行根因（Review 892 查明）：续评续接前轮原生 Pi session，且本轮 `review_input.md` 明文允许"此前轮次的 findings 与代码分析结论可复用"；但输入只含当前 shelf 文件清单，无结构化跨轮 added/removed 对账，文件减少全靠模型自行发现。
 - 已确认的误判模式：模型为文件减少编造解释，把本轮 `baseline_cl` 当作"被移除文件已随该 CL 提交出库"的证据（892 中声称 CL 134463，实为无关关卡资源），随后围绕"上轮唯一 high 已修复"收口 approve 并自动提交。`baseline_cl` 只是本轮评审基线，不构成任何文件去向证明；"已在其他 CL 提交"类声称必须回查 P4 文件级内容核实。
 - 排查锚点：后端 refresh 日志记录 `kept:N removed:M`，是文件数变化的权威证据；代提交 CL 与提交时 shelf 一致即可排除"代提交漏交"；TC artifact 的 `runner_manifest.json` 可证是否续接前轮 session（该轮 transcript 未留存，模型实际验证命令无法复核）。
