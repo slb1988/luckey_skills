@@ -462,11 +462,7 @@ Project 别名生效文件是 state dir 的 `project-aliases.json`
 `~/.local/state/memory-hub-hook/project-aliases.json`，`MEMORY_HOOK_STATE_DIR` 可覆盖）：本机实际生效的
 归并映射，`memory_hook.py`（三端 hook capture）与 `upload_sessions.py`（批量归档）运行时直读。
 **新增/修改「目录 → project」映射直接改这个文件**：改完即生效、无需 install；保持 `version`
-与模板一致 check 即绿（check 只比对 version，不看 aliases 内容差异）。注意 install 会用模板
-无条件覆盖该文件——重跑 install 后本机新增条目需补回。
-git 里的 `assets/project-aliases.json` 只是跨机器共享的部署模板，本机映射不要改它
-（只有模板本身要演进时才 version+1 并重跑 install 部署）。
-`project-aliases.local.json` 仅用于 `install --project` 写入的 `"*"` catch-all，普通映射不放这里。
+与模板一致 check 即绿（check 只比对 version，不看 aliases 内容差异）。
 优先级（代码语义）：内置默认 < 环境变量 < state dir 安装副本 < local JSON < CLI `--project-alias`。
 已知映射一览见 [projects.md](projects.md)。
 

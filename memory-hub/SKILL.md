@@ -162,10 +162,10 @@ Dashboard `#review-prompts` 管 6 个 prompt，改「什么样的人信息进画
 
 ## Hook 集成与批量归档
 
-三端（Claude Code / Codex / Pi）共用 `scripts/memory_hook.py`（仅标准库）：capture 先落本地 spool（fail-open 不丢）再上传；首轮自动召回 + 按需检索（Pi 用 `memory_search`，Claude/Codex 用 `search` CLI）。人物卡可手工运行 `memory_hook.py persona-card [--person-id ID]`（默认输出 Hub canonical Markdown，`--json` 输出原始结构）；Pi 另提供 `memory_persona_card` 工具，人物卡的人工查看和修改在 Web 端完成。安装、check、身份、环境变量、Pi 扩展机制 → [agent-integration.md](references/agent-integration.md)。**改 `assets/` 下的安装副本（pi 扩展模板、project-aliases.json）必须递增版本号并重跑 install**。
+三端（Claude Code / Codex / Pi）共用 `scripts/memory_hook.py`（仅标准库）：capture 先落本地 spool（fail-open 不丢）再上传；首轮自动召回 + 按需检索（Pi 用 `memory_search`，Claude/Codex 用 `search` CLI）。人物卡可手工运行 `memory_hook.py persona-card [--person-id ID]`（默认输出 Hub canonical Markdown，`--json` 输出原始结构）；Pi 另提供 `memory_persona_card` 工具，人物卡的人工查看和修改在 Web 端完成。安装、check、身份、环境变量、Pi 扩展机制 → [agent-integration.md](references/agent-integration.md)。**改 `assets/` 下的安装副本（如 pi 扩展模板）必须递增版本号并重跑 install**。
 
 <memory category="core-rules">
-新增/修改「目录 → project」归并映射：直接改 state dir 的 `project-aliases.json`（Windows 本机即 `C:\Users\admin\.local\state\memory-hub-hook\project-aliases.json`，POSIX 为 `~/...`；cmd 不展开 `~`，写路径用 `%USERPROFILE%` 或实际路径）——它就是本机实际生效的文件，hook 与 upload_sessions 运行时直读、改完即生效、无需 install；保持 `version` 与模板一致 check 即绿（check 只比对 version，不看 aliases 内容差异）。**不要改 git 里的模板 `assets/project-aliases.json`**（跨机器共享，version+1 + install 才部署）。注意 install 会用模板无条件覆盖 state 副本——重跑 install 后本机新增条目需补回。`project-aliases.local.json` 仅是 `install --project` 的 `"*"` catch-all 存放处，普通映射不放（2026-10-13 用户定版，取代此前 local 优先口径）。
+新增/修改「目录 → project」归并映射：直接改 state dir 的 `project-aliases.json`（Windows 本机 `C:\Users\admin\.local\state\memory-hub-hook\project-aliases.json`，POSIX `~/.local/state/memory-hub-hook/project-aliases.json`）——它就是本机实际生效的文件，hook 与 upload_sessions 运行时直读、改完即生效、无需 install；保持 `version` 与模板一致 check 即绿（check 只比对 version，不看 aliases 内容差异）。
 </memory>
 
 <memory category="core-rules">
