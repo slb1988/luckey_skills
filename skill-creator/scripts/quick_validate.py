@@ -43,9 +43,9 @@ def validate_skill(skill_path, *, strict=False):
         'name', 'description', 'license', 'allowed-tools', 'metadata', 'compatibility',
         'title', 'tags', 'version', 'homepage', 'platforms',
     }
-    # Project compatibility: Pi consumes this top-level boolean, not metadata.
+    # Project compatibility: Pi consumes these top-level extension keys, not metadata.
     if not strict:
-        ALLOWED_PROPERTIES.add('disable-model-invocation')
+        ALLOWED_PROPERTIES.update({'disable-model-invocation', 'argument-hint', 'argument-options'})
 
     # Check for unexpected properties (excluding nested keys under metadata)
     unexpected_keys = set(frontmatter.keys()) - ALLOWED_PROPERTIES
@@ -58,6 +58,10 @@ def validate_skill(skill_path, *, strict=False):
     if 'disable-model-invocation' in frontmatter:
         if type(frontmatter['disable-model-invocation']) is not bool:
             return False, "disable-model-invocation must be a boolean"
+
+    for arg_key in ('argument-hint', 'argument-options'):
+        if arg_key in frontmatter and not isinstance(frontmatter[arg_key], str):
+            return False, f"{arg_key} must be a string"
 
     # Check required fields
     if 'name' not in frontmatter:

@@ -1,6 +1,9 @@
 ---
 name: auto-server-deploy
-description: Full-stack deploy of the auto-server frontend and backend on dev@auto-server. Syncs both from Perforce, builds the frontend, and restarts the backend with full log rotation. Use when publishing both frontend and backend together.
+description: Full-stack deploy of the auto-server frontend and backend on dev@auto-server. Syncs both from Perforce, builds the frontend, and restarts the backend with full log rotation. Use when publishing both frontend and backend together. 当用户说「更新发布前后端」「发布前后端」「发布/部署 auto-server」「全栈发布」「update & publish backend & frontend」时触发，即使没提「全栈部署」也应触发；支持 force 参数跳过空闲等待。只发一端时改用 auto-server-backend-deploy / auto-server-frontend-deploy。
+argument-hint: "[force]"
+argument-options: |
+  force — 跳过 /server_status/busy 空闲等待立即部署（FORCE_DEPLOY=1）
 ---
 
 # Auto-Server Full-Stack Deploy
@@ -18,6 +21,15 @@ description: Full-stack deploy of the auto-server frontend and backend on dev@au
 ```bash
 /home/dev/.pi/skills/auto-server-deploy/scripts/deploy.sh
 ```
+
+## 参数（args）
+
+| args | 执行方式 |
+|------|---------|
+| （无） | 标准全栈部署（后端段带 `/server_status/busy` 空闲等待） |
+| `force` | `FORCE_DEPLOY=1` 跳过空闲等待，确认风险后用 |
+
+自然语言里的「强制发布 / 不等空闲 / force」等同于传 `force`；只说「更新发布前后端」直接无参执行。
 
 > 后端段自 2026-09-04 起**委托 depot 版 `/data/py_automation/backend/deploy.sh` 执行**（内置 `/server_status/busy` 空闲等待：连续 2 次空闲才 kill，上限 5 分钟，超时交互确认/非交互放弃）。确认风险后可用 `FORCE_DEPLOY=1 ./deploy.sh` 跳过等待。机制与边界见 `auto-server-backend-deploy/references/deploy-wait-for-idle.md`。
 

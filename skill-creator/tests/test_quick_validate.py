@@ -36,6 +36,22 @@ class QuickValidateTests(unittest.TestCase):
         self.assertFalse(valid)
         self.assertIn("Unexpected key", message)
 
+    def test_argument_hints_are_accepted(self):
+        extra = 'argument-hint: "[force]"\nargument-options: |\n  force — skip idle wait\n'
+        self.assertTrue(self.validate(extra)[0])
+
+    def test_strict_rejects_argument_hints(self):
+        valid, message = self.validate('argument-hint: "[force]"\n', strict=True)
+        self.assertFalse(valid)
+        self.assertIn("Unexpected key", message)
+
+    def test_argument_hints_require_strings(self):
+        for key in ('argument-hint', 'argument-options'):
+            with self.subTest(key=key):
+                valid, message = self.validate(f"{key}: [a, b]\n")
+                self.assertFalse(valid)
+                self.assertIn("must be a string", message)
+
     def test_pi_extension_requires_boolean(self):
         for value in ('"true"', "0", "1", "null", "[]", "{}"):
             with self.subTest(value=value):

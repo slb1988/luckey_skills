@@ -76,7 +76,7 @@ Based on the user interview, fill in these components:
 
 **Project frontmatter format:** Keep `title` and `tags` at the top level. Preserve existing field locations, ordering, values and any original `metadata` block, including top-level `version`/`homepage`/`platforms` where already used; do not move fields under `metadata` to satisfy a validator. Adapt validation to the project's existing format instead.
 
-**Local validation profiles:** `python scripts/quick_validate.py PATH` and `--strict` both accept the project's top-level fields above. The default profile additionally accepts Pi's top-level boolean `disable-model-invocation`; `--strict` excludes only that Pi extension. Keep the behavior key at the top level for manual-only invocation. These are project profiles, not upstream-standard conformance checks; arbitrary unknown keys remain errors. Regression: `python -m unittest discover -s tests -p 'test_quick_validate.py'` from this skill directory.
+**Local validation profiles:** `python scripts/quick_validate.py PATH` and `--strict` both accept the project's top-level fields above. The default profile additionally accepts Pi's top-level extension keys `disable-model-invocation` (boolean) and `argument-hint` / `argument-options` (strings, consumed by the skill-argument-hints extension); `--strict` excludes only these Pi extensions. Keep the behavior key at the top level for manual-only invocation. These are project profiles, not upstream-standard conformance checks; arbitrary unknown keys remain errors. Regression: `python -m unittest discover -s tests -p 'test_quick_validate.py'` from this skill directory.
 
 ### Security Check: Scan .claude/ for Sensitive Information
 
