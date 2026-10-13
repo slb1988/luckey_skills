@@ -10,6 +10,8 @@
 - 时间先带上时区再比较。后端记录常为 UTC，构建日志可能为本地时区；排队、前置依赖等待、模型请求、工具执行与重试退避分别计时。
 - 判断线上事实优先使用本轮 API/活动/日志/artifact，再看部署 revision、have/head、源码和文档；plans 与历史记忆仅提供假设。
 - 错误摘要保留阶段、原始原因和证据来源；基础设施错误不伪装成模型认可或业务规则命中。
+- 前端选择器出现“重复选项/重复人名”，先查 option 的 key 策略再怀疑后端数据重复：el-option `:key` 绑可空字段时，所有空值行共享同一空 key，输入过滤触发 Vue keyed diff 复用错乱，同一行被重复渲染（伴随 duplicate keys 警告）。
+- pyAutomation users 表存在未同步飞书 open_id 的空串行；飞书通知按 open_id 私信投递，空 open_id 本就不可投递，故通知人候选（`frontend/src/views/teamcity/components/FeishuNotifyEditor.vue`）只列有 open_id 的在职用户并按 open_id 去重，已选 orphan 值保留回显不丢数据。apiListUsers 各消费方 key 策略：FeishuNotifyEditor=open_id（滤空去重）、ReviewRequest/JurySettings/ReviewList=`p4_userid||name`（滤空，p4_userid 非空唯一）、NodeEditDialog=DB 主键 id——排查同类选择框问题先按此核对 key 来源。
 
 ## 异步与外部副作用
 
