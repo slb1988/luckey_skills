@@ -165,6 +165,10 @@ Dashboard `#review-prompts` 管 6 个 prompt，改「什么样的人信息进画
 三端（Claude Code / Codex / Pi）共用 `scripts/memory_hook.py`（仅标准库）：capture 先落本地 spool（fail-open 不丢）再上传；首轮自动召回 + 按需检索（Pi 用 `memory_search`，Claude/Codex 用 `search` CLI）。人物卡可手工运行 `memory_hook.py persona-card [--person-id ID]`（默认输出 Hub canonical Markdown，`--json` 输出原始结构）；Pi 另提供 `memory_persona_card` 工具，人物卡的人工查看和修改在 Web 端完成。安装、check、身份、环境变量、Pi 扩展机制 → [agent-integration.md](references/agent-integration.md)。**改 `assets/` 下的安装副本（pi 扩展模板、project-aliases.json）必须递增版本号并重跑 install**。
 
 <memory category="core-rules">
+新增「目录 → project」归并映射的默认写入位置是 state dir 的 `project-aliases.local.json`（本机级、不进 git、不随模板扩散；hook 与 upload_sessions 运行时直读，改完即生效、无需 install；优先级高于安装副本），**不是模板 `assets/project-aliases.json`**——模板只收确需跨机器共享的映射，改模板必须先给方案经用户确认（version+1 并重跑 install）。即使口头指令说「改 project-aliases.json」，也先按 local 执行；确需模板共享时向用户说明两层差异再动模板。
+</memory>
+
+<memory category="core-rules">
 Hook 链路有三个独立验收层级：① installer/check 只证明配置就绪；② trace/SQLite spool 持久记录证明本机已捕获并入队；③ Hub session version + full-session 文件证明远端上传完成。不得把 `check ok` 当作端到端收集成功；memory 尚在审核态不等于上传失败，只要 file/session 已入 Hub 即表示收集链路完成。
 </memory>
 

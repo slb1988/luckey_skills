@@ -451,11 +451,19 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # （Windows 注册表 / ~/.profile 系列），持久化之前启动的 agent 无需重启即可 401 自愈
 ```
 
-Project 别名定版文件：skill 仓库 `assets/project-aliases.json` 是版本化模板（进 git），
-`install_hooks.py install` 会把它部署到 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/project-aliases.json`；
-`memory_hook.py`（三端 hook capture）与 `upload_sessions.py`（批量归档）都读取这份本地副本，
-优先级：内置默认 < 环境变量 < 安装的 JSON < CLI `--project-alias`。修改模板后递增 `version`
-并重跑 install；`check` 会对本地副本做版本比对（outdated 时提示 rerun install）。
+Project 别名有两层文件，新增「目录 → project」映射**默认写本机 local 层**：
+
+- **本机 local（首选）**：`${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/project-aliases.local.json`，
+  格式 `{"aliases": {"<目录末级名小写>": "<project>"}}`（可选 `source`/`updated_at` 字段）。
+  不进 git、不随模板扩散、与其他机器隔离；`memory_hook.py` 与 `upload_sessions.py` 运行时直读，
+  改完即生效、无需 install。check/install 的 `project` 项反映该文件：含具体条目即 `set=true`，
+  `project_id` 仅反映 `"*"` catch-all；`install --project <id>` 只追加 `"*"` 条目、保留已有具体条目。
+- **共享模板（仅确需跨机器共享时）**：skill 仓库 `assets/project-aliases.json`（版本化，进 git），
+  `install` 部署到 state dir 的 `project-aliases.json`。只收确需跨机器共享的映射，
+  改动必须先给用户方案经确认；改后递增 `version` 并重跑 install，
+  `check` 对安装副本做版本比对（outdated 时提示 rerun install）。
+
+优先级：内置默认 < 环境变量 < 安装的模板 JSON < 本机 local JSON < CLI `--project-alias`。
 已知映射一览见 [projects.md](projects.md)。
 
 标题与低价值判断按内容 SHA-256 缓存在 `MEMORY_HOOK_STATE_DIR/title-cache.jsonl`（追加式），
