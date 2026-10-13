@@ -405,6 +405,12 @@ install 复制/渲染到仓库外；复制出去的就必须让 check 能感知�
 
 ## 环境变量
 
+**State dir 路径约定**：本文所有 `${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}` 中的 `~`
+= 进程用户目录。Windows 即 `%USERPROFILE%`（本机 `C:\Users\admin`，完整 state dir =
+`C:\Users\admin\.local\state\memory-hub-hook`）——cmd 不展开 `~`，PowerShell 的 `~` 语义也不同，
+在 Windows 上复制/引用路径时一律用 `%USERPROFILE%` 或展开后的实际路径，不要只写 `~/...`；
+POSIX 即 `$HOME`。Python 端 `Path.home()` 在 Windows 读 `USERPROFILE`。
+
 客户端默认入口为 `https://luckeyhome.site/memory-hub/agent-api`，不要求客户端加入 WireGuard；NAS 内部监听/服务间通信端口不变。
 Hook、安装器 health/auth check 与 insight-daily 的地址解析优先级为：**进程环境 > 用户持久化配置 > HTTPS 默认值**（insight 另兼容 `BASE_URL`）。因此父 agent 尚未加载新 profile、且未显式设置旧 URL 时，下一次 hook 子进程即可切换，无需重装扩展。父进程若显式持有旧 URL，需修改该环境并重启父进程；不覆盖用户显式指定的私网/测试服务。
 历史归档与漏传工具按 **`--hub-url` > `MEMORY_HUB_URL` > HTTPS 默认值**；Dashboard 基址从公共 `/agent-api` 的父路径推导，不能把 BFF 调到 Hub 数据面。`--dashboard-url` / `MEMORY_HUB_DASHBOARD_URL` 可显式覆盖。
@@ -451,19 +457,17 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # （Windows 注册表 / ~/.profile 系列），持久化之前启动的 agent 无需重启即可 401 自愈
 ```
 
-Project 别名有两层文件，新增「目录 → project」映射**默认写本机 local 层**：
-
-- **本机 local（首选）**：`${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/project-aliases.local.json`，
-  格式 `{"aliases": {"<目录末级名小写>": "<project>"}}`（可选 `source`/`updated_at` 字段）。
-  不进 git、不随模板扩散、与其他机器隔离；`memory_hook.py` 与 `upload_sessions.py` 运行时直读，
-  改完即生效、无需 install。check/install 的 `project` 项反映该文件：含具体条目即 `set=true`，
-  `project_id` 仅反映 `"*"` catch-all；`install --project <id>` 只追加 `"*"` 条目、保留已有具体条目。
-- **共享模板（仅确需跨机器共享时）**：skill 仓库 `assets/project-aliases.json`（版本化，进 git），
-  `install` 部署到 state dir 的 `project-aliases.json`。只收确需跨机器共享的映射，
-  改动必须先给用户方案经确认；改后递增 `version` 并重跑 install，
-  `check` 对安装副本做版本比对（outdated 时提示 rerun install）。
-
-优先级：内置默认 < 环境变量 < 安装的模板 JSON < 本机 local JSON < CLI `--project-alias`。
+Project 别名生效文件是 state dir 的 `project-aliases.json`
+（Windows 本机 `C:\Users\admin\.local\state\memory-hub-hook\project-aliases.json`，POSIX
+`~/.local/state/memory-hub-hook/project-aliases.json`，`MEMORY_HOOK_STATE_DIR` 可覆盖）：本机实际生效的
+归并映射，`memory_hook.py`（三端 hook capture）与 `upload_sessions.py`（批量归档）运行时直读。
+**新增/修改「目录 → project」映射直接改这个文件**：改完即生效、无需 install；保持 `version`
+与模板一致 check 即绿（check 只比对 version，不看 aliases 内容差异）。注意 install 会用模板
+无条件覆盖该文件——重跑 install 后本机新增条目需补回。
+git 里的 `assets/project-aliases.json` 只是跨机器共享的部署模板，本机映射不要改它
+（只有模板本身要演进时才 version+1 并重跑 install 部署）。
+`project-aliases.local.json` 仅用于 `install --project` 写入的 `"*"` catch-all，普通映射不放这里。
+优先级（代码语义）：内置默认 < 环境变量 < state dir 安装副本 < local JSON < CLI `--project-alias`。
 已知映射一览见 [projects.md](projects.md)。
 
 标题与低价值判断按内容 SHA-256 缓存在 `MEMORY_HOOK_STATE_DIR/title-cache.jsonl`（追加式），
