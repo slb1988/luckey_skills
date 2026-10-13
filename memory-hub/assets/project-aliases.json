@@ -1,12 +1,13 @@
 {
   "schema_version": "project-aliases/1",
-  "version": 2,
+  "version": 3,
   "description": "Memory Hub project 别名定版：cwd 末级目录派生名（小写）→ 目标 project。install_hooks.py install 时部署到 ${MEMORY_HOOK_STATE_DIR:-~/.local/state/memory-hub-hook}/project-aliases.json；memory_hook.py（三端 hook capture）与 upload_sessions.py（批量归档）共用，保证 project 归并口径一致。优先级：内置默认 < MEMORY_HUB_PROJECT_ALIASES 环境变量 < 本文件 < CLI --project-alias。新增/修改后递增 version 并重跑 install。",
   "aliases": {
     "a": "agent-history",
     "admin": "agent-history",
     "angelscript": "agent-history",
     "angelscript-merge": "angelscript",
+    "angelscript2": "angelscript",
     "backend": "admin_sun_depot_7184",
     "claude-code": "sun-p4",
     "claude-code-best": "sun-p4",
