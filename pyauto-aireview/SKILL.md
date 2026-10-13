@@ -106,6 +106,12 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 </memory>
 
 <memory category="troubleshooting">
+- SKILL.index.json 漏映射「评审未发现」根因（Review 1345 / MainDev CL 137630 查明）：提交入库的索引本身干净（p4 print @CL 实证新模块条目齐全）；脏索引产自作者本机 pending CL——MainDev `.codex/skills` 是指向 `.claude/skills` 的 junction，sync 中针对 `.codex` depot 路径的删除操作会物理删掉共享文件，而 `p4 have` 仍记旧 rev，普通 sync 拉不回（`p4 diff -sd` 查 missing、`p4 sync -f` 恢复）；build-index-unreal.js 按盘扫描对缺文件零告警、静默漏条目，据此重建的本地索引一旦提交即把映射真正从 depot 删掉。
+- file→index 方向无任何确定性检查：`detect_ghost_entries`（`AiReviewContextCollect.py` L1013）只查 index→file（条目指向不存在文件）；「CL 新增 SKILL.md 但索引缺条目」完全无覆盖。叠加 unavailable 降级（根因见 Review 1097 条）时，LLM 按规则抽查的恰是已覆盖的 index→file 方向，漏检必然放行。
+- 闸门透传链：`apply_skill_index_gate`（`AiReviewResultPublish.py` L351）只对 ghost_entries 强制 reject，unavailable/drift/missing 纯透传；后端零引用该字段、不落库、未接入 `_auto_approve_check`，risk ≤ 15 自动放行全程无人工。修复优先级：Collect 补 file→index 覆盖断言 → 后端持久化并接入自动放行闸 → Publish 对 unavailable 强制 needs_discussion → 生成器补 `--out-dir` 根治降级。
+</memory>
+
+<memory category="troubleshooting">
 - 代提交失败通知轰炸的根因二分（Review 726 等查明）：直提失败（approve 期间 head 前进 out-of-date、作者 client 仍开着文件）是正常业务（约占 60%），按设计进 `_auto_merge_submit` 兜底；真正致灾的是兜底自身两个缺陷。
 - `p4_adapter.prepare_merged_cl()` 的 sync 步用裸 `admin.run`，而 P4Python 默认 `exception_level=2`——warning 级输出 `file(s) up-to-date.` 也抛异常、炸掉整个合并（bot workspace haveRev 有历史残留时几乎必触发）。同文件 `_run_capture`（exception_level 临时置 0）就是干这个的但此处未用；正确性由 `_verify_have_revs` 兜底。
 - 作者原 CL 仍持有 +l 独占文件时，bot workspace unshelve 报 `can't edit exclusive file already opened`，auto-merge 同样必败，需独立处置策略。
