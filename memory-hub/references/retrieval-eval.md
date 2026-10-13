@@ -74,6 +74,22 @@ min_rating（默认 2）→ 确定性后处理 → Stage B 只接收 kept 源 �
    元数据正则（UUID、session_id 等）则整个渲染 fail-closed 返回 None（表现为 suppressed）。
 </memory>
 
+<memory category="common-patterns">
+注入相关性迭代（2026-10-14，memory-hub `5b676ab`→`ce724d2`，rubric `task-navigation-v2`）的定版结论：
+- 「相关线索」噪声主源是 navigation floor 把模型 0 分抬成 2（锚点多为 `ws:`/`buildConfiguration`
+  这类路由/平台词）；v2 起 floor 只提 1 分、需 ≥2 锚点或 overlap≥0.5、每次最多 1 条。
+- 字面通道用 `lexical_retrieval_query`：去 `<Project> 任务:` 前缀、`ws:`/`@` 路由、临时附件路径，
+  URL 只留路径/路由段与 `X_Y` 参数值；虚词主导的 CJK n-gram 不进 FTS。判分/hash 仍用原任务。
+- 线上已开 `ENABLE_RETRIEVAL_V2_GRAPH=true`、`RETRIEVAL_V2_GRAPHITI_BUDGET_SECONDS=5`（Graphiti
+  edge 向量+BM25，单次约 2–3s）。**等权 RRF 会把 ID/URL 精确命中挤出 10 槽送审池**，故用
+  `RETRIEVAL_V2_GRAPH_SLOTS`（默认 3）保留名额融合；图种子的版本邻接救回必须排在字面命中之后
+  （否则同样挤出）。图通道 query 截 1000 字符（Graphiti 上限 1024，超长 422 丢全部语义候选）。
+- 离线候选池探针（无 LLM、只读）：服务仓库 `scripts/probe_candidates.py`，用例/silver 标签
+  `tests/eval/injection-recall.obsidianvault.{cases,labels}.json`；需在 NAS 上对线上 DB 只读运行。
+  silver 标签来自历史 Stage A 判分，偏向已有通道，只能做回归，不能单独否决新通道。
+- Kimi judge 对同一文档的评分在不同候选组合下会 3↔1 漂移；单用例的升降先复跑再归因。
+</memory>
+
 ## 运行命令
 
 先验证黄金集格式：
