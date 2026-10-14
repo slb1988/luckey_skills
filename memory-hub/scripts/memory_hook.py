@@ -674,6 +674,34 @@ def _read_gzip_payload(path: Path) -> Optional[Dict[str, Any]]:
         return None
 
 
+def session_user_turns(job: sqlite3.Row) -> Optional[int]:
+    """截至本次快照的用户消息条数（含「继续」等短消息），作为 Hub 的 segment_turn。
+
+    同一 session 多次上传时，turn 相同 = 期间没有新用户消息 = 同一段的更完整版本，
+    Hub 只保留最新可检索的一条；turn 不同则各自保留。只信任 full 全量事件：窗口快照
+    会截断早期消息，计数不可比，此时返回 None（Hub 不做版本收敛）。
+    """
+    job_keys = job.keys() if hasattr(job, "keys") else []
+    full_path = job["full_path"] if "full_path" in job_keys else None
+    if not full_path or not Path(full_path).is_file():
+        return None
+    payload = _read_gzip_payload(Path(full_path))
+    events = (payload or {}).get("events")
+    if not isinstance(events, list):
+        return None
+    events = [event for event in events if isinstance(event, dict)]
+    turns = 0
+    for role, raw_text in extract_session_pairs(events, source=job["source"]):
+        if role != "user":
+            continue
+        text = sanitize_message_text(raw_text)
+        if text:
+            text = strip_orca_worker_envelope(strip_chat_hub_envelope(strip_skill_wrapper(text))[0])
+        if text:
+            turns += 1
+    return turns or None
+
+
 def load_session_texts(job: sqlite3.Row) -> Tuple[List[str], str, str, str, List[Dict[str, Any]]]:
     """上传时重取整个会话的用户/助手文本，供 LLM 整会话判定与用户目标提取。
 
@@ -1990,6 +2018,10 @@ class HubClient:
         # 不参与事实抽取）。否则 Graphiti 会把「会话标题」「工作目录」抽成实体，
         # 产生噪声节点（见 memory-center 2026-08-20 实体抽取噪声事故报告）。
         distilled = build_distilled_summary(goal, recent, result, speakers)
+        try:
+            segment_turn = session_user_turns(job)
+        except Exception:  # 版本收敛是增强：计数失败只是不收敛，不能阻塞上传
+            segment_turn = None
         # The optional classifier block uses the same intake/approval chain and
         # existing review body display; absence/old cache/model failure is benign.
         block = render_troubleshooting(troubleshooting)
@@ -2030,6 +2062,7 @@ class HubClient:
                 "summary": topic[:1024],
                 "source_event_id": job_idempotency_key("event", job),
                 "dry_run": self.config.dry_run,
+                **({"segment_turn": segment_turn} if segment_turn else {}),
             },
         )
         result_payload = {

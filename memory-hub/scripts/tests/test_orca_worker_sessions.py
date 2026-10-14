@@ -15,6 +15,7 @@ from memory_hook import (
     build_distilled_summary,
     compact_text,
     load_session_texts,
+    session_user_turns,
     session_user_texts,
 )
 from session_messages import (
@@ -231,3 +232,31 @@ def test_tool_results_and_user_commands_are_not_completion_events():
               pi_message("toolResult", [{"type": "text", "text": command}])]
     assert extract_worker_done_summary(events) == ""
     assert session_user_texts(extract_session_pairs(events, "pi"))[3] == ""
+
+
+def test_session_user_turns_counts_short_messages_and_requires_full_events(tmp_path, pi_worker_events):
+    events = [*pi_worker_events, pi_message("user", [{"type": "text", "text": "继续"}]),
+              pi_message("assistant", [{"type": "text", "text": "好的"}])]
+    full = tmp_path / "full.gz"
+    full.write_bytes(gzip.compress(json.dumps({"events": events}).encode()))
+    assert session_user_turns({"full_path": str(full), "snapshot_path": "", "source": "pi"}) == 2
+    # Window snapshots truncate early turns: no comparable count, no convergence.
+    assert session_user_turns({"full_path": "", "snapshot_path": str(full), "source": "pi"}) is None
+
+
+def test_ensure_memory_sends_segment_turn(tmp_path, pi_worker_events):
+    transcript = tmp_path / "worker.jsonl"
+    transcript.write_text("\n".join(json.dumps(event) for event in pi_worker_events), encoding="utf-8")
+    full = tmp_path / "full.gz"
+    full.write_bytes(gzip.compress(json.dumps({"events": pi_worker_events}).encode()))
+    config = Config(hub_url="http://memory.test", default_user_id="user-a", agent_id="pi",
+                    archive_project_id="test-project", api_key=None, timeout_seconds=1,
+                    state_dir=tmp_path / "state")
+    store = StateStore(config)
+    store.enqueue(UserProfile("user-a", "Test", "Fixture"), "pi", "worker", str(tmp_path), transcript)
+    job = dict(store.queued(1)[0])
+    job["full_path"] = str(full)
+    client = HubClient(config)
+    client.request = Mock(return_value={"memory_id": "m", "status": "pending_intake"})
+    client.ensure_memory(job, 1, "file-fixture", "版本保护")
+    assert client.request.call_args.kwargs["json_body"]["segment_turn"] == 1
