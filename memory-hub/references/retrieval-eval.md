@@ -112,6 +112,8 @@ min_rating（默认 2）→ 确定性后处理 → Stage B 只接收 kept 源 �
 排查「某条记忆搜不到」先查它是否被同 key 新版本遮住：对比两个视图。历史定时任务用 `scripts/tag_routine_memories.py`
 （已回填 RagFlow/sweep/日报/PL 日报 98 条）。查询期卡片裁剪（`RETRIEVAL_CARD_SELECT`）A/B 无收益且会丢判分上下文，已关闭；
 可检索文档 41% 仍是三段式原文（distilled 1989 + original 224），存储层卡片化需关卡 2 批量重抽。
+schema v30（`0b2e0b0`）：auto-review 有 ≥2 条事实边时强制 curated；每次批准写 `extraction_reviews.curation_version`，
+全量重抽前先跑 `scripts/curation_candidates.py`（只读，记忆级 + session 级取最小版本），只处理版本缺失/较低者。
 </memory>
 
 ## 运行命令
