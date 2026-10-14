@@ -197,6 +197,26 @@ error/timeout 抛真正的 Pi 工具错误，取消保持独立。CLI `search --
 服务端（memory-hub `c180461` 起）同样识别：search-v2 任务文本含该标记直接返回空、不检索不调 LLM
 （`suppression_reason=no_recall_marker`），因此 Claude/Codex hook、旧版扩展带标记也生效；Pi v37 只是省掉一次请求。
 
+**v38 起首轮召回与 skill-gateway 等其他扩展并行**：pi 的 `before_agent_start` 按扩展注册顺序
+**串行 await**（项目扩展先于全局扩展，`dist/core/extensions/runner.js` emitBeforeAgentStart），
+skill-gateway 的服务器 SKILL 选择（通常 3-10s）会排在 recall 前，首轮延迟曾是两者之和。
+v38 把召回判定抽成无副作用的 `planBootstrap`（input 预热与 before_agent_start 权威判定共用），
+在 `input` 事件（skill/template 展开前、先于一切 before_agent_start handler）即 spawn 检索/人物卡
+子进程；before_agent_start 按 rawPrompt+query 双匹配收养在途进程，prompt 被改写（/template 展开等）
+则 abort 预热、按原串行路径重跑，语义不变。排障看 trace `recall_prewarm`：`started`（input 已 spawn）
+→ `reused`（收养成功，`prewarm_ms` = 与其他扩展重叠的窗口）为正常；`prompt_mismatch`（改写后串行重跑）、
+`decision_skip`/`session_start`/`session_shutdown`/`stale`（预热被丢弃的各原因）都会出现；低信号、
+skip、已 bootstrap 的 prompt 不预热。session_start/session_shutdown 会终止无人收养的残留预热进程。
+
+**v38 首轮召回与其他扩展并行（input 预热 spawn）**：pi 的 `input` 事件在 skill/template 展开**之前**触发、
+且先于一切 `before_agent_start` handler；多个扩展的 `before_agent_start` 按注册顺序**串行 await**
+（skill-gateway 的 SKILL.md 匹配/服务器选择可占数秒），在 `before_agent_start` 里才启动的 recall 被迫排在
+其后。v38 把召回判定抽成纯函数 `planBootstrap`（input 预热与 before_agent_start 权威判定共用，保证两轮一致），
+在 `input` 时即 spawn recall/persona 子进程，与前述串行窗口在 wall-clock 上重叠；`before_agent_start` 按
+**rawPrompt+query 双匹配**收养在途进程，prompt 在 input 后被改写（模板展开等）则 abort（SIGTERM）丢弃、
+按原串行路径重跑，语义不变。预热是纯优化：任何异常、早退（skip/低信号/仅 persona）或 session 切换都丢弃
+残留预热并由串行路径兜底。升级需递增版本并 `install --agents pi`，新进程或 `/reload` 才加载。
+
 **v30 首问与计数语义**：Pi、Claude、Codex 在客户端识别纯寒暄/单独测试词并静默跳过，不写完成 marker；
 同 session 后续首个有效任务仍会召回。有效短任务直接进入 query，不再退回「项目概况/架构/决策」宽泛
 查询。`search --json` 增加 `context_stats`（返回条数、实际注入条数、字符数与预算）；Pi TUI、trace 和
@@ -370,6 +390,7 @@ full-session 资产为准。该改动只在直接引用的 Python script 中，�
 | `session_start` | 会话开始 | session_id、cwd |
 | `project_bootstrap` | session 首个有效任务的项目背景预热 | query、limit、project_override/referenced_projects、outcome（含 suppressed）、exit_code、duration_ms、quality、context_stats（stage/status/suppression/scope/clue/source/chars/validation）、injected_count、result_file、result_chars；纯寒暄另记 skipped_low_signal_prompt 且不写完成 marker |
 | `project_bootstrap_skip` | 已有持久完成标记，恢复旧 session 不重复回溯（v12） | session_id、outcome=already_completed |
+| `recall_prewarm` | v38+ input 事件预热 spawn 与 before_agent_start 收养/丢弃 | session_id、cwd、outcome=started（含 query_chars）/reused（含 prewarm_ms）/prompt_mismatch/decision_skip/stale/session_start/session_shutdown |
 | `recall_cancel` | v25+ 用户在预热/检索等待期间按 Esc/Ctrl+C 手动中断 | session_id、cwd、key=escape\|ctrl_c |
 | `recall_score` / `recall_score_wait` | v12-v17 历史玩家评分事件；v18 不再产生 | total、scored、dropped、kept / rank、outcome |
 | `search` | memory_search 工具调用 | query、limit、referenced_projects/scope、exit_code、duration_ms、quality、stage_a/stage_b status/suppression/item/source、context_source/error、injected_count、result_file、result（只含模型可见最终线索或简短 suppressed 状态，不含审计正文） |

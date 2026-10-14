@@ -64,7 +64,13 @@ import { Type } from "typebox";
 // v37：首轮 prompt 含 `memory-hub:no-recall` 标记（定时任务/自动化用，推荐写成
 //   `<!-- memory-hub:no-recall -->`）时跳过首轮预热（recall 与 persona），
 //   outcome=skipped_no_recall_marker；session 归档不受影响。
-const EXTENSION_VERSION = "37";
+// v38：首轮召回与 skill-gateway 等其他扩展并行。pi 的 before_agent_start 按扩展
+//   注册顺序串行 await（项目扩展先于全局扩展），skill-gateway 的服务器 SKILL 选择
+//   会排在 recall 前，首轮延迟为两者之和。召回判定抽成 planBootstrap 并在 input
+//   事件（skill/template 展开前、先于一切 before_agent_start handler）即 spawn
+//   检索/人物卡子进程；before_agent_start 按 rawPrompt+query 双匹配收养在途进程，
+//   prompt 被改写（模板展开等）则 abort 预热、按原串行路径重跑，语义不变。
+const EXTENSION_VERSION = "38";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -1021,6 +1027,78 @@ async function loadPersonaCard(
 	return cardResult;
 }
 
+// v38：首轮召回的纯判定，input（预热 spawn）与 before_agent_start（权威判定）
+// 共用同一份逻辑保证两轮决策一致；本函数无副作用（trace/marker/进程内集合
+// 仍由 before_agent_start 负责）。
+interface BootstrapPlan {
+	rawPrompt: string;
+	skip: string | null;
+	recallEnabled: boolean;
+	personaEnabled: boolean;
+	chatHubProject: string | null;
+	projectHint: string;
+	promptFocus: ReturnType<typeof focusBootstrapPrompt>;
+	intent: string;
+	projectOverride: string | null;
+	referencedProjects: string[];
+	lowSignal: boolean;
+	query: string;
+}
+
+function planBootstrap(prompt: unknown, cwd: string, skipCapture: boolean): BootstrapPlan {
+	const text = String(prompt ?? "");
+	const rawPrompt = text.trimStart();
+	const skip = rawPrompt.startsWith(extractionPromptPrefix)
+		? "skipped_extraction"
+		: isSkillInvocationPrompt(rawPrompt)
+			? "skipped_skill_invocation"
+			: hasNoRecallMarker(rawPrompt)
+				? "skipped_no_recall_marker"
+				: skipCapture
+					? "skipped_capture_env"
+					: null;
+	const recallEnabled = process.env.MEMORY_HOOK_PI_BOOTSTRAP_RECALL !== "0";
+	const personaEnabled = personaCardAutoEnabled();
+	const chatHubProject = chatHubRoutingEnabled()
+		? parseChatHubSpeakerProject(text, process.env.MEMORY_HUB_CLIENT_USER_ID || "")
+		: null;
+	const projectHint = (chatHubProject || basename(cwd) || "当前项目").slice(0, 128);
+	const promptFocus = focusBootstrapPrompt(
+		chatHubProject ? stripChatHubEnvelopeText(text) : text, projectHint,
+	);
+	const projectDirective = parseProjectDirective(promptFocus.intent);
+	const intent = projectDirective.text;
+	const referencedProjects = projectDirective.project ? [projectDirective.project] : [];
+	const lowSignal = isLowSignalBootstrapPrompt(intent, promptFocus.context);
+	const query = `${projectHint} 任务: ${intent}`
+		+ (promptFocus.context ? `\n上下文:\n${promptFocus.context}` : "");
+	return { rawPrompt, skip, recallEnabled, personaEnabled, chatHubProject, projectHint,
+		promptFocus, intent, projectOverride: chatHubProject, referencedProjects, lowSignal, query };
+}
+
+function buildBootstrapSearchArgs(plan: BootstrapPlan, sessionId: string, limit: number, maxChars: number): string[] {
+	const args = [
+		"search", plan.query, "--source", "pi",
+		"--limit", String(limit), "--max-chars", String(maxChars),
+		"--json", "--write-result-file", "--session-id", sessionId,
+	];
+	if (plan.projectOverride) args.push("--project", plan.projectOverride);
+	for (const project of plan.referencedProjects) args.push("--referenced-project", project);
+	args.push("--audit-prompt-stdin");
+	return args;
+}
+
+// input 事件启动的在途召回：before_agent_start 按 rawPrompt+query 双匹配收养，
+// 匹配不上（prompt 在 input 后被改写）或会话结束时 abort（SIGTERM）丢弃。
+interface PrewarmedRecall {
+	query: string;
+	rawPrompt: string;
+	abort: AbortController;
+	search: Promise<HubResult>;
+	persona: Promise<PersonaCardResult>;
+	startedAt: number;
+}
+
 export default function memoryHubExtension(pi: ExtensionAPI) {
 	// Input is observed before skill/template expansion. Never persist it into the
 	// Pi session/trace or return it as tool content; only the local receipt consumes it.
@@ -1034,6 +1112,14 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 					captured_at: new Date().toISOString() } });
 		} else {
 			pendingPrompts.delete(id);
+		}
+		// v38：input 在 skill/template 展开前触发、且先于一切 before_agent_start
+		// handler——此时即 spawn 首轮召回子进程，与排在前面扩展（skill-gateway）的
+		// 串行等待窗口重叠；before_agent_start 按 rawPrompt+query 匹配收养。
+		try {
+			prewarmRecall(ctx, planBootstrap(event.text, ctx.cwd, skipCapture));
+		} catch {
+			// 预热是性能优化；异常时 before_agent_start 的串行路径兜底。
 		}
 	});
 	// v12 首次加载只扫描一次旧 trace 并批量补 marker；之后每个 session 仅做 O(1)
@@ -1057,6 +1143,53 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 	// 每个 session 最多做一次首轮项目预热。用 session id 而非单个 boolean，
 	// 兼容同一 Pi 进程内 /new、session switch；切回已访问 session 不重复检索。
 	const bootstrappedSessions = new Set<string>();
+	// v38：input 事件启动的在途召回，键为 session id。
+	const prewarmedRecalls = new Map<string, PrewarmedRecall>();
+
+	// input 事件即 spawn 检索/人物卡子进程，与 before_agent_start 里排在前面的
+	// 扩展（skill-gateway 等）的串行等待在 wall-clock 上重叠。判定与权威路径
+	// 共用 planBootstrap；任何失败都不阻断主流程，before_agent_start 走原路径兜底。
+	function prewarmRecall(ctx: ExtensionContext, plan: BootstrapPlan): void {
+		const sessionId = ctx.sessionManager.getSessionId();
+		const existing = prewarmedRecalls.get(sessionId);
+		if (existing) {
+			// 上次预热未能进入回合（如鉴权失败中断）且已超龄：丢弃重起，避免
+			// 收养一个早已超时/失去意义的结果。
+			if (Date.now() - existing.startedAt < bootstrapTimeoutMs()) return;
+			discardPrewarm(sessionId, "stale");
+		}
+		if (bootstrappedSessions.has(sessionId) || hasCompletedBootstrap(sessionId)) return;
+		if (plan.skip || plan.lowSignal || !plan.recallEnabled) return;
+		const abort = new AbortController();
+		const entry: PrewarmedRecall = {
+			query: plan.query,
+			rawPrompt: plan.rawPrompt,
+			abort,
+			search: runHub(
+				buildBootstrapSearchArgs(plan, sessionId, bootstrapLimit(), bootstrapMaxChars()),
+				pendingPrompts.get(sessionId) ?? {},
+				safeSpawnCwd(ctx.cwd),
+				bootstrapTimeoutMs(),
+				true,
+				abort.signal,
+			),
+			persona: plan.personaEnabled
+				? loadPersonaCard("bootstrap", ctx.cwd, sessionId, undefined, abort.signal)
+				: Promise.resolve(disabledPersonaCard()),
+			startedAt: Date.now(),
+		};
+		prewarmedRecalls.set(sessionId, entry);
+		trace("recall_prewarm", { session_id: sessionId, cwd: ctx.cwd, outcome: "started",
+			query_chars: plan.query.length });
+	}
+
+	function discardPrewarm(sessionId: string, reason: string): void {
+		const entry = prewarmedRecalls.get(sessionId);
+		if (!entry) return;
+		prewarmedRecalls.delete(sessionId);
+		if (!entry.abort.signal.aborted) entry.abort.abort(reason);
+		trace("recall_prewarm", { session_id: sessionId, outcome: reason });
+	}
 
 	function captureTarget(ctx: ExtensionContext, trigger: string): CaptureTarget | null {
 		const sessionId = ctx.sessionManager.getSessionId();
@@ -1302,6 +1435,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
 		pendingPrompts.clear();
 		activePrompts.clear();
+		// 上一 session 残留的预热进程（input 后未完成回合）没有收养者，随切换终止。
+		for (const id of [...prewarmedRecalls.keys()]) discardPrewarm(id, "session_start");
 		lastCwd = ctx.cwd;
 		if (ctx.hasUI) {
 			try {
@@ -1346,16 +1481,12 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			});
 			return;
 		}
-		const rawPrompt = String(event.prompt ?? "").trimStart();
-		const bootstrapSkip = rawPrompt.startsWith(extractionPromptPrefix)
-			? "skipped_extraction"
-			: isSkillInvocationPrompt(rawPrompt)
-				? "skipped_skill_invocation"
-				: hasNoRecallMarker(rawPrompt)
-					? "skipped_no_recall_marker"
-				: skipCapture
-					? "skipped_capture_env"
-					: null;
+		// v38：与 input 预热共用同一判定（planBootstrap 无副作用），此处为权威判定。
+		const plan = planBootstrap(event.prompt, ctx.cwd, skipCapture);
+		// 不进入召回的早退分支（skip/低信号/仅 persona）收不到结果，残留预热立即终止。
+		if (plan.skip || plan.lowSignal || !plan.recallEnabled) discardPrewarm(sessionId, "decision_skip");
+		const rawPrompt = plan.rawPrompt;
+		const bootstrapSkip = plan.skip;
 		if (bootstrapSkip) {
 			bootstrappedSessions.add(sessionId);
 			trace("project_bootstrap", {
@@ -1366,8 +1497,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			markBootstrapDone(sessionId, { cwd: ctx.cwd, outcome: bootstrapSkip });
 			return;
 		}
-		const recallEnabled = process.env.MEMORY_HOOK_PI_BOOTSTRAP_RECALL !== "0";
-		const personaEnabled = personaCardAutoEnabled();
+		const recallEnabled = plan.recallEnabled;
+		const personaEnabled = plan.personaEnabled;
 		if (!recallEnabled && !personaEnabled) {
 			bootstrappedSessions.add(sessionId);
 			trace("project_bootstrap", {
@@ -1400,21 +1531,14 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 					: persona.markdown,
 			};
 		}
-		const chatHubProject = chatHubRoutingEnabled()
-			? parseChatHubSpeakerProject(event.prompt, process.env.MEMORY_HUB_CLIENT_USER_ID || "")
-			: null;
-		// chat-hub 会话先用剥掉信封的干净正文构造检索 query（身份封套/语音元数据
-		// 不参与检索意图）。
-		const projectHint = (chatHubProject || basename(ctx.cwd) || "当前项目").slice(0, 128);
-		const promptFocus = focusBootstrapPrompt(
-			chatHubProject ? stripChatHubEnvelopeText(event.prompt) : event.prompt, projectHint,
-		);
-		const projectDirective = parseProjectDirective(promptFocus.intent);
-		const intent = projectDirective.text;
+		const chatHubProject = plan.chatHubProject;
+		const projectHint = plan.projectHint;
+		const promptFocus = plan.promptFocus;
+		const intent = plan.intent;
 		// chat-hub 身份仍决定当前 project；显式 project: 只追加检索范围，不再替换当前 scope。
-		const projectOverride = chatHubProject;
-		const referencedProjects = projectDirective.project ? [projectDirective.project] : [];
-		if (isLowSignalBootstrapPrompt(intent, promptFocus.context)) {
+		const projectOverride = plan.projectOverride;
+		const referencedProjects = plan.referencedProjects;
+		if (plan.lowSignal) {
 			trace("project_bootstrap", {
 				session_id: sessionId,
 				cwd: ctx.cwd,
@@ -1428,8 +1552,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		}
 		bootstrappedSessions.add(sessionId);
 		const ratingQuestion = clipText(intent, 360);
-		const query = `${projectHint} 任务: ${intent}`
-			+ (promptFocus.context ? `\n上下文:\n${promptFocus.context}` : "");
+		const query = plan.query;
 		trace("recall_query_budget", { session_id: sessionId, input_chars: promptFocus.inputChars,
 			query_chars: query.length, max_chars: maxBootstrapQueryChars, compacted: promptFocus.compacted,
 			policy: "intent-diagnostic-lines/1" });
@@ -1449,15 +1572,23 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		let visibleFacts: Record<string, unknown>[] = [];
 		const reviewCandidates: Record<string, unknown>[] = [];
 		const stopRecallIndicator = startRecallIndicator(ctx, projectHint, query);
+		// v38：收养 input 事件预热的检索/人物卡进程（rawPrompt+query 双匹配）。
+		const prewarmEntry = prewarmedRecalls.get(sessionId);
+		const prewarm = prewarmEntry && prewarmEntry.rawPrompt === rawPrompt && prewarmEntry.query === query
+			? prewarmEntry
+			: null;
+		if (prewarmEntry && !prewarm) discardPrewarm(sessionId, "prompt_mismatch");
 		// v25：预热等待可手动中断——before_agent_start 期间 pi 内建 Esc 处理器不
 		// 生效（agent 尚未 streaming），挂临时终端输入监听。Esc 吞掉（防止误触发
 		// 空编辑器 double-esc 选择器）；Ctrl+C 只取消检索、按键照常放行（保留 pi
 		// 的 clear/双击退出语义）。取消后子进程被 SIGTERM 杀掉，runHub 返回 130。
-		const recallAbort = new AbortController();
+		const recallAbort = prewarm ? prewarm.abort : new AbortController();
 		// Card 与 recall 同时启动并共享取消信号；card 失败不影响 recall，反之亦然。
-		const personaPromise = personaEnabled
-			? loadPersonaCard("bootstrap", ctx.cwd, sessionId, undefined, recallAbort.signal)
-			: Promise.resolve(disabledPersonaCard());
+		const personaPromise = prewarm
+			? prewarm.persona
+			: personaEnabled
+				? loadPersonaCard("bootstrap", ctx.cwd, sessionId, undefined, recallAbort.signal)
+				: Promise.resolve(disabledPersonaCard());
 		const stopCancelListener =
 			ctx.hasUI && typeof ctx.ui.onTerminalInput === "function"
 				? ctx.ui.onTerminalInput((data: string) => {
@@ -1469,32 +1600,17 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 					return key === "escape" ? { consume: true } : undefined;
 				})
 				: () => {};
+		const searchArgs = buildBootstrapSearchArgs(plan, sessionId, limit, maxChars);
+		const searchPromise = prewarm
+			? prewarm.search
+			: runHub(searchArgs, inputPrompt || {}, safeSpawnCwd(ctx.cwd), bootstrapTimeoutMs(), true, recallAbort.signal);
+		if (prewarm) {
+			prewarmedRecalls.delete(sessionId);
+			trace("recall_prewarm", { session_id: sessionId, cwd: ctx.cwd, outcome: "reused",
+				prewarm_ms: Date.now() - prewarm.startedAt });
+		}
 		if (scoreEnabled) {
-			const searchArgs = [
-				"search",
-				query,
-				"--source",
-				"pi",
-				"--limit",
-				String(limit),
-				"--max-chars",
-				String(maxChars),
-				"--json",
-				"--write-result-file",
-				"--session-id",
-				sessionId,
-			];
-			if (projectOverride) searchArgs.push("--project", projectOverride);
-			for (const project of referencedProjects) searchArgs.push("--referenced-project", project);
-			searchArgs.push("--audit-prompt-stdin");
-			const jsonResult = await runHub(
-				searchArgs,
-				inputPrompt || {},
-				safeSpawnCwd(ctx.cwd),
-				bootstrapTimeoutMs(),
-				true,
-				recallAbort.signal,
-			);
+			const jsonResult = await searchPromise;
 			exitCode = jsonResult.code;
 			durationMs = jsonResult.durationMs;
 			const parsed = jsonResult.code === 0 ? lastJsonLine(jsonResult.stdout) : null;
@@ -1677,31 +1793,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				}
 			}
 		} else {
-			const searchArgs = [
-				"search",
-				query,
-				"--source",
-				"pi",
-				"--limit",
-				String(limit),
-				"--max-chars",
-				String(maxChars),
-				"--json",
-				"--write-result-file",
-				"--session-id",
-				sessionId,
-			];
-			if (projectOverride) searchArgs.push("--project", projectOverride);
-			for (const project of referencedProjects) searchArgs.push("--referenced-project", project);
-			searchArgs.push("--audit-prompt-stdin");
-			const result = await runHub(
-				searchArgs,
-				inputPrompt || {},
-				safeSpawnCwd(ctx.cwd),
-				bootstrapTimeoutMs(),
-				true,
-				recallAbort.signal,
-			);
+			const result = await searchPromise;
 			exitCode = result.code;
 			durationMs = result.durationMs;
 			const parsed = result.code === 0 ? lastJsonLine(result.stdout) : null;
@@ -1854,6 +1946,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		cancelPendingFlush("shutdown");
+		for (const id of [...prewarmedRecalls.keys()]) discardPrewarm(id, "session_shutdown");
 		if (skipCapture) return;
 		// 收敛在途 enqueue：每个都有超时上限，allSettled 本身有界；
 		// 超时未完成的由各自 marker 兜底，不阻塞退出。
