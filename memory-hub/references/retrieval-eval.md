@@ -90,6 +90,20 @@ min_rating（默认 2）→ 确定性后处理 → Stage B 只接收 kept 源 �
 - Kimi judge 对同一文档的评分在不同候选组合下会 3↔1 漂移；单用例的升降先复跑再归因。
 </memory>
 
+<memory category="common-patterns">
+召回延迟定版（2026-10-14，memory-hub `46815a4`→`d394579`）：
+- 延迟归因看 `audit.stage_a.llm_calls[]` / `audit.stage_b.llm_calls[]`（逐次 latency_ms/usage）。kimi-k3 每次调用
+  有 10–20s 级的排队/预填充开销（resolver 只出 12 token 也要 2–21s），**减少串行调用数**比缩短输出更有效。
+- 线上已开 `RETRIEVAL_STAGE_B_MODE=deterministic`（按 Stage A support_level 直接生成 B wire；LLM B 在 95 条
+  来源里只排除过 1 条）与 `RETRIEVAL_PARALLEL_CORRECTION_RESOLVER=true`（resolver 与 judge 并行，applies 才
+  重判）。31 条回放 p50 47.8s→21.6s、p90 79s→38s，含已确认内容的用例 26→27；代价是注入按来源整段
+  呈现、不再按槽位拆句。回退：删掉两行 .env 重启。
+- 判分模型换 `deepseek-v4-flash`（网关约 270 tok/s，kimi-k3 约 37）延迟降到 p50 15s，但含已确认内容的
+  用例 38→19、格式错误增至 10 次，已否决；`kimi-k2.7-code-highspeed` 仅约 61 tok/s，收益不足。保留
+  `RETRIEVAL_LLM_MODEL` 开关（为空即复用 REVIEW_LLM_MODEL）。
+- 注入渲染遇到含 `project:xx` 等元数据片段的条目只跳过该条（全部不安全才 fail-closed）。
+</memory>
+
 ## 运行命令
 
 先验证黄金集格式：
