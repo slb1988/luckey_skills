@@ -221,9 +221,9 @@ class PiExtensionE2ETest(unittest.TestCase):
             summary = self.run_driver(Path(directory), {"SEARCH_DIAGNOSTICS": "1"})
             self.assertEqual(summary["mode"], "search-diagnostics")
 
-    def test_pi_template_is_v36(self):
+    def test_pi_template_is_v37(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
-        self.assertIn('const EXTENSION_VERSION = "36";', template)
+        self.assertIn('const EXTENSION_VERSION = "37";', template)
 
     def test_project_bootstrap_default_timeout_is_two_minutes(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
@@ -253,6 +253,13 @@ class PiExtensionE2ETest(unittest.TestCase):
             summary = self.run_driver(Path(directory), {"SKILL_BOOTSTRAP": "1"})
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "skill-bootstrap")
+
+    def test_no_recall_marker_skips_automatic_bootstrap(self):
+        # 定时任务在 prompt 中写 <!-- memory-hub:no-recall --> 即跳过首轮预热
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(Path(directory), {"NO_RECALL_MARKER": "1"})
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "no-recall-marker")
 
     def test_low_signal_prompt_skips_then_short_task_preserves_intent(self):
         with tempfile.TemporaryDirectory() as directory:

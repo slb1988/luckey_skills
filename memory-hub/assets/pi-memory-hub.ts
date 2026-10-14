@@ -61,7 +61,10 @@ import { Type } from "typebox";
 //   「可用 project 一览」摘要（仅带简介的根 project，上限 1200 字符），
 //   新增 memory_projects 工具查全表；memory_search 传入已归并 source 名时
 //   结果附「已归并到根」提示。客户端零阻塞：缓存缺失时首轮不注入目录。
-const EXTENSION_VERSION = "36";
+// v37：首轮 prompt 含 `memory-hub:no-recall` 标记（定时任务/自动化用，推荐写成
+//   `<!-- memory-hub:no-recall -->`）时跳过首轮预热（recall 与 persona），
+//   outcome=skipped_no_recall_marker；session 归档不受影响。
+const EXTENSION_VERSION = "37";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -170,6 +173,14 @@ const skillCommandPrefix = "/skill:";
 
 function isSkillInvocationPrompt(rawPrompt: string): boolean {
 	return rawPrompt.startsWith(skillInjectionPrefix) || rawPrompt.startsWith(skillCommandPrefix);
+}
+
+// 定时任务的 prompt 本身就是完整操作说明，每天召回只会复述它（约 48s/次）。
+// 自动化在 prompt 任意位置写入该标记即跳过首轮预热；Orca worker 外层编排说明不影响匹配。
+const noRecallMarker = /memory-hub:no-recall/i;
+
+export function hasNoRecallMarker(rawPrompt: string): boolean {
+	return noRecallMarker.test(rawPrompt);
 }
 
 const lowSignalBootstrapTexts = new Set([
@@ -1340,6 +1351,8 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			? "skipped_extraction"
 			: isSkillInvocationPrompt(rawPrompt)
 				? "skipped_skill_invocation"
+				: hasNoRecallMarker(rawPrompt)
+					? "skipped_no_recall_marker"
 				: skipCapture
 					? "skipped_capture_env"
 					: null;

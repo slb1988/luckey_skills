@@ -189,6 +189,13 @@ error/timeout 抛真正的 Pi 工具错误，取消保持独立。CLI `search --
 与安全结构化 error（code/http_status/retryable/request_id/retrieval_id）；这些字段进入 hook/Pi trace，
 不回显原始响应体/HTML/凭据。
 
+**v37 定时任务跳过召回**：首轮 prompt 任意位置含 `memory-hub:no-recall`（约定写成首行
+`<!-- memory-hub:no-recall -->`）时 Pi 跳过首轮预热（recall 与 persona），trace outcome=
+`skipped_no_recall_marker` 并写完成 marker；session 照常归档。已标记：Orca automations「RagFlow 全量同步」
+「memory-hub-sweep」「PL Daily Report」「daily-report 工作日报」，以及 Windows 计划任务
+`\DailyReport-ObsidianVault` 读取的 `daily-report/scripts/scheduled_prompt.txt`。新增定时任务照此加标记；
+只对 Pi 生效（Claude/Codex hook 未实现该标记）。
+
 **v30 首问与计数语义**：Pi、Claude、Codex 在客户端识别纯寒暄/单独测试词并静默跳过，不写完成 marker；
 同 session 后续首个有效任务仍会召回。有效短任务直接进入 query，不再退回「项目概况/架构/决策」宽泛
 查询。`search --json` 增加 `context_stats`（返回条数、实际注入条数、字符数与预算）；Pi TUI、trace 和

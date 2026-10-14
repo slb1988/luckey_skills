@@ -32,6 +32,7 @@ const scoreGateMode = process.env.SCORE_GATE === "1";
 const scoreAllZeroMode = process.env.SCORE_ALL_ZERO === "1";
 const extractionBootstrapMode = process.env.EXTRACTION_BOOTSTRAP === "1";
 const skillBootstrapMode = process.env.SKILL_BOOTSTRAP === "1";
+const noRecallMarkerMode = process.env.NO_RECALL_MARKER === "1";
 const projectDirectiveMode = process.env.PROJECT_DIRECTIVE === "1";
 const chatHubIdentityMode = process.env.CHAT_HUB_IDENTITY === "1";
 const multilinePromptMode = process.env.MULTILINE_PROMPT === "1";
@@ -473,6 +474,8 @@ try {
 				"",
 				"给我出3道数学题",
 			].join("\n")
+			: noRecallMarkerMode
+			? "<!-- memory-hub:no-recall -->\n在 D:/Github/ObsidianVault 仓库执行飞书→RagFlow 全量同步"
 			: extractionBootstrapMode
 			? "You are the Skill extraction sub-agent. Analyze this session."
 			: skillBootstrapMode
@@ -514,6 +517,14 @@ try {
 			assert.equal(traceEntries("project_bootstrap")[0].outcome, "skipped_extraction");
 			assert.ok(existsSync(join(stateDir, "pi-bootstrap-done", "sess-e2e.json")));
 			console.log(JSON.stringify({ ok: true, mode: "extraction-bootstrap" }));
+			process.exit(0);
+		}
+		if (noRecallMarkerMode) {
+			assert.equal(firstStart, undefined, "no-recall marker must not inject memory");
+			assert.equal(hookCalls("search").length, 0, "no-recall marker must not search");
+			assert.equal(traceEntries("project_bootstrap")[0].outcome, "skipped_no_recall_marker");
+			assert.ok(existsSync(join(stateDir, "pi-bootstrap-done", "sess-e2e.json")));
+			console.log(JSON.stringify({ ok: true, mode: "no-recall-marker" }));
 			process.exit(0);
 		}
 		if (skillBootstrapMode) {

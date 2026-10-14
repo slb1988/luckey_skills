@@ -1,3 +1,4 @@
+<!-- memory-hub:no-recall -->
 生成今天的每日日报，严格按 .claude/skills/daily-report/SKILL.md 流程执行：
 1. 飞书语义源走 lark-cli 路径（references/lark-messages.md）：+chat-list --page-all 拉全量群，逐群 +chat-messages-list 拉今天消息；「飞书消息摘要」按参与过滤口径——只写我实际发言/讨论/推进的内容，技术/开发优先，精简不发散
 2. 三路合并：lark 消息 + ActivityWatch（references/activitywatch-api.md，curl 必须 -sL）+ P4 三台服务器（references/p4-changelist.md，236 非 unicode 不设 charset，13/10.77 需 P4CHARSET=utf8）
