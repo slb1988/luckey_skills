@@ -104,6 +104,16 @@ min_rating（默认 2）→ 确定性后处理 → Stage B 只接收 kept 源 �
 - 注入渲染遇到含 `project:xx` 等元数据片段的条目只跳过该条（全部不安全才 fail-closed）。
 </memory>
 
+<memory category="common-patterns">
+版本收敛（schema v29，memory-hub `f2413eb`）：`memories.supersede_key` 写入时确定性计算——
+`segment:<session>:<turn>`（客户端 `segment_turn`=截至本次的用户消息数，只在有 full 事件时发；同 turn=同段重复上传）
+与 `routine:<首个用户目标>`（任务含 `memory-hub:no-recall|routine`）。`memory_retrieval_documents` 隐藏同 group
+已有更晚且可检索同 key 记忆的旧行，`_all` 视图保留原口径供 FTS 触发器。turn 不同 = 不同段全部保留；缺 turn 不收敛。
+排查「某条记忆搜不到」先查它是否被同 key 新版本遮住：对比两个视图。历史定时任务用 `scripts/tag_routine_memories.py`
+（已回填 RagFlow/sweep/日报/PL 日报 98 条）。查询期卡片裁剪（`RETRIEVAL_CARD_SELECT`）A/B 无收益且会丢判分上下文，已关闭；
+可检索文档 41% 仍是三段式原文（distilled 1989 + original 224），存储层卡片化需关卡 2 批量重抽。
+</memory>
+
 ## 运行命令
 
 先验证黄金集格式：
