@@ -193,8 +193,9 @@ error/timeout 抛真正的 Pi 工具错误，取消保持独立。CLI `search --
 `<!-- memory-hub:no-recall -->`）时 Pi 跳过首轮预热（recall 与 persona），trace outcome=
 `skipped_no_recall_marker` 并写完成 marker；session 照常归档。已标记：Orca automations「RagFlow 全量同步」
 「memory-hub-sweep」「PL Daily Report」「daily-report 工作日报」，以及 Windows 计划任务
-`\DailyReport-ObsidianVault` 读取的 `daily-report/scripts/scheduled_prompt.txt`。新增定时任务照此加标记；
-只对 Pi 生效（Claude/Codex hook 未实现该标记）。
+`\DailyReport-ObsidianVault` 读取的 `daily-report/scripts/scheduled_prompt.txt`。新增定时任务照此加标记。
+服务端（memory-hub `c180461` 起）同样识别：search-v2 任务文本含该标记直接返回空、不检索不调 LLM
+（`suppression_reason=no_recall_marker`），因此 Claude/Codex hook、旧版扩展带标记也生效；Pi v37 只是省掉一次请求。
 
 **v30 首问与计数语义**：Pi、Claude、Codex 在客户端识别纯寒暄/单独测试词并静默跳过，不写完成 marker；
 同 session 后续首个有效任务仍会召回。有效短任务直接进入 query，不再退回「项目概况/架构/决策」宽泛
