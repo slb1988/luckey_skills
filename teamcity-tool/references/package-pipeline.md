@@ -65,4 +65,5 @@
 - #9168(MPCook×4+增量,名单修复前):总 67.9 min,cook 23.6 min。
 - 名单修复后本地:cook 16.0 min(tick 6.3 + BuildChunkManifest 8.0 + 启动);ChunkPack 优化后本地 cook ~4-8 min。
 - **Archive 已移除**(2026-07-12):Windows 平台 UAT Archive 无后处理(纯单线程拷贝,源码 ArchiveCommand.Automation.cs 可证),已从 UAT 参数删除 `-archive -archivedirectory`,下游(PakSnapshot/Metadata/符号上传/Deploy)全部改读 `Saved\StagedBuilds\<平台>`;StagedBuilds 由 UAT Stage 每次自动清空重建。注意:去 Archive 必须删 `-archive` 开关本身,只去 `-archivedirectory` 会归档到默认路径。
-- CI 预期:cook ~10-12 min、打包步骤 ~36 min、总 ~45 min。剩余优化:符号/Deploy/Metadata 并行化(-5~6 min)、AS 动态类 digest(二期)、cook 启动耗时。
+- CI 预期:cook ~10-12 min、打包步骤 ~36 min、总 ~45 min。剩余优化:AS 动态类 digest(二期)、cook 启动耗时(符号/Metadata 并行化已完成,见下条)。
+- **Step `ExportPakSnapshot`(日志名 "Export Pak Snapshot + File Metadata + CrashSight Symbol")已是三路并行,瓶颈是 CrashSight 关键路径,无串行浪费**(build 31051 实测,2026-10-14):主线程 file_metadata 2m36s + 后台 job pak 快照(被主线程隐藏) + 后台 job CrashSight 6m53s;主线程后 4m17s 纯 `Wait-Job` 空等 CrashSight。CrashSight 分解:`crashSightDumpSym` 从 3.28GB PDB 提符号 315s(76%)、zip 7s、上传 api.crashsight.qq.com 85s——dumpSym 是外部工具+单 PDB,无内部并行空间。与 Deploy 步重叠可完全隐藏这 ~7min,但**需求方已否决挪进 Deploy**(kts/CHANGELOG 有记录),不要再提议;fire-and-forget 异步有孤儿进程/丢 WARNING 语义/中间文件竞态风险。

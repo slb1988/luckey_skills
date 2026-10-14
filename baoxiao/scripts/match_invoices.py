@@ -44,6 +44,8 @@ def extract_total(pdf: Path):
     两个小数一行(¥ 可能丢失), 取后者; 用 金额+税额=价税合计 交叉验证。
     多行明细可能凑出干扰对(如 实付+优惠=原价), 故取文档中最后一个通过
     验证的合计行(合计在票据底部), 并优先采信与文件名一致的值。
+    注意多明细带折扣发票(青庖等)尾部有税率分组小计段, 明细数字对会偶然
+    通过验证; 真实价税合计常是单独数字行, 此时文件名金额更可靠。
     """
     try:
         text = pdf_text(pdf)
@@ -62,8 +64,12 @@ def extract_total(pdf: Path):
     if validated:
         if name_v is not None and any(abs(v - name_v) < 0.01 for v in validated):
             return name_v, "合计行(已验证,与文件名一致)"
+        if name_v is not None and any(abs(name_v - n) < 0.01 for n in nums):
+            return name_v, "文件名(正文匹配,验证对疑似小计误读)"
         return validated[-1], "合计行(已验证)"
     if pairs:
+        if name_v is not None and any(abs(name_v - n) < 0.01 for n in nums):
+            return name_v, "文件名(正文匹配,合计行未验证)"
         return pairs[-1][1], "合计行(未验证,低置信)"
     if name_v is not None:
         if any(abs(name_v - n) < 0.01 for n in nums):
