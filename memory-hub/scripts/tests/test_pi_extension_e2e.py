@@ -75,6 +75,7 @@ class PiExtensionE2ETest(unittest.TestCase):
             "FAKE_PERSONA_CARD_DELAY_MS",
             "FAKE_SEARCH_MODE",
             "SEARCH_DIAGNOSTICS",
+            "PREWARM_BOOTSTRAP",
         ):
             env.pop(key, None)
         env["MEMORY_HOOK_PI_CAPTURE_DELAY_MS"] = "300"
@@ -221,9 +222,15 @@ class PiExtensionE2ETest(unittest.TestCase):
             summary = self.run_driver(Path(directory), {"SEARCH_DIAGNOSTICS": "1"})
             self.assertEqual(summary["mode"], "search-diagnostics")
 
-    def test_pi_template_is_v37(self):
+    def test_pi_template_is_v38(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
-        self.assertIn('const EXTENSION_VERSION = "37";', template)
+        self.assertIn('const EXTENSION_VERSION = "38";', template)
+
+    def test_input_prewarm_adopted_and_respawn_on_prompt_rewrite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = self.run_driver(Path(directory), {"PREWARM_BOOTSTRAP": "1"})
+            self.assertTrue(summary["ok"])
+            self.assertEqual(summary["mode"], "prewarm-bootstrap")
 
     def test_project_bootstrap_default_timeout_is_two_minutes(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")

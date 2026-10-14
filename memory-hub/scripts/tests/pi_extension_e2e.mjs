@@ -39,6 +39,7 @@ const multilinePromptMode = process.env.MULTILINE_PROMPT === "1";
 const lowSignalBootstrapMode = process.env.LOW_SIGNAL_BOOTSTRAP === "1";
 const suppressedBootstrapMode = process.env.SUPPRESSED_BOOTSTRAP === "1";
 const recallCancelMode = process.env.RECALL_CANCEL === "1";
+const prewarmBootstrapMode = process.env.PREWARM_BOOTSTRAP === "1";
 const personaManualMode = process.env.PERSONA_MANUAL === "1";
 const personaOversizeMode = process.env.PERSONA_OVERSIZE === "1";
 const personaAutoEnabled = process.env.MEMORY_HOOK_PI_PERSONA_CARD === "1";
@@ -265,6 +266,48 @@ try {
 		assert.equal(traceEntries("project_bootstrap").at(-1).outcome, "injected");
 		assert.ok(existsSync(join(stateDir, "pi-bootstrap-done", "sess-e2e.json")));
 		console.log(JSON.stringify({ ok: true, mode: "low-signal-bootstrap" }));
+	} else if (prewarmBootstrapMode) {
+		// v38：input 事件即 spawn 检索子进程（不等 before_agent_start），
+		// before_agent_start 收养在途结果；prompt 被改写则 abort 重跑。
+		await handlers.get("session_start")({}, ctx);
+		const taskPrompt = "prewarm adoption real task";
+		await handlers.get("input")({ text: taskPrompt, source: "interactive" }, ctx);
+		// 检索在 before_agent_start 之前就已到达 fake hook——预热并行的直接证据。
+		await waitFor(() => hookCalls("search").length === 1, "prewarmed search before before_agent_start");
+		assert.equal(traceEntries("recall_prewarm").length, 1);
+		assert.equal(traceEntries("recall_prewarm")[0].outcome, "started");
+		const adopted = await handlers.get("before_agent_start")(
+			{ prompt: taskPrompt, systemPrompt: "base-system" },
+			ctx,
+		);
+		assert.match(adopted.systemPrompt, /严格测试驱动/);
+		assert.equal(hookCalls("search").length, 1, "adoption must not spawn a second search");
+		assert.equal(traceEntries("recall_prewarm").at(-1).outcome, "reused");
+		assert.equal(traceEntries("project_bootstrap")[0].outcome, "injected");
+
+		// prompt 在 input 后被改写（模板展开等）：预热丢弃、按原串行路径重跑。
+		const rewriteCtx = {
+			...ctx,
+			sessionManager: {
+				getSessionId: () => "sess-e2e-rewrite",
+				getSessionFile: () => transcriptPath,
+			},
+		};
+		await handlers.get("session_start")({}, rewriteCtx);
+		await handlers.get("input")({ text: "原始任务甲", source: "interactive" }, rewriteCtx);
+		await waitFor(() => hookCalls("search").length === 2, "rewrite session prewarmed search");
+		const rewritten = await handlers.get("before_agent_start")(
+			{ prompt: "改写后任务乙", systemPrompt: "base-system" },
+			rewriteCtx,
+		);
+		assert.match(rewritten.systemPrompt, /严格测试驱动/);
+		await waitFor(() => hookCalls("search").length === 3, "prompt rewrite must respawn search");
+		assert.equal(
+			traceEntries("recall_prewarm").filter((entry) => entry.outcome === "prompt_mismatch").length,
+			1,
+		);
+		assert.equal(traceEntries("project_bootstrap").at(-1).outcome, "injected");
+		console.log(JSON.stringify({ ok: true, mode: "prewarm-bootstrap" }));
 	} else if (catchupMode) {
 		// catch-up 场景：session_start 前预置遗留 marker——合法可补传、半截损坏、
 		// transcript 已消失（应保留 marker）、extraction 子 session（应终态删除）
