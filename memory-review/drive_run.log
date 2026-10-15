@@ -1,0 +1,12 @@
+
+===== round 1 =====
+  skip 01a0b9f1（已不在 open 队列，并发处理或状态变化）
+  skip 01a0b9ec（已不在 open 队列，并发处理或状态变化）
+  skip 01a0b9e9（已不在 open 队列，并发处理或状态变化）
+  skip 01a0b9ef（已不在 open 队列，并发处理或状态变化）
+本轮无可批条目且无 in-flight，结束。
+
+===== 汇总 =====
+approved+indexed: 0
+skipped(并发/消失): ['01a0b9f1', '01a0b9ec', '01a0b9e9', '01a0b9ef']
+未批准剩余: ['01a0b9e7', '01a0b9e1', '01a0b9df', '01a0b9d6', '01a0b9d1', '01a0b9d0', '01a0b9cf', '01a0b9ce', '01a0b9cd', '01a0b9ca', '01a0b9c9', '01a0b9de', '01a0b9dc', '01a0b9db', '01a0b9da', '01a0b9d3', '01a0b9d2', '01a0b9cb', '01a0b9c8', '01a0b9c7', '01a0b9c6', '01a0b9c2', '01a0b9e8', '01a0b9e4', '01a0b9d9', '01a0b9d8', '01a0b9cc']

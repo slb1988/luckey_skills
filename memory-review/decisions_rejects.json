@@ -1,0 +1,21 @@
+{
+ "approvals": [],
+ "rejections": [
+  {
+   "review_id": "01a111fd-cb35-7f6a-8f95-e62c2bad6586",
+   "rationale": "auto-review: 空预览且正文几乎全为单日（2026-10-06）日报结果与既有 daily-report 流程复述，属一次性短期状态，无长期增量"
+  },
+  {
+   "review_id": "01a111d0-af08-763b-81d7-e1c10ea3543d",
+   "rationale": "auto-review: 与同批同组 obsidianvault 的 01a112d0-9b29-7ad6-b45d-ae69ee5fdaf3（ghost_entries 检测实现，curated 预览完好）内容重复，本条预览失败，二选一拒"
+  },
+  {
+   "review_id": "01a111cf-9326-79c7-b80c-873decd87869",
+   "rationale": "auto-review: 与同批同组 admin_sun_depot_7184 的 01a112d2-fbae（CL1907 实现）+01a112d2-34b1（unavailable 根因）内容重复，本条为编排侧汇总且预览失败，二选一拒"
+  },
+  {
+   "review_id": "01a11193-a117-7730-8088-a9132aed6511",
+   "rationale": "auto-review: 与同批同组 obsidianvault 的 01a112d1-63dd（规则缺口）+01a112cf-0c19（builder_unsupported 根因）内容重复，本条为编排侧汇总且预览失败，二选一拒"
+  }
+ ]
+}

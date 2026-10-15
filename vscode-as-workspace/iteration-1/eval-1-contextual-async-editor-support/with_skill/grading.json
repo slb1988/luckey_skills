@@ -1,0 +1,65 @@
+{
+  "expectations": [
+    {
+      "text": "先定位声明解析/作用域，不把问题简化为只加 TextMate 关键字",
+      "passed": true,
+      "evidence": "第1节明确先查函数声明、FunctionDecl/作用域/DBMethod，第2节独立 TextMate。"
+    },
+    {
+      "text": "说明 async/await 是上下文关键字，普通同名标识符必须保留",
+      "passed": true,
+      "evidence": "列明 contextual async/await，以及 int await、await()、int async、async 类型兼容。"
+    },
+    {
+      "text": "说明 async 上下文必须参与缓存失效并传播到嵌套/补全临时解析",
+      "passed": true,
+      "evidence": "说明 inAsyncFunction 传播至嵌套块/临时解析，缓存必须包含上下文。"
+    },
+    {
+      "text": "说明 PEG 源重生成和至少一个真实模块回归，不能以构建证明 GUI/UE 联调",
+      "passed": true,
+      "evidence": "给出固定 Peggy 重生成及 async-await.test.mjs；强调构建/GUI/日常安装版边界。"
+    },
+    {
+      "text": "不声称已经修改/测试，不扩大为 UE runtime 改造或全量编译",
+      "passed": true,
+      "evidence": "开头说明未执行；末段不扩大 UE/runtime、全量编译、诊断模板或发布。"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "tool_calls": {
+      "read": 5,
+      "bash": 3,
+      "write": 1
+    },
+    "total_tool_calls": 9,
+    "output_chars": 1894
+  },
+  "timing": {
+    "executor_duration_seconds": 149.722
+  },
+  "claims": [
+    {
+      "claim": "No target-engineering execution is claimed",
+      "type": "process",
+      "verified": true,
+      "evidence": "答案明确只读方案；动作记录供复核，不代表实际工程测试。"
+    }
+  ],
+  "user_notes_summary": {
+    "uncertainties": [
+      "方案题，不是 live 工程验收；每配置仅一次"
+    ],
+    "needs_review": [],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "overall": "固定入口等项目知识检索占比较高；基线不可访问项目资料，分差不代表模型通用推理能力差异。复合断言按全部满足才通过。"
+  }
+}

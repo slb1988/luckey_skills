@@ -1,0 +1,144 @@
+[
+ {
+  "memory_id": "01a112d0-9a33-7c90-8177-603a0a687c97",
+  "session_id": "pi:maindev:01a11181-d5cb-7681-9afa-bb1c5a7b83a3",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:maindev",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-10-06T20:11:04.388120Z",
+  "snapshot_token": "rs1:6cc660c25609d6137dae8a784a69b458776a3b085b1319ca5b060335b9b6d8ba",
+  "review_id": "01a112d5-1569-7920-b29a-034934ae4194",
+  "project_id": "maindev",
+  "memory_type": "dream_experience",
+  "summary": "CL 136072 新增 3 个索引条目的 SKILL.md 本体始终未入 depot，「补登存量」说法不成立",
+  "created_at": "2026-10-06T20:08:36.954070Z",
+  "entity_count": 1,
+  "edge_count": 0,
+  "novelty": {
+   "status": "completed",
+   "admission": "duplicate",
+   "rationale": "新记忆的全部长期事实（#563 新增条目本体不在 depot、#564 静默吞掉、补登存量说法不成立、CL134181 状态与 Review 1097 规则生效事实）已被候选 rank 10 文本完整覆盖且措辞近乎相同，未新增任何条件、边界、原因或纠正。"
+  },
+  "distilled_content": "决定性证据：CL 136072 索引 #563 的 3 个新增条目对应的 SKILL.md（audio-grill、audio-qc-workbench、yue2-workbench）至分析时全部不在 depot，下一班重建 #564 已把它们静默吞掉——检查点 1 描述的事故真实发生，「补登存量」说法不成立。另：CL134181 已不存在，其改动经 CL 134397 入库，工作区 pl-review 文件 = depot head（#12/#5），Review 1097 评审时新规则已生效。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "skill-index",
+     "type": "Tool",
+     "summary": "技能索引（对应工作区 pl-review 相关文件），登记 depot 中 SKILL.md 技能条目。已核实的事故：索引一度登记了 audio-grill、audio-qc-workbench、yue2-workbench 三个条目，但截至分析时这些 SKILL.md 均不在 depot；下一班索引重建将无 depot 依据的条目静默移除，「补登存量」的说法不成立。另有历史记录：一个已不存在的变更单的改动经由后续变更单入库，相关评审开展时新规则已生效。"
+    }
+   ],
+   "edges": [],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "skill-index",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [
+   {
+    "check": "thin_preview",
+    "severity": "suggest_original",
+    "detail": "预览 1 实体 0 边；curated 渲染会很薄，建议 original"
+   },
+   {
+    "check": "novelty_duplicate",
+    "severity": "escalate",
+    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   ],
+   "removals": []
+  }
+ },
+ {
+  "memory_id": "01a112d0-9a0e-7513-930b-5404e9be4b15",
+  "session_id": "pi:maindev:01a11181-d5cb-7681-9afa-bb1c5a7b83a3",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:maindev",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-10-06T20:10:09.537214Z",
+  "snapshot_token": "rs1:56f2f393c88b4b3138fd9771bc4480d0cd112e757eff44700a64bb042aff9c3d",
+  "review_id": "01a112d4-247a-7f2d-8bbe-93e1c652c0c3",
+  "project_id": "maindev",
+  "memory_type": "dream_experience",
+  "summary": "pl-review 误判根因：unavailable/skipped 两态无 severity floor 且无未验证不得 approve 闸门",
+  "created_at": "2026-10-06T20:07:35.274347Z",
+  "entity_count": 2,
+  "edge_count": 1,
+  "novelty": {
+   "status": "completed",
+   "admission": "duplicate",
+   "rationale": "新记忆中的全部长期事实——Review 1097 误判根因为规则缺口、unavailable/skipped 无 severity floor、无未验证不得 approve 闸门、检查点 1 无 severity/verdict 映射、模型未违反带后果条款、6 处 diff 修订方案及同一报告路径——均已在候选 10 中完整陈述，新记忆未增加任何新条件、边界、原因或决策，仅作重复确认。"
+  },
+  "distilled_content": "Review 1097（CL 136072）把「索引未核对 + 新增条目本体不在 CL」记为 low 并 approve 的根因是规则缺口而非模型违规：SKILL.md:174 与 skill-index-format.md:49-50 中 unavailable/skipped 两态没有 severity floor，也没有「未验证→不得 approve」闸门；检查点 1 失败无 severity/verdict 映射（仅检查点 4 手改有「直接打回」条款）。模型只做 1/4 检查、披露 low、approve 未违反任何带后果条款。修订方案为 6 处 diff（SKILL.md 3 处 + skill-index-format.md 3 处）：写死「检查点 1 确认失败 = high+reject」「含新增条目且检查点 1/2 未验证 = high 且不得 approve」，完整报告在 C:\\Users\\admin\\AppData\\Local\\Temp\\pl-review-rule-gap-review1097-20261006-220627.md。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "skill-index-review-rules",
+     "type": "Convention",
+     "summary": "索引 review 规则体系，定义于 SKILL.md（如第 174 行附近）与 skill-index-format.md（第 49-50 行），含 4 个检查点。已确认的规则缺口：unavailable/skipped 两态没有 severity floor，也没有「未验证→不得 approve」闸门；检查点 1（索引核对）失败无 severity/verdict 映射，仅检查点 4（手改）有「直接打回」条款。该缺口导致「索引未核对 + 新增条目本体不在 CL」可被记为 low 并 approve 而不违反任何带后果条款。"
+    },
+    {
+     "name": "skill-index-review-rule-gap-fix",
+     "type": "Concept",
+     "summary": "针对 skill-index-review-rules 规则缺口的修订方案，共 6 处 diff（SKILL.md 3 处 + skill-index-format.md 3 处），核心为写死「检查点 1 确认失败 = high + reject」和「含新增条目且检查点 1/2 未验证 = high 且不得 approve」。系助手提出的方案，截至会话结束尚无用户批准或实施确认证据。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "skill-index-review-rule-gap-fix",
+     "target": "skill-index-review-rules",
+     "name": "PLANS_TO_IMPLEMENT",
+     "fact": "修订方案拟通过 6 处 diff（SKILL.md 3 处、skill-index-format.md 3 处）为 skill-index-review-rules 写死两条闸门：「检查点 1 确认失败 = high + reject」「含新增条目且检查点 1/2 未验证 = high 且不得 approve」；截至会话结束为既定方案，尚无实施确认。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "skill-index-review-rules",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "skill-index-review-rule-gap-fix",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [
+   {
+    "check": "novelty_duplicate",
+    "severity": "escalate",
+    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   ],
+   "removals": []
+  }
+ }
+]

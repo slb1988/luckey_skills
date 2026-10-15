@@ -1,0 +1,16 @@
+{
+ "approvals": [
+  {
+   "review_id": "01a12249-24b8-7dac-87a0-2823b23abc06",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:067fa218cb9c8ec2c46304df498ddbcb513f99fb48c822fc8081464f006acec1",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution（前次提交遇 SSL EOF，只读核对确认未执行后续批）"
+  },
+  {
+   "review_id": "01a1201e-b2fc-71e2-81a4-5df57fe62012",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:27bcc3b1da8e452a91fa8b5596b1abeafba81d3f0103b233c3919508720093fc",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution（前次提交遇 SSL EOF，只读核对确认未执行后续批）"
+  }
+ ]
+}

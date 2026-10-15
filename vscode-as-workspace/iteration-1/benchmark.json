@@ -1,0 +1,349 @@
+{
+  "metadata": {
+    "skill_name": "vscode-as",
+    "skill_path": ".claude/skills/vscode-as",
+    "executor_model": "openai-codex/gpt-6-astra",
+    "analyzer_model": "openai-codex/gpt-6-astra",
+    "timestamp": "2026-09-21T23:52:44Z",
+    "evals_run": [
+      1,
+      2,
+      3
+    ],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 149.722,
+        "tokens": 68884,
+        "tool_calls": 9,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "先定位声明解析/作用域，不把问题简化为只加 TextMate 关键字",
+          "passed": true,
+          "evidence": "第1节明确先查函数声明、FunctionDecl/作用域/DBMethod，第2节独立 TextMate。"
+        },
+        {
+          "text": "说明 async/await 是上下文关键字，普通同名标识符必须保留",
+          "passed": true,
+          "evidence": "列明 contextual async/await，以及 int await、await()、int async、async 类型兼容。"
+        },
+        {
+          "text": "说明 async 上下文必须参与缓存失效并传播到嵌套/补全临时解析",
+          "passed": true,
+          "evidence": "说明 inAsyncFunction 传播至嵌套块/临时解析，缓存必须包含上下文。"
+        },
+        {
+          "text": "说明 PEG 源重生成和至少一个真实模块回归，不能以构建证明 GUI/UE 联调",
+          "passed": true,
+          "evidence": "给出固定 Peggy 重生成及 async-await.test.mjs；强调构建/GUI/日常安装版边界。"
+        },
+        {
+          "text": "不声称已经修改/测试，不扩大为 UE runtime 改造或全量编译",
+          "passed": true,
+          "evidence": "开头说明未执行；末段不扩大 UE/runtime、全量编译、诊断模板或发布。"
+        }
+      ],
+      "notes": [
+        "方案题，不是 live 工程验收；每配置仅一次"
+      ],
+      "eval_name": "contextual-async-editor-support"
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 115.608,
+        "tokens": 55196,
+        "tool_calls": 7,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "给出源码窗口的 Attach to Running Dev Host，而不是重复 Launch Client",
+          "passed": true,
+          "evidence": "第1节准确选择 Attach to Running Dev Host，并禁止再 Launch Client。"
+        },
+        {
+          "text": "区分 9333/6009 Node inspector、27099 UE TCP 与本地 DAP 通路",
+          "passed": true,
+          "evidence": "第5节分别解释 9333、6009、27099 和 ASDebugSession 的本地随机端口。"
+        },
+        {
+          "text": "给出 parsed_completion.ts 的 Complete 断点和开发宿主 Ctrl+Space 触发",
+          "passed": true,
+          "evidence": "第2节给出 parsed_completion.ts 的 Complete 与开发宿主 Ctrl+Space。"
+        },
+        {
+          "text": "修改后 Ctrl+Shift+B 编译，只重载开发宿主，不关闭日常 VSCode/UE",
+          "passed": true,
+          "evidence": "第3节明确 Ctrl+Shift+B/npm:compile，仅开发宿主 Reload Window。"
+        },
+        {
+          "text": "要求扩展/LSP 路径和 workspace 日志证据，不把 TCP 建连等同 AS 断点验证",
+          "passed": true,
+          "evidence": "第4节要求 extensionDevelopmentPath、LSP dist 路径、workspace roots 和源码映射；第5节不将 TCP 视为 AS 断点通过。"
+        }
+      ],
+      "notes": [
+        "方案题，不是 live 工程验收；每配置仅一次"
+      ],
+      "eval_name": "attach-existing-development-host"
+    },
+    {
+      "eval_id": 3,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 130.6,
+        "tokens": 61372,
+        "tool_calls": 8,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "给出 vsce package --no-dependencies 并说明它以依赖已 bundle 为前提，不手工 zip 代替 VSIX",
+          "passed": true,
+          "evidence": "给出固定 vsce 3.7.1 package --no-dependencies，解释依赖 bundle 前提。"
+        },
+        {
+          "text": "检查扩展/LSP/debugAdapter 的 dist 入口、非 JS helper 与许可，并排除本机配置/缓存",
+          "passed": true,
+          "evidence": "逐项检查三个 dist 入口、terminateProcess.sh、两类许可证并排除本地配置/缓存。"
+        },
+        {
+          "text": "使用独立 user-data/extensions 试安装，检查 ID/版本和产物 hash，不替换日常扩展",
+          "passed": true,
+          "evidence": "独立 user-data/extensions 安装，核对 ID/版本/字节一致和 Get-FileHash。"
+        },
+        {
+          "text": "不把 mode 100666 的 Windows 包宣称为 macOS 已可用，要求目标平台权限/退出重启验证",
+          "passed": true,
+          "evidence": "明确 100666 无执行位，macOS 重包、检查 ZIP/安装后权限及 LSP 退出/重启。"
+        },
+        {
+          "text": "提醒同 ID 替换/自动更新风险，不发布 Marketplace，不把安装成功说成 UE 联调通过",
+          "passed": true,
+          "evidence": "提醒同 ID 替换和自动更新，不全局改策略、不发市场，也不将安装等同 UE 联调。"
+        }
+      ],
+      "notes": [
+        "方案题，不是 live 工程验收；每配置仅一次"
+      ],
+      "eval_name": "portable-vsix-distribution"
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.8,
+        "passed": 4,
+        "failed": 1,
+        "total": 5,
+        "time_seconds": 108.637,
+        "tokens": 25976,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "先定位声明解析/作用域，不把问题简化为只加 TextMate 关键字",
+          "passed": true,
+          "evidence": "先分层检查声明解析、符号、作用域，补全不能用全局正则补丁。"
+        },
+        {
+          "text": "说明 async/await 是上下文关键字，普通同名标识符必须保留",
+          "passed": true,
+          "evidence": "第2节明确上下文式 async/await，保留 int await 与 await()。"
+        },
+        {
+          "text": "说明 async 上下文必须参与缓存失效并传播到嵌套/补全临时解析",
+          "passed": true,
+          "evidence": "第2节强调最近所属函数上下文，半成品节点；第4节纳入缓存依赖并重建作用域/正文。"
+        },
+        {
+          "text": "说明 PEG 源重生成和至少一个真实模块回归，不能以构建证明 GUI/UE 联调",
+          "passed": false,
+          "evidence": "有增量与冷解析对照，但缺少 PEG 源/固定重生成和真实模块回归入口；属于项目事实缺失。"
+        },
+        {
+          "text": "不声称已经修改/测试，不扩大为 UE runtime 改造或全量编译",
+          "passed": true,
+          "evidence": "明确未执行，未查源，不虚构路径；边界禁止扩大 runtime 和全项目重构。"
+        }
+      ],
+      "notes": [
+        "方案题，不是 live 工程验收；每配置仅一次"
+      ],
+      "eval_name": "contextual-async-editor-support"
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.0,
+        "passed": 0,
+        "failed": 5,
+        "total": 5,
+        "time_seconds": 184.468,
+        "tokens": 49914,
+        "tool_calls": 6,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "给出源码窗口的 Attach to Running Dev Host，而不是重复 Launch Client",
+          "passed": false,
+          "evidence": "正确建议 attach 而非新开，但项目专用配置名未知，另拟两份自定义配置，不是准确现成入口。"
+        },
+        {
+          "text": "区分 9333/6009 Node inspector、27099 UE TCP 与本地 DAP 通路",
+          "passed": false,
+          "evidence": "能区分 inspector 与业务端口，却无法确认 27099 的本项目约定，也未区分 DAP 本地随机通路。"
+        },
+        {
+          "text": "给出 parsed_completion.ts 的 Complete 断点和开发宿主 Ctrl+Space 触发",
+          "passed": false,
+          "evidence": "有通用补全断点与 Ctrl+Space，但没有 parsed_completion.ts/Complete 的项目定位。"
+        },
+        {
+          "text": "修改后 Ctrl+Shift+B 编译，只重载开发宿主，不关闭日常 VSCode/UE",
+          "passed": false,
+          "evidence": "正确只重载开发宿主，但仅说项目已有构建/watch，缺少实际 Ctrl+Shift+B/npm:compile 入口。"
+        },
+        {
+          "text": "要求扩展/LSP 路径和 workspace 日志证据，不把 TCP 建连等同 AS 断点验证",
+          "passed": false,
+          "evidence": "提供 extensionDevelopmentPath、已加载脚本和调用栈证据，但未覆盖 LSP bundle/workspace roots 日志这一复合要求；未作虚假 AS 成功声明。"
+        }
+      ],
+      "notes": [
+        "方案题，不是 live 工程验收；每配置仅一次"
+      ],
+      "eval_name": "attach-existing-development-host"
+    },
+    {
+      "eval_id": 3,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 132.282,
+        "tokens": 29404,
+        "tool_calls": 4,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "给出 vsce package --no-dependencies 并说明它以依赖已 bundle 为前提，不手工 zip 代替 VSIX",
+          "passed": true,
+          "evidence": "使用正式 vsce package --no-dependencies，说明 runtime 依赖已 bundle/携带的前提。"
+        },
+        {
+          "text": "检查扩展/LSP/debugAdapter 的 dist 入口、非 JS helper 与许可，并排除本机配置/缓存",
+          "passed": false,
+          "evidence": "有客户端/服务端/helper/grammar 检查，但无 debugger dist 入口和许可检查这一复合要求。"
+        },
+        {
+          "text": "使用独立 user-data/extensions 试安装，检查 ID/版本和产物 hash，不替换日常扩展",
+          "passed": false,
+          "evidence": "建议干净环境及 ID/版本/hash，但没有隔离 user-data/extensions 参数；给出普通安装命令。"
+        },
+        {
+          "text": "不把 mode 100666 的 Windows 包宣称为 macOS 已可用，要求目标平台权限/退出重启验证",
+          "passed": true,
+          "evidence": "不承诺 macOS；说明 100666、100755、归档/安装权限与启动退出验证。"
+        },
+        {
+          "text": "提醒同 ID 替换/自动更新风险，不发布 Marketplace，不把安装成功说成 UE 联调通过",
+          "passed": false,
+          "evidence": "未发布市场、未承诺 UE，但没有同 ID 替换/Marketplace 自动更新覆盖风险。"
+        }
+      ],
+      "notes": [
+        "方案题，不是 live 工程验收；每配置仅一次"
+      ],
+      "eval_name": "portable-vsix-distribution"
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 131.9767,
+        "stddev": 17.0986,
+        "min": 115.608,
+        "max": 149.722
+      },
+      "tokens": {
+        "mean": 61817.3333,
+        "stddev": 6854.8579,
+        "min": 55196,
+        "max": 68884
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 0.4,
+        "stddev": 0.4,
+        "min": 0.0,
+        "max": 0.8
+      },
+      "time_seconds": {
+        "mean": 141.7957,
+        "stddev": 38.8004,
+        "min": 108.637,
+        "max": 184.468
+      },
+      "tokens": {
+        "mean": 35098.0,
+        "stddev": 12945.0063,
+        "min": 25976,
+        "max": 49914
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.60",
+      "time_seconds": "-9.8",
+      "tokens": "+26719"
+    }
+  },
+  "notes": [
+    "三个只读方案题、每配置一次；这是接手资料可用性测试，不是实际 VSCode/UE 集成验收，也不是统计显著性结论。",
+    "有 skill 15/15，无 skill 6/15；主要分差来自项目固定配置名、源码路径、构建命令、包入口/许可证和隔离安装方法。",
+    "基线不能读取项目文档或源码；其一般定位与安全建议并非都错，不能把资料可访问性差异归因为模型通用能力。",
+    "所有六个会话已核对模型 gpt-6-astra；动作仅含允许的技能资料读取、答案文件写入和 Orca 生命周期命令，没有工程编译/安装/启动。",
+    "pass rate 的 stddev 是三个不同场景间的差异，不是同场景重复实验的稳定性；没有重复运行评估方差。",
+    "时间为 dispatch 到 worker_done 的墙钟时间；token 包含 input、cacheRead 和 output，不能与纯生成延迟/唯一输入长度混为一谈。",
+    "无越权/不虚报运行结果等断言两组均较好，区分度主要依赖项目具体知识；结果不覆盖 skill 自动触发准确率。"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+ "removals": [],
+ "rejections": [],
+ "approvals": [
+  {
+   "review_id": "01a112d0-9b29-7ad6-b45d-ae69ee5fdaf3",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:bfb82d31cc0a4123f889ec32dd88dbd909a08c0ce1226b44dac35270cc232a78",
+   "rationale": "auto-review: 预览准确（ghost_entries 第六态语义与正文一致）；novelty=evolution"
+  },
+  {
+   "review_id": "01a112d7-8413-7310-a7f5-e438a5ef16ea",
+   "content_mode": "original",
+   "snapshot_token": "rs1:df942f6ccf131a8451860ef282f93bb5b3eab7890d5bf2571ad10a343743af93",
+   "rationale": "auto-review: preview_failed(attempts=3) 到限不重试；正文为 AR cache 刷新规程与维护信号，有长期运维价值，approve original 跳过预览"
+  }
+ ]
+}

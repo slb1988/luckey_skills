@@ -1,0 +1,981 @@
+{
+ "complete": false,
+ "coverage_certain": true,
+ "requested": 12,
+ "succeeded": 11,
+ "failed": 1,
+ "errors": {
+  "01a12242-96c2-7927-91e7-84bd894a83c2": "URLError: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1006)>"
+ },
+ "items": [
+  {
+   "memory_id": "01a124c0-4959-71b8-84ee-da142e4efe84",
+   "session_id": "pi:devops:01a124a5-9405-7082-924f-f6790bb26302",
+   "session_version": null,
+   "scope_type": "project",
+   "group_id": "project:devops",
+   "status": "preview_failed",
+   "memory_status": "pending_extraction",
+   "preview_attempts": 3,
+   "updated_at": "2026-10-10T07:43:51.401251Z",
+   "snapshot_token": "rs1:9a8b54d8759dfcdd0fb0c7df597e563cdad86d1a1425b1ffaed097c3dab334cf",
+   "review_id": "01a124c1-3d29-7381-92bc-c9fa1e3f2d42",
+   "project_id": "devops",
+   "memory_type": "session_summary",
+   "summary": "Request Review 文件占用报错根因分析",
+   "created_at": "2026-10-10T07:39:58.784363Z",
+   "entity_count": 0,
+   "edge_count": 0,
+   "novelty": {
+    "status": "completed",
+    "admission": "evolution",
+    "rationale": "新记忆在重复根因诊断之外新增了历史候选未覆盖的事实：shelve 补 -f 的修复已实现、6 个失败出口改为必弹 warning 弹框、50 项测试通过并已部署到 P4VUtils 生效副本，且明确替代了在途诊断记忆中「修复方向（未实施）」的状态。"
+   },
+   "distilled_content": "首个用户目标：任务：分析 MainDev CL 136952「Request Review」第一次文件占用报错后、再次点击无法正常工作的根因。只诊断：禁止修改任何代码、禁止任何修改性 P4 操作（不 shelve/unshelve/revert/lock/unlock/edit/submit/change 删除等）。 背景： - 用户在本机 P4V 里对 MainDev 的 pending CL 136952 点 Custom Tool「Request Review」（执行 RequestReview.py）。 - 第一次点击：弹「Request Review：文件被占用」错误框，退出码 1。该分支的已知行为：脚本先 shelve 后 revert，检测到文件被进程占用时直接中止——shelf 已创建成功，revert 未执行，文件仍挂在 CL 上且保持 exclusive。 - 之后用户再次点击 Request Review，无法正常工作了（具体失效表现需你从日志与实际状态查证，不要假设）。 已确认事实（直接采信，不必重新验证）： - RequestReview.py 源码在 D:\\SunLaibing_Depot_8603\\DevOps\\dist\\RequestReview.py（你的 cwd 即此仓库）；实际生效的部署副本在 C:\\Users\\admin\\AppData\\Local\\Epic Games\\P4VUtils\\RequestReview.py。第一步先 diff 两者；若不一致，以部署副本为准分析，并指出差异。 - MainDev 的 P4 服务器是 192.168.2.2。最近用户目标：另外 launcher abort: cl=136952 shelve failed 这种 failed 不应该弹框提醒么？ 否则用户没法感知的。会话结果：修复完成并已部署。总结： ## 修改内容（`dist/RequestReview.py`） **① 根因修复——shelve 加真正的 force（原 L250）** `-Af` 只是「仅文件（不含 stream spec）」选择符，不含 force；补上 `-f` 后重跑可正常刷新已存在的 shelf 条目（覆盖当前 opened 文件、保留其他 shelf 条目，语义不变）。同步纠正了 L248 附近误导性注释和文件头 docstring 第 2 条的命令文本，注释里注明了 CL 136952 的教训。 **② 失败可见性——shelve 阶段中止必弹框** `ensure_shelved` 增加 `notify` 参数和内部 `fail()` 助手，6 个失败出口（CL 不可访问 / 非 pending / stream spec 查询失败 / 有 open stream spec / 无文件无 shelf / shelve 失败）从「只 print」改为「print + warning 弹框（标题「Request Review：发起已停止」，附具体原因）」；`prepare_shelved_only_review` 把自己的 `notify` 透传进去。P4V 无控制台窗口，此后任何发起前中止用户都能感知。 ## 验证 - `py_compile` 通过；`pytest test_request_review.py test_request_review_rejected_restore.py` —— **50 passed** - 更新 3 处 shelve 命令断言；新增 2 条回归测试：`test_shelve_refresh_uses_force_for_rerun_after_abort`（CL 136952 场景：shelf 已存在时重跑必须带 `-f`）、`test_ensure_shelved_failure_notifies_with_warning_popup`（shelve 失败必弹 warning） ## 已部署 已同步到生效副本 `C:\\Users\\admin\\AppData\\Local\\Epic Games\\P4VUtils\\RequestReview.py`（diff 验证一致，两侧只读属性已还原）。P4V 每次点击新起 python 进程，**无需重启 P4V 即生效**。 ## 你这边下一步 CL 136952 仍是「shelf + 5 文件 opened + 全 locked」残留态，修复后的工具可直接重跑自愈：先关掉占用 `DT_PLGameplayEffectInfo.uasset` / `W_BuffPanel.uasset` 的 UE/编辑器，再点 Request Review 即可走通（shelve -f 刷新 → 占用检查通过 → revert 清场并释放锁 → 开网页）。若占用未解除，会再次弹「文件被占用」——那是正确的保护行为。另外注意 `D:\\SunLaibing_Depot_8603\\DevOps` 不在当前 P4 client（root `D:\\MainDev`）下，源码的版本提交走你自己的流程。",
+   "proposed": {},
+   "flags": [
+    {
+     "check": "preview_failed",
+     "severity": "escalate",
+     "detail": "审核状态 preview_failed，preview_attempts=3；需核对预览生命周期"
+    },
+    {
+     "check": "empty_preview",
+     "severity": "escalate",
+     "detail": "预览为空；curated 不可用，只能 original 或人工看正文"
+    }
+   ],
+   "suggestion": {
+    "action": "escalate",
+    "auto": false,
+    "reasons": [
+     "审核状态 preview_failed，preview_attempts=3；需核对预览生命周期",
+     "预览为空；curated 不可用，只能 original 或人工看正文"
+    ],
+    "removals": []
+   }
+  },
+  {
+   "memory_id": "01a124bf-e7de-7dce-9435-bc2b308da499",
+   "session_id": "pi:admin_sun_depot_7184:01a123d3-eb06-7348-aee1-1ea35fcb64ff",
+   "session_version": null,
+   "scope_type": "project",
+   "group_id": "project:admin_sun_depot_7184",
+   "status": "review",
+   "memory_status": "pending_extraction",
+   "preview_attempts": 0,
+   "updated_at": "2026-10-10T07:39:40.227620Z",
+   "snapshot_token": "rs1:7155889c7e52556e504e5989be3b19b6b106b5dd4f96b086b1b17c6118a8abe5",
+   "review_id": "01a124c0-1e5c-7a86-8fc1-a7f6a396baaa",
+   "project_id": "admin_sun_depot_7184",
+   "memory_type": "session_summary",
+   "summary": "构建流程并行优化",
+   "created_at": "2026-10-10T07:38:52.868003Z",
+   "entity_count": 3,
+   "edge_count": 2,
+   "novelty": {
+    "status": "completed",
+    "admission": "evolution",
+    "rationale": "新记忆包含历史候选未覆盖的长期事实：用户决策 CrashSight 只能与步骤①并行、不能与步骤② Deploy 并行，v2 落在 CL 1928 且 Deploy 保持基线逐字节一致、尾段省约 3 分钟；这些明确替换了 rank 2 记录的 v1 结构（CrashSight 合入 Deploy 与 robocopy 并行）和 rank 4 记录的方案建议（合并进 DeployToNetworkShare、省约 5 分钟）。"
+   },
+   "distilled_content": "首个用户目标：http://192.168.2.13:8111/buildConfiguration/PL_BuildProjectWindows/29182 这个构建时间我想优化下， C:\\Users\\admin\\AppData\\Local\\Temp\\orca-paste-1791602511485-43080a36-defa-4189-b814-5412e1b6dab2.png Step 22/27: Upload CrashSight Symbol (PowerShell) 和 Step 23/27: Deploy to Network Share (PowerShell) 是不是可以优化成并行的。最近用户目标：CrashSight Symbol 可以和 1步骤并行，而不能跟2 并行。会话结果：完成。当前状态： ## 已按你的要求调整：CrashSight 与步骤①并行，Deploy 保持原样 **步骤①「Export Pak Snapshot + File Metadata + CrashSight Symbol」**（id `ExportPakSnapshot`）三路并行： - 后台 job A：pak 快照导出（先写 TEMP，归档逻辑保留） - 后台 job B：CrashSight PDB 上传（重试×3、永不红构建） - 主线程：`generate_directory_metadata.py` - 时长 ≈ max(1m18s, 1m43s, 5m10s) = **~5m10s** **步骤②「Deploy to Network Share」**：内容与基线**逐字节一致**，15m27s 不变。 尾段：23m38s → **~20m37s，每次构建省约 3 分钟**。 验证：mvn generate ✅、渲染解析门 0 FAIL ✅、Deploy 块与基线逐字节一致 ✅、CRLF ✅。 ## ⚠️ 需要你注意：CL 1927 已被提交（内容是 v1） CL 1927 在 14:21 提交，里面还是**第一版**（CrashSight 在 Deploy 里并行）。v2 调整现在开在新的 **CL 1928**（4 个文件：kts、CHANGELOG、buildtype-details、任务文档）： - 如果你还没在 TC UI 做 Load settings from VCS：直接提交 1928，然后一起 Load 即可，1927 的 v1 不会实际生效 - 如果已经 Load 过：线上跑的是 v1（功能正常，只是并行结构不同），提交 1928 后再 Load 一次 - 下次构建观察点：步骤①时长 ~5 分钟、日志尾部有两段 job 转播输出、`PakSnapshots\\` 归档正常",
+   "proposed": {
+    "entities": [
+     {
+      "name": "pl-buildprojectwindows",
+      "type": "Project",
+      "summary": "TeamCity 构建配置（Kotlin DSL .kts），Windows 项目构建流水线。尾段包含步骤① ExportPakSnapshot（pak 快照导出 + 文件元数据 + CrashSight Symbol 上传）与步骤② Deploy to Network Share（网络共享部署，15m27s）。",
+      "suggested_canonical": "PL_BuildProjectWindows"
+     },
+     {
+      "name": "export-pak-snapshot",
+      "type": "Concept",
+      "summary": "pl-buildprojectwindows 中的构建步骤（id ExportPakSnapshot），三路并行：后台 job 导出 pak 快照（先写 TEMP 再归档）、后台 job 上传 CrashSight PDB（重试 3 次、上传失败不使构建变红）、主线程运行 generate_directory_metadata.py 生成目录元数据；步骤时长 ≈ max(1m18s, 1m43s, 5m10s) ≈ 5m10s。"
+     },
+     {
+      "name": "crashsight-parallel-placement",
+      "type": "Decision",
+      "summary": "用户明确决定的并行结构：CrashSight Symbol 上传与步骤① ExportPakSnapshot 并行，而不与步骤② Deploy to Network Share 并行；Deploy 保持原顺序且内容与基线逐字节一致。调整后构建尾段从 23m38s 降至约 20m37s，每次构建节省约 3 分钟。"
+     }
+    ],
+    "edges": [
+     {
+      "source": "pl-buildprojectwindows",
+      "target": "export-pak-snapshot",
+      "name": "IMPLEMENTS",
+      "fact": "pl-buildprojectwindows 的步骤① ExportPakSnapshot 采用三路并行：pak 快照导出后台 job、CrashSight PDB 上传后台 job（重试×3、永不使构建变红）、主线程运行 generate_directory_metadata.py，步骤时长约 5m10s。"
+     },
+     {
+      "source": "crashsight-parallel-placement",
+      "target": "pl-buildprojectwindows",
+      "name": "APPLIES_TO",
+      "fact": "用户决定 CrashSight Symbol 上传只与步骤① ExportPakSnapshot 并行，不能与步骤② Deploy to Network Share 并行；Deploy 步骤保持原样、与基线逐字节一致，调整后构建尾段约 20m37s，每次构建节省约 3 分钟。"
+     }
+    ],
+    "entity_resolution": {
+     "resolution_status": "ok",
+     "results": [
+      {
+       "input_name": "pl-buildprojectwindows",
+       "status": "suspected",
+       "candidates": [
+        {
+         "uuid": "460b137e-2802-4e18-ac01-afe3d1907893",
+         "canonical_name": "PL_BuildProjectWindows",
+         "match_basis": "suspected",
+         "created_at": "2026-09-01T05:21:26.936259000+00:00",
+         "group_id": "project:admin_sun_depot_7184",
+         "summary": "PL_BuildProjectWindows 是 TeamCity 上的构建配置（http://192.168.2.13:8111），用于触发包体构建。它由 teamcity_daily_trigger 定时任务模块调用，当检测到 Perforce 仓库出现比上次触发更大的 changelist 时触发。构建时通过 env.p4_stream 传入 Perforce 仓库流名（如 //CyanCo"
+        }
+       ]
+      },
+      {
+       "input_name": "export-pak-snapshot",
+       "status": "new",
+       "candidates": []
+      },
+      {
+       "input_name": "crashsight-parallel-placement",
+       "status": "new",
+       "candidates": []
+      }
+     ]
+    }
+   },
+   "flags": [],
+   "suggestion": {
+    "action": "approve",
+    "auto": true,
+    "content_mode": "curated",
+    "removals": [],
+    "reasons": [
+     "确定性检查全过"
+    ]
+   }
+  },
+  {
+   "memory_id": "01a124b4-de7f-7473-88ea-b0bce6ee26c5",
+   "session_id": "pi:obsidianvault:01a124a0-89a2-7464-8450-e6d57e73e064",
+   "session_version": null,
+   "scope_type": "project",
+   "group_id": "project:obsidianvault",
+   "status": "review",
+   "memory_status": "pending_extraction",
+   "preview_attempts": 1,
+   "updated_at": "2026-10-10T07:29:43.588934Z",
+   "snapshot_token": "rs1:bff93b48d5d991630761dde6530159c089dbc026097480be7fcb4f0cc6849ade",
+   "review_id": "01a124b5-48b5-7ab0-8a34-2addc46dbda6",
+   "project_id": "obsidianvault",
+   "memory_type": "session_summary",
+   "summary": "RequestReview.shelve 误报失败排查",
+   "created_at": "2026-10-10T07:26:55.654060Z",
+   "entity_count": 3,
+   "edge_count": 2,
+   "novelty": {
+    "status": "completed",
+    "admission": "evolution",
+    "rationale": "新记忆包含多条历史候选未覆盖的长期事实：shelve 缺 -f 的具体根因与 -Af 语义误解、残留 shelf 导致的死锁机制（即使解除占用也不自愈）、失败路径只 print 不弹框造成的『点了没反应』假象、四条修复方向及 CL 136637 前科；同时对旧流程文档中 shelve 命令含 -f 的结论构成 SUPERSEDES。"
+   },
+   "distilled_content": "首个用户目标：ws:maindev 中 136952 ai review Request Review 第一次点击文件占用报错后，下次点击 request 后没法正常工作了 ws:cyancook-devops 帮我分析排查下原因。最近用户目标：ws:maindev 中 136952 ai review Request Review 第一次点击文件占用报错后，下次点击 request 后没法正常工作了 ws:cyancook-devops 帮我分析排查下原因。会话结果：排查完成，根因已定位（worker: pi @ cyancook-devops，只读诊断未改任何东西）。 ## 根因 **`RequestReview.py` L250 的 `p4 shelve -Af -c <cl>` 缺真正的 `-f`**——`-Af` 只是「只 shelve 文件」的选择符，不是 force（作者注释误以为是「追加刷新」）。 1. 第一次点击：shelve 成功（rc=0）→ 检测到 2 个文件被 UE 占用 → 弹框中止，**shelf 完整留在 CL 136952 上**（设计如此） 2. 第二次起每次点击：shelve 被服务器拒绝（`already shelved, use -f to update`，rc=1）→ 脚本判死 exit 1 3. 放大气：这条失败路径**只 print 不弹框**，而 P4V 的「Request Review」工具没开控制台窗口 → 你看到的就是「点了毫无反应」 4. 死锁：残留 shelf 让 shelve 必失败 → 流程永远到不了占用检查/开网页，**即使关掉 UE 解除占用也不会自愈** ## 关键证据 - **watch.log 三次实录**（`%LOCALAPPDATA%\\Epic Games\\RequestReview\\watch.log`）：15:01:17 shelve rc=0 后占用弹框中止；15:01:24 / 15:03:16 两次均 rc=1 already shelved → `launcher abort: shelve failed`，**无 POPUP 行、没走到占用检查** - **前科**：CL 136637（10-09 17:08）完全相同的死法，系统性缺陷非偶发 - **CL 136952 实测**：5 文件 shelf + opened + `*locked*` 三重残留原样保持 - 部署副本与 `dist\\RequestReview.py` 源码 diff 完全一致，分析对象即生效版本 ## 修复方向（未实施） 1. **主修复**：shelve 改成 `['shelve', '-f', '-Af', '-c', cl]`，同步修正注释/docstring 的错误描述 2. **兜底**：rc=1 且输出为 `already shelved` 时不判死，走 coverage 校验视为成功 3. **可见性**：发起前中止路径补 `notify_user` 弹框 4. **当下救急**：`p4 shelve -d -c 136952` 删掉残留 shelf 后重跑（或手动 revert）即可恢复 附带观察：占用中止留下的 `*locked*` 锁无释放路径，与历史「去锁缺口」结论并存（本案例没走到 unshelve 阶段）。 ## 收尾状态 - 完整证据链报告：`D:\\SunLaibing_Depot_8603\\DevOps\\diagnosis_CL136952_request_review.md`（worker 新建的未入库文件，留/删你定） - worker 已 **retain**（终端保留，要继续修可直接复用） - 账单：worker $5.49 + 协调 $0.48 = **$5.97**（缓存命中 89%/98%） 要我接着派修复",
+   "proposed": {
+    "entities": [
+     {
+      "name": "request-review",
+      "type": "Tool",
+      "summary": "P4V 自定义工具 Request Review（源码 dist/RequestReview.py），流程为 p4 shelve 当前 CL → 检查 UE 文件占用 → 打开 review 网页；诊断日志位于 %LOCALAPPDATA%\\Epic Games\\RequestReview\\watch.log；占用中止后留下的 *locked* 锁无释放路径，与历史「去锁缺口」结论并存",
+      "suggested_canonical": "Request Review"
+     },
+     {
+      "name": "shelve-residual-deadlock",
+      "type": "Concept",
+      "summary": "RequestReview 重复点击失效的已确认根因机制：占用中止后残留 shelf 使后续 p4 shelve 必失败，形成不自愈死锁"
+     },
+     {
+      "name": "shelve-force-fix",
+      "type": "Concept",
+      "summary": "针对 shelve-residual-deadlock 的修复方案（助手建议，尚无用户确认/实施证据）：shelve 命令补真正的 -f、already shelved 失败改走 coverage 校验、中止路径补弹框"
+     }
+    ],
+    "edges": [
+     {
+      "source": "request-review",
+      "target": "shelve-residual-deadlock",
+      "name": "HAS_DIAGNOSED_ISSUE",
+      "fact": "RequestReview.py L250 使用 p4 shelve -Af -c <cl>，其中 -Af 只是「只 shelve 文件」的选择符而非 force（作者注释误以为是追加刷新）：第一次点击 shelve 成功但因检测到文件被 UE 占用而弹框中止后，shelf 完整残留在 CL 上（设计如此），之后每次点击 shelve 均被服务器以 'already shelved, use -f to update' 拒绝（rc=1）而脚本判死 exit 1；该失败路径只 print 不弹框且 P4V 工具无控制台窗口，表现为点击无反应，即使关闭 UE 解除占用也不会自愈；watch.log 三次实录与一次历史前科证实为系统性缺陷而非偶发"
+     },
+     {
+      "source": "shelve-force-fix",
+      "target": "request-review",
+      "name": "PROPOSED_FIX_FOR",
+      "fact": "助手建议（尚无用户确认/实施证据）的修复方向：shelve 调用改为 ['shelve','-f','-Af','-c',cl] 并同步修正注释/docstring 的错误描述；rc=1 且输出为 already shelved 时不判死、走 coverage 校验视为成功；发起前中止路径补 notify_user 弹框；当下救急可用 p4 shelve -d -c <cl> 删除残留 shelf 后重跑"
+     }
+    ],
+    "entity_resolution": {
+     "resolution_status": "ok",
+     "results": [
+      {
+       "input_name": "request-review",
+       "status": "suspected",
+       "candidates": [
+        {
+         "uuid": "fa6a798f-b07f-47f4-8c39-d9f410bcd014",
+         "canonical_name": "Request Review",
+         "match_basis": "suspected",
+         "created_at": "2026-08-27T16:01:35.586551000+00:00",
+         "group_id": "project:obsidianvault",
+         "summary": "Request Review 是 P4 提交触发的评审流程。在 pyAutomation backend 的 p4_trigger_validate 应用中，rule_review_gate 规则会在提交文件包含受保护文件（SKILL.index.json / SKILL.md）时强制走 Request Review，由 P4_REVIEW_PROTECTED_FILES_ENABLED 配置开关"
+        }
+       ]
+      },
+      {
+       "input_name": "shelve-residual-deadlock",
+       "status": "new",
+       "candidates": []
+      },
+      {
+       "input_name": "shelve-force-fix",
+       "status": "new",
+       "candidates": []
+      }
+     ]
+    }
+   },
+   "flags": [],
+   "suggestion": {
+    "action": "approve",
+    "auto": true,
+    "content_mode": "curated",
+    "removals": [],
+    "reasons": [
+     "确定性检查全过"
+    ]
+   }
+  },
+  {
+   "memory_id": "01a124b4-67ea-796d-ac94-9ee7adde5767",
+   "session_id": "pi:maindev:01a124aa-9f9e-745f-8f3a-93310ea15731",
+   "session_version": null,
+   "scope_type": "project",
+   "group_id": "project:maindev",
+   "status": "review",
+   "memory_status": "pending_extraction",
+   "preview_attempts": 0,
+   "updated_at": "2026-10-10T07:26:37.999264Z",
+   "snapshot_token": "rs1:76996c21293ef3d80f124b39ef75f9c76455027f680ff69cc6ecd745f5a6328f",
+   "review_id": "01a124b4-8c03-70af-8a9a-c5dbde996891",
+   "project_id": "maindev",
+   "memory_type": "session_summary",
+   "summary": "UGS 快速同步机制解析",
+   "created_at": "2026-10-10T07:26:14.517797Z",
+   "entity_count": 2,
+   "edge_count": 2,
+   "novelty": {
+    "status": "completed",
+    "admission": "novel",
+    "rationale": "新记忆包含此前任何候选均未覆盖的长期事实：Use Fast Sync 复选框的含义与默认值、@当前CL,目标CL 区间枚举的加速原理（O(工作区总文件数) 降至 O(区间变更文件数)）、六条生效硬条件及 experimental 标注的语义原因；候选 1-8 只涉及 UGS 路径/目录结构/skill 门控/预编译环境，候选 9-10 与此完全无关，无法建立 SUPERSEDES/CONTRADICTS/REFINES/CONFIRMS 关系。"
+   },
+   "distilled_content": "首个用户目标：ugs 中 use fast sync 指的是什么？为什么这么快？。最近用户目标：ugs 中 use fast sync 指的是什么？为什么这么快？。会话结果：## \"Use Fast Sync\" 是什么 UGS 的 **Perforce Sync Settings** 里有一个 `Use Fast Sync (experimental)` 复选框（默认关闭，`DefaultUseFastSync = false`）。勾选后，同步时 UGS 发给 Perforce 的枚举命令从： 核心代码在 `Engine/Source/Programs/UnrealGameSync/UnrealGameSyncShared/WorkspaceUpdate.cs:901-928`。 ## 为什么快 快在**服务器端\"决定要同步哪些文件\"的枚举阶段**，文件实际下载量不变： - **普通 sync**：`@目标CL` 要求服务器遍历 client view 覆盖的**整个 depot 文件集**（UE 引擎+项目是几十万~上百万文件），逐个文件查 head revision 并和 have 表比对。在大 depot 上这一步是分钟级，还占服务器表锁。 - **Fast Sync**：`@当前CL,目标CL` 区间语法让服务器只查这两个 CL 之间**实际提交触及的文件**（走 change→revisions 索引），通常只有几百~几千个文件。工作量从 O(工作区总文件数) 降到 O(区间内变更文件数)，枚举从分钟级降到秒级。 流程上 UGS 先用 `-n` 预览拿清单 → 本地按 sync filter 过滤 → 分批真正同步，所以只有第一阶段被加速。 ## 生效的硬条件（代码里逐条判断，不满足会打日志说明原因） 1. UGS 状态里必须有当前 CL（`state.CurrentChangeNumber > 0`，即上次是 UGS 自己同步的）； 2. **只能向前同步**（目标 CL ≥ 当前 CL）； 3. 两 CL 间距 < 500,000； 4. sync filter 本轮有变化时自动禁用（`WorkspaceUpdate.cs:734`，因为区间外的文件需要重新评估）； 5. 区间枚举失败会自动降级为普通 sync 重试（`WorkspaceUpdate.cs:941-948`）； 6. 同步中途失败（如 clobber、resolve）会保留原当前 CL，让下次重试仍能用 fast sync（`WorkspaceUpdate.cs:1056-1104`）。 ## 为什么标 experimental 语义上有一个真实差异：区间 sync **只考虑区间内被提交触及的文件**。如果你绕过 UGS 手动把个别文件同步到了旧版本、或本地 have 表与 UGS 记录的状态不一致，普通 sync 会全量比对并纠正这些文件，而 fast sync 根本不会去检查它们。对\"每次都经 UGS 连续向前同步\"的标准用法是安全的，但对状态可能漂移的工作区，普通 sync 更可靠——所以它默认关、标着实验性。",
+   "proposed": {
+    "entities": [
+     {
+      "name": "unrealgamesync",
+      "type": "Tool",
+      "summary": "UGS（UnrealGameSync）是 Epic 的 UE 工作区同步工具，源码位于 Engine/Source/Programs/UnrealGameSync。其 Perforce Sync Settings 中含 Use Fast Sync (experimental) 选项（DefaultUseFastSync = false），同步枚举逻辑在 UnrealGameSyncShared/WorkspaceUpdate.cs 的约 901-948 行。"
+     },
+     {
+      "name": "ugs-fast-sync",
+      "type": "Concept",
+      "summary": "UGS 的 Use Fast Sync 机制（默认关闭、标记 experimental）：勾选后向 Perforce 发送的枚举命令从 @目标CL（服务器遍历整个 client view 全量比对 head/have）改为 @当前CL,目标CL 区间语法（走 change→revisions 索引，只查两 CL 间实际提交触及的文件），把枚举阶段从 O(工作区总文件数) 降到 O(区间内变更文件数)，分钟级降到秒级；文件实际下载量不变。流程为 -n 预览拿清单→本地按 sync filter 过滤→分批同步，只有枚举阶段被加速。标 experimental 的真实语义差异：区间 sync 不检查区间外的文件，本地 have 表漂移或手动改同步过的文件不会被纠正，仅对经 UGS 连续向前同步的标准用法安全。"
+     }
+    ],
+    "edges": [
+     {
+      "source": "unrealgamesync",
+      "target": "ugs-fast-sync",
+      "name": "IMPLEMENTS",
+      "fact": "UGS 的 Perforce 同步支持 Use Fast Sync（experimental，默认关闭）：同步时用 @当前CL,目标CL 区间语法替代 @目标CL，使服务器枚举阶段只查区间内提交触及的文件而非全量 depot 比对，枚举从分钟级降到秒级，实现位于 UnrealGameSyncShared/WorkspaceUpdate.cs。"
+     },
+     {
+      "source": "ugs-fast-sync",
+      "target": "unrealgamesync",
+      "name": "APPLIES_TO",
+      "fact": "UGS Fast Sync 的生效硬条件（WorkspaceUpdate.cs 逐条判断，不满足会打日志）：state.CurrentChangeNumber > 0（上次由 UGS 同步）、只能向前同步（目标 CL ≥ 当前 CL）、两 CL 间距 < 500,000、sync filter 本轮有变化时自动禁用；区间枚举失败自动降级为普通 sync 重试，同步中途失败保留原当前 CL 以便下次仍可用 fast sync。"
+     }
+    ],
+    "entity_resolution": {
+     "resolution_status": "ok",
+     "results": [
+      {
+       "input_name": "unrealgamesync",
+       "status": "new",
+       "candidates": []
+      },
+      {
+       "input_name": "ugs-fast-sync",
+       "status": "new",
+       "candidates": []
+      }
+     ]
+    }
+   },
+   "flags": [],
+   "suggestion": {
+    "action": "approve",
+    "auto": true,
+    "content_mode": "curated",
+    "removals": [],
+    "reasons": [
+     "确定性检查全过"
+    ]
+   }
+  },
+  {
+   "memory_id": "01a124b2-7d9a-7878-8e7a-291127aeeac7",
+   "session_id": "pi:devops:01a124a5-9405-7082-924f-f6790bb26302",
+   "session_version": null,
+   "scope_type": "project",
+   "group_id": "project:devops",
+   "status": "review",
+   "memory_status": "pending_extraction",
+   "preview_attempts": 1,
+   "updated_at": "2026-10-10T07:25:39.782350Z",
+   "snapshot_token": "rs1:1fc37d6d6673c21f1c60c00f90c84d36a89f6c840be170bcb886241a30d45750",
+   "review_id": "01a124b2-a92b-75f1-a9ca-4970aaa8f485",
+   "project_id": "devops",
+   "memory_type": "session_summary",
+   "summary": "CL136952 Request Review 文件占用根因分析",
+   "created_at": "2026-10-10T07:24:10.909289Z",
+   "entity_count": 2,
+   "edge_count": 1,
+   "novelty": {
+    "status": "completed",
+    "admission": "evolution",
+    "rationale": "新记忆包含历史候选未覆盖的长期事实：`-Af` 只是文件选择符不含 force、二次 shelve 必被服务器以 `already shelved, use -f to update` 拒绝、ensure_shelved 判死后静默 exit 1 导致用户“点了毫无反应”。该根因直接证明 rank7 所报告的追加式 shelve 修复并不完整可用，构成对旧结论的替代性纠正，另对 rank4 的文件占用中止行为构成确认。"
+   },
+   "distilled_content": "首个用户目标：任务：分析 MainDev CL 136952「Request Review」第一次文件占用报错后、再次点击无法正常工作的根因。只诊断：禁止修改任何代码、禁止任何修改性 P4 操作（不 shelve/unshelve/revert/lock/unlock/edit/submit/change 删除等）。 背景： - 用户在本机 P4V 里对 MainDev 的 pending CL 136952 点 Custom Tool「Request Review」（执行 RequestReview.py）。 - 第一次点击：弹「Request Review：文件被占用」错误框，退出码 1。该分支的已知行为：脚本先 shelve 后 revert，检测到文件被进程占用时直接中止——shelf 已创建成功，revert 未执行，文件仍挂在 CL 上且保持 exclusive。 - 之后用户再次点击 Request Review，无法正常工作了（具体失效表现需你从日志与实际状态查证，不要假设）。 已确认事实（直接采信，不必重新验证）： - RequestReview.py 源码在 D:\\SunLaibing_Depot_8603\\DevOps\\dist\\RequestReview.py（你的 cwd 即此仓库）；实际生效的部署副本在 C:\\Users\\admin\\AppData\\Local\\Epic Games\\P4VUtils\\RequestReview.py。第一步先 diff 两者；若不一致，以部署副本为准分析，并指出差异。 - MainDev 的 P4 服务器是 192.168.2.2。最近用户目标：任务：分析 MainDev CL 136952「Request Review」第一次文件占用报错后、再次点击无法正常工作的根因。只诊断：禁止修改任何代码、禁止任何修改性 P4 操作（不 shelve/unshelve/revert/lock/unlock/edit/submit/change 删除等）。 背景： - 用户在本机 P4V 里对 MainDev 的 pending CL 136952 点 Custom Tool「Request Review」（执行 RequestReview.py）。 - 第一次点击：弹「Request Review：文件被占用」错误框，退出码 1。该分支的已知行为：脚本先 shelve 后 revert，检测到文件被进程占用时直接中止——shelf 已创建成功，revert 未执行，文件仍挂在 CL 上且保持 exclusive。 - 之后用户再次点击 Request Review，无法正常工作了（具体失效表现需你从日志与实际状态查证，不要假设）。 已确认事实（直接采信，不必重新验证）： - RequestReview.py 源码在 D:\\SunLaibing_Depot_8603\\DevOps\\dist\\RequestReview.py（你的 cwd 即此仓库）；实际生效的部署副本在 C:\\Users\\admin\\AppData\\Local\\Epic Games\\P4VUtils\\RequestReview.py。第一步先 diff 两者；若不一致，以部署副本为准分析，并指出差异。 - MainDev 的 P4 服务器是 192.168.2.2。会话结果：worker_done sent. Task complete. **Summary of the diagnosis:** - **根因**：`RequestReview.py` L250 用 `p4 shelve -Af -c <cl>` 刷新 shelf，但 `-Af` 经 `p4 help shelve` 证实只是「仅 shelve 文件（不含 stream spec）」的选择符，**不含 `-f`（force）**。第一次运行 shelve 成功后因文件占用中止，留下完整 shelf；第二次起 `p4 shelve -Af` 必被服务器拒绝（rc=1 `already shelved, use -f to update`），`ensure_shelved` 判死后 exit 1——该路径只有 print 无弹框，且 P4V 的「Request Review」工具未启用控制台窗口，用户看到的就是「点了毫无反应」。 - **关键证据**：watch.log 三次运行实录（15:01:17 占用中止 / 15:01:24 与 15:03:17 均 shelve rc=1 静默 abort）、P4 实测 CL 136952 当前 5 文件 shelf+opened+`*locked*` 三重残留、源码与部署副本 diff 一致、同缺陷前科 CL 136637。 - **修复方向**（未实施）：shelve 加真正的 `-f`；或对「already shelved」做覆盖校验容错；发起前中止路径补 `notify_user` 弹框。 完整证据链报告：`D:\\SunLaibing_Depot_8603\\DevOps\\diagnosis_CL136952_request_review.md`",
+   "proposed": {
+    "entities": [
+     {
+      "name": "request-review",
+      "type": "Tool",
+      "summary": "P4V Custom Tool「Request Review」，执行 RequestReview.py；源码在 DevOps 仓库 dist/RequestReview.py，实际生效的部署副本在 P4V 的 P4VUtils 用户配置目录，两者 diff 一致。脚本流程为先 shelve 后 revert；检测到文件被进程占用时直接中止，此时 shelf 已创建成功、revert 未执行，文件仍挂在 CL 上并保持 opened+exclusive locked。发起前中止路径只有 print 无弹框，且 P4V 该工具未启用控制台窗口，失败对用户表现为「点了毫无反应」。"
+     },
+     {
+      "name": "p4-shelve-force-semantics",
+      "type": "Concept",
+      "summary": "p4 shelve 的 -Af 经 p4 help shelve 证实只是「仅 shelve 文件（不含 stream spec）」的选择符，不含 -f（force）；对已存在 shelf 的 CL 再次 shelve 必须带真正的 -f，否则服务器以 rc=1「already shelved, use -f to update」拒绝。"
+     }
+    ],
+    "edges": [
+     {
+      "source": "request-review",
+      "target": "p4-shelve-force-semantics",
+      "name": "ROOT_CAUSED_BY",
+      "fact": "MainDev CL 136952 第二次起点击 Request Review 无反应的根因：RequestReview.py L250 用 p4 shelve -Af 刷新 shelf，-Af 不含 force，第一次运行因文件占用中止后已留下完整 shelf，第二次起 shelve 必被服务器拒绝（already shelved），ensure_shelved 判死后静默 exit 1 且无弹框。助手建议的修复方向（未实施、未经用户确认）：shelve 加真正的 -f、对 already shelved 做覆盖校验容错、中止路径补 notify_user 弹框。"
+     }
+    ],
+    "entity_resolution": {
+     "resolution_status": "ok",
+     "results": [
+      {
+       "input_name": "request-review",
+       "status": "exact",
+       "candidates": [
+        {
+         "uuid": "f2c6cb1b-817a-4f5b-9579-e1e40d862d89",
+         "canonical_name": "request-review",
+         "match_basis": "exact",
+         "created_at": "2026-09-10T12:01:39.526171000+00:00",
+         "group_id": "project:devops",
+         "summary": "request-review（Project）：DevOps 仓库中的客户端 AI Review 脚本（depot 相对路径 dist/RequestReview.py），部署到 P4VUtils 目录（Epic Games/P4VUtils/RequestReview.py）；测试文件 test_request_review.py，流程图 docs/RequestReview-Flow.draw"
+        }
+       ]
+      },
+      {
+       "input_name": "p4-shelve-force-semantics",
+       "status": "new",
+       "candidates": []
+      }
+     ]
+    }
+   },
+   "flags": [],
+   "suggestion": {
+    "action": "approve",
+    "auto": true,
+    "content_mode": "curated",
+    "removals": [],
+    "reasons": [
+     "确定性检查全过"
+    ]
+   }
+  },
+  {
+   "memory_id": "01a1224b-9aae-7d65-afd6-905572b8d257",
+   "session_id": "pi:obsidianvault:01a11d1a-28c4-7605-a04e-2f1859a26631",
+   "session_version": null,
+   "scope_type": "project",
+   "group_id": "project:obsidianvault",
+   "status": "review",
+   "memory_status": "pending_extraction",
+   "preview_attempts": 0,
+   "updated_at": "2026-10-09T20:19:33.602661Z",
+   "snapshot_token": "rs1:c54e06bce049f6e769ab7d4fc4141f67cb60164bcde24d9f2889ca8bf34b4c58",
+   "review_id": "01a1224f-f382-7886-b0a5-ecc33bcc8702",
+   "project_id": "obsidianvault",
+   "memory_type": "dream_experience",
+   "summary": "飞书→RagFlow 全量同步运行基线与异常口径",
+   "created_at": "2026-10-09T20:17:07.437577Z",
+   "entity_count": 4,
+   "edge_count": 3,
+   "novelty": {
+    "status": "completed",
+    "admission": "duplicate",
+    "rationale": "新记忆中的每条有长期价值的事实——Git Bash 运行 sync.py --full、日志名实时时间戳、15-25 分钟耗时、锁冲突不强杀、七项 summary 汇报、1069902 约25篇/bitable 1篇/mindnote missing_scope 基线、traverse_failed 与 exit code 报警口径、禁止改代码与破坏性命令——均与候选1（及其余候选共有的同一段 runbook 原文）一致，未新增条件、边界、原因、步骤或纠正；候选2/3/4/8 中的更新口径（failed=43/44 稳定基线、实测健康时长13-54分钟）反而比新记忆更细，新记忆只是旧口径的复述，不构成演进。"
+   },
+   "distilled_content": "在 D:/Github/ObsidianVault 用 Git Bash 运行 python .claude/scripts/feishu_ragflow_sync/sync.py --full，日志名时间戳必须实时生成；正常耗时约15-25分钟，3220+篇文档大部分 version-skip。进程锁冲突说明上一轮未完成，应记录并结束本次运行，不强杀。跑完读日志尾部 summary，汇报 synced/skipped/failed/excluded/deleted/unsupported/traverse_failed。健康基线：failed 中 1069902 no permission 约25篇、bitable_no_table_permission 1篇为固定基线；mindnote missing_scope 走 unsupported 正常。traverse_failed>0 多为网络/代理导致空间遍历失败，last_full_run 不更新属预期保护；仅 failed 超基线或 exit code 非0且非基线原因才详细报警。禁止修改 sync.py，禁止 --wipe-ragflow / --cleanup-duplicates。",
+   "proposed": {
+    "entities": [
+     {
+      "name": "obsidian-vault",
+      "type": "Project",
+      "summary": "Obsidian 笔记仓库，其 .claude/scripts/feishu_ragflow_sync/sync.py 用于将飞书文档同步到 RAGFlow。"
+     },
+     {
+      "name": "feishu-ragflow-sync",
+      "type": "Tool",
+      "summary": "飞书到 RAGFlow 的全量同步脚本，位于 ObsidianVault 仓库 .claude/scripts/feishu_ragflow_sync/sync.py；全量模式（--full）正常耗时约15-25分钟，3220+篇文档中大部分走 version-skip。",
+      "suggested_canonical": "feishu_ragflow_sync"
+     },
+     {
+      "name": "feishu-ragflow-sync-run-convention",
+      "type": "Convention",
+      "summary": "feishu-ragflow-sync 的运行规程：在 Git Bash 中以 python .claude/scripts/feishu_ragflow_sync/sync.py --full 运行；日志名时间戳必须实时生成；进程锁冲突说明上一轮未完成，应记录并结束本次运行而不强杀；禁止修改 sync.py，禁止使用 --wipe-ragflow / --cleanup-duplicates。"
+     },
+     {
+      "name": "feishu-ragflow-sync-health-baseline",
+      "type": "Convention",
+      "summary": "feishu-ragflow-sync 的健康基线与报警规则：跑完读日志尾部 summary，汇报 synced/skipped/failed/excluded/deleted/unsupported/traverse_failed；failed 中 1069902 no permission 约25篇、bitable_no_table_permission 1篇为固定基线；mindnote missing_scope 走 unsupported 属正常；traverse_failed>0 多为网络/代理导致空间遍历失败，last_full_run 不更新属预期保护；仅 failed 超基线或 exit code 非0且非基线原因才详细报警。"
+     }
+    ],
+    "edges": [
+     {
+      "source": "feishu-ragflow-sync",
+      "target": "obsidian-vault",
+      "name": "PART_OF",
+      "fact": "feishu-ragflow-sync 是 ObsidianVault 仓库中的同步脚本，路径为 .claude/scripts/feishu_ragflow_sync/sync.py，需在仓库根目录用 Git Bash 以 python .claude/scripts/feishu_ragflow_sync/sync.py --full 运行。"
+     },
+     {
+      "source": "feishu-ragflow-sync-run-convention",
+      "target": "feishu-ragflow-sync",
+      "name": "APPLIES_TO",
+      "fact": "运行 feishu-ragflow-sync 时日志名时间戳必须实时生成；遇到进程锁冲突说明上一轮未完成，应记录并结束本次运行而不强杀；禁止修改 sync.py，禁止使用 --wipe-ragflow 和 --cleanup-duplicates；全量运行正常耗时约15-25分钟，3220+篇文档大部分 version-skip。"
+     },
+     {
+      "source": "feishu-ragflow-sync-health-baseline",
+      "target": "feishu-ragflow-sync",
+      "name": "APPLIES_TO",
+      "fact": "feishu-ragflow-sync 跑完后读日志尾部 summary 并汇报 synced/skipped/failed/excluded/deleted/unsupported/traverse_failed；failed 中 1069902 no permission 约25篇、bitable_no_table_permission 1篇为固定基线，mindnote missing_scope 走 unsupported 属正常，traverse_failed>0 多为网络/代理导致空间遍历失败且 last_full_run 不更新属预期保护；仅 failed 超基线或 exit code 非0且非基线原因才详细报警。"
+     }
+    ],
+    "entity_resolution": {
+     "resolution_status": "ok",
+     "results": [
+      {
+       "input_name": "obsidian-vault",
+       "status": "new",
+       "candidates": []
+      },
+      {
+       "input_name": "feishu-ragflow-sync",
+       "status": "suspected",
+       "candidates": [
+        {
+         "uuid": "32df74a0-19c8-43b6-816a-6117b9fc3e8c",
+         "canonical_name": "feishu_ragflow_sync",
+         "match_basis": "suspected",
+         "created_at": "2026-08-18T12:54:16.392293000+00:00",
+         "group_id": "project:obsidianvault",
+         "summary": "feishu_ragflow_sync 是 ObsidianVault 仓库（D:/Github/ObsidianVault）.claude/scripts/feishu_ragflow_sync/sync.py 的飞书→RagFlow 全量同步器，命令 python .claude/scripts/feishu_ragflow_sync/sync.py --full，文档规模约 3220–347"
+        }
+       ]
+      },
+      {
+       "input_name": "feishu-ragflow-sync-run-convention",
+       "status": "new",
+       "candidates": []
+      },
+      {
+       "input_name": "feishu-ragflow-sync-health-baseline",
+       "status": "new",
+       "candidates": []
+      }
+     ]
+    }
+   },
+   "flags": [
+    {
+     "check": "novelty_duplicate",
+     "severity": "escalate",
+     "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+    }
+   ],
+   "suggestion": {
+    "action": "escalate",
+    "auto": false,
+    "reasons": [
+     "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+    ],
+    "removals": []
+   }
+  },
+  {
+   "memory_id": "01a12247-424a-7bcb-a79e-cc6dd634b805",
+   "session_id": "pi:obsidianvault:01a11f4f-1bb9-7641-a96a-d498b3f26778",
+   "session_version": null,
+   "scope_type": "project",
+   "group_id": "project:obsidianvault",
+   "status": "review",
+   "memory_status": "pending_extraction",
+   "preview_attempts": 0,
+   "updated_at": "2026-10-09T20:08:27.922210Z",
+   "snapshot_token": "rs1:edf85125fddfe19cd4bbd6a96cfa7df619074c1aef5ba9233fc89686707fb2a9",
+   "review_id": "01a12247-94aa-748e-bdc0-d3bcd4e9a325",
+   "project_id": "obsidianvault",
+   "memory_type": "dream_experience",
+   "summary": "AI Review 完整性门禁根治已落地（CL 1910）",
+   "created_at": "2026-10-09T20:07:58.876709Z",
+   "entity_count": 2,
+   "edge_count": 1,
+   "novelty": {
+    "status": "failed",
+    "admission": null,
+    "rationale": "unparseable or unverifiable memory-evolution response"
+   },
+   "distilled_content": "Review 1157 死锁根治以 CL 1910（admin_sun_depot_7184，15 文件）提交入 depot，ai_review 全套 1182 passed / 0 failed。六项落地：① record_round_manifest 在 create/refresh/reload 对齐新 shelf（机制更新）；② head_change_attribution + _low_risk_for_auto_confirm 对安全+低风险撤出自动写入 __system__ removal_confirmations（自动放行，不再要求人工 reviewer）；③ 首阻通知与前端只给作者自助路径（refresh/拖回 shelf/reopen）；④ _reconcile_ghost_submit 见 integrity_state==blocked 直接跳过（斩断每 10 分钟幽灵补入队循环）；⑤ _integrity_state_same 留痕幂等（不重复记 activity、不刷 update_time）；⑥ notify_integrity_gate_blocked 首阻通知作者。注意：代码在 depot 但生产后端未重启部署前旧行为仍可能复发。",
+   "proposed": {
+    "entities": [
+     {
+      "name": "review-1157",
+      "type": "Project",
+      "summary": "Review 1157 死锁根治，代码已提交入 depot（约 15 文件），含六项机制：① record_round_manifest 在 create/refresh/reload 对齐新 shelf；② head_change_attribution + _low_risk_for_auto_confirm 对安全+低风险撤出自动放行；③ 首阻通知与前端只给作者自助路径（refresh/拖回 shelf/reopen）；④ _reconcile_ghost_submit 见 integrity_state==blocked 直接跳过，斩断每 10 分钟幽灵补入队循环；⑤ _integrity_state_same 留痕幂等（不重复记 activity、不刷 update_time）；⑥ notify_integrity_gate_blocked 首阻通知作者。注意：代码在 depot 但生产后端未重启部署前旧行为仍可能复发。"
+     },
+     {
+      "name": "removal-confirmations-auto-confirm",
+      "type": "Convention",
+      "summary": "Review 1157 的自动放行约定：head_change_attribution 与 _low_risk_for_auto_confirm 判定撤出为安全且低风险时，自动向 __system__ removal_confirmations 写入确认，不再要求人工 reviewer。"
+     }
+    ],
+    "edges": [
+     {
+      "source": "removal-confirmations-auto-confirm",
+      "target": "review-1157",
+      "name": "APPLIES_TO",
+      "fact": "Review 1157 中 head_change_attribution 与 _low_risk_for_auto_confirm 对安全且低风险的撤出自动写入 __system__ removal_confirmations 放行，不再要求人工 reviewer；该代码已入 depot，但生产后端未重启部署前旧行为仍可能复发。"
+     }
+    ],
+    "entity_resolution": {
+     "resolution_status": "ok",
+     "results": [
+      {
+       "input_name": "review-1157",
+       "status": "new",
+       "candidates": []
+      },
+      {
+       "input_name": "removal-confirmations-auto-confirm",
+       "status": "new",
+       "candidates": []
+      }
+     ]
+    }
+   },
+   "flags": [
+    {
+     "check": "novelty_not_completed",
+     "severity": "escalate",
+     "detail": "novelty 分析未完成：failed（批准会 fail-closed）"
+    }
+   ],
+   "suggestion": {
+    "action": "escalate",
+    "auto": false,
+    "reasons": [
+     "novelty 分析未完成：failed（批准会 fail-closed）"
+    ],
+    "removals": []
+   }
+  },
+  {
+   "memory_id": "01a12243-e5e4-794f-bf3a-8c62b19ff5fe",
+   "session_id": "pi:admin_sun_depot_7184:01a12062-548a-7274-9aa3-ce6bcd5c3611",
+   "session_version": null,
+   "scope_type": "project",
+   "group_id": "project:admin_sun_depot_7184",
+   "status": "review",
+   "memory_status": "pending_extraction",
+   "preview_attempts": 0,
+   "updated_at": "2026-10-09T20:04:50.012845Z",
+   "snapshot_token": "rs1:454f7a902a5cbe8a2ebeac3c6d02b6fa70718be29f7b11e56c00833a7c485f2a",
+   "review_id": "01a12244-21f6-7ac0-930b-55b39e483dbb",
+   "project_id": "admin_sun_depot_7184",
+   "memory_type": "dream_experience",
+   "summary": "P4 exception_level=2 下纯 warning 会抛异常炸链，需用 _run_capture 或 errors 空判容忍",
+   "created_at": "2026-10-09T20:04:12.903281Z",
+   "entity_count": 5,
+   "edge_count": 4,
+   "novelty": {
+    "status": "completed",
+    "admission": "duplicate",
+    "rationale": "新记忆的四项长期事实——(1) exception_level=2 下纯 warning 抛 P4Exception 致 exit 5 且为 merge_error 桶主要来源，(2) P4UnshelveStage.py:677-697 区分 error/warning 的修复，(3) p4_adapter.py:1310-1328 unshelve 改走 _run_capture，(4) P4Util.sync()/resolve() 的 errors 空判写法正确以及 submit 侧 sync 裸 admin.run 缺陷在 head 已不存在——均已在候选 rank 9 中逐项记载（含相同行号与相同根因结论），候选 rank 3 也覆盖了 sync 走 _run_capture 的历史修复事实。新记忆没有新增任何条件、边界、原因、步骤或决策，故判 duplicate。"
+   },
+   "distilled_content": "P4Python 在 exception_level=2 时，纯 warning（如 unshelve 跳过视图外文件）也会抛 P4Exception，裸 p4.run 调用会让整条链以 exit 5 失败——这是 merge_error 桶的主要来源。已验证的修复模式：(1) Flow 侧 P4UnshelveStage.py:677-697 主 unshelve except 中区分 error/warning，纯 warning 仅记录不炸链、真错误不吞；(2) 后端 p4_adapter.py:1310-1328 把 unshelve 从裸 run 改为走 _run_capture；(3) P4Util.sync()/resolve() 已有的 len(p4e.errors)==0 空判也是正确的容忍写法。注意任务书提到的 submit 侧 sync 裸 admin.run 缺陷在当前 head 已不存在（sync 已走 _run_capture），复核老任务书描述时要先对照 head 代码。",
+   "proposed": {
+    "entities": [
+     {
+      "name": "p4python-warning-tolerance",
+      "type": "Convention",
+      "summary": "P4Python 在 exception_level=2 时纯 warning（如 unshelve 跳过视图外文件）也会抛 P4Exception，裸 p4.run 调用会让整条链以 exit 5 失败，是 merge_error 桶的主要来源。已验证的容忍写法：区分 error/warning（纯 warning 仅记录不炸链、真错误不吞）、受控捕获代替裸 run、len(p4e.errors)==0 空判。"
+     },
+     {
+      "name": "P4UnshelveStage",
+      "type": "Tool",
+      "summary": "Flow 侧 unshelve 阶段（P4UnshelveStage.py）。其主 unshelve 的 except（约 677-697 行）已按 error/warning 区分处理：纯 warning 仅记录不炸链，真错误不吞。"
+     },
+     {
+      "name": "p4-adapter",
+      "type": "Service",
+      "summary": "后端 Perforce 适配层（p4_adapter.py）。unshelve（约 1310-1328 行）已从裸 p4.run 改为走 _run_capture；submit 侧 sync 当前 head 也已走 _run_capture，老任务书所述 sync 裸 admin.run 缺陷在 head 已不存在，复核老任务书需先对照 head 代码。"
+     },
+     {
+      "name": "_run_capture",
+      "type": "Tool",
+      "summary": "p4_adapter 的受控运行捕获方法，用于替代裸 p4.run 调用，避免纯 warning 以异常形式炸链。"
+     },
+     {
+      "name": "P4Util",
+      "type": "Tool",
+      "summary": "Perforce 工具类，其 sync()/resolve() 使用 len(p4e.errors)==0 空判容忍纯 warning，属正确写法。"
+     }
+    ],
+    "edges": [
+     {
+      "source": "P4UnshelveStage",
+      "target": "p4python-warning-tolerance",
+      "name": "FOLLOWS",
+      "fact": "P4UnshelveStage.py 主 unshelve 的 except（约 677-697 行）区分 error/warning：纯 warning（如跳过视图外文件）仅记录不炸链，真 error 不吞。"
+     },
+     {
+      "source": "p4-adapter",
+      "target": "_run_capture",
+      "name": "IMPLEMENTS",
+      "fact": "p4_adapter.py 的 unshelve（约 1310-1328 行）已从裸 p4.run 改为走 _run_capture 捕获调用，避免 exception_level=2 下纯 warning 抛 P4Exception 导致链以 exit 5 失败。"
+     },
+     {
+      "source": "P4Util",
+      "target": "p4python-warning-tolerance",
+      "name": "FOLLOWS",
+      "fact": "P4Util.sync()/resolve() 用 len(p4e.errors)==0 空判容忍纯 warning，是 P4Python exception_level=2 下的正确容忍写法。"
+     },
+     {
+      "source": "p4-adapter",
+      "target": "_run_capture",
+      "name": "IMPLEMENTS",
+      "fact": "submit 侧 sync 在当前 head 已走 _run_capture，老任务书提到的 sync 裸 admin.run 缺陷已不存在，复核老任务书描述时需先对照 head 代码。"
+     }
+    ],
+    "entity_resolution": {
+     "resolution_status": "ok",
+     "results": [
+      {
+       "input_name": "p4python-warning-tolerance",
+       "status": "new",
+       "candidates": []
+      },
+      {
+       "input_name": "P4UnshelveStage",
+       "status": "new",
+       "candidates": []
+      },
+      {
+       "input_name": "p4-adapter",
+       "status": "exact",
+       "candidates": [
+        {
+         "uuid": "27732c66-c167-4a56-98e4-f89a66ed5e3b",
+         "canonical_name": "p4-adapter",
+         "match_basis": "exact",
+         "created_at": "2026-09-08T16:49:41.364597000+00:00",
+         "group_id": "project:admin_sun_depot_7184",
+         "summary": "p4-adapter 是 pyAutomation ai_review 的 Perforce 适配器（backend/server/applications/ai_review/vcs/p4_adapter.py），负责 P4 操作与锁错误归因，并为 bot 创建/校验 Perforce stream client。\n\n关键实现：\n- _ensure_stream_client：确保 bot st"
+        }
+       ]
+      },
+      {
+       "input_name": "_run_capture",
+       "status": "exact",
+       "candidates": [
+        {
+         "uuid": "146f6bdc-f19d-491a-9025-63a3740b71dc",
+         "canonical_name": "_run_capture",
+         "match_basis": "exact",
+         "created_at": "2026-09-22T12:01:21.787435000+00:00",
+         "group_id": "project:admin_sun_depot_7184",
+         "summary": "P4Adapter.prepare_merged_cl 的定版机制：对 sync_expect 的全部路径裸 sync 到 head（路径不带 @baseline），经 _run_capture 捕获输出，sync_errors 非空即抛 _SubmitRejected。\nCL 1847 中 prepare_merged_cl 的 sync 改为对 sync_expect 全部路径裸 sync 到"
+        }
+       ]
+      },
+      {
+       "input_name": "P4Util",
+       "status": "new",
+       "candidates": []
+      }
+     ]
+    }
+   },
+   "flags": [
+    {
+     "check": "novelty_duplicate",
+     "severity": "escalate",
+     "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+    }
+   ],
+   "suggestion": {
+    "action": "escalate",
+    "auto": false,
+    "reasons": [
+     "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+    ],
+    "removals": []
+   }
+  },
+  {
+   "memory_id": "01a12242-74d8-7c0d-beae-69a4303ee0f5",
+   "session_id": "pi:maindev:01a1209d-b08b-7054-97d9-a17588393c3a",
+   "session_version": null,
+   "scope_type": "project",
+   "group_id": "project:maindev",
+   "status": "review",
+   "memory_status": "pending_extraction",
+   "preview_attempts": 0,
+   "updated_at": "2026-10-09T20:03:19.912737Z",
+   "snapshot_token": "rs1:c73764a591580967160e2dfc77473285f881e0ef7c7925a23e60b98685917703",
+   "review_id": "01a12243-10c6-7396-b367-36532a0e48d2",
+   "project_id": "maindev",
+   "memory_type": "dream_experience",
+   "summary": "MSYS 环境 sed/grep 文本模式会静默剥离 \\r，可致 CRLF 文件被静默破坏且 p4 不可见",
+   "created_at": "2026-10-09T20:03:02.968320Z",
+   "entity_count": 1,
+   "edge_count": 0,
+   "novelty": {
+    "status": "completed",
+    "admission": "duplicate",
+    "rationale": "新记忆的每个有长期价值的事实均已被覆盖：MSYS sed/grep 文本模式剥 \\r、p4 diff 不可见、手工合并致 17 行裸 LF、脚本重放并逐字节校验恢复全量 CRLF，全部在 rank 10 中有对应原文；「避免用 sed 直接改写工作区文件」的告诫与 rank 1 已落库的「删行禁用 grep -v/sed，MSYS 会剥 \\r」警告一致。没有新增条件、边界、原因或纠正。"
+   },
+   "distilled_content": "MSYS/Git Bash 环境下 sed、grep 在文本模式会静默剥掉行尾 \\r：用 sed 拼接本为 CRLF 的工作区文件时，会把部分行变成裸 LF，而 p4 diff 对此不可见（不显示差异）。教训：处理 P4/UE 工作区文件避免用 sed 直接改写；若已发生，需用脚本重放等价操作重新生成并校验字节级一致性，恢复全量 CRLF。实际案例：手工合并时 sed 拼文件导致尾部 17 行变裸 LF，脚本重放后恢复且 p4 diff 保持纯追加。",
+   "proposed": {
+    "entities": [
+     {
+      "name": "msys-sed-crlf-strip",
+      "type": "Convention",
+      "summary": "MSYS/Git Bash 环境下 sed、grep 在文本模式处理文件时会静默剥掉行尾 \\r：用 sed 拼接本为 CRLF 的 P4/UE 工作区文件，会把部分行变成裸 LF，且 p4 diff 对此不可见（不显示差异）。教训：处理 P4/UE 工作区文件避免用 sed 直接改写；若已发生，需用脚本重放等价操作重新生成文件并校验字节级一致性以恢复全量 CRLF。实际案例：手工合并时 sed 拼文件导致尾部 17 行变裸 LF，脚本重放后恢复且 p4 diff 保持纯追加。"
+     }
+    ],
+    "edges": [],
+    "entity_resolution": {
+     "resolution_status": "ok",
+     "results": [
+      {
+       "input_name": "msys-sed-crlf-strip",
+       "status": "new",
+       "candidates": []
+      }
+     ]
+    }
+   },
+   "flags": [
+    {
+     "check": "thin_preview",
+     "severity": "suggest_original",
+     "detail": "预览 1 实体 0 边；curated 渲染会很薄，建议 original"
+    },
+    {
+     "check": "novelty_duplicate",
+     "severity": "escalate",
+     "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+    }
+   ],
+   "suggestion": {
+    "action": "escalate",
+    "auto": false,
+    "reasons": [
+     "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+    ],
+    "removals": []
+   }
+  },
+  {
+   "memory_id": "01a11fc6-3a82-7f33-a35c-e3be44a0c4f0",
+   "session_id": "pi:admin_sun_depot_7184:01a10c55-8e9a-7534-b00c-b92224bf1f0e",
+   "session_version": null,
+   "scope_type": "project",
+   "group_id": "project:admin_sun_depot_7184",
+   "status": "review",
+   "memory_status": "pending_extraction",
+   "preview_attempts": 1,
+   "updated_at": "2026-10-09T08:29:31.810472Z",
+   "snapshot_token": "rs1:cde426d92c5936eb381cb59167c31184f94880698adc6c61451d9dbffaf059f2",
+   "review_id": "01a11fc6-77f0-7184-b53f-3b673fdccc93",
+   "project_id": "admin_sun_depot_7184",
+   "memory_type": "session_summary",
+   "summary": "AI Review 功能耦合问题分析",
+   "created_at": "2026-10-09T08:27:40.777119Z",
+   "entity_count": 2,
+   "edge_count": 1,
+   "novelty": {
+    "status": "completed",
+    "admission": "duplicate",
+    "rationale": "新记忆中的全部长期事实——最近一个月 AI Review feature CL 触碰面抽样、热点文件集中度（service.py 3986 行/65 次提交等）、以及 god object、通知点调用耦合、AI 链协议横跨 4 个物理位置三个根因——均已被候选 rank 1 的原文逐字覆盖，无新增条件、边界、原因或决策；其对 service.py/ai_worker.py 职责集中的论断也仅重复确认 rank 6 的结论。"
+   },
+   "distilled_content": "首个用户目标：看看 最近 pyautomation 的提交记录，每次 ai review 添加新的 feature 为什么都会动到很多文件，我期望功能要足够解耦，避免牵一发动全身，有没有更简单清晰&改良的方法。最近用户目标：可以。会话结果：数据已经齐了，可以给出完整分析。 # 一、最近提交记录的实际触碰面 抽样最近一个月的 AI Review feature CL： | CL | 主题 | 文件数 | |----|------|--------| | 1904 | 导表快速通道收尾 | 11 | | 1902 | 受控导表快速通道 | 30 | | 1885 | 评论触发复评 | 40 | | 1882+1878 | 轮次 session/证据完整性 | 37+48 | | 1880 | 提交完整性修复 | 14 | | 1834 | 取消当前轮 TC 链 | 15 | | 1730 | 飞书陪审卡审批 | 20 | | 1744 | 风险评级防降级 | 6 | 拆 CL 1885（40 文件）看成分：后端核心 6、migration 1、**单测 12**、前端 4、**TC DSL+测试 6**、**SKILL/references 文档 5**、DevOps agent 脚本 2、任务记录 1。 热点集中度（全历史被改次数）： | 文件 | 行数 | 提交次数 | |------|------|----------| | `service.py` | **3986** | **65** | | `ai_worker.py` | 2626 | 44 | | `api.py` | 1384 | 40 | | `Teamcity_PLN/TaskAiReview.kts` | — | ~46 | | `model.py` | 419 | 20 | # 二、为什么牵一发动全身——四个真实根因 **1. `service.py` 是 god object + 依赖枢纽（最大根因）** 一个文件里平铺了 ~65 个函数、至少 9 类职责：AI 策略评估、陪审团计票、CRUD+状态机、轮次证据（round manifest/integrity）、TC 回调定案、代提交收尾、活动日志、通知触发点、reviewer 管理。同时模块内**其余所有文件**（api / ai_worker / submit_worker / notification / reassessment / action_link / table_export_fastpath）都 import 它。每个新 feature 都在这 4000 行里再加一节，改它就默认全链路重测。 **2. 副作用与状态机互相长进对方身体** `service.py` 里散落 **15+ 处** lazy import notification 的点调用（`notify_review_created`、`notify_all_approved`、`notify_submit_failed`……）。每加一个状态转换或通知场景，都必须进状态机函数里插一行——通知需求改状态机文件，状态机改动又可能碰通知。 **3. AI 链协议横跨 4 个物理位置** 涉及 AI 分析的 feature 要同时改：pyAutomation 后端 + frontend + `DevOps/AiReview`（pi agent 脚本）+ `Teamcity_PLN` DSL。`.kts` 被改 ~46 次（和 `ai_worker.py` 同级），因为 DSL 里承载的是",
+   "proposed": {
+    "entities": [
+     {
+      "name": "pyautomation",
+      "type": "Project",
+      "summary": "AI Review 自动化系统，链路横跨四个物理位置：pyAutomation 后端、前端、DevOps/AiReview（pi agent 脚本）、Teamcity_PLN DSL（TaskAiReview.kts，全历史被改约 46 次）。架构热点与耦合根因（基于最近一个月 feature CL 抽样分析）：service.py 是 god object 兼依赖枢纽（约 3986 行、约 65 个函数、至少 9 类职责：AI 策略评估、陪审团计票、CRUD+状态机、轮次证据 round manifest/integrity、TC 回调定案、代提交收尾、活动日志、通知触发点、reviewer 管理），模块内其余文件（api/ai_worker/submit_worker/notification/reassessment/action_link/table_export_fastpath）全部 import 它，导致每个新 feature 都在其中加节并默认全链路重测；service.py 内还散落 15+ 处 lazy import notification 的点调用（notify_review_created、notify_all_approved、notify_submit_failed 等），通知需求与状态机互相侵入。其他热点：ai_worker.py（2626 行/44 次）、api.py（1384 行/40 次）、model.py（419 行/20 次）。单个 feature CL 常动 6-48 个文件，其中单测、TC DSL 测试、SKILL/references 文档占比高。"
+     },
+     {
+      "name": "feature-decoupling",
+      "type": "Concept",
+      "summary": "用户明确提出并坚持的设计目标：pyAutomation 的 AI Review 新 feature 要足够解耦，避免牵一发动全身，并希望有更简单清晰的改良方法。截至会话结束仅有助手的根因分析（正文在第四根因处截断），尚无用户确认或已实施的改良方案。"
+     }
+    ],
+    "edges": [
+     {
+      "source": "pyautomation",
+      "target": "feature-decoupling",
+      "name": "FOLLOWS",
+      "fact": "用户明确要求 pyAutomation 的 AI Review 功能设计要足够解耦、避免单个 feature 牵动大量文件，并寻求更简单清晰的改良方法；截至会话结束仅有根因分析，尚无已确认或已实施的改良方案。"
+     }
+    ],
+    "entity_resolution": {
+     "resolution_status": "ok",
+     "results": [
+      {
+       "input_name": "pyautomation",
+       "status": "exact",
+       "candidates": [
+        {
+         "uuid": "6daacd76-7ad5-437f-88dd-2ca4610af6b7",
+         "canonical_name": "pyautomation",
+         "match_basis": "exact",
+         "created_at": "2026-08-19T04:43:25.783040000+00:00",
+         "group_id": "project:admin_sun_depot_7184",
+         "summary": "pyautomation 项目（工作目录 D:\\work\\admin_sun_depot_7184），自动化项目，含 dashboard、auth 模块与前端（相对路径 frontend/src），地址 http://192.168.2.13/dashboard。内部代码评审自动化平台（backend 位于 /data/py_automation/backend，生产服务 192.168.2.13"
+        }
+       ]
+      },
+      {
+       "input_name": "feature-decoupling",
+       "status": "new",
+       "candidates": []
+      }
+     ]
+    }
+   },
+   "flags": [
+    {
+     "check": "novelty_duplicate",
+     "severity": "escalate",
+     "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+    }
+   ],
+   "suggestion": {
+    "action": "escalate",
+    "auto": false,
+    "reasons": [
+     "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+    ],
+    "removals": []
+   }
+  },
+  {
+   "memory_id": "01a11d24-2723-77c2-b80b-27822653c3e9",
+   "session_id": "pi:maindev:01a11181-d5cb-7681-9afa-bb1c5a7b83a3",
+   "session_version": null,
+   "scope_type": "project",
+   "group_id": "project:maindev",
+   "status": "review",
+   "memory_status": "pending_extraction",
+   "preview_attempts": 0,
+   "updated_at": "2026-10-08T20:17:22.086249Z",
+   "snapshot_token": "rs1:8bab2880b189675baf7f4b96eab362080ee34db07e58b7a4c90da8d76a202799",
+   "review_id": "01a11d27-7e7e-71dc-ba33-dacea2e2f732",
+   "project_id": "maindev",
+   "memory_type": "dream_lesson",
+   "summary": "pl-review 规则缺口：检查点 1 失败与未验证状态须写死 high+reject 闸门（Review 1097 根因）",
+   "created_at": "2026-10-08T20:14:49.967885Z",
+   "entity_count": 2,
+   "edge_count": 1,
+   "novelty": {
+    "status": "completed",
+    "admission": "duplicate",
+    "rationale": "新记忆包含三个有长期价值的事实：(1) Review 1097 误判根因是 unavailable/skipped 无 severity floor 及缺未验证不得 approve 闸门；(2) 6 处 diff 修订方案写死检查点 1 失败=high+reject 与未验证不得 approve；(3) 索引 #563 三个新增条目 SKILL.md 不在 depot、「补登存量」不成立及 CL134181 经 CL134397 入库。事实 (1)(2) 已被 rank 2 完整陈述，事实 (3) 已被 rank 3 完整陈述，新记忆未增加任何新条件、边界、原因、步骤或纠正，仅以 dream_lesson 形式重复确认。"
+   },
+   "distilled_content": "背景：Review 1097（CL 136072）把「索引未核对+新增条目本体不在 CL」记 low 并 approve，根因是规则缺口而非模型违规。证据：CL 136072 索引 #563 的 3 个新增条目（audio-grill、audio-qc-workbench、yue2-workbench）对应 SKILL.md 至分析时全部不在 depot，下一班重建 #564 已静默吞掉，事故真实发生，「补登存量」说法不成立。原因：SKILL.md:174 与 skill-index-format.md:49-50 中 unavailable/skipped 两态无 severity floor，检查点 1 失败无 severity/verdict 映射，也无「未验证→不得 approve」闸门，模型只做 1/4 检查并 approve 未违反任何带后果条款。做法：6 处 diff 修订（两文件各 3 处），写死「检查点 1 确认失败=high+reject」「含新增条目且检查点 1/2 未验证=high 且不得 approve」。注意：CL 134181 已不存在，其改动经 CL 134397 入库，Review 1097 评审时新规则已生效。",
+   "proposed": {
+    "entities": [
+     {
+      "name": "skill-index",
+      "type": "Concept",
+      "summary": "技能索引：登记各技能条目及其 SKILL.md 本体的索引，按编号逐版演进；其变更评审需执行检查点验证（如核对新增条目本体是否随变更入库）。"
+     },
+     {
+      "name": "skill-index-review-gate",
+      "type": "Convention",
+      "summary": "技能索引变更评审的硬性闸门规则，记录于 SKILL.md 与 skill-index-format.md。曾存在规则缺口：unavailable/skipped 两态无 severity floor，检查点 1 失败无 severity/verdict 映射，也无「未验证→不得 approve」闸门，曾导致新增条目本体未入库仍被记 low 并 approve 的事故。后经两文件各 3 处共 6 处修订写死闸门，新规则已入库生效。"
+     }
+    ],
+    "edges": [
+     {
+      "source": "skill-index-review-gate",
+      "target": "skill-index",
+      "name": "APPLIES_TO",
+      "fact": "技能索引变更评审规则（SKILL.md 与 skill-index-format.md，各修订 3 处）写死：检查点 1（核对新增条目本体是否在变更中）确认失败记 high 并 reject；含新增条目且检查点 1/2 未验证记 high 且不得 approve；修订已入库生效。"
+     }
+    ],
+    "entity_resolution": {
+     "resolution_status": "ok",
+     "results": [
+      {
+       "input_name": "skill-index",
+       "status": "new",
+       "candidates": []
+      },
+      {
+       "input_name": "skill-index-review-gate",
+       "status": "new",
+       "candidates": []
+      }
+     ]
+    }
+   },
+   "flags": [
+    {
+     "check": "novelty_duplicate",
+     "severity": "escalate",
+     "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+    }
+   ],
+   "suggestion": {
+    "action": "escalate",
+    "auto": false,
+    "reasons": [
+     "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+    ],
+    "removals": []
+   }
+  }
+ ]
+}

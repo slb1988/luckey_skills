@@ -1,0 +1,197 @@
+{
+ "run_id": "2dc92353dace",
+ "created": "2026-10-07T19:35:11",
+ "input_sha256": "dc4d6c0b11330d5a148463b6ad5b29182ef439bb54e7542af652096b2b5fdbcd",
+ "rounds": 8,
+ "items": [
+  {
+   "review_id": "01a115ae-ec0a-7af2-82d1-7f0605a199e5",
+   "memory_id": "01a115ae-c123-7e0f-a191-4f63d7e1284d",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "rationale": "auto-review: 预览准确（macOS15 LaunchServices 内容类型仲裁与 lsregister -u 处置均有正文支撑）；novelty=evolution",
+   "snapshot_token": "rs1:b9d7b6d710b59471ecfd85ceb76bfa9f32b6d09878b5c308a2d05caa090d75a7",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a112ee-5ec5-78a4-a0a9-7b5b88e356d4",
+   "memory_id": "01a112ed-e262-7a27-b8be-f3e1310bd082",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "rationale": "auto-review: 预览准确（同步失败基线构成/操作约束均有正文支撑）；novelty=evolution",
+   "snapshot_token": "rs1:726135facf5905400d503bdc743bb7cc57e132330e983d679dc6e9e380b90763",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a112dc-5fb4-7138-bbd8-4ea1cf9e11bd",
+   "memory_id": "01a112d4-6088-776d-ac37-2f190846022f",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "rationale": "auto-review: 预览准确（original_cl 双侧修复与 236 非 unicode 约定均有正文支撑）；novelty=evolution",
+   "snapshot_token": "rs1:496c871931e942f8dd4a9107d5365b6f510ef4ab5ea4b92617ca70e40b7f1282",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a112da-63c0-7bec-bbf3-0dc6dfd9fad1",
+   "memory_id": "01a112d2-ab63-7693-b538-759abda2af15",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "rationale": "auto-review: 预览准确（UBA 向 Horde 申请算力 C#/C++ 双实现路径与正文一致）；novelty=evolution",
+   "snapshot_token": "rs1:0f791d5f7c3dce2640972b2e266942b513517433b2c1de1618b3e50b683dfdd5",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a112d9-5aa0-7d99-ba2b-3f5549c9cf96",
+   "memory_id": "01a112d2-523b-7271-a00d-f303194acd8b",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "rationale": "auto-review: 预览准确（stdout 块缓冲假卡死判别法有正文支撑）；novelty=evolution",
+   "snapshot_token": "rs1:8a51814c5d5094c6ad00f6d652fb5835eb852c298aa4037ebdcd3ff1312a662a",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a112d8-4c0a-7664-8ab8-e972a00e3636",
+   "memory_id": "01a112d2-521c-73a9-8c43-dbbd5147a1ab",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "rationale": "auto-review: 预览准确（Zen DDC 常驻复用省去启动开销有正文支撑）；novelty=evolution",
+   "snapshot_token": "rs1:ff8b0b97707ec11a869171fa50eb696cf803e2cafeb0567f1171844b76970f97",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a112d6-a6a5-7859-b7fc-21019ab8b1a0",
+   "memory_id": "01a112d2-51ca-72ae-9f86-f4d6ac63e19d",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "rationale": "auto-review: 预览准确（退出 flush 根因与 IsRunningCommandlet 门控修复有正文支撑）；novelty=evolution",
+   "snapshot_token": "rs1:4a8aa6ceefe35603ae945e0d9fbc7acfd98826f585459db53a7208afe2d42c42",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a112d6-0d13-753c-b047-5d67f2649202",
+   "memory_id": "01a112d1-0f1c-7ca1-a2de-f23d242faea4",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "rationale": "auto-review: 预览准确（矛盾实体外科清理流程有正文支撑）；novelty=evolution",
+   "snapshot_token": "rs1:ae9ab06942f374a6abc8d5b679f0274908215767345e35fa597079a676760371",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a112d2-fbae-7fef-bba1-2ffa872e02a1",
+   "memory_id": "01a112cf-f5e4-7a19-b31b-c57943d32950",
+   "group_id": "project:admin_sun_depot_7184",
+   "content_mode": "curated",
+   "rationale": "auto-review: 预览准确（CL 1907 三段式实现与验证数字有正文支撑）；novelty=evolution",
+   "snapshot_token": "rs1:cbefbdd704f86f5aad046e06d2ca5b1e6b2e0eea295d1d5b4078ba8c21206b60",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a112d2-34b1-7818-951f-fbda172a102f",
+   "memory_id": "01a112cf-f5bf-7ecc-a393-ccb1bfcf386a",
+   "group_id": "project:admin_sun_depot_7184",
+   "content_mode": "curated",
+   "rationale": "auto-review: 预览准确（builder_unavailable 根因与 CL 状态结论有正文支撑）；novelty=evolution",
+   "snapshot_token": "rs1:b75956d57fd8bb55de768abd7fcd2a3d32c525d0f835a1ceb7017ae7944c31a2",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a112d1-63dd-7200-8d35-86a010a2eb2e",
+   "memory_id": "01a112ce-ed3b-7afb-a90b-686824c670ab",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "rationale": "auto-review: 预览准确（pl-review 规则缺口与修订方案归属正确）；novelty=evolution",
+   "snapshot_token": "rs1:a0e99ebc7bf4cf9eb8fb781bcf320cc2761a2ca096410e6aa92138484c18458a",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a112d0-9b29-7ad6-b45d-ae69ee5fdaf3",
+   "memory_id": "01a112ce-ed1a-70ce-9891-302bb3243790",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "rationale": "auto-review: 预览准确（ghost_entries 第六态语义与正文一致）；novelty=evolution",
+   "snapshot_token": "rs1:bfb82d31cc0a4123f889ec32dd88dbd909a08c0ce1226b44dac35270cc232a78",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a112d0-1288-771e-a9e5-a328311ec10d",
+   "memory_id": "01a112ce-ecf9-7ea8-8401-1b32bf1ad400",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "rationale": "auto-review: 预览准确（幽灵条目实证与 reject 规则有正文支撑）；novelty=evolution",
+   "snapshot_token": "rs1:0bebd30d33b82f8f5df4db127d14e81f8cba3b97a46dba4cc9fa18c9e65908a5",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a112cf-0c19-77e6-ab1b-9a3b7a366fa4",
+   "memory_id": "01a112ce-e95d-70d7-9e06-f6f7efd90937",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "rationale": "auto-review: 预览准确（生成器缺 --out-dir 根因与修复首步有正文支撑）；novelty=evolution",
+   "snapshot_token": "rs1:88f23cd89719b5d681757a738433c46d437c19bc3b7d0d6cbac1079806c568a2",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a112db-4d7d-7420-a351-c7a22a1d7586",
+   "memory_id": "01a112d4-605d-73c6-b0e6-8472c2219ef5",
+   "group_id": "project:maindev",
+   "content_mode": "original",
+   "rationale": "auto-review: preview_failed(attempts=3) 到限不重试；正文为完整优化链路与方法论教训，有长期价值，approve original 跳过预览",
+   "snapshot_token": "rs1:3be375c17209d61aa32aeb415e92fc27191ca97a1db8a02869d9d3eb4cb17a3f",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a112d7-8413-7310-a7f5-e438a5ef16ea",
+   "memory_id": "01a112d2-51f1-723c-b067-a0c29729b4d4",
+   "group_id": "project:maindev",
+   "content_mode": "original",
+   "rationale": "auto-review: preview_failed(attempts=3) 到限不重试；正文为 AR cache 刷新规程与维护信号，有长期运维价值，approve original 跳过预览",
+   "snapshot_token": "rs1:df942f6ccf131a8451860ef282f93bb5b3eab7890d5bf2571ad10a343743af93",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a11190-4934-7bad-9b01-3ddcd7ab55ee",
+   "memory_id": "01a11190-1da1-7225-a429-dfd0881c5770",
+   "group_id": "project:maindev",
+   "content_mode": "original",
+   "rationale": "auto-review: preview_failed(attempts=3) 到限不重试；正文为 pl-review 规则缺口定位（CL134397 入库事实+6 处修订方案），有长期价值，approve original 跳过预览",
+   "snapshot_token": "rs1:32f0df2e7a73e2a5a48250189e1bceb5e68adfbdc14ddf5c9e2e4ac36904eb1a",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  }
+ ],
+ "saved_at": "2026-10-07T19:49:32",
+ "last_progress": "2026-10-07T19:49:32"
+}

@@ -1,0 +1,22 @@
+﻿=== 20261012_235900 daily-report scheduled run ===
+--- precheck ---
+work evidence: P4 CL on 192.168.2.236:1666
+--- pi -p ---
+日报已生成。
+
+**写入路径**：`luckey/02_notes/daily/2026-10-12.md`（新建，模板其余区块保持原样）
+
+**DailySucc**：5 条
+1. **AI 代码 Review** — 6 条 CL 经评审流水线入库（AS async 整合 137345、pak-size-diff 137389、cook guid 137403、AS 热重载崩溃修复 137532、diff-uasset 137545、Linux clang 告警 137564）+ 评审链超时修复 CL 1937 [CICD]
+2. **自动化测试用例** — 发起稳定性讨论 + 分享 ClickWidget 鲁棒性写法（飞书 + Code.exe 佐证）
+3. **导表工具问题排查** — DT_PLGameplayEffectInfo 加载失败（44 次/2 人），推动复现
+4. **构建脚本** — CL 1936 [CICD] generate_directory_metadata 排除 CrashSight 中间产物
+5. **记忆沉淀** — CL 137301 Git Bash MSYS 踩坑 reference
+
+**工作时间**：上班 09:20 / 下班 19:47；晚间工作 21:16–23:59（有 21:30–22:17 晚间 CL 佐证）。07:38–08:06 的 27m 孤立早间段按规则不计入。
+
+**数据缺口**：
+- `unknown` 窗口 459m（大概率为 Orca 内嵌终端，已在表格加注）
+- 个人服务器 10.77.77.6 当日无提交；三路 P4 均连接正常，无失败
+- 飞书 135 群全量扫描，18 个活跃群，本人发言集中在程序组部门群/导表工具迭代组（摘要已按参与过滤口径只写这两项，闲聊群未计入）
+pi exit code: 0

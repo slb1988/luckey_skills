@@ -1,0 +1,24 @@
+{
+ "removals": [],
+ "rejections": [],
+ "approvals": [
+  {
+   "review_id": "01a115ae-ec0a-7af2-82d1-7f0605a199e5",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:b9d7b6d710b59471ecfd85ceb76bfa9f32b6d09878b5c308a2d05caa090d75a7",
+   "rationale": "auto-review: 预览准确（macOS15 LaunchServices 内容类型仲裁与 lsregister -u 处置均有正文支撑）；novelty=evolution"
+  },
+  {
+   "review_id": "01a112da-63c0-7bec-bbf3-0dc6dfd9fad1",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:0f791d5f7c3dce2640972b2e266942b513517433b2c1de1618b3e50b683dfdd5",
+   "rationale": "auto-review: 预览准确（UBA 向 Horde 申请算力 C#/C++ 双实现路径与正文一致）；novelty=evolution"
+  },
+  {
+   "review_id": "01a112d2-fbae-7fef-bba1-2ffa872e02a1",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:cbefbdd704f86f5aad046e06d2ca5b1e6b2e0eea295d1d5b4078ba8c21206b60",
+   "rationale": "auto-review: 预览准确（CL 1907 三段式实现与验证数字有正文支撑）；novelty=evolution"
+  }
+ ]
+}

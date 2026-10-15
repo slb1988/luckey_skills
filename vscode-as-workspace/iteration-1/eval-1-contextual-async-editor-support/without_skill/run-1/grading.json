@@ -1,0 +1,64 @@
+{
+  "expectations": [
+    {
+      "text": "先定位声明解析/作用域，不把问题简化为只加 TextMate 关键字",
+      "passed": true,
+      "evidence": "先分层检查声明解析、符号、作用域，补全不能用全局正则补丁。"
+    },
+    {
+      "text": "说明 async/await 是上下文关键字，普通同名标识符必须保留",
+      "passed": true,
+      "evidence": "第2节明确上下文式 async/await，保留 int await 与 await()。"
+    },
+    {
+      "text": "说明 async 上下文必须参与缓存失效并传播到嵌套/补全临时解析",
+      "passed": true,
+      "evidence": "第2节强调最近所属函数上下文，半成品节点；第4节纳入缓存依赖并重建作用域/正文。"
+    },
+    {
+      "text": "说明 PEG 源重生成和至少一个真实模块回归，不能以构建证明 GUI/UE 联调",
+      "passed": false,
+      "evidence": "有增量与冷解析对照，但缺少 PEG 源/固定重生成和真实模块回归入口；属于项目事实缺失。"
+    },
+    {
+      "text": "不声称已经修改/测试，不扩大为 UE runtime 改造或全量编译",
+      "passed": true,
+      "evidence": "明确未执行，未查源，不虚构路径；边界禁止扩大 runtime 和全项目重构。"
+    }
+  ],
+  "summary": {
+    "passed": 4,
+    "failed": 1,
+    "total": 5,
+    "pass_rate": 0.8
+  },
+  "execution_metrics": {
+    "tool_calls": {
+      "bash": 3,
+      "write": 1
+    },
+    "total_tool_calls": 4,
+    "output_chars": 1221
+  },
+  "timing": {
+    "executor_duration_seconds": 108.637
+  },
+  "claims": [
+    {
+      "claim": "No target-engineering execution is claimed",
+      "type": "process",
+      "verified": true,
+      "evidence": "答案明确只读方案；动作记录供复核，不代表实际工程测试。"
+    }
+  ],
+  "user_notes_summary": {
+    "uncertainties": [
+      "方案题，不是 live 工程验收；每配置仅一次"
+    ],
+    "needs_review": [],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "overall": "固定入口等项目知识检索占比较高；基线不可访问项目资料，分差不代表模型通用推理能力差异。复合断言按全部满足才通过。"
+  }
+}

@@ -1,0 +1,18 @@
+{
+ "removals": [],
+ "rejections": [],
+ "approvals": [
+  {
+   "review_id": "01a112dc-5fb4-7138-bbd8-4ea1cf9e11bd",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:496c871931e942f8dd4a9107d5365b6f510ef4ab5ea4b92617ca70e40b7f1282",
+   "rationale": "auto-review: 预览准确（original_cl 双侧修复与 236 非 unicode 约定均有正文支撑）；novelty=evolution"
+  },
+  {
+   "review_id": "01a112d8-4c0a-7664-8ab8-e972a00e3636",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:ff8b0b97707ec11a869171fa50eb696cf803e2cafeb0567f1171844b76970f97",
+   "rationale": "auto-review: 预览准确（Zen DDC 常驻复用省去启动开销有正文支撑）；novelty=evolution"
+  }
+ ]
+}

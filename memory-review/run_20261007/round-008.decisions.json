@@ -1,0 +1,12 @@
+{
+ "removals": [],
+ "rejections": [],
+ "approvals": [
+  {
+   "review_id": "01a112cf-0c19-77e6-ab1b-9a3b7a366fa4",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:88f23cd89719b5d681757a738433c46d437c19bc3b7d0d6cbac1079806c568a2",
+   "rationale": "auto-review: 预览准确（生成器缺 --out-dir 根因与修复首步有正文支撑）；novelty=evolution"
+  }
+ ]
+}

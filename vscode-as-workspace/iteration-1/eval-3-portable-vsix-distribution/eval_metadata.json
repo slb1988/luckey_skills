@@ -1,0 +1,12 @@
+{
+  "eval_id": 3,
+  "eval_name": "portable-vsix-distribution",
+  "prompt": "这是只读打包演练，不执行安装、打包或发布。我要把已修复的 Unreal AngelScript 扩展打成 VSIX 给同事，不想让他们准备源码和 Node。项目已经 esbuild bundle，Windows 生成的包有 languageclient 的 terminateProcess.sh，ZIP mode 是 100666；接收者包含 Windows 和 macOS。请给出最短打包/验证/安装方案、需要检查的文件和版本信息，以及能承诺和不能承诺的支持范围。",
+  "assertions": [
+    "给出 vsce package --no-dependencies 并说明它以依赖已 bundle 为前提，不手工 zip 代替 VSIX",
+    "检查扩展/LSP/debugAdapter 的 dist 入口、非 JS helper 与许可，并排除本机配置/缓存",
+    "使用独立 user-data/extensions 试安装，检查 ID/版本和产物 hash，不替换日常扩展",
+    "不把 mode 100666 的 Windows 包宣称为 macOS 已可用，要求目标平台权限/退出重启验证",
+    "提醒同 ID 替换/自动更新风险，不发布 Marketplace，不把安装成功说成 UE 联调通过"
+  ]
+}

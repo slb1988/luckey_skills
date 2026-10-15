@@ -1,0 +1,64 @@
+{
+  "expectations": [
+    {
+      "text": "给出源码窗口的 Attach to Running Dev Host，而不是重复 Launch Client",
+      "passed": false,
+      "evidence": "正确建议 attach 而非新开，但项目专用配置名未知，另拟两份自定义配置，不是准确现成入口。"
+    },
+    {
+      "text": "区分 9333/6009 Node inspector、27099 UE TCP 与本地 DAP 通路",
+      "passed": false,
+      "evidence": "能区分 inspector 与业务端口，却无法确认 27099 的本项目约定，也未区分 DAP 本地随机通路。"
+    },
+    {
+      "text": "给出 parsed_completion.ts 的 Complete 断点和开发宿主 Ctrl+Space 触发",
+      "passed": false,
+      "evidence": "有通用补全断点与 Ctrl+Space，但没有 parsed_completion.ts/Complete 的项目定位。"
+    },
+    {
+      "text": "修改后 Ctrl+Shift+B 编译，只重载开发宿主，不关闭日常 VSCode/UE",
+      "passed": false,
+      "evidence": "正确只重载开发宿主，但仅说项目已有构建/watch，缺少实际 Ctrl+Shift+B/npm:compile 入口。"
+    },
+    {
+      "text": "要求扩展/LSP 路径和 workspace 日志证据，不把 TCP 建连等同 AS 断点验证",
+      "passed": false,
+      "evidence": "提供 extensionDevelopmentPath、已加载脚本和调用栈证据，但未覆盖 LSP bundle/workspace roots 日志这一复合要求；未作虚假 AS 成功声明。"
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 5,
+    "total": 5,
+    "pass_rate": 0.0
+  },
+  "execution_metrics": {
+    "tool_calls": {
+      "bash": 5,
+      "write": 1
+    },
+    "total_tool_calls": 6,
+    "output_chars": 1602
+  },
+  "timing": {
+    "executor_duration_seconds": 184.468
+  },
+  "claims": [
+    {
+      "claim": "No target-engineering execution is claimed",
+      "type": "process",
+      "verified": true,
+      "evidence": "答案明确只读方案；动作记录供复核，不代表实际工程测试。"
+    }
+  ],
+  "user_notes_summary": {
+    "uncertainties": [
+      "方案题，不是 live 工程验收；每配置仅一次"
+    ],
+    "needs_review": [],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "overall": "固定入口等项目知识检索占比较高；基线不可访问项目资料，分差不代表模型通用推理能力差异。复合断言按全部满足才通过。"
+  }
+}

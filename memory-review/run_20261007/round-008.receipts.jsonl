@@ -1,0 +1,2 @@
+{"kind": "intent", "action": "approve", "content_mode": "curated", "rationale": "auto-review: 预览准确（生成器缺 --out-dir 根因与修复首步有正文支撑）；novelty=evolution", "review_ids": ["01a112cf-0c19-77e6-ab1b-9a3b7a366fa4"], "expected_snapshot_tokens": {"01a112cf-0c19-77e6-ab1b-9a3b7a366fa4": "rs1:88f23cd89719b5d681757a738433c46d437c19bc3b7d0d6cbac1079806c568a2"}, "ts": "2026-10-07T19:48:49"}
+{"kind": "receipt", "action": "approve", "http_status": 200, "results": [{"error": null, "review_id": "01a112cf-0c19-77e6-ab1b-9a3b7a366fa4", "status": "approved"}], "ts": "2026-10-07T19:48:51"}

@@ -1,0 +1,12 @@
+{
+  "duration_ms": 184468,
+  "total_duration_seconds": 184.468,
+  "measurement": "Orca dispatch-to-worker_done wall time, not isolated generation latency",
+  "executor_start": "2026-09-21T23:43:27+00:00",
+  "executor_end": "2026-09-21T23:46:31.468000+00:00",
+  "task_id": "task_18e87f50c186",
+  "dispatch_id": "ctx_07abfd3ed541",
+  "model": "openai-codex/gpt-6-astra",
+  "total_tokens": 49914,
+  "token_measurement": "Pi usage: input + cacheRead + output, includes reused cached input"
+}

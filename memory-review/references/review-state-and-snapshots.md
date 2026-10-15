@@ -104,3 +104,23 @@ family 内的错误源组，只有在人工明确确认“这是 scope 修复”
 `RELATES_TO` 仍保留失效 UUID（包括只由该 episode 支撑的边）。失效后必须分别验证：① episode
 不在 `/episodes/{group}`；②图快照中没有仅引用失效 UUID 的边；③共享边仍有存活 episode 支撑。
 独占残留边与共享边的 provenance 污染是两类问题，不能把共享事实随独占边一起删除。
+
+## preview_failed 终态与 attempt 记账口径
+
+预览生成的 attempt 记账（D:/Github/memory-hub service.py）：只有两类事烧 `preview_attempts`——
+LLM 调用异常与 JSON 解析失败（3196-3202）；「0 实体 0 边」的合法空预览是成功路径，不烧次数。
+3 次到顶进入 `preview_failed` 终态，无自动恢复；auto-review 只 claim `status='review'` 的条目
+（3301），preview_failed 永不接管。
+
+预览 `max_tokens=2048` 硬编码、输入全文不截断（3121-3125），且 temperature=0：同一超长正文
+（典型为 UE/P4 调试类长蒸馏文）三次重试产出相同输出，连续烧满 3 次是确定性失败而非运气。
+worker.log 错误签名判读：
+
+- `ReviewLLMError: LLM returned empty content`（llm.py:171）= 网关 HTTP 200 但零文本块，
+  指向上游模型输出退化或网关丢 text block；不是超时（REVIEW_LLM_TIMEOUT 远大于实际单次耗时）、
+  不是限流（那会表现为 5xx/429）。区分上游还是网关丢块须查 build-api-proxy `history.db` 对应请求。
+- `unparseable: invalid JSON: Unterminated string`（service.py:3129）= 输出被 max_tokens 截断。
+
+排查「队列卡住」先 scan 按 status 分层：`preview_failed`（attempts 烧满的终态，只能人工处置）
+与 `preview_pending`（attempts=0 从未被执行，查 worker 存活与 SQLite 写锁）是两类完全不同的
+卡住，证据链与恢复入口不同，不能混查。

@@ -1,0 +1,18 @@
+{
+ "removals": [],
+ "rejections": [],
+ "approvals": [
+  {
+   "review_id": "01a112d1-63dd-7200-8d35-86a010a2eb2e",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:a0e99ebc7bf4cf9eb8fb781bcf320cc2761a2ca096410e6aa92138484c18458a",
+   "rationale": "auto-review: 预览准确（pl-review 规则缺口与修订方案归属正确）；novelty=evolution"
+  },
+  {
+   "review_id": "01a112db-4d7d-7420-a351-c7a22a1d7586",
+   "content_mode": "original",
+   "snapshot_token": "rs1:3be375c17209d61aa32aeb415e92fc27191ca97a1db8a02869d9d3eb4cb17a3f",
+   "rationale": "auto-review: preview_failed(attempts=3) 到限不重试；正文为完整优化链路与方法论教训，有长期价值，approve original 跳过预览"
+  }
+ ]
+}

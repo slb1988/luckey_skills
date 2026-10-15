@@ -126,7 +126,7 @@ apply 返回 `already_processed`，或复读时条目已为 approved/rejected，
 
 <memory category="troubleshooting">
 关卡 1 入库审核与预览生成共用 review worker；旧预览优先策略可能使入库审核饥饿，现已改为公平轮转。须分别观察两阶段进度，不能以预览消化证明入库审核正常；待人工审核数量本身不是 worker backlog（先核对[自动决策模式](references/auto-review-modes-and-decision-samples.md)）。worker 存活及 SQLite 异常退出边界见 [memory-hub](../memory-hub/SKILL.md)。
-单条 preview 失败应与全局停滞分开判断：LLM JSON 截断或未剥 code fence 的解析失败均可能耗尽 `preview_attempts`；上限 3，到限后不再自动重试，worker 恢复也不会自动解锁这些条目。需人工处置（重置 attempts 重试 / 正文有价值时 approve `original` 跳过预览 / reject），不代表其它待人工审核条目也失败。
+单条 preview 失败应与全局停滞分开判断：LLM JSON 截断或未剥 code fence 的解析失败均可能耗尽 `preview_attempts`；上限 3，到限后不再自动重试。**schema v31 起（2026-10-15 部署）preview_failed 不再是终态**：review worker 每 15min 扫描，冷却满 4h 且重排队轮次 <3 的条目自动重置回 preview_pending（轮次记在 preview_requeue_count，人工 retry_preview 清零）；只有 3 轮护栏耗尽的条目才留人工。v31 之前的旧口径：终态需人工处置（重置 attempts / approve original / reject）。auto-review 只 claim `status='review'` 条目、永不接管 preview_failed——auto 模式下堆积是 fail-closed 设计行为，不是 auto-review 失效；烧 attempt 的确切口径与 worker.log 错误签名判读见 [审核状态与快照](references/review-state-and-snapshots.md)。预览 max_tokens 2048→8192（REVIEW_LLM_MAX_TOKENS）同批上线，长文截断型三连败已消除。
 </memory>
 
 <memory category="troubleshooting">

@@ -1,0 +1,12 @@
+{
+  "eval_id": 2,
+  "eval_name": "attach-existing-development-host",
+  "prompt": "这是只读操作方案题，不实际启动/关闭进程或改配置。我已经打开日常 VSCode 和一个加载本地 AngelScript 扩展的 CLI 开发宿主，扩展源码窗口也在，9333 和 6009 都在监听。我要在代码提示处打源码断点，然后修改源码继续调；同事说把所有端口填成 27099 再 F5。请给我准确的窗口/配置/快捷键步骤，说明怎样判定跑的是我的源码，以及这与 AS 业务断点是否是一回事。",
+  "assertions": [
+    "给出源码窗口的 Attach to Running Dev Host，而不是重复 Launch Client",
+    "区分 9333/6009 Node inspector、27099 UE TCP 与本地 DAP 通路",
+    "给出 parsed_completion.ts 的 Complete 断点和开发宿主 Ctrl+Space 触发",
+    "修改后 Ctrl+Shift+B 编译，只重载开发宿主，不关闭日常 VSCode/UE",
+    "要求扩展/LSP 路径和 workspace 日志证据，不把 TCP 建连等同 AS 断点验证"
+  ]
+}

@@ -1,0 +1,44 @@
+{
+ "approvals": [
+  {
+   "review_id": "01a124c1-3d29-7381-92bc-c9fa1e3f2d42",
+   "memory_id": "01a124c0-4959-71b8-84ee-da142e4efe84",
+   "group_id": "project:devops",
+   "content_mode": "original",
+   "snapshot_token": "rs1:9a8b54d8759dfcdd0fb0c7df597e563cdad86d1a1425b1ffaed097c3dab334cf",
+   "rationale": "auto-review: 预览重试耗尽但正文为已部署修复的完整交付记录，按 original 入库；novelty=evolution"
+  },
+  {
+   "review_id": "01a124c0-1e5c-7a86-8fc1-a7f6a396baaa",
+   "memory_id": "01a124bf-e7de-7dce-9435-bc2b308da499",
+   "group_id": "project:admin_sun_depot_7184",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:7155889c7e52556e504e5989be3b19b6b106b5dd4f96b086b1b17c6118a8abe5",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a124b5-48b5-7ab0-8a34-2addc46dbda6",
+   "memory_id": "01a124b4-de7f-7473-88ea-b0bce6ee26c5",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:bff93b48d5d991630761dde6530159c089dbc026097480be7fcb4f0cc6849ade",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  },
+  {
+   "review_id": "01a124b4-8c03-70af-8a9a-c5dbde996891",
+   "memory_id": "01a124b4-67ea-796d-ac94-9ee7adde5767",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:76996c21293ef3d80f124b39ef75f9c76455027f680ff69cc6ecd745f5a6328f",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=novel"
+  },
+  {
+   "review_id": "01a124b2-a92b-75f1-a9ca-4970aaa8f485",
+   "memory_id": "01a124b2-7d9a-7878-8e7a-291127aeeac7",
+   "group_id": "project:devops",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:1fc37d6d6673c21f1c60c00f90c84d36a89f6c840be170bcb886241a30d45750",
+   "rationale": "auto-review: 预览准确、边事实有正文支撑；novelty=evolution"
+  }
+ ]
+}

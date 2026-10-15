@@ -1,0 +1,12 @@
+{
+  "eval_id": 1,
+  "eval_name": "contextual-async-editor-support",
+  "prompt": "这是只读接手演练，不执行工具修改任何工程或启动进程。MainDev 的 async FTask RunAsync(Context T) 运行测试已通过，但 VSCode 大纲里没有这个方法，await UISteps:: 后无提示。另有普通函数里的 int await 和 await() 必须保持兼容；仅删掉函数 async 后，未改的函数体也曾显示旧结果。请给出最小定位/修复路线、关键源码入口和验收证据，明确不该扩大到哪里。",
+  "assertions": [
+    "先定位声明解析/作用域，不把问题简化为只加 TextMate 关键字",
+    "说明 async/await 是上下文关键字，普通同名标识符必须保留",
+    "说明 async 上下文必须参与缓存失效并传播到嵌套/补全临时解析",
+    "说明 PEG 源重生成和至少一个真实模块回归，不能以构建证明 GUI/UE 联调",
+    "不声称已经修改/测试，不扩大为 UE runtime 改造或全量编译"
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "expectations": [
+    {
+      "text": "给出源码窗口的 Attach to Running Dev Host，而不是重复 Launch Client",
+      "passed": true,
+      "evidence": "第1节准确选择 Attach to Running Dev Host，并禁止再 Launch Client。"
+    },
+    {
+      "text": "区分 9333/6009 Node inspector、27099 UE TCP 与本地 DAP 通路",
+      "passed": true,
+      "evidence": "第5节分别解释 9333、6009、27099 和 ASDebugSession 的本地随机端口。"
+    },
+    {
+      "text": "给出 parsed_completion.ts 的 Complete 断点和开发宿主 Ctrl+Space 触发",
+      "passed": true,
+      "evidence": "第2节给出 parsed_completion.ts 的 Complete 与开发宿主 Ctrl+Space。"
+    },
+    {
+      "text": "修改后 Ctrl+Shift+B 编译，只重载开发宿主，不关闭日常 VSCode/UE",
+      "passed": true,
+      "evidence": "第3节明确 Ctrl+Shift+B/npm:compile，仅开发宿主 Reload Window。"
+    },
+    {
+      "text": "要求扩展/LSP 路径和 workspace 日志证据，不把 TCP 建连等同 AS 断点验证",
+      "passed": true,
+      "evidence": "第4节要求 extensionDevelopmentPath、LSP dist 路径、workspace roots 和源码映射；第5节不将 TCP 视为 AS 断点通过。"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "tool_calls": {
+      "read": 2,
+      "bash": 4,
+      "write": 1
+    },
+    "total_tool_calls": 7,
+    "output_chars": 1596
+  },
+  "timing": {
+    "executor_duration_seconds": 115.608
+  },
+  "claims": [
+    {
+      "claim": "No target-engineering execution is claimed",
+      "type": "process",
+      "verified": true,
+      "evidence": "答案明确只读方案；动作记录供复核，不代表实际工程测试。"
+    }
+  ],
+  "user_notes_summary": {
+    "uncertainties": [
+      "方案题，不是 live 工程验收；每配置仅一次"
+    ],
+    "needs_review": [],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "overall": "固定入口等项目知识检索占比较高；基线不可访问项目资料，分差不代表模型通用推理能力差异。复合断言按全部满足才通过。"
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "expectations": [
+    {
+      "text": "给出 vsce package --no-dependencies 并说明它以依赖已 bundle 为前提，不手工 zip 代替 VSIX",
+      "passed": true,
+      "evidence": "给出固定 vsce 3.7.1 package --no-dependencies，解释依赖 bundle 前提。"
+    },
+    {
+      "text": "检查扩展/LSP/debugAdapter 的 dist 入口、非 JS helper 与许可，并排除本机配置/缓存",
+      "passed": true,
+      "evidence": "逐项检查三个 dist 入口、terminateProcess.sh、两类许可证并排除本地配置/缓存。"
+    },
+    {
+      "text": "使用独立 user-data/extensions 试安装，检查 ID/版本和产物 hash，不替换日常扩展",
+      "passed": true,
+      "evidence": "独立 user-data/extensions 安装，核对 ID/版本/字节一致和 Get-FileHash。"
+    },
+    {
+      "text": "不把 mode 100666 的 Windows 包宣称为 macOS 已可用，要求目标平台权限/退出重启验证",
+      "passed": true,
+      "evidence": "明确 100666 无执行位，macOS 重包、检查 ZIP/安装后权限及 LSP 退出/重启。"
+    },
+    {
+      "text": "提醒同 ID 替换/自动更新风险，不发布 Marketplace，不把安装成功说成 UE 联调通过",
+      "passed": true,
+      "evidence": "提醒同 ID 替换和自动更新，不全局改策略、不发市场，也不将安装等同 UE 联调。"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "execution_metrics": {
+    "tool_calls": {
+      "read": 3,
+      "bash": 4,
+      "write": 1
+    },
+    "total_tool_calls": 8,
+    "output_chars": 1895
+  },
+  "timing": {
+    "executor_duration_seconds": 130.6
+  },
+  "claims": [
+    {
+      "claim": "No target-engineering execution is claimed",
+      "type": "process",
+      "verified": true,
+      "evidence": "答案明确只读方案；动作记录供复核，不代表实际工程测试。"
+    }
+  ],
+  "user_notes_summary": {
+    "uncertainties": [
+      "方案题，不是 live 工程验收；每配置仅一次"
+    ],
+    "needs_review": [],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "overall": "固定入口等项目知识检索占比较高；基线不可访问项目资料，分差不代表模型通用推理能力差异。复合断言按全部满足才通过。"
+  }
+}

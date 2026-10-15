@@ -1,0 +1,18 @@
+﻿=== 20261014_235900 daily-report scheduled run ===
+--- precheck ---
+work evidence: P4 CL on 192.168.2.236:1666
+--- pi -p ---
+日报已生成。
+
+**写入路径**：`luckey/02_notes/daily/2026-10-14.md`（新建，按模板）
+
+**DailySucc**：10 条
+- PLScriptAsync 新插件、AS 预编译缓存排障（4 CL）、skill-gateway 两端对齐（2 CL）、TeamCity BuildProjectWindows 优化（2 CL）、PLPythonPipeline 修复+导出（2 CL）、P4 QA 权限、AI Review 应急、包体下载排查、导表规范、文档落盘（5 CL）
+- 今日 236 共 14 CL：12 条经 AI Review 流水线工作区入库已按主题归并标注，2 条手动（138136/138099）；CICD 3 条手动（1947/1949/1951），TC 代提交的 1952 按规则排除；10.77 无提交
+
+**上下班时间**：上班 09:12 / 下班 19:26；早间 07:21–08:07 孤立段无 CL 佐证未计入；晚间工作 20:44–23:59（有 22:11–23:23 多条 CL 佐证，已单独注明）
+
+**App 表格**：17 条（unknown 457m 已保留并加注为 Orca 内嵌终端）
+
+**数据缺口**：「崩溃就在一瞬间」群 18:48 我发过一个文件，内容无法从消息解析，未写入摘要；个人服务器（10.77）无连接失败、仅无提交
+pi exit code: 0
