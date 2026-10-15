@@ -33,6 +33,17 @@ stablyai/orca 的全局 skills（orchestration / orca-linear / computer-use）�
 `npx skills` 更新器报「没有有效记录 / 技能已是最新，不做更改」但内容明显过期时，根因通常是 `~/.agents/.skill-lock.json` 缺该 skill 的 source 记录——更新器按锁文件比对，无记录即跳过。修复：`npx skills add https://github.com/stablyai/orca --skill <name> --global` 重装，重写锁记录（source/hash/updatedAt），用 `skills list --global` 验证。安装输出尾部 `"PromptScript does not support global skill installation"` 为无害报错：18 个 agent 安装目标中仅此一个不支持全局安装，主目录、锁文件及其余目标均正常。
 </memory>
 
+<memory category="troubleshooting">
+Orca automation（app 定时任务）以交互式 TUI 拉起 pi 的机制是把 prompt **内联拼进 cmd 命令行**
+`pi "<prompt>"`：prompt 含换行时 cmd 在第一个换行处切断——首行被当作完整命令执行（行尾自动
+闭引号）成为 pi 的唯一首问，其余行只被敲进已启动的 pi TUI 编辑器、从不提交（terminal-history
+原始日志可实证，`<>` 显示为 cmd 转义 `^<^>`）。**automation prompt 必须写成单行**；排查
+「自动化只回复没有任务 / 任务文本躺在 pi 输入框未提交」先查 prompt 换行，pi 侧没有可兼容的余地。
+memory-hub 的 `no-recall` 标记是全文正则、任意位置生效（agent-integration.md v37），并进同一行
+即可，`^<^>` 转义不影响匹配。另一独立已知坑：无人值守时段 pi TUI exit 1 被 Orca 误记
+`dispatch_failed`（假失败，任务实际已成功），见 daily-report/references/scheduled-automation.md。
+</memory>
+
 ## orca-coordinator 外挂
 
 脚本：`<skill 目录>/orca_coordinator.py`（Python 单文件，stdlib）。

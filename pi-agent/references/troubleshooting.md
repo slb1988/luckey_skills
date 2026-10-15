@@ -274,3 +274,26 @@ npm config set prefix "C:\Users\<user>\AppData\Roaming\npm"
 ---
 
 > 扩展**开发**细节（扩展布局、hook API、注册 provider、多机共享原则）见项目内 `.pi/extensions/SKILL.md`（pi-extensions 技能）。
+
+## 11. Orca 自动化 prompt 必须单行：多行会被 cmd 切断、剩余文本进不了 pi
+
+**症状**
+
+Orca 自动化跑 pi 时，agent 只收到 prompt 的第一行（首问只有一行残缺指令/标记），剩下的行出现在 pi TUI 输入框里但永远不会被提交；skill-gateway 的查询也只剩第一行内容。自动化状态可能仍显示 completed（假成功），用 pi session 的首个 user message 长度可确认截断。
+
+**原因**
+
+Orca 自动化以 `pi "<prompt>"` 形式在 cmd.exe 里启动 pi。prompt 含 `\n` 时，cmd 在第一个换行处就把命令执行掉（行尾未闭合的引号自动闭合），第一行成为 pi 的唯一 argv；pi 启动后占用终端（alternate screen），后续行全部落进 TUI 编辑器缓冲区，无人提交。拆分发生在 cmd 层，pi 侧没有任何可修的兼容点。
+
+附带两个 cmd 层事实：
+
+- Orca 对 `<` `>` 做无脑转义（`^<` `^>`），且引号内 `^` 是字面字符——pi 实际收到的文本带 caret（如 `^<^!-- memory-hub:no-recall --^>`）。对 memory-hub 的 `/memory-hub:no-recall/i` 这类子串正则无影响，但 prompt 里写命令行示例（`&&`、`2>&1`、`$(date +%Y%m%d)`）会被 caret 污染，agent 可能照抄到 bash 里出错。
+- prompt 里的 `%VAR%` 会被 cmd 环境变量展开（如 `%TEMP%` 变成实际路径），语义漂移。
+
+**解决**
+
+- 自动化 prompt 一律写成**单行**：编号步骤用「1. … 2. …」空格串联即可，LLM 能正确解析。
+- prompt 里避免原始 shell 元字符：把 `cd X && python Y > log 2>&1` 这类命令行改写成自然语言描述（脚本路径、参数、日志命名约定），让 agent 自己在 bash 里构造。
+- `%TEMP%` 之类写法改为「系统临时目录下的 xxx/ 子目录」。
+- 修改用 `orca automations edit <id> --prompt <text>`（经 runtime，不直改 orca-data.json）；验证端到端用 `orca automations run <id>` 手动触发后查 pi session 首条 user message。
+- 定时任务顺手在 prompt 里加 `memory-hub:no-recall` 标记（见 memory-hub 扩展 v37）：标记在 prompt 任意位置都生效，可跳过每轮 30-50s 的首轮召回。
