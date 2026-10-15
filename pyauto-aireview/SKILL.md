@@ -148,7 +148,8 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 <memory category="troubleshooting">
 - MergeGate `MERGE_EVIDENCE_INVALID`（opened action ≠ shelved action）中的 add→edit 漂移是**作者基线过期**的真实冲突（Review 1349 查明）：shelf 中文件 action=add，但他人 CL 已先把同 depot 路径提交入库，`p4 unshelve` 只能 open 成 `edit`——应 fail-closed 打回，作者 sync 后重新 shelve 再发起评审，不做豁免放行。
 - 报错分类契约（DevOps CL 1941）：`AiReviewMergeGate.py::_exists_at_baseline` 用 `p4 files -m1 path@baseline` 探测仅用于报错分类——实锤基线已存在同路径文件时报专门的 `SHELF_BASE_STALE`（含漂移文件、基线 CL、sync+重新 shelve 指引）；探测失败/基线不存在/基线为 delete/其余 action 漂移仍报原 `MERGE_EVIDENCE_INVALID`，exit 6 不变。
-- CL 1941 提交并经 TC devops bootstrap 同步前线上仍是旧行为，同类漂移单走 backend_degraded 人工评审。
+- CL 1941 已上线（Review 1492 的 collect 日志/活动 payload 均见 SHELF_BASE_STALE 原文），但链尾语义仍是降级：Collect exit 6 → Publish `--as-warning-gate-collect-failed` 统一合成 verdict=error/risk0，后端 tc_callback 对 error 不定案转 §12.6 backend_degraded 最小降级——dashboard 只见通用降级文案、无风险分，原文只留在 `ai_analysis_done` 活动 payload（截断 300 字符）。
+- DevOps pending CL 1955：Publish 读本轮 collect_failure.json，reason 以 `SHELF_BASE_STALE` 前缀开头时按 AS warning 门禁同族语义合成 **reject/risk100**（阻断策略值非模型评分，指引原文进 summary/compile_log_analysis，后端零改动——reject 是定案 verdict 直接落库）；其余采集失败维持 error→degraded 不变。CL 1955 提交并随 TC devops bootstrap 同步前线上仍是 degraded 行为。
 </memory>
 
 <memory category="troubleshooting">
