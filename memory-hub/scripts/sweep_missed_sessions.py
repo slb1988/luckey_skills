@@ -202,8 +202,13 @@ def upload_one(path: str, source: str, project: str, user_id: str,
 
 
 def main() -> int:
+    # Windows 上 urllib 的注册表代理探测会卡死在 getfqdn（已实锤）；本脚本只连 Hub，
+    # 直传 no_proxy='*' 绕行，同时遗传给 upload 子进程。
+    os.environ["no_proxy"] = "*"
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=10)
+    ap.add_argument("--sources", default="pi,claude,codex",
+                    help="逗号分隔的来源过滤，如 --sources claude")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--ignore", nargs="*", default=[],
@@ -225,11 +230,14 @@ def main() -> int:
         save_state(state)
 
     cutoff = time.time() - args.days * 86400
+    sources = {s.strip() for s in args.sources.split(",") if s.strip()}
     spool = spool_states()
     scanned = skipped_marked = skipped_fresh = 0
     candidates: list[dict] = []
 
     for source, root in DEFAULT_ROOTS.items():
+        if source not in sources:
+            continue
         for path in glob.glob(os.path.join(root, "**", "*.jsonl"), recursive=True):
             norm = path.replace("/", "\\").lower()
             if "\\backup\\" in norm or "\\subagents\\" in norm:

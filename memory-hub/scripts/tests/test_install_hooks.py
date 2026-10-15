@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -72,6 +73,15 @@ class InstallHooksTest(unittest.TestCase):
             self.assertIn("--source %s" % agent, recall["command"])
             # hook 超时必须高于 recall 内部的 120s 故障上限。
             self.assertGreaterEqual(recall["timeout"], 121)
+
+    def test_windows_hook_command_has_no_backslashes(self):
+        # 回归：claude 在 Windows 上经 Git Bash 执行 hook，未加引号的反斜杠路径
+        # 会被 bash 当转义吃掉（C:\Python311\python.exe → C:Python311python.exe）。
+        if os.name != "nt":
+            self.skipTest("Windows-only regression")
+        for agent in ("claude", "codex"):
+            for event, hook in desired_hooks(agent).items():
+                self.assertNotIn("\\", hook["command"], "%s %s" % (agent, event))
 
     def test_pi_install_durable_enqueue_and_debounced_flush_and_is_idempotent(self):
         with tempfile.TemporaryDirectory() as directory:
