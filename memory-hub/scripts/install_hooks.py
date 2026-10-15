@@ -48,10 +48,9 @@ def default_python() -> str:
 def python_command(*args: str) -> str:
     parts = [default_python(), str(MEMORY_HOOK), *args]
     if os.name == "nt":
-        # Windows 上 codex 经 cmd /c 执行 hook 命令（hooks/engine/command_runner.rs），
-        # cmd 不识别 shlex.join 产出的 POSIX 单引号——引号成为路径字面量，spawn 直接
-        # 失败（2026-08-30 实例：hooks.json 安装后 codex 三个 handler 全部零执行）。
-        # list2cmdline 的双引号形式在 cmd 与 sh 下都可解析，claude 侧同样兼容。
+        # claude 经 Git Bash 执行 hook，未加引号的反斜杠路径会被 bash 吃掉；正斜杠 cmd/bash 通用。
+        # cmd 不识别 shlex.join 的 POSIX 单引号，故用 list2cmdline 双引号形式。
+        parts = [part.replace("\\", "/") for part in parts]
         return subprocess.list2cmdline(parts)
     return shlex.join(parts)
 

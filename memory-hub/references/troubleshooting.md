@@ -140,6 +140,12 @@ outdated 后重跑 install 即修复。排查「关窗提示有进程未结束�
 **「codex session 从未上传到 Hub、spool 零 codex job、recall-markers 零 codex 标记、hook-trace 零 codex 事件」的定版根因（2026-09-01 修复）是两层叠加**：① install_hooks.py 用 `shlex.join` 生成 hook 命令，POSIX 单引号形式（`'C:\Python311\python.exe' ...`）——codex 在 Windows 上经 `cmd /c` 执行 hook（二进制内 `hooks\src\engine\command_runner.rs` + `cmd /c` 字样），cmd 把单引号当路径字面量，spawn 直接失败（报错特征：cmd 下手跑该命令得「The filename, directory name, or volume label syntax is incorrect.」）；claude 不受影响（自己的 shell 能解析单引号）。② 本机 codex 大多由 Orca 拉起，`CODEX_HOME` 被重定向到 `C:\Users\admin\AppData\Roaming\orca\codex-runtime-home\home`——install/check 只写 `~/.codex/hooks.json`，运行时读的 Orca home 副本从未被更新。修复（install_hooks.py）：`python_command()` 在 `os.name=="nt"` 时改用 `subprocess.list2cmdline`（双引号/裸路径，cmd 与 sh 均兼容）；新增 `codex_home()` 优先读 `CODEX_HOME` 环境变量，install/check/trust 全部走它。**注意两个 home 都要装**：不带 CODEX_HOME 跑一次（`~/.codex`），带 Orca runtime home 跑一次。验证闭环：`codex exec --skip-git-repo-check "..."` 输出应出现 `hook: UserPromptSubmit Completed` / `hook: Stop Completed`（Failed 即回归），state dir 出现 `recall-markers/codex-*` 与 hook-trace codex 事件。教训：codex hook「没生效」类问题的取证三板斧——recall-markers 无标记 + hook-trace 无事件 + spool 无 job = hook 根本没执行；`install_hooks.py check` 的 trusted=3 只证明配置被信任，不证明能 spawn。
 </memory>
 
+### Windows claude hook 静默全灭：hook 改经 Git Bash 执行，反斜杠路径被吃掉
+
+<memory category="troubleshooting">
+症状与上一条 codex 几乎相同但仅限 claude：spool 零新 claude job、hook-trace 零 claude 事件、recall 停更，而 install check 全绿（check 只比对配置内容，不验证真实 spawn）。根因：Claude Code Windows 版 hook 执行从 cmd 切换为 Git Bash，`python_command()` 用 list2cmdline 生成的未加引号反斜杠命令（`C:\Python311\python.exe D:\Github\...`）被 bash 当转义吃掉，报 `/usr/bin/bash: line 1: C:Python311python.exe: command not found`。该报错只在 claude 会话内以 hook failed 提示出现，不留持久日志；headless 复现：`claude -p "..."` 尾部会打印 SessionEnd hook failed 行。修复（install_hooks.py）：nt 分支在 list2cmdline 前把各路径段 `replace("\\", "/")`——正斜杠在 cmd 与 bash 下都可解析，codex 侧（cmd /c）不受影响。重跑 install 后验证闭环同上一条：`claude -p` 无 hook failed、spool 出现新 claude job 且 flush completed。**已在运行的 claude 进程仍持启动时的旧命令**，其存活 session 不会自愈，需手动 capture 或等 sweep 兜底。
+</memory>
+
 ### 全员上传 401：服务端切生产模式后 hook 静默积压（无报错、无丢失）
 
 服务端切到多用户账号体系（生产模式强制 `mhu_` token，2026-08-22 实例）后，未配 `MEMORY_HUB_API_KEY`
