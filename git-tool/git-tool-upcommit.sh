@@ -64,7 +64,8 @@ ok "submodule pushed ($BRANCH: $(git -C "$SUB" rev-parse --short HEAD))"
 
 # ---- Step 4: superproject pointer (pathspec commit — never sweeps unrelated staged files) ----
 if [[ -n "$MAIN" ]]; then
-  REL="$(realpath --relative-to="$MAIN" "$SUB")"
+  REL="$(realpath --relative-to="$MAIN" "$SUB" 2>/dev/null)" || \
+    REL="$(python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "$SUB" "$MAIN")"
   RECORDED="$(git -C "$MAIN" ls-tree HEAD "$REL" 2>/dev/null | awk '{print $3}')"
   CURRENT="$(git -C "$SUB" rev-parse HEAD)"
   if [[ "$RECORDED" == "$CURRENT" ]]; then
