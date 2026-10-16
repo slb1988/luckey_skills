@@ -1,0 +1,11 @@
+﻿=== 20261015_235900 daily-report scheduled run ===
+--- precheck ---
+work evidence: P4 CL on 192.168.2.236:1666
+--- pi -p ---
+完成。日报已写入 `luckey/02_notes/daily/2026-10-15.md`
+
+- **DailySucc 条数**：7 条（AI Review 流水线 15 CL 归并、AS 预编译开关发布、AI Review Publish 修复、TagMapping 方案、导表工具处理、AI 发单提议、P4VS 分享）
+- **App 表格**：18 条
+- **上下班**：09:04 – 19:32；晚间工作 21:26–23:58（CL 138783 于 22:18 入库佐证）
+- **数据缺口**：无实质缺口。P4 10.77 当日无提交（正常）；236 的 15 条 CL 全部来自 autoserver-MainDev-review 工作区，按口径归入「AI 代码 Review 流水线」；飞书侧 +messages-search 无权限，走逐群扫描（137 群 / 22 活跃 / 432 条），我实际参与的 6 个群已全部收录
+pi exit code: 0

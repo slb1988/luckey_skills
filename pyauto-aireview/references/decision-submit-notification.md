@@ -48,6 +48,10 @@ P4 change-submit trigger 的 review gate根据 branch 和受保护文件决定�
 - 不做多数票计数；
 - `__ai__` 是模型意见，不作为人工票；
 - `__system__` 用于自动批准/direct pass。
+- 必须评审人门禁：存在 required_reviewer 参与者时，approved 准入要求其本人
+  的 approve 票——作者自批与抄送 reviewer（role=reviewer）票均不替代；
+  无 required_reviewer 时维持原口径（script_rule 快车道与 branch_closed_pass
+  逃生通道显式豁免）。（DevOps pending CL 1962，提交部署前线上仍是旧行为）
 
 `approved` 不是终态：P4 尚未提交，仍可通过受控 reject 收敛。`submitted/rejected/archived` 冻结普通变更。
 
@@ -63,7 +67,14 @@ P4 change-submit trigger 的 review gate根据 branch 和受保护文件决定�
 
 ### 3.3 作者自批/自拒
 
-当前源代码允许受控 self-approve：开关开启、AI done、风险严格低于 self-approve 门槛等条件同时满足。作者分支先于指定 reviewer 授权校验，指定他人不等于禁用自批。纯二进制/无文本 diff 可不调用 LLM 而得到 done/risk0/verdict=null；这不是模型批准，但可能满足自批条件。作者 self-reject 在进行中可作为否决票。
+当前源代码允许受控 self-approve：开关开启、AI done、风险严格低于 self-approve
+门槛、无 required_reviewer 在场等条件同时满足。作者分支先于指定 reviewer
+授权校验：指定抄送 reviewer（role=reviewer）不禁用自批，但存在必须评审人
+（role=required_reviewer）时自批被拒、须其审阅通过——Review 1554 事故：
+作者自批曾绕过 pending 的必须评审人直通代提交（DevOps pending CL 1962 修复，
+提交部署前线上仍可绕过）。纯二进制/无文本 diff 可不调用 LLM 而得到
+done/risk0/verdict=null；这不是模型批准，但可能满足自批条件。
+作者 self-reject 在进行中可作为否决票。
 
 reopen 必须复位 author/reviewer/required/ai 的旧 decision；否则旧 author veto 会在新轮批准同秒把状态重新打回。排障时活动流中“approve 后立即 status→rejected”优先查残留票，而不是只查 risk。
 

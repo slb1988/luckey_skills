@@ -12,6 +12,7 @@
 ## 流程
 
 1. `lark-cli im +chat-list --page-all` — 列出当前用户加入的全部群。必须显式 `--page-all`：默认只回单页 20 条（响应 `meta.pagination.complete=false` 即未拉全；实例：全量 134 个群）。`--types` 只接受 `p2p,group`，默认 group 已含话题群（topic），不要传 `topic`。
+   - 响应中群列表在 **`data.chats`** 字段（不是顶层 `chats`/`items`）；解析为空时先打印原始响应确认字段路径（2026-10-15 实测）。
 2. 逐群拉目标日期消息（批量扫描加 `--no-reactions`，跳过 reactions enrichment，请求数减半）：
    ```bash
    lark-cli im +chat-messages-list --chat-id oc_xxx --start 2026-09-18 --end 2026-09-19 --page-all --no-reactions

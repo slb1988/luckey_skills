@@ -34,6 +34,7 @@ AI Review 负责从 shelf 发起、编译与模型评审、人工/系统决策�
 | Collect / MergeGate、MainDev/Wwise 完整视图与 stream 参数耦合、Runner / Publish / Memory / Pi、AS warning 误分类 | [review-toolchain](references/review-toolchain.md) |
 | reviewer、jury、自批、代提交、mixed stream、P4错误与通知 | [decision-submit-notification](references/decision-submit-notification.md) |
 | 排队、慢、失败、错配、缺日志、错误 verdict | [diagnostics](references/diagnostics.md) |
+| 导表快车道白名单契约与「没走快车道」归因 | [table-export-fastpath](references/table-export-fastpath.md) |
 | 源码/运行时责任及工具迁移边界 | [workspace-agent-routing](references/workspace-agent-routing.md) |
 | 改码、隔离测试、pending CL与发布验收 | [implementation-validation](references/implementation-validation.md) |
 | 现行能力、历史行为与未来设计 | [known-gaps-roadmap](references/known-gaps-roadmap.md) |
