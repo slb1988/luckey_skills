@@ -21,9 +21,11 @@ Observed local plugin version: 3.5.30
 ## Access
 
 - Admin host: use `ASUS_ROUTER_HOST` from sensitive config.
-- SSH is available and preferred for recovery.
+- SSH is available and preferred for recovery. **SSH listens on port 1222** (LAN only, per Web UI 系统设置); set `ASUS_ROUTER_PORT=1222` — plain port 22 is refused.
+- Web admin login via API: POST `login.cgi` with `login_authorization=base64(user:pass)`, empty `login_captcha`, and a `Referer: http://<host>/Main_Login.asp` header — without the Referer the POST silently fails back to the login page. Success returns `Set-Cookie: asus_token=...`; reuse that cookie for other pages.
+- `login_captcha` is only enforced after repeated failed logins (observed: failure counter at 0, captcha gate disabled). Get the scripted POST right on the first attempt — Referer header included — and avoid blind retry loops that can trip the captcha gate and break subsequent logins.
 - Web admin reachability is checked with `/Main_Login.asp`.
-- BusyBox environment: commands such as `id` may be unavailable.
+- BusyBox environment: commands such as `id` may be unavailable; BusyBox `nc` has no `-z` flag — test TCP with `echo | nc -w 6 host port`.
 
 ## Subscription State
 
@@ -64,6 +66,25 @@ Prioritize these explanations when the router still fails but local clients work
 - The older armv7 `rss-local/rss-redir` binary may handle SS + simple-obfs differently than the user's local client.
 - The node server may block or drop traffic from the router WAN path while accepting another client path.
 - The plugin test may be false-negative, but only accept that if router-side socks tests return a non-mainland exit.
+
+## 2026-10-17 Session Findings
+
+### Root cause: provider rotated SS node ports; router subscription feed is stale
+
+- Router nodes 香港01/02 pointed at `cn01.somethingstranges.com:8101/8102` — TCP connect to 8101 was **closed**, while the current port 12101 was **open**. The airport rotated SS endpoints from 81xx to 121xx ports.
+- The live Clash subscription (clash UA) serves SS nodes `cn01:12101/12102` (chacha20-ietf + obfs http) plus 101 AnyTLS nodes the router cannot speak. The **v2rayN-UA feed that fancyss fetches no longer contains any chacha20-ietf+obfs node** — it now serves IPLC `*.dlam.is` SS-2022 (`2022-blake3-aes-128-gcm`) nodes. Do not click 更新订阅 on the router: it would overwrite the hand-fixed nodes with an untested node family.
+- Password did not change across the rotation (matched `ASUS_FANCYSS_NODE_PASSWORD`).
+
+### Fix applied (working)
+
+- Rewrote `fss_node_4`/`fss_node_5` in place: `server` → resolved IP `147.90.24.250` (rss-local runtime DNS still broken — pre-check logged `节点服务器域名运行时解析失败` while nslookup succeeded), `port` → `12101`/`12102`. Auto subscription update is disabled on the router, so the manual edit persists.
+- After stop→start: rss-local/rss-redir/smartdns stayed up, `127.0.0.1:23456` LISTEN (previously never bound), self-test exit IP `140.235.141.8` 海外, socks5 country=HK, google generate_204=204; LAN client (gateway 192.168.50.1) got google 204 and baidu 200 direct. SSH/Web management stayed reachable after start this time.
+
+### If it breaks again
+
+1. Compare router node ports with the local Clash profile SS nodes (`cn*.somethingstranges.com:121xx`); ports rotate.
+2. Re-resolve the node domain (`nslookup cn01.somethingstranges.com 223.5.5.5`) — the pinned IP `147.90.24.250` superseded the older `206.109.71.215`, so it does rotate; update `server` in `fss_node_4/5` accordingly.
+3. `fss_node_current=4` keeps pointing at node id 4 after in-place JSON edits; `_identity` fields only matter for subscription reconciliation, not startup.
 
 ## 2026-08-01 Session Findings
 

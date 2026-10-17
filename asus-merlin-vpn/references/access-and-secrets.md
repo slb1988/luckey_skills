@@ -8,6 +8,7 @@ Expected variables:
 
 ```sh
 ASUS_ROUTER_HOST=192.168.50.1
+ASUS_ROUTER_PORT=1222
 ASUS_ROUTER_USER=<router-ssh-user>
 ASUS_ROUTER_PASSWORD=<router-ssh-password>
 ASUS_FANCYSS_SUBSCRIPTION_URL=<subscription-url>

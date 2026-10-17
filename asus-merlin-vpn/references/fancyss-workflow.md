@@ -74,6 +74,19 @@ Map Clash-style nodes as:
 - `plugin-opts.host` maps to `rss_obfs_param`.
 - `cipher` maps to `method`.
 
+## Subscription Content Varies By Client UA
+
+The airport serves different node lists depending on the subscription request's User-Agent:
+
+- Clash/mihomo UA → full YAML: SS nodes on `cn*.somethingstranges.com:121xx` (chacha20-ietf + obfs http) plus AnyTLS nodes the router cannot speak.
+- v2rayN UA (what fancyss sends) → SS-2022 IPLC nodes on `*.dlam.is` (`2022-blake3-aes-128-gcm`); contains none of the chacha20-ietf+obfs nodes.
+
+Consequences:
+
+- Refreshing the router subscription cannot restore the known-good SS+obfs nodes; keep the hand-maintained `fss_node_4/5` entries and avoid blind 更新订阅.
+- The old armv7 `rss-local`'s support for `2022-blake3-*` ciphers is unverified — refreshed nodes are not guaranteed to start.
+- Node ports rotate over time (81xx → 121xx observed). The local Clash profile is the source of truth for current live ports; compare before assuming a node or the plugin is broken.
+
 ## Start And Switch Nodes
 
 Use `stop` then `start`; `restart` may not regenerate all temporary config files in this build.

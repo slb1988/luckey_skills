@@ -30,6 +30,7 @@ Required env:
   ASUS_ROUTER_PASSWORD
 
 Optional env:
+  ASUS_ROUTER_PORT=22
   ASUS_ROUTER_KNOWN_HOSTS=/tmp/codex_router_known_hosts
 USAGE
 }
@@ -60,6 +61,7 @@ if [[ -z "${remote_cmd}" ]]; then
 fi
 
 export ASUS_ROUTER_HOST ASUS_ROUTER_USER ASUS_ROUTER_PASSWORD
+export ASUS_ROUTER_PORT="${ASUS_ROUTER_PORT:-22}"
 export ASUS_ROUTER_KNOWN_HOSTS="${ASUS_ROUTER_KNOWN_HOSTS:-/tmp/codex_router_known_hosts}"
 export ASUS_ROUTER_REMOTE_COMMAND="${remote_cmd}"
 
@@ -68,12 +70,14 @@ set timeout 180
 log_user 1
 
 set host $env(ASUS_ROUTER_HOST)
+set port $env(ASUS_ROUTER_PORT)
 set user $env(ASUS_ROUTER_USER)
 set password $env(ASUS_ROUTER_PASSWORD)
 set known_hosts $env(ASUS_ROUTER_KNOWN_HOSTS)
 set command $env(ASUS_ROUTER_REMOTE_COMMAND)
 
 spawn ssh -tt \
+  -p $port \
   -o PreferredAuthentications=password,keyboard-interactive \
   -o PubkeyAuthentication=no \
   -o KbdInteractiveAuthentication=yes \

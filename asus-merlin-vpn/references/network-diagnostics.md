@@ -41,6 +41,16 @@ ls -l /var/run/ssr.pid /var/run/ssrlocal.pid 2>/dev/null
 
 PID files alone are not proof that the process is alive.
 
+## Node Port Liveness
+
+Before blaming DNS, test the node's TCP port from the router — BusyBox `nc` has no `-z` flag:
+
+```sh
+echo | nc -w 6 <server> <port> >/dev/null 2>&1 && echo OPEN || echo CLOSED
+```
+
+A closed port means the airport rotated endpoints — compare with the current local client config for live ports. An open port with a dead socks5 listener points back to `rss-local` runtime resolution: pin the node `server` field to the resolved IP.
+
 ## DNS Mode Repair
 
 If logs show DoT upstreams and router DNS stalls, switch the China upstream away from DoT and force full restart:
