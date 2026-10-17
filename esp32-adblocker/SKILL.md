@@ -6,7 +6,7 @@ description: ESP32-S3 刷机部署 ESP32_AdBlocker（DNS 广告沉洞）全流�
 # esp32-adblocker — ESP32-S3 DNS 广告屏蔽器部署
 
 项目：`/Users/sun/Documents/GitHub/ESP32_AdBlocker`（s60sc/ESP32_AdBlocker v3.7，Arduino sketch）。
-作用：DNS 沉洞，广告域名返回 0.0.0.0，其余转发上游 DNS。使用说明（面向家人）在同仓库 `USAGE_CN.md`。
+作用：DNS 沉洞，广告域名返回 0.0.0.0，其余转发上游 DNS。使用说明（面向家人）：[references/USAGE_CN.md](references/USAGE_CN.md)（从项目仓库迁入本 skill）。
 
 ## 设备档案（本机这块板子）
 
@@ -84,4 +84,4 @@ dig @192.168.50.168 baidu.com +short         # 真实 IP = 转发正常
 curl -s --noproxy '*' http://192.168.50.168/status   # loadProg: Complete
 ```
 
-手机接入（iPhone 改 DNS / 路由器 DHCP 统一发 DNS）步骤见 `USAGE_CN.md` 第一、二节。
+手机接入（iPhone 改 DNS / 路由器 DHCP 统一发 DNS）步骤见 [references/USAGE_CN.md](references/USAGE_CN.md) 第一、二节。
