@@ -80,10 +80,24 @@ Prioritize these explanations when the router still fails but local clients work
 - Rewrote `fss_node_4`/`fss_node_5` in place: `server` → resolved IP `147.90.24.250` (rss-local runtime DNS still broken — pre-check logged `节点服务器域名运行时解析失败` while nslookup succeeded), `port` → `12101`/`12102`. Auto subscription update is disabled on the router, so the manual edit persists.
 - After stop→start: rss-local/rss-redir/smartdns stayed up, `127.0.0.1:23456` LISTEN (previously never bound), self-test exit IP `140.235.141.8` 海外, socks5 country=HK, google generate_204=204; LAN client (gateway 192.168.50.1) got google 204 and baidu 200 direct. SSH/Web management stayed reachable after start this time.
 
+### Batch node repair (all nodes, 2026-10-17)
+
+Router held 145 stale nodes (all chacha20-ietf+http_simple, 8xxx ports). Name-matched against the live Clash profile's 45 SS nodes (method/password unchanged upstream — only server/port rotate). Per-endpoint TCP probe from the router:
+
+- **18 nodes usable from mainland and fixed** (server→resolved IP, port→121xx/122xx/124xx/125xx): 香港01-03 (12101-12103), 新加坡01-05 (12201-12205), 日本01-03 (12401-12403), 美国01-06 (12501-12506), 仅海外用户台湾1 (ostw01:2000). Live spot-check on 新加坡01 returned country=SG.
+- **27 matched-but-unusable**: `仅海外用户*` nodes (oshk/ossg/osjp/osus/osuk/tr/osng/cn101, port 2000) refuse mainland connections by design; id./br. no longer resolve. Left untouched.
+- **100 old nodes** (香港04-26, TW01/JP01/US01, 菲律宾, 新加坡06-18, 日本04-08, 美国07-19, etc.) have no modern SS equivalent — dead upstream, left untouched.
+
+Operational notes: expect/ssh sessions wrap long lines at ~80 cols — never parse long base64 values from session output; pull via `dbus get` piped to files or use short field greps. Long probe loops exceed the 180s expect timeout — run `nc` tests in parallel with `&`+`wait` (28 tests in ~5s) or under `nohup` and poll a results file. A `dbus set fss_node_<id>=<b64>` line can silently fail in a long batch (id 157 did) — always re-verify each node individually afterwards.
+
+### Node list cleanup (2026-10-17, user-approved)
+
+Deleted the 127 dead nodes, keeping only the 18 working ones. Node bookkeeping keys that must stay consistent when deleting: `fss_node_order` (comma-separated display order — rewrite to kept ids), `fss_node_failover_identity` (was pointing at deleted TW01 — repointed to 香港02 `4aec7140_7bf5b27e`), `fss_node_current`/`fss_node_current_identity` (untouched, id 4), `fss_node_next_id` (left at 163, no id reuse). Full pre-cleanup backup of all 145 base64 node values lives in the session's `/tmp/router_nodes_clean.txt` (ephemeral).
+
 ### If it breaks again
 
 1. Compare router node ports with the local Clash profile SS nodes (`cn*.somethingstranges.com:121xx`); ports rotate.
-2. Re-resolve the node domain (`nslookup cn01.somethingstranges.com 223.5.5.5`) — the pinned IP `147.90.24.250` superseded the older `206.109.71.215`, so it does rotate; update `server` in `fss_node_4/5` accordingly.
+2. Re-resolve the node domain (`nslookup cn01.somethingstranges.com 223.5.5.5`) — the pinned IP `147.90.24.250` superseded the older `206.109.71.215`, so it does rotate; update `server` in the affected `fss_node_<id>` accordingly.
 3. `fss_node_current=4` keeps pointing at node id 4 after in-place JSON edits; `_identity` fields only matter for subscription reconciliation, not startup.
 
 ## 2026-08-01 Session Findings
