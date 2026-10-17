@@ -213,3 +213,7 @@ bash ~/.pi/skills/git-tool/git-tool-upcommit.sh  # 单个 submodule（默认 ski
 <memory category="core-rules">
 - ObsidianVault 主仓库没有 master 分支（本地/远端均只有 main，GitHub 默认分支即 main；`.claude/skills` submodule 同样在 main 上）。用户说「在 master 分支操作」时一律指 main，不要找或新建 master。
 </memory>
+
+<memory category="core-rules">
+- git-tool 脚本跨平台运行（macOS BSD userland / Linux / QNAP），**禁止 GNU-only 的 coreutils 语法**。已踩坑：`realpath --relative-to` 是 GNU 扩展，macOS BSD realpath 不支持，曾导致 upcommit 在 pointer 步骤崩溃（2026-10 修复）。计算相对路径的统一写法：先尝试 `realpath --relative-to=... 2>/dev/null`，失败 fallback 到 `python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))'`（见 git-tool-upcommit.sh）。改脚本新增命令调用前，先确认该 flag 在 BSD/macOS 下存在。
+</memory>
