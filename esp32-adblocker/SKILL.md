@@ -69,6 +69,9 @@ ESP32 自己不走任何代理。它要下载屏蔽列表（默认 raw.githubuse
 | 症状 | 根因 | 处置 |
 |---|---|---|
 | 断电/异常重启后 DNS 完全不启动，网页显示 Crash loop detected | 路由不应答 ESP32 的 ping → crashLoop 标志永不清除 → startWebServer 返回 false → setup() 跳过 appSetup | **本仓库 utils.cpp 有 +2 行补丁**（pingTimeout 里 WiFi 已连接即清标志），重刷固件时保留 |
+| 首页显示 Startup Failure 但 /status、/control 仍可用 | startupFailure 非空时固件只起最小 fallback web server（webServer.cpp indexHandler 分支），App/DNS 没跑；消息原文即日志里的 WARN | 远程三板斧：`curl --noproxy '*' IP/status`、`/control?displayLog=1` 看 panic 记录、`dig @IP 域名` 确认 DNS 死活；恢复用 `/control?reset=1`（doRestart 会清 crashLoop） |
+| 打了 crashLoop 补丁仍偶发 Startup Failure | 补丁要等一个 ping 周期（wifiTimeoutSecs=30s）才清标志；两次崩溃间隔 <30s（如开机即崩）仍触发保护 | 属保护机制正常履职，查日志里真正的 panic 原因；Backtrace 用 `~/Library/Arduino15/packages/esp32/tools/esp-x32/*/bin/xtensa-esp32s3-elf-addr2line -e build/*.ino.elf -f -C -p <地址>` 解码（build 目录 ELF 须与在跑固件同一次编译） |
+| 04:00 定时更新屏蔽列表时 panic（statusCheckTask stack overflow HWM 0） | 定时下载跑在 statusCheckTask（STATUS_STACK_SIZE 仅 4KB）上，HTTPS+TCP+WiFi TX 深调用链装不下；开机时的同一下载走 loopTask（8KB）所以正常 | appGlobals.h 把 STATUS_STACK_SIZE 调到 8KB 重刷；另一个已知 boot 期 panic 是 getExtIP 的 DNS 解析与 SNTP 并发触发 lwIP sys_untimeout assert |
 | 下载列表到 98.4% 必 task watchdog 重启 | 编译开了 `CDCOnBoot=cdc` 且无人读串口 → USB 日志缓冲写满阻塞主任务 | 生产编译必须 `CDCOnBoot=default`；看日志用网页 Show Log |
 | pyserial/screen 打开串口后板子「死了」（AP 消失、串口静默） | 打开串口的 DTR/RTS 线序把芯片触发进下载模式 | 正常现象；跑一次 `esptool flash-id`（结尾自动硬复位）或按 RST 恢复 |
 | 换了列表 URL 后设备重启 | zLoad 换源即触发 doRestart，属设计行为 | 无需处理 |
