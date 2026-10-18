@@ -144,6 +144,7 @@ curl -sS "$HUB_URL/v1/files/{file_id}/download" -H "X-User-Id: $USER_ID" -H "X-A
 - `session_titles` 表（schema v28 起）：每 session 一行；`source` 区分 `auto`（LLM 生成）/ `manual`（人工改），manual 受 CAS 保护、auto 永不覆盖；命名失败与 no_content 都落 `naming_failed` 状态留痕（v33 起含 `naming_attempts` 计数）。
 - 服务端命名 `_name_session_with_llm()`：取 session 开头 12 条消息 × 各 500 字符、总 4000 字 digest → `SESSION_TITLE_LLM_*`（缺省回落 `REVIEW_LLM_*`）固定 `thinking_disabled=True` → 清洗后落库；dashboard 直接展示标题。非 force 落库前有「仍无标题」复查；CAS 拦 manual 如实返回 `skipped_manual`。
 - **批量入口（2026-10-18 起已部署）**：`scripts/name_sessions.py`（默认前一天 dry-run；`--apply` 写库；`--all` 全量 keyset 游标回填；`--session-id` 单个；失败重试 24h 冷却 + 5 次上限）+ NAS cron 每日 05:05（`install_naming_cron.sh` 安装，QTS busybox crontab 无 suid 时直改 /etc/config/crontab）。Spec：`.claude/plans/Session空标题每日批量命名Spec.md`。
+- 命名素材解析 `extract_messages()` 的事件形态覆盖：pi（`events[].type=message`）、claude-code（`type=user|assistant`）、codex（`type=response_item` + `payload.type=message`，正文在 content 的 input_text/output_text 块；developer/reasoning/工具事件跳过）、窗口快照回退顶层 `messages` 列表。**注意 codex 覆盖是 567a240 补的**：此前 codex 全量封套（agent-session-full/1）提取为 0 条，命名必报 no_content——遇到某 agent 来源集中 no_content 时先怀疑解析形态缺口，不是会话真空。
 
 ## 关系（边）没有公开数据面端点
 
