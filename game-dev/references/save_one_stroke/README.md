@@ -10,6 +10,12 @@
 
 游戏技术基线为纯静态 HTML/CSS/JS 与本地 Matter.js 0.20。Node 用于本地开发、工具与验证，不要求生产环境运行 Node 服务；实际依赖以目标版本为准。
 
+<memory category="core-rules">
+运行时兼容底线（根因已确认）：目标设备含旧安卓系统 WebView——Via 浏览器走系统 WebView，学习机/旧手机内核可能停留在 Chromium 91 前后。禁用无 fallback 的新 API：`ctx.roundRect()`（需 99+，用 arcTo 手工圆角路径）、`Object.hasOwn`（93+，用 `hasOwnProperty.call`）、`Array.prototype.at`（92+，用下标）。
+渲染主循环必须先 `requestAnimationFrame` 调度下一帧再执行绘制：否则首帧抛错会永久冻死整个画面（曾因此导致人物/椅子/墨水全不可见，而抛错点之前绘制的虚线与文字仍可见，易误判为局部问题）。
+回归保障：游戏仓库 `tests/compat-webview.cjs` 删除上述 API 模拟 Chromium 91 WebView 跑完整流程，新增渲染或 JS API 时必须保持其通过。无 devtools 的目标机通过 index.html 页内错误横幅（底部红条）直接查看 JS 报错，不要假设能拿到控制台日志。
+</memory>
+
 ## 工作分流
 
 - **做关卡、生成 JSON、修改物理规则**：读 [关卡创作与验证](level-authoring.md)，再到游戏仓库读取同版本的权威格式与 fixtures。

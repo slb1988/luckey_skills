@@ -101,6 +101,30 @@ curl -s -X POST "http://192.168.2.13:8111/app/rest/buildTypes/id:<BT_ID>/paramet
   -d '{"name":"PARAM_NAME","value":"value"}'
 ```
 
+## Build type settings（并发上限）
+
+### 查询/设置单 buildType 并发上限
+
+UI 的 General Settings → "Limit the number of simultaneously running builds" 对应 settings 属性名 **`maximumNumberOfBuilds`**——不是 `maximumRunningBuilds`（后者 GET 实测 404："No parameter with name 'maximumRunningBuilds' is found"，2026-11 核实）：
+
+```bash
+# 查询（未设置时返回 404，属正常）
+curl -s "http://192.168.2.13:8111/app/rest/buildTypes/id:<BT_ID>/settings/maximumNumberOfBuilds" \
+  -H "Accept: text/plain" -H "Authorization: Bearer $TOKEN"
+
+# 设为 1：同 buildType 全局任何时刻最多 1 个在跑，多触发的排队等待
+curl -s -X PUT "http://192.168.2.13:8111/app/rest/buildTypes/id:<BT_ID>/settings/maximumNumberOfBuilds" \
+  -H "Content-Type: text/plain" -H "Accept: text/plain" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '1'
+```
+
+被限制挡住的排队构建 `waitReason` 显示 "Build configuration has reached maximum number of running builds"。
+
+选型规则：**同 buildType 内部防并发**用 `maximumNumberOfBuilds`（一层设置即可，不用动 agent）；**跨 buildType 互斥**才需要 Shared Resources。每台构建机只挂一个 agent 时，同机跨 buildType 并发本来就不存在，无需 Shared Resources。
+
+> 现状：`PL_WpBuildNavData`（WP_BuildNavData）已设 `maximumNumberOfBuilds=1`（2026-11 REST 实测）；其 agent 要求 `system.agent.name starts-with WinBuilder` 继承自项目，可调度 WinBuilder1/3/4，设限前三台可同时跑同 buildType。
+
 ## Users, groups and permissions
 
 ### Inspect auth settings (guest login, modules)

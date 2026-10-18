@@ -52,7 +52,7 @@ Always read the reference file before acting — it contains the actual paths, p
 | Topic | Reference file |
 |---|---|
 | LDAP setup / auth | `references/ldap-config.md` |
-| REST API (queries, parameters, queue) | `references/rest-api.md` |
+| REST API (queries, parameters, queue, buildType settings/并发上限 `maximumNumberOfBuilds`) | `references/rest-api.md` |
 | Build chain 参数所有权、override/reverse 解析、隐式 Agent 要求、工作区、安全重排与验证（chain 问题先读） | `references/build-chain-parameters.md` |
 | Kotlin DSL、VCS/checkout 与链配置补充 | `references/build-chain-lessons.md` |
 | Agent 名称正则、白名单与 Pool | `references/agent-pinning.md` |

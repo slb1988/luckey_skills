@@ -16,6 +16,7 @@
 | POST | `/v1/sessions` | 由 Hub 分配 session_id |
 | PUT | `/v1/sessions/{session_id}/versions` | 提交不可变 session 版本 |
 | GET | `/v1/sessions/{session_id}` / `/versions/{v}` | 查询 latest / 确定版本 |
+| POST | `/v1/sessions/{session_id}/title/generate` | LLM 生成单个 session 标题（机制见下文「Session 标题」） |
 | POST | `/v1/memories` | 写入精炼记忆（返回 202，初始 pending） |
 | GET | `/v1/memories/{memory_id}` | 查询索引状态 |
 | POST | `/v1/memories/search` | 检索记忆（v1，纯 FTS，无质量门禁） |
@@ -137,6 +138,12 @@ curl -sS "$HUB_URL/v1/files/{file_id}/download" -H "X-User-Id: $USER_ID" -H "X-A
 - `submitted`：Graphiti 已接受，等待 episode 可查询确认。
 - `indexed`：对应 group 最近 episodes 中已确认该 memory_id。
 - `failed`：永久错误或重试耗尽（看 `error_code`）。
+
+## Session 标题（session_titles 表）
+
+- `session_titles` 表（schema v28 起）：每 session 一行；`source` 区分 `auto`（LLM 生成）/ `manual`（人工改），manual 受 CAS 保护、auto 永不覆盖；命名失败与 no_content 都落 `naming_failed` 状态留痕（v33 起含 `naming_attempts` 计数）。
+- 服务端命名 `_name_session_with_llm()`：取 session 开头 12 条消息 × 各 500 字符、总 4000 字 digest → `SESSION_TITLE_LLM_*`（缺省回落 `REVIEW_LLM_*`）固定 `thinking_disabled=True` → 清洗后落库；dashboard 直接展示标题。非 force 落库前有「仍无标题」复查；CAS 拦 manual 如实返回 `skipped_manual`。
+- **批量入口（2026-10-18 起已部署）**：`scripts/name_sessions.py`（默认前一天 dry-run；`--apply` 写库；`--all` 全量 keyset 游标回填；`--session-id` 单个；失败重试 24h 冷却 + 5 次上限）+ NAS cron 每日 05:05（`install_naming_cron.sh` 安装，QTS busybox crontab 无 suid 时直改 /etc/config/crontab）。Spec：`.claude/plans/Session空标题每日批量命名Spec.md`。
 
 ## 关系（边）没有公开数据面端点
 
