@@ -274,6 +274,12 @@ Hub 已生成的占位摘要。
 
 ## 服务端（Hub 侧）
 
+### 「dashboard 能看到 session」≠「memory 进图谱」——过滤分层语义
+
+<memory category="troubleshooting">
+排查「这条 session 为什么进库了/为什么没拦住」先分清过滤分层（2026-10-17 PL 每日日报 session 实例定版）：① 本地 hook 低价值过滤（启发式 `heuristic_meaningful` + 可选 `MEMORY_HUB_TITLE_LLM` LLM 判定）决定**是否上传**；② session 归档层无条件保存原始文件+元数据——dashboard session 页可见只证明归档完成，不证明 memory 进图谱；③ memory 创建后才走服务端关卡 1 intake-filter，`rejected` 即 `graphiti_episode_id=null`、不落图、检索不可见（实例中创建后 16 秒即自动拒掉）。判读顺序：按 session 找对应 memory 的 `status`/`graphiti_episode_id`——`rejected` = 服务端过滤正常工作，无需处置；图谱里搜到的同名旧事实边要核对日期归属，勿当作本次入库证据。`memory-hub:no-recall` 标记只跳过首轮召回、不抑制归档上传（代码无 no-capture 开关，见 agent-integration.md v37 节），要拦「不进图谱」靠的是关卡 1 与本地低价值过滤，不是该标记。
+</memory>
+
 ### POST /v1/feedback 曾会把目标 memory 判死（hotfix e081453 已修复）
 
 <memory category="troubleshooting">

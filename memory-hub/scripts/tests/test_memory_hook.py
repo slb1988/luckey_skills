@@ -32,6 +32,8 @@ from memory_hook import (
     format_context_with_count,
     format_recall_context,
     head_tail_sample,
+    heuristic_meaningful,
+    is_noise_user_text,
     load_session_texts,
     pi_memory_draft_path,
     project_id_for_cwd,
@@ -1601,6 +1603,16 @@ class MemoryHookTest(unittest.TestCase):
         self.assertEqual(strip_skill_wrapper(wrapped), "check & install")
         self.assertEqual(strip_skill_wrapper("普通消息"), "普通消息")
         self.assertEqual(strip_skill_wrapper('<skill name="x">只有模板</skill>'), "")
+
+    def test_is_noise_user_text_cmd_caret_escaped_wrapper(self):
+        # 自动化任务 prompt 经 cmd 传入后 `<!--` 被转义为 `^<^!--`，还原后仍应判噪声。
+        escaped = "^<^!-- memory-hub:no-recall --^> 执行 PL 每日代码变更日报 workflow"
+        self.assertTrue(is_noise_user_text(escaped))
+        self.assertTrue(is_noise_user_text("<!-- memory-hub:no-recall --> 执行日报"))
+        self.assertFalse(heuristic_meaningful([escaped]))
+        # 幂号等非转义用法的 ^ 不受影响，正常提问不判噪声。
+        self.assertFalse(is_noise_user_text("2^3 怎么算"))
+        self.assertFalse(is_noise_user_text("帮我排查并修复内存泄漏"))
 
     def test_head_tail_sample_keeps_goal_and_tail(self):
         seq = ["msg-%d" % i for i in range(12)]
