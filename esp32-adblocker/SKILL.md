@@ -15,7 +15,7 @@ description: ESP32-S3 刷机部署 ESP32_AdBlocker（DNS 广告沉洞）全流�
 - 家中部署：WiFi `luckey`（仅 2.4GHz），固定 IP `192.168.50.168`，管理页 http://192.168.50.168
 - 上游 DNS：114.114.114.114 / 223.5.5.5；列表 StevenBlack hosts 每天 04:00 CST 自动更新
 - 设备已设 `usePing=0`：本路由器不应答 ESP32 的 ping，开着会每 ~90s 误判网关失效重启一次 WiFi
-- 路由器侧：梅林 DHCP 已向全家下发 DNS=192.168.50.168（nvram `dhcp_dns1_x`）；DNS Director 与 IPv6 均已确认关闭，无旁路
+- 路由器侧：梅林 DHCP 曾向全家下发 DNS=192.168.50.168；2026-10-18 起改为下发 192.168.50.2（QNAP NAS，nvram `dhcp_dns1_x`，dns2 留空防旁路），ESP32 不再是全家默认 DNS；DNS Director 与 IPv6 均已确认关闭，无旁路
 
 ## 编译与刷写
 

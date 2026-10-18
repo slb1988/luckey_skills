@@ -51,6 +51,13 @@ scripts/router_ssh.sh 'dbus set fss_node_current=4; dbus set fss_node_current_id
 scripts/router_ssh.sh 'tail -160 /tmp/upload/ss_log.txt; ps w | grep -E "rss|ss-|xray|trojan|chinadns|dnsmasq" | grep -v grep'
 ```
 
+<memory category="common-patterns">
+- LAN 侧 DHCP 下发的 DNS（网页 LAN → DHCP Server → DNS Server 1/2）对应 nvram `dhcp_dns1_x` / `dhcp_dns2_x`。网页表单可能写不进 nvram（重启后被清空），可靠做法：SSH `nvram set dhcp_dns1_x=<ip>; nvram commit; service restart_dnsmasq`。
+- `dhcp_dns2_x` 有意留空：存在备用 DNS 时客户端可能绕过首选 DNS，沉洞/过滤场景即失效。
+- 验证要两层：nvram 回读 + 生效配置 `grep dhcp-option /etc/dnsmasq.conf`（应见 `dhcp-option=lan,6,<ip>`）。
+- 客户端要等 DHCP 续约（重连 WiFi/重启）才换 DNS；手工指定 DNS 的设备（如本机 Mac 固定 223.5.5.5/114.114.114.114）不受路由器 DHCP 影响。
+</memory>
+
 ## References
 
 - [access-and-secrets.md](references/access-and-secrets.md): credential handling and SSH/browser access.
