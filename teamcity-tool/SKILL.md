@@ -160,6 +160,9 @@ PLN_TaskAiReview 观测性两个结构性事实（build 18399 实证，2026-09�
 编译错误漏报致 AI 误判 approve 的根因（Review 1225 / CL 136816 / build 29103 查明，修复 pending DevOps CL 1924）：编译步实为 python runner 调 Build.sh，日志行前缀是 `[Python run]` 而非 `[exec]`/`[Step N/M]`（29103 真实日志 512 行编译输出全部如此，Windows 链 build 29110 同样 483 行）——`DevOps/TeamCityLogParserInformer.py` 格式 1c/1d/1e/1f/1g 的行首锚定不含该前缀，编译错误零解析，报告写 "0 Errors, 0 Warnings" 且 meta report_present:true，Collect freshness 门（gate_protocol 1）认证通过，AI 采信 approve 而页面显示编译失败。修复：锚定兼容 `[Python run]`；--ai-review 模式 REST 核对构建状态，FAILURE 且 0 Error 命中 → 报告降级 Unknown Error + rc=5，Report 步 kts 据 rc=5 在 meta 写 degraded，Collect 对 degraded 一律非 fresh。教训：informer 新格式样本必须取自真实构建日志全行（含步骤包装前缀），仅凭 TC 页面渲染形态写正则必然漏配。
 </memory>
 <memory category="troubleshooting">
+同一漏配类的第二实例（build 33504 / PL_BuildProjectWindows，修复 pending DevOps CL 1982）：UE 并行 cook 的错误/警告行在 `Error:`/`Warning:` 与磁盘路径之间带 `[CookWorker N]: ` 中缀、且 `[AssetLog]` 后有一个空格——格式 3a/3b 的 `Error:\s+(?:\[AssetLog\])?([A-Z]:\\...uasset)` 全 MISS → `Found 0 unique file paths` → `--use-cl-author` 兜底捞出 sync 范围 HEAD CL 提交人（郑道明）而非报错资产真实修改者（jiangheng）。修复：`(?:\[[\w ]+?\d*\]:\s+)*(?:\[AssetLog\]\s*)?` 允许零个多个 worker 中缀 + AssetLog 后空白；验证口径 Error 6/6、Warning 74/74 命中且 find_modifiers 返回 jiangheng。informer 经构建机现 sync //depot/DevOps 分发，CL 提交即生效。
+</memory>
+<memory category="troubleshooting">
 AI 评审看不到 warning 的采集侧根因（2026-10 查明）：`DevOps/AiReview/AiReviewContextCollect.py`（DevOps depot）的 `LOG_ERROR_RE` 只匹配 `error|fatal|failed`，**不含 warning**——`build_log_tail.txt` 结构性漏掉全部警告（informer PREVIEW 里仅 `Summary: 0 Errors, N Warnings` 这行碰巧命中 error 关键字，正文全漏）。只在构建里加 warning 分析没用，AI 侧必须走独立报告文件通道；不要把 warning 扩进 `LOG_ERROR_RE`——tail 有 50KB cap，warning 量大反而挤占 error。
 </memory>
 
