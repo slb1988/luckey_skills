@@ -1,0 +1,23 @@
+{
+  "skill_name": "dawarich-commute",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "看看我今天的通勤情况",
+      "expected_output": "运行 scripts/dawarich_commute.py，输出当天早/晚通勤的出发到达时间、用时、路程；无数据或数据稀疏时如实标注而不是编造",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "这周一到周五我每天上下班各花了多长时间",
+      "expected_output": "用 --days 7（或对应日期范围）逐日列出；周末/未通勤日显示外出或在家，不硬造通勤段",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "dawarich 里家和公司设的对不对，帮我核对下坐标",
+      "expected_output": "拉 Places 锚点与轨迹点交叉验证；若用户在地图上核对发现偏移，解释 WGS-84/GCJ-02 差异并给出转换坐标",
+      "files": []
+    }
+  ]
+}
