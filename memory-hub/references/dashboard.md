@@ -41,6 +41,10 @@ Dream **语义消费**不能沿用图谱巡检的 episode 计数作验收：run 
 因此零尝试、无错误不代表未被调度或没有写库开销；应结合端点审核状态区分依赖等待与下游投递失败，也不要套用历史 `invalidated` 终态漏判的根因。
 </memory>
 
+<memory category="common-patterns">
+会话详情页（SessionDetailView）的消息渲染是非对称约定：助手消息走 `frontend/src/components/MarkdownText.vue`（marked + DOMPurify，暗色 GFM 样式：表格边框/分级标题/代码块/引用），用户输入/思考/工具结果刻意保持纯文本保真——其中的 XML 提醒等内容被 markdown 渲染会搅乱。调整会话展示时保持该非对称，不要把全部消息一刀切进 markdown。
+</memory>
+
 Graph 图谱页按 ~500 节点截断渲染：图谱里看似「孤立」的节点可能只是截断未画出其边，判实体碎片化前先用 API 核实边数/一度邻居，勿凭面板视觉下结论。
 
 Dashboard 开发在本机源码副本 `D:/Github/memory-hub` 进行，NAS `/share/Container/memory-hub` 只是部署目标（经 git push/pull 同步；本机直连 NAS 的 SSH key 未授权、SMB 无凭证，部署需在 NAS 上执行命令或提供 SSH 密码）。前端是 Vue 3 + TS + Vite，构建产物 `frontend/dist` **自 commit 2c3b935 起不再纳入 git 追踪**（.gitignore 已移除 dist）；NAS 上现已有 node v22（`~/.local/bin/node`），部署 = NAS 本地 `cd frontend && npm ci && npm run build`，dist 由 backend 直接托管（带 ETag/304 缓存）。legacy 后端 `src/memory_hub` 因历史原因保持不动，新功能只加在独立 `backend/`。

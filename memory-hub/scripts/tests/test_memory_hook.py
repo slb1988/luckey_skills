@@ -540,7 +540,7 @@ class MemoryHookTest(unittest.TestCase):
                 },
             )
 
-    def test_snapshot_keeps_recent_messages_markdown_and_drops_fenced_code(self):
+    def test_snapshot_keeps_recent_messages_markdown_and_fenced_code(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             transcript = root / "session.jsonl"
@@ -578,7 +578,9 @@ class MemoryHookTest(unittest.TestCase):
                 self.assertEqual(payload["messages"][0]["content"], "message 3")
                 markdown = payload["messages"][-1]["content"]
                 self.assertIn("# Result", markdown)
-                self.assertNotIn("secret = 1", markdown)
+                # 快照保留围栏代码块原文（2026-10-20 策略变更，老快照才剥离）
+                self.assertIn("secret = 1", markdown)
+                self.assertIs(payload["window"]["fenced_code_removed"], False)
                 # 双资产：快照内嵌完整 session 文件指针，不携带 events
                 self.assertNotIn("events", payload)
                 self.assertEqual(

@@ -306,6 +306,7 @@ overlay 变更的发布步骤（插在通用流程的 stop/start 环节）：
 | 症状 | 排查 |
 |---|---|
 | `Permission denied` 执行 `.venv/bin/python` | venv 是坏拷贝，按上文重建 |
+| `start_all.sh` 全部失败、gunicorn 等 shebang 无法执行 | uv 管理的共享解释器本体被删（`.venv/bin/python` 指向的 uv-python `cpython-3.12/bin/python3.12` 可执行文件丢失，疑似 uv 升级/重装中断），与 venv 本身好坏无关；NAS 无系统 `python3` 兜底，标准 venv 退路也不可用。先 `uv python install 3.12` 恢复解释器，再按上文重建/修复 venv，然后 start_all（2026-10 一次例行 stop/start 部署实证，stop 成功 start 全灭） |
 | 端口 9287 起不来 / `Address already in use` | `ss -tlnp \| grep 9287` 找占用者 |
 | `/health/ready` 里 `graphiti:false` | `curl -sS http://10.77.77.6:8005/healthcheck`；确认网络可达 |
 | 日志无 `outbox worker started` | worker 没起来，检查 `ENABLE_OUTBOX_WORKER` |

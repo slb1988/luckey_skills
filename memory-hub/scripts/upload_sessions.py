@@ -127,7 +127,6 @@ def chat_hub_routing_enabled() -> bool:
     )
 
 IDENTIFIER_RE = re.compile(r"[^A-Za-z0-9._:-]+")
-FENCED_CODE_RE = re.compile(r"```.*?```", re.DOTALL)
 WHITESPACE_RE = re.compile(r"\s+")
 MAX_MESSAGE_CHARS = 4000
 MAX_DISTILLED_CHARS = 16 * 1024
@@ -159,7 +158,8 @@ def compact_text(value: str, limit: int) -> str:
 
 
 def sanitize_message_text(value: str) -> str:
-    return FENCED_CODE_RE.sub("\n", value).strip()[:MAX_MESSAGE_CHARS]
+    # Markdown 全文原样保留（含 fenced code），截断是唯一的体积保护
+    return value.strip()[:MAX_MESSAGE_CHARS]
 
 
 CMD_ESCAPE_RE = re.compile(r"\^(?=[<>\"|&()!])")
@@ -1071,7 +1071,8 @@ def build_backfill_snapshot_bytes(
             "window": {
                 "max_messages": MAX_RECENT_MESSAGES,
                 "message_count": len(session.recent_messages),
-                "fenced_code_removed": True,
+                # 老快照为 true（当时剥离 fenced code）；新快照保留代码块，恒为 false
+                "fenced_code_removed": False,
             },
             "messages": session.recent_messages,
             "full_session": {

@@ -52,10 +52,6 @@ from session_messages import (
 
 DEFAULT_HUB_URL = "https://luckeyhome.site/memory-hub/agent-api"
 IDENTIFIER_RE = re.compile(r"[^A-Za-z0-9._:-]+")
-FENCED_CODE_RE = re.compile(
-    r"(?:^|\n)[ \t]*(?:```|~~~).*?(?:\n[ \t]*(?:```|~~~)[ \t]*(?=\n|$)|$)",
-    re.DOTALL,
-)
 MAX_RECENT_MESSAGES = 10
 MAX_MESSAGE_CHARS = 32 * 1024
 TITLE_MAX_CHARS = 80
@@ -387,8 +383,9 @@ def extract_referenced_project_ids(
 
 
 def sanitize_message_text(value: str) -> str:
-    """Keep Markdown prose while dropping fenced source-code payloads."""
-    return FENCED_CODE_RE.sub("\n", value).strip()[:MAX_MESSAGE_CHARS]
+    """快照消息清洗：Markdown 全文原样保留（含 fenced code，快照视图直接渲染），
+    仅去首尾空白；32KB 截断是唯一的体积保护。"""
+    return value.strip()[:MAX_MESSAGE_CHARS]
 
 
 CMD_ESCAPE_RE = re.compile(r"\^(?=[<>\"|&()!])")
@@ -1314,7 +1311,8 @@ def build_snapshot(
     events: Optional[List[Dict[str, Any]]] = None,
     full_session: Optional[Dict[str, str]] = None,
 ) -> Snapshot:
-    """记忆提取窗口快照（agent-session/3）：最近 N 条消息（去 fenced code），
+    """记忆提取窗口快照（agent-session/3）：最近 N 条消息（保留 fenced
+    code；存量老快照曾剥离并以 window.fenced_code_removed=true 标记），
     full_session 指针关联完整 session 文件（ADR-009 双资产）。"""
     object_dir.mkdir(parents=True, exist_ok=True)
     recent_messages = deque(maxlen=MAX_RECENT_MESSAGES)
@@ -1357,7 +1355,8 @@ def build_snapshot(
                 "window": {
                     "max_messages": MAX_RECENT_MESSAGES,
                     "message_count": len(recent_messages),
-                    "fenced_code_removed": True,
+                    # 老快照为 true（当时剥离 fenced code）；新快照保留代码块，恒为 false
+                    "fenced_code_removed": False,
                 },
                 "messages": list(recent_messages),
             }
