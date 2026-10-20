@@ -8,9 +8,10 @@ for a set of queries. Outputs results as JSON.
 import argparse
 import json
 import os
-import select
+import queue
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -97,20 +98,41 @@ def run_single_query(
         pending_tool_name = None
         accumulated_json = ""
 
+        # Windows 的 select 不支持管道；读线程 + 队列跨平台等价
+        line_queue: queue.Queue = queue.Queue()
+
+        def _reader():
+            try:
+                while True:
+                    c = os.read(process.stdout.fileno(), 8192)
+                    if not c:
+                        break
+                    line_queue.put(c)
+            except (OSError, ValueError):
+                pass
+            finally:
+                line_queue.put(None)
+
+        threading.Thread(target=_reader, daemon=True).start()
+
         try:
             while time.time() - start_time < timeout:
                 if process.poll() is not None:
-                    remaining = process.stdout.read()
-                    if remaining:
-                        buffer += remaining.decode("utf-8", errors="replace")
+                    while True:
+                        try:
+                            c = line_queue.get_nowait()
+                        except queue.Empty:
+                            break
+                        if c is None:
+                            break
+                        buffer += c.decode("utf-8", errors="replace")
                     break
 
-                ready, _, _ = select.select([process.stdout], [], [], 1.0)
-                if not ready:
+                try:
+                    chunk = line_queue.get(timeout=1.0)
+                except queue.Empty:
                     continue
-
-                chunk = os.read(process.stdout.fileno(), 8192)
-                if not chunk:
+                if chunk is None:
                     break
                 buffer += chunk.decode("utf-8", errors="replace")
 
