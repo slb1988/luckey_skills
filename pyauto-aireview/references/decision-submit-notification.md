@@ -51,7 +51,7 @@ P4 change-submit trigger 的 review gate根据 branch 和受保护文件决定�
 - 必须评审人门禁：存在 required_reviewer 参与者时，approved 准入要求其本人
   的 approve 票——作者自批与抄送 reviewer（role=reviewer）票均不替代；
   无 required_reviewer 时维持原口径（script_rule 快车道与 branch_closed_pass
-  逃生通道显式豁免）。（DevOps pending CL 1962，提交部署前线上仍是旧行为）
+  逃生通道显式豁免）。该门禁已在线（2026-10 Review 1686 实测拦截作者投票）。
 
 `approved` 不是终态：P4 尚未提交，仍可通过受控 reject 收敛。`submitted/rejected/archived` 冻结普通变更。
 
@@ -71,8 +71,8 @@ P4 change-submit trigger 的 review gate根据 branch 和受保护文件决定�
 门槛、无 required_reviewer 在场等条件同时满足。作者分支先于指定 reviewer
 授权校验：指定抄送 reviewer（role=reviewer）不禁用自批，但存在必须评审人
 （role=required_reviewer）时自批被拒、须其审阅通过——Review 1554 事故：
-作者自批曾绕过 pending 的必须评审人直通代提交（DevOps pending CL 1962 修复，
-提交部署前线上仍可绕过）。纯二进制/无文本 diff 可不调用 LLM 而得到
+作者自批曾绕过 pending 的必须评审人直通代提交（DevOps CL 1962 修复；2026-10 Review 1686 实测线上已按新口径
+拦截作者投票，CL 落库状态以 P4 为准）。纯二进制/无文本 diff 可不调用 LLM 而得到
 done/risk0/verdict=null；这不是模型批准，但可能满足自批条件。
 作者 self-reject 在进行中可作为否决票。
 
@@ -85,7 +85,26 @@ strict branch 同时要求：
 - reviewer 侧批准；
 - jury 达到实时配置票数。
 
+strict_review 拨关（true→false）在设置提交后自动 sweep 该分支在途 Review：逐行
+行锁重算 `_recalculate_status`，解除陪审团阻塞放行（reviewer 侧未满足/零票单不动，
+不放宽其他门禁），留痕“strict_review 关闭，陪审团阻塞解除自动放行”；关→开不动
+在途/已批准单。（DevOps pending CL 1986；提交部署前在途单需人工补票触发重算——
+Review 1686 曾因此卡半天。）
+
 同一用户既是指定 reviewer 又是 juror 时，一票可满足两种角色。juror 决策不应被“仅指定 reviewer可投票”错误拦截。
+
+**juror 是独立决策权限（CL 1984 起现行）**：jury_members 内用户可对任意 review
+投票，不被 reviewer 指定机制拦截，也不过滤作者——作者兼 juror 可投自己的单，其
+approve 一票两用（同时满足 reviewer 侧与 jury 侧），decision 落在已有 author
+参与者行上（不重复插行），活动带 jury_vote 标记。required_reviewer 门槛不变：
+存在时 reviewer 侧仍须其本人 approve。计票唯一出口 `jury.py` 的 `jury_approvals`，
+口径 = approved ∧ 在 jury_members（无 role 要求、无作者排除）。
+
+历史（CL 1984 前，解读旧活动流时才需要）：作者被双重排除——`make_decision` 作者
+分支早退（`_self_approve_check` 见 required_reviewer 存在即拒）+ 计票排除作者，
+作者即使在名单也投不了自己的单（Review 1686 曾因此卡 jury 0/1）；旧拦截文案
+“该 Review 已指定必须评审人（xxx），需其审阅通过”按存在性而非待批状态触发，
+遇旧记录勿误判状态未刷新。
 
 ### 3.5 自动路径
 

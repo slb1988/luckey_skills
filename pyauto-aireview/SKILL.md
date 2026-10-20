@@ -64,6 +64,7 @@ TeamCity 通用 REST/参数查询复用 [teamcity-tool](../teamcity-tool/SKILL.m
 - 定案 callback 与编译错误分析短路是两个契约；`reject` 不保证零 LLM，缺回调时仍须检查各入口。见 backend 参考。
 - refresh 无 shelf 的失败不代表旧轮停止；先核本轮 activities，不把旧轮出分当刷新成功。
 - 指定 reviewer 不必然禁用作者受控自批；strict jury、系统自动批准和纯二进制跳链各有独立条件。见决策参考。
+- 作者陪审票：juror 独立权限（CL 1984 已上线）——可投任意 review 含本人单子、作者票计票、strict 一票两用、required_reviewer 门槛不变。旧设计（CL 1984 前）作者入口拦截 + 计票排除，required_reviewer 已批后作者再点批准仍弹“需其审阅通过”，属静态提示；解读旧活动流时注意区分。见决策参考。
 - severity 与“本 CL 是否负责修”及总分是不同维度；放行不降低严重度，最终严重度约束风险下限。见 backend 结果契约。
 - 飞书通知不唤醒本地 watcher；当前构建内 Pi 也不能据此假定拥有协调者的 A2A 能力。
 

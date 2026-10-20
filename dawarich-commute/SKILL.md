@@ -43,6 +43,12 @@ python .claude/skills/dawarich-commute/scripts/dawarich_commute.py --dump       
 - 「出门早于轨迹起点」「离开公司时间落在轨迹空洞里」= partial 段，从最近可观测点起算，时间不编造
 - 周末/未去公司：降级输出「外出 HH:MM 离家 → HH:MM 回家」或「全天在家范围内」
 
+<memory category="common-patterns">
+用于校正日报（daily note）的上下班时间时：以锚点时间为准（最后在家点→第一个在公司点 = 上班；反向 = 下班）。
+ActivityWatch 活跃段落若仍在「在家」锚点时段内（如 06:57–08:02 出门前的电脑工作）= 在家工作，不计入上班时间，
+需单独标注而非当作到公司时间；AW 活跃窗口与 Dawarich 公司时段吻合可互相佐证，冲突时以 Dawarich 锚点为准。
+</memory>
+
 ## References
 
 - [`references/api.md`](references/api.md) — Dawarich API 契约：认证、points 分页、Places/Visits/Timeline 端点、swagger 位置、iOS 数据特征

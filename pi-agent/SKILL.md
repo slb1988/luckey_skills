@@ -52,6 +52,10 @@ a2a-mentions 扩展的平台 token 存在全局文件 `~/.pi/agent/a2a-mentions.
 a2a 平台存活探测（无需 token）：未认证 GET `<baseUrl>/agent_platform/a2a/agents/mentions`，返回 HTTP 401 且 body `code=101 missing_token` 即平台活着；TCP 建连不上 = 服务未起。端口消歧：a2a agent platform 固定 **5000**（192.168.2.13 LAN / 10.77.77.4 WireGuard，同机两入口）；**9287 是 memory-hub 的端口**（memory-hub 在 10.77.77.6，.13 上 9287 无服务），DEFAULT_BASE_URL 配成 :9287 会导致全部调用超时。
 </memory>
 
+<memory category="code-locations">
+a2a-mentions 的对外发布文档是飞书《pi A2A Agent 扩展使用与安装说明》（https://cyancook.feishu.cn/docx/DnESdVZ7ioEg8txfY6ycjolXn5S），权威源为本仓库 `.pi/extensions/a2a-mentions/SKILL.md`——改完扩展文档需手动同步飞书。同步用 lark-doc 的 block 级局部更新：正文嵌有一块 mermaid 画板 block（端口类内容仍准确），全量重写会丢画板，只替换变的内容 block；block 替换幂等，网络 EOF/中断后直接重试安全，不会产生重复块。2026-10 已同步至「平台均已上线、默认入口 WireGuard 10.77.77.4（LAN 192.168.2.13 同机两入口、token 通用）、附件上传、不限时长轮询、无状态 JWT」版本。
+</memory>
+
 <memory category="troubleshooting">
 skill-gateway「skill 未命中/未匹配到」且耗时显示 (0.0s)：先查项目根有没有 `SKILL.index.json`。`serverSelect()` 第一步就是读 `<项目根>/SKILL.index.json`，文件缺失时直接 return null，**根本不发网络请求**，所以耗时恒为 0。判据看审计日志 `.pi/extensions/skill-gateway/.audit/skill-gateway.jsonl` 里是否每轮都是 `index_missing` 事件。索引由生成器产出（MainDev 用 `.claude/build-index-unreal.js` + `skill_index_gen.bat`，v3.0.0 格式；ObsidianVault 长期没有生成器，gateway 从启用起一直空转）。另外两项目的 `.pi/extensions/` 会漂移：同名扩展（skill-gateway、dynamic-workflows、auto-skill、a2a-mentions、plan-mode、team-profile）ObsidianVault 曾落后 MainDev 一个多月；从 MainDev 覆盖同步时**保留 ObsidianVault 独有的 `workspace-routing`**。
 </memory>
