@@ -14,8 +14,13 @@ job 永久保留为 `queued`；后续 Stop、SessionEnd、agent_end 或手工 fl
 仍可 fail-open，不会阻止 Agent，也不会因短期网络故障丢失 session。
 
 快照格式为 `agent-session/3`，保存最近 10 条 user/assistant 消息，并通过 `full_session` 指针关联
-`agent-session-full/1` 全量事件资产。窗口快照不含工具事件、无法解析事件和 Markdown fenced code；
-Markdown 标题、列表、链接和解释正文保留。Spool 每个 job 固化 `user_id`，所以稍后 flush 时不会
+`agent-session-full/1` 全量事件资产。窗口快照不含工具事件和无法解析事件；Markdown 标题、列表、
+链接、解释正文和 fenced code 原样保留（早期快照曾剥离 fenced code 并以
+`window.fenced_code_removed=true` 标记，新快照恒为 false，前端按旗标兼容「已去除代码块」提示）。
+sanitize 的唯一体积保护是逐条截断（hook 32KB / upload_sessions 4000 字符）。
+**sanitize 逻辑有三处副本，改策略必须三处同步**：上游 `src/memory_hub/agent_integration.py`
+（memory-hub 服务仓）、本 skill vendored `scripts/memory_hook.py`（三端 hook 实际运行副本）、
+`scripts/upload_sessions.py`（批量归档）。Spool 每个 job 固化 `user_id`，所以稍后 flush 时不会
 因进程环境变化而补传到错误用户。
 
 ## 首轮自动召回（recall / bootstrap）
