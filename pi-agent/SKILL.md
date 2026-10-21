@@ -136,8 +136,17 @@ REA（npm 包 `rea-agents`，reverse-engineer-anything）`setup --client pi` 报
 REA↔Pi 注册形态：setup 只写 user scope——`~/.pi/agent/mcp.json` 的 `mcpServers.rea`（stdio，命令 `rea mcp`）+ skill 装到 `~/.agents/skills/reverse-engineer-anything/`；项目级 `.pi/mcp.json` 的同名条目可覆盖/禁用 user 条目（user 注册 aligned 但某项目里 rea 不可用时先查它）。`rea doctor --client pi` 的健康判据是 registration+skill aligned；`environment_healthy:false` 仅表示可选原生二进制分析引擎（Ghidra/IDA/Hopper）未配，JS/Electron/网站/.NET 静态分析开箱即用（要 Ghidra 设 `GHIDRA_INSTALL_DIR`）。改动 MCP 配置后已开的 pi 会话需 `/reload` 才加载；Pi 无 profiles，`OMP_PROFILE`/`PI_PROFILE`/`PI_CONFIG_DIR`/enabledServers 均不影响注册，目标目录由 `PI_CODING_AGENT_DIR` 决定。
 </memory>
 
+<memory category="troubleshooting">
+`/new` 或 `/reload` 后扩展报 `This extension ctx is stale after session replacement or reload`，常伴随 `<boundary>` "turn_end could not resolve the persisted assistant entry ID" 且该轮 user 消息没落盘：pi 会话替换/reload 立即使旧 runner 失效、**不等在途 handler**（`newSession` 的 teardown 会先 `abort()` 故较安全，`reload()` 直接 invalidate），慢 handler（网络选择、LLM 召回）await 后访问 `ctx`/`pi` 必抛。机制细节与扩展侧 try/catch 静默兜底模式见 `.pi/extensions/SKILL.md` 常见问题表；本仓库 skill-gateway/team-profile/audio-feedback 与全局 memory-hub v39 均已兜底（主仓库 commit 6e932ebe，skills 3ca7ea7）。两个排障技巧：(1) stack trace 里的 `chunk-*.js` 文件名与 npm 包 dist bundle 一一对应，可比对确定报错时实际运行的 pi 版本——`pi update` 后已开进程内存里仍跑旧版；(2) 竞态回归脚本在 `.local/pi-stale-ctx-repro/`（RPC 版 repro.py + SDK 版 reload-race.mjs）。
+</memory>
+
+<memory category="common-patterns">
+裸 `/skill`（不带参数）不是 pi 命令：TUI 把它当作用户消息发给模型，触发一整轮 run（含全部 `before_agent_start` handler）——`/new` 后紧接输入裸 `/skill` 正是 stale-ctx 报错的触发姿势。真正调技能用 `/skill:<名字>`。
+</memory>
+
 ## 快速排查
 
+- `/new`/`/reload` 后扩展报 `ctx is stale` / `<boundary>` turn_end 错误 → 见上方 troubleshooting memory（旧 runner 不等在途 handler）；扩展侧修复模式见 `.pi/extensions/SKILL.md` 常见问题表。
 - `rea setup --client pi` 报不支持 / rea 命令突然消失 / 某项目里 rea 不可用 → 见上方 REA 两条 memory。
 - 扩展加载失败，先 `pi -ne`（无扩展启动）确认是扩展问题还是 pi 本身问题。
 - 报错细节看 `~/.pi/agent/pi-debug.log`。
