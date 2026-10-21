@@ -70,7 +70,10 @@ import { Type } from "typebox";
 //   事件（skill/template 展开前、先于一切 before_agent_start handler）即 spawn
 //   检索/人物卡子进程；before_agent_start 按 rawPrompt+query 双匹配收养在途进程，
 //   prompt 被改写（模板展开等）则 abort 预热、按原串行路径重跑，语义不变。
-const EXTENSION_VERSION = "38";
+// v39：/reload 或会话替换（/new 等）会使旧 extension runner 立即失效且不等
+//   在途 handler；before_agent_start/agent_end 在等待子进程后再访问 ctx/pi
+//   会抛 stale ctx。两个 handler 外包一层，stale 时静默放弃（会话已销毁）。
+const EXTENSION_VERSION = "39";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -98,6 +101,11 @@ const defaultBootstrapMaxChars = 4000;
 // 防止坏响应或未来配置漂移占满模型上下文。
 const personaCardMaxChars = 2500;
 const personaCardTimeoutMs = 15 * 1000;
+
+// pi 在 /reload 或会话替换时立即使旧 runner 失效，不等在途 handler；
+// 此时再访问 ctx/pi 会抛 stale——会话已销毁，本轮工作静默放弃即可。
+const isStaleCtxError = (err: unknown): boolean =>
+	err instanceof Error && err.message.includes("stale after session replacement or reload");
 
 function flushDelayMs(): number {
 	const raw = process.env.MEMORY_HOOK_PI_CAPTURE_DELAY_MS;
@@ -1461,7 +1469,7 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		}
 	});
 
-	pi.on("before_agent_start", async (event, ctx) => {
+	const beforeAgentStart = async (event: any, ctx: any) => {
 		// 用户回到键盘、会话继续生长：取消挂起的 flush，等下一轮空闲再计时。
 		// enqueue/marker 在 agent_end 已完成，无需也不应撤销。
 		cancelPendingFlush("prompt");
@@ -1927,9 +1935,18 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 				? event.systemPrompt + "\n\n" + injection
 				: injection,
 		};
+	};
+
+	pi.on("before_agent_start", async (event, ctx) => {
+		try {
+			return await beforeAgentStart(event, ctx);
+		} catch (err) {
+			if (isStaleCtxError(err)) return;
+			throw err;
+		}
 	});
 
-	pi.on("agent_end", async (_event, ctx) => {
+	const onAgentEnd = async (_event: any, ctx: any) => {
 		lastCwd = ctx.cwd;
 		if (skipCapture) return;
 		const target = captureTarget(ctx, "agent_end");
@@ -1942,6 +1959,15 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 			deleteMarker(target.sessionId, outcome);
 		}
 		scheduleFlush("agent_end");
+	};
+
+	pi.on("agent_end", async (event, ctx) => {
+		try {
+			return await onAgentEnd(event, ctx);
+		} catch (err) {
+			if (isStaleCtxError(err)) return;
+			throw err;
+		}
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
