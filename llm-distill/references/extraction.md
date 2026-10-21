@@ -44,7 +44,11 @@ c.execute("""SELECT key_name, COUNT(*), SUM(input_tokens)/1e6, SUM(output_tokens
 
 ### ⚠️ 已知坑：容器内重查询 OOM
 
-在整表上做 `GROUP BY` 且触碰大文本列（如逐行判 `request_body` 非空）会被 OOM Kill（exit 137）。对策：**按天拆小查询**、只用 `LENGTH()` 不取内容、需要内容时流式逐行取（`for row in c.execute(...)` 不要 fetchall）。
+在整表上做 `GROUP BY` 且触碰大文本列（如逐行判 `request_body` 非空）会被 OOM Kill（exit 137）。对策：**按天拆小查询**、只用 `LENGTH()` 不取内容、需要内容时流式逐行取（`for row in c.execute(...)` 不要 fetchall）。distill_extract.py 全量扫描也易踩（一天 4-12GB 正文）：脚本已改为 `fetchmany(50)` 分块 + 每行 `del` + 每块 `gc.collect()`。
+
+### ⚠️ 已知坑：「去重后无会话文件」不能凭 token 统计下结论
+
+2026-10-20 曾误判 wanghao/liuxu/murphy/majiacheng 等 8 个 key「有 token 记录但无会话文件 = 失败请求/探活」——实际 8 个 key 全部有正文（wanghao 单 key 请求体 122MB），是提取跑批漏抽（OOM 后产出不完整）。**下「无正文可蒸」结论前必须在 DB 侧验证**：`SELECT COUNT(*), SUM(LENGTH(request_body)) FROM request_history WHERE ts LIKE '<DAY>%' AND key_name=?`——body_bytes 很大就不是探活。token 有无与正文有无是两回事。
 
 ## session 去重原理
 
@@ -55,6 +59,10 @@ c.execute("""SELECT key_name, COUNT(*), SUM(input_tokens)/1e6, SUM(output_tokens
 ```
 
 去重键 = `(key_name, session_id)`，**保留 messages 数最多的那次请求**——它就是该 session 最完整的 transcript（含全部 user/assistant/tool_result）。无 session_id 时退化为 request_id。一天约几千请求 → 去重后几百个 session。
+
+二次去重（pass 1.5）以 `(key_name, 首个真实用户消息 hash)` 合并同一对话的反复快照。「首个真实用户消息」跳过 `<system-reminder`/`Caveat:`/`<command-` 开头的块；**若某 key 所有会话的首条用户消息都被跳过（hash 相同 = 空串的 md5），该 key 全部会话会坍缩成一条**——某 key 提取条数异常少（如几十请求只剩 1 条）时先查这一点，再查正文是否为空。
+
+同一对话被 compact（上下文压缩）后续跑时，首条消息变成 compaction summary，hash 会变——同一逻辑对话会拆成 compact 前/后两条文件，属预期行为，精读时按时间拼起来看。
 
 ## 关键词过滤（可选，默认关闭）
 

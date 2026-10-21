@@ -1,4 +1,4 @@
-import sqlite3, json, os, re, sys, hashlib
+import sqlite3, json, os, re, sys, hashlib, gc
 
 DAY = sys.argv[1] if len(sys.argv) > 1 else '2026-08-12'
 # 第二参数可选：逗号分隔的关键词（给才过滤；默认全量）
@@ -32,35 +32,44 @@ c = sqlite3.connect('/app/data/history.db')
 # pass 1: 按 (key, session_id) 去重取最长快照；可选关键词过滤
 best = {}  # session_key -> (request_id, n_msgs, key_name, ts, first_hash)
 scanned = matched = 0
-for rid, key, ts, body in c.execute(
+cur = c.execute(
         "SELECT request_id, key_name, ts, request_body FROM request_history "
-        "WHERE ts LIKE ? AND LENGTH(COALESCE(request_body,''))>10", (DAY + '%',)):
-    scanned += 1
-    if KEYWORDS:
-        lb = body.lower()
-        if not any(k in lb for k in KEYWORDS):
-            continue
-    matched += 1
-    try:
-        b = json.loads(body)
-    except Exception:
-        continue
-    meta = b.get('metadata') or {}
-    uid = meta.get('user_id') or ''
-    sid = ''
-    m = re.search(r'session_id\\?":\\?"([\w-]+)', uid)
-    if m:
-        sid = m.group(1)
-    else:
+        "WHERE ts LIKE ? AND LENGTH(COALESCE(request_body,''))>10", (DAY + '%',))
+# 分块读取 + 显式释放：全量正文 4-12GB，容器内整轮扫易被 OOM kill（exit 137），
+# 被 kill 后产物不完整（历史上曾因此漏抽 8 个有正文的 key）
+while True:
+    chunk = cur.fetchmany(50)
+    if not chunk:
+        break
+    for rid, key, ts, body in chunk:
+        scanned += 1
+        if KEYWORDS:
+            lb = body.lower()
+            if not any(k in lb for k in KEYWORDS):
+                continue
+        matched += 1
         try:
-            sid = json.loads(uid).get('session_id', '')
+            b = json.loads(body)
         except Exception:
-            pass
-    n = len(b.get('messages', []))
-    fh = hashlib.md5(first_user_text(b).encode()).hexdigest()[:12]
-    sk = (key, sid or rid)
-    if sk not in best or n > best[sk][1]:
-        best[sk] = (rid, n, key, ts, fh)
+            continue
+        meta = b.get('metadata') or {}
+        uid = meta.get('user_id') or ''
+        sid = ''
+        m = re.search(r'session_id\\?":\\?"([\w-]+)', uid)
+        if m:
+            sid = m.group(1)
+        else:
+            try:
+                sid = json.loads(uid).get('session_id', '')
+            except Exception:
+                pass
+        n = len(b.get('messages', []))
+        fh = hashlib.md5(first_user_text(b).encode()).hexdigest()[:12]
+        sk = (key, sid or rid)
+        if sk not in best or n > best[sk][1]:
+            best[sk] = (rid, n, key, ts, fh)
+        del b, body
+    gc.collect()
 
 # pass 1.5: 二次去重——(key, 首问 hash) 相同视为同一对话，留消息最多者
 dedup = {}
@@ -115,6 +124,8 @@ for (key, fh), (rid, n, key_name, ts, _fh) in sorted(dedup.items()):
         f.write('\n\n'.join(lines))
     sz = os.path.getsize(os.path.join(OUT, fn))
     index.append((key, ts, n, sz, fn))
+    del b, lines, row
+    gc.collect()
 
 with open(os.path.join(OUT, 'index.tsv'), 'w') as f:
     for r in index:
