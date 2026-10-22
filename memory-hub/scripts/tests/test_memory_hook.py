@@ -1989,6 +1989,117 @@ class MemoryHookTest(unittest.TestCase):
             self.assertEqual(store.status()["counts"], {})
             self.assertEqual(store.status()["unconfigured_jobs"], 0)
 
+    def test_capture_skips_when_skip_env_and_headless_sdk_signature(self):
+        # headless SDK 签名（entrypoint=sdk-cli）+ SKIP_CAPTURE=1 → 跳过。
+        # 覆盖 skill-creator run_eval.py 批量 claude -p 触发率评估的归档漏洞。
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "queue-operation", "operation": "enqueue"})
+                + "\n"
+                + json.dumps(
+                    {
+                        "type": "user",
+                        "entrypoint": "sdk-cli",
+                        "message": {"content": "今天上班路上花了多长时间"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id="user-a",
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            args = SimpleNamespace(
+                user_id=None, source="claude", flush_limit=10, verbose=False
+            )
+            hook = {"session_id": "session-1", "transcript_path": str(transcript), "cwd": str(root)}
+            with patch.dict(os.environ, {"MEMORY_HUB_SKIP_CAPTURE": "1"}), patch(
+                "sys.stdin", io.StringIO(json.dumps(hook))
+            ):
+                self.assertEqual(command_capture(args, config, store), 0)
+            self.assertEqual(store.status()["counts"], {})
+            self.assertEqual(store.status()["unconfigured_jobs"], 0)
+
+    def test_capture_keeps_headless_sdk_session_without_skip_env(self):
+        # 仅有 sdk-cli 签名但没有 env opt-in → 不跳过（可能是手工 claude -p
+        # 真实任务），照常归档。
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps(
+                    {
+                        "type": "user",
+                        "entrypoint": "sdk-cli",
+                        "message": {"content": "帮我查一下通勤"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id=None,
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            args = SimpleNamespace(
+                user_id=None, source="claude", flush_limit=10, verbose=False
+            )
+            hook = {"session_id": "session-1", "transcript_path": str(transcript), "cwd": str(root)}
+            with patch("sys.stdin", io.StringIO(json.dumps(hook))):
+                with patch.dict(os.environ) as env:
+                    env.pop("MEMORY_HUB_SKIP_CAPTURE", None)
+                    self.assertEqual(command_capture(args, config, store), 0)
+            self.assertEqual(store.status()["unconfigured_jobs"], 1)
+
+    def test_capture_keeps_interactive_cli_session_even_with_skip_env(self):
+        # 2026-08-25 防误杀语义保持：交互式主 session（entrypoint=cli）即使进程
+        # 继承了 SKIP_CAPTURE=1 也不跳过。
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transcript = root / "session.jsonl"
+            transcript.write_text(
+                json.dumps(
+                    {
+                        "type": "user",
+                        "entrypoint": "cli",
+                        "message": {"content": "真实交互提问"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            config = Config(
+                hub_url="http://127.0.0.1:1",
+                default_user_id=None,
+                agent_id="test-agent",
+                archive_project_id="agent-history",
+                api_key=None,
+                timeout_seconds=0.1,
+                state_dir=root / "state",
+            )
+            store = StateStore(config)
+            args = SimpleNamespace(
+                user_id=None, source="claude", flush_limit=10, verbose=False
+            )
+            hook = {"session_id": "session-1", "transcript_path": str(transcript), "cwd": str(root)}
+            with patch.dict(os.environ, {"MEMORY_HUB_SKIP_CAPTURE": "1"}), patch(
+                "sys.stdin", io.StringIO(json.dumps(hook))
+            ):
+                self.assertEqual(command_capture(args, config, store), 0)
+            self.assertEqual(store.status()["unconfigured_jobs"], 1)
+
     def test_capture_skips_extraction_subsession_transcript(self):
         # env 标记失效时的兜底：首条 user 消息以 extraction 签名开头 → 跳过。
         with tempfile.TemporaryDirectory() as directory:

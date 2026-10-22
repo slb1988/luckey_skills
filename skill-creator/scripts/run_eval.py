@@ -82,6 +82,9 @@ def run_single_query(
         # Claude Code session. The guard is for interactive terminal conflicts;
         # programmatic subprocess usage is safe.
         env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+        # eval 子会话是一次性触发率探针，不进 memory-hub 归档（hook 侧会核对
+        # transcript 的 sdk entrypoint 签名，双闸门设计不会误杀交互 session）。
+        env["MEMORY_HUB_SKIP_CAPTURE"] = "1"
 
         process = subprocess.Popen(
             cmd,

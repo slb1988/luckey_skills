@@ -482,11 +482,15 @@ export MEMORY_HUB_ARCHIVE_PROJECT_ID=agent-history
 # MEMORY_HUB_TITLE_LLM_TIMEOUT=15
 # MEMORY_HUB_PROJECT_ALIASES=sununity=unity2018,foo=bar   # project 名归并，内置默认 sununity=unity2018
 #   ↑ 优先级低于 install 部署的别名 JSON（见下），仅作无安装环境的 fallback
-# MEMORY_HUB_SKIP_CAPTURE=1     # extraction 子 session 专用 opt-out：变量为 "1" 且
-#                               # transcript 首条 user 消息命中 extraction 签名时才跳过
+# MEMORY_HUB_SKIP_CAPTURE=1     # 程序化子 session 专用 opt-out：变量为 "1" 且
+#                               # transcript 命中可跳过签名时才跳过（双重命中）。签名两类：
+#                               # ① 首条 user 消息以 extraction 前缀开头（auto-skill）；
+#                               # ② 首个 user 事件 entrypoint 以 sdk 开头（claude -p headless，
+#                               #    如 skill-creator run_eval.py 的批量评估子会话）。
 #                               # （2026-08-25 起必须双重命中——变量是进程级共享状态，
-#                               # auto-skill 在子 session 运行期间持有，同进程主 session
-#                               # 的 hook 也会继承，仅凭变量曾误杀主 session 归档）
+#                               # 子 session 运行期间持有，同进程主 session 的 hook 也会继承，
+#                               # 仅凭变量曾误杀主 session 归档；交互 session 是 entrypoint=cli，
+#                               # 不命中签名②，保护依然有效）
 # MEMORY_HUB_API_KEY 回退：进程环境缺失时 memory_hook.py 自动读用户级持久化位置
 # （Windows 注册表 / ~/.profile 系列），持久化之前启动的 agent 无需重启即可 401 自愈
 ```

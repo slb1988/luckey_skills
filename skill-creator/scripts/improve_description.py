@@ -31,6 +31,8 @@ def _call_claude(prompt: str, model: str | None, timeout: int = 300) -> str:
     # Claude Code session. The guard is for interactive terminal conflicts;
     # programmatic subprocess usage is safe. Same pattern as run_eval.py.
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+    # 同 run_eval.py：一次性改写调用不进 memory-hub 归档。
+    env["MEMORY_HUB_SKIP_CAPTURE"] = "1"
 
     result = subprocess.run(
         cmd,

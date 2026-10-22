@@ -96,6 +96,12 @@ SKIP_CAPTURE_ENV = "MEMORY_HUB_SKIP_CAPTURE"
 # （对应 .pi/extensions/auto-skill/lib/extractPrompt.ts 首行，改该行需同步此处）。
 # 防 dispose 时序导致 env 标记已恢复；正常 session 首条消息是真实用户提问，不会误杀。
 EXTRACTION_PROMPT_PREFIX = "You are the Skill extraction sub-agent."
+# 第二类可跳过签名：transcript 首个 user 事件的 entrypoint 以 "sdk" 开头
+# （如 sdk-cli）= `claude -p` 等 headless SDK 程序化 spawn 的一次性会话
+# （skill-creator run_eval.py 触发率评估批量起的会话就是这种）。这类会话内容上是
+# 仿真真实提问，内容级低价值过滤识别不了，只能按来源判定。与 extraction 签名不同：
+# 它不单独触发跳过，只在 SKIP_CAPTURE_ENV=1 时组合生效——交互式主 session 是
+# entrypoint=cli，即使继承到 env 也不会被误杀（保持 2026-08-25 的防误杀语义）。
 # Claude transcript 中 Esc 中断标记（user 记录文本前缀，覆盖
 # `[Request interrupted by user]` / `[Request interrupted by user for tool use]` 等变体）
 INTERRUPT_MARKER_PREFIX = "[Request interrupted by user"
@@ -795,11 +801,8 @@ def transcript_tail_interrupted(transcript_path: Path) -> bool:
     )
 
 
-def transcript_is_extraction_subsession(transcript_path: Path) -> bool:
-    """首条 user 消息以 extraction 签名开头 → 是 auto-skill 的 extraction 子 session。
-
-    流式早退，只读到第一条 user 消息为止（extraction 转录内嵌整个主会话，可能很大）。
-    """
+def transcript_first_user_event(transcript_path: Path) -> Optional[Dict[str, Any]]:
+    """返回 transcript 中首个 user 消息事件的原始 dict（找不到/读失败 → None）。"""
     try:
         with transcript_path.open("r", encoding="utf-8", errors="replace") as transcript:
             for line in transcript:
@@ -814,10 +817,33 @@ def transcript_is_extraction_subsession(transcript_path: Path) -> bool:
                 extracted = extract_role_text(event)
                 if not extracted or extracted[0] != "user":
                     continue
-                return extracted[1].lstrip().startswith(EXTRACTION_PROMPT_PREFIX)
+                return event
     except OSError:
         pass
-    return False
+    return None
+
+
+def transcript_is_extraction_subsession(transcript_path: Path) -> bool:
+    """首条 user 消息以 extraction 签名开头 → 是 auto-skill 的 extraction 子 session。"""
+    event = transcript_first_user_event(transcript_path)
+    if not event:
+        return False
+    extracted = extract_role_text(event)
+    return bool(
+        extracted and extracted[1].lstrip().startswith(EXTRACTION_PROMPT_PREFIX)
+    )
+
+
+def transcript_is_headless_sdk_session(transcript_path: Path) -> bool:
+    """首个 user 事件的 entrypoint 以 sdk 开头 → headless SDK spawn 的程序化会话。
+
+    只作 SKIP_CAPTURE_ENV 的组合签名，不单独跳过（见 SKIP_CAPTURE_ENV 注释）。
+    pi/codex 转录没有 entrypoint 字段，天然返回 False。
+    """
+    event = transcript_first_user_event(transcript_path)
+    if not event:
+        return False
+    return str(event.get("entrypoint") or "").startswith("sdk")
 
 
 # enqueue 跨进程互斥锁超时（秒）：持锁方完成「读 transcript → 构建对象 → 入队」
@@ -3092,12 +3118,12 @@ def command_capture(args: argparse.Namespace, config: Config, store: StateStore)
     if not transcript_path.is_file():
         return emit({"result": "skipped_missing_file"})
     extraction = transcript_is_extraction_subsession(transcript_path)
-    # SKIP_CAPTURE_ENV 是进程级共享状态：auto-skill 在整个 extraction 子 session
-    # 运行期间持有它，同进程主 session spawn 的 hook 也会继承到（2026-08-25 曾因此
-    # 误杀 ObsidianVault 全部主 session 归档）。仅凭变量不足为据——必须 transcript
-    # 签名也确认是 extraction 子 session 才跳过；不匹配说明是被污染的主 session，
-    # 照常归档。
-    if os.environ.get(SKIP_CAPTURE_ENV) == "1" and extraction:
+    headless_sdk = transcript_is_headless_sdk_session(transcript_path)
+    # SKIP_CAPTURE_ENV 是进程级共享状态：持有它的进程 spawn 的其他 session 的 hook
+    # 也会继承到（2026-08-25 曾因此误杀 ObsidianVault 全部主 session 归档）。仅凭
+    # 变量不足为据——必须 transcript 签名也确认是程序化子 session（extraction 前缀
+    # 或 headless sdk entrypoint）才跳过；不匹配说明是被污染的交互主 session，照常归档。
+    if os.environ.get(SKIP_CAPTURE_ENV) == "1" and (extraction or headless_sdk):
         return emit({"result": "skipped_capture_env"})
     if extraction:
         return emit({"result": "skipped_extraction"})
