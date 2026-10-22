@@ -109,6 +109,8 @@ auto-review（`llm:auto-review`）撞门禁仍走旧路径：回 preview_pending
 
 <memory category="troubleshooting">
 Dashboard 横幅「同组入图任务在途，批准已排队，完成后自动执行（无需重新审核）」= 上述 v27 排队机制的设计行为，不是故障；不要重复点批准（会再落一条排队项），等待 drain 即可。
+drain 执行后 `memory_status` 可能短暂停 `submitted`（已交付、索引进行中）再转 `indexed`——
+收尾以 `indexed` 为准，`submitted` 是正常过渡态，不是卡住。
 仅当排队超过 ~10–15 分钟不动才介入，按序只读核对：① detail 的 `approval_queued` / `entity_admission_in_flight`；② 同组前一条 `memory_status` 是否一直不到 `indexed`；③ 该组 outbox 是否有 `retry/failed` 积压（relation 缺 episode 503、`RELATION_RETRY_EXHAUSTED`）；④ hub-worker / review worker 存活与 SQLite 写锁。
 </memory>
 
@@ -116,6 +118,10 @@ Dashboard 横幅「同组入图任务在途，批准已排队，完成后自动�
 批准动作的 HTTP 回执与服务端提交是不同边界：`503 / memory-hub: timed out` 不证明
 批准未执行或已回滚；实测回读可已为 review `approved`、memory `indexed`。
 超时结果应视为未知，不自动重发；只读核对 review 与对应 memory 的状态，再决定是否可续批。
+超时还要区分发生在哪一层：公网链路经 luckeyhome.site 的 nginx 反代，**网关层 504** 可能是
+请求根本没到 hub（2026-10-22 实证：504 后只读回读确认服务端未执行）——核对确认未执行后
+可安全重放；公网网关不稳时写操作改走内网直连 `--base-url http://10.77.77.6:9288` 绕开反代，
+而不是在公网链路盲目重试。
 </memory>
 
 <memory category="troubleshooting">
