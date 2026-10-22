@@ -525,6 +525,15 @@ User ID 解析优先级为命令行 `--user-id`、hook 输入的 `user_id`、
 
 ## 会话标题与低价值过滤判定
 
+**过滤只在上传侧，dashboard 纯展示不过滤**（2026-10-20 定版记录）：session 是否入库由 hook /
+upload_sessions.py 决定（启发式 + 可选 LLM + 来源签名），dashboard 是只读 BFF、不做任何拦截；
+「前端为什么没过滤掉」类问题一律到上传侧找原因。批量 harness 的 `claude -p` headless spawn 会话
+（transcript 首个 user 事件 `entrypoint` 以 `sdk` 开头，如 skill-creator run_eval.py 触发率评估）
+内容是仿真真实提问，内容级判定（启发式/LLM）识别不了、也不该依赖 LLM 拦——只能按来源拦
+（`MEMORY_HUB_SKIP_CAPTURE=1` 双闸门，见上环境变量表），spawn 方必须显式设该变量。cwd 隔离只
+隔离文件视野：hook 捕获与 cwd 无关，cwd 仅决定 Hub 上的 project 归属名（2026-10-20 实证：eval
+harness 把 cwd 隔离到 `C:\tmp\dwa-iso-run`，304 条会话仍全部被捕获并归到 `dwa-iso-run` project）。
+
 ### Live hook 排障结构（troubleshooting-v1）
 
 `memory_hook.py` 沿用一次 `llm_classify_session` 标题/价值请求，附加可选 `troubleshooting`：

@@ -65,7 +65,7 @@ Dashboard 抽取审核在手机竖屏上以信息完整性优先：实体、边�
 | Hook 安装/check/身份配置/环境变量/首轮召回/Pi 扩展机制与留痕/低价值过滤 | [references/agent-integration.md](references/agent-integration.md) |
 | 手动批量归档历史 session（upload_sessions.py、漏传回填、project 归属） | [references/upload-sessions.md](references/upload-sessions.md) |
 | 排障：NETWORK_ERROR/TLS/TUN、检索 0 命中、长 prompt 主题遮蔽与规划证据误过滤/hook 验证/spool 积压/feedback 判死/triage 解析/catch-all 误归/Orca worker 会话误拒与零 capture 漏传根因/chat-hub 信封淹没归档与人物归档身份/测试平台坑 | [references/troubleshooting.md](references/troubleshooting.md) |
-| 误归档 session 定点清理 runbook | [references/cleanup-misscoped-sessions.md](references/cleanup-misscoped-sessions.md) |
+| 误归档/垃圾 session 定点清理 runbook（含 Hub 删除后的本地回填防护） | [references/cleanup-misscoped-sessions.md](references/cleanup-misscoped-sessions.md) |
 | 检索 eval（黄金集/存错取错诊断/指标门禁/部署验收 smoke 向量） | [references/retrieval-eval.md](references/retrieval-eval.md) |
 | 检索 scope 选择、已知 project 一览、别名映射 | [references/projects.md](references/projects.md) |
 | 全链路总览（拓扑/写入/检索/观测/隐患） | [references/system-overview.md](references/system-overview.md) |

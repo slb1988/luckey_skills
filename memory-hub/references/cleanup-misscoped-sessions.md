@@ -1,7 +1,8 @@
 # 误归档 session 清理 Runbook（按 scope 定点删除）
 
 适用场景：客户端误配 project（如 `project:sun`、`project:sunlaibing`），同一批 session 已按正确
-project 重传、Hub 上正确副本确认存在，需只删错误 scope 的副本及其衍生数据。
+project 重传、Hub 上正确副本确认存在，需只删错误 scope 的副本及其衍生数据。也适用于批量 eval 等
+垃圾 session 的定点清除——此时务必连同文末「本地回填防护」一起处理，只删 Hub 会被后续批传捡回。
 
 2026-08-29 两次实测：`project:sun`（11 session / 13 version / 7 episode / 140 行 SQLite）与
 `project:sunlaibing`（1 session / 1 episode / 11 行）。
@@ -72,3 +73,13 @@ project 重传、Hub 上正确副本确认存在，需只删错误 scope 的副�
 
 - SQLite：`cp` 备份文件回 `data/memory-hub.sqlite3`，重启 Hub + worker。
 - 误删共享对象文件：客户端 `upload_sessions.py --hook-namespace` 重传原 session 即可重建。
+
+## Hub 删除后的本地回填防护（防垃圾复活）
+
+本 runbook 只清 Hub 侧；本机三端 session 目录（`~/.claude/projects/` 等）里的原始 transcript 仍在。
+漏传回填链按「本地有、Hub 没有 = 缺口」工作（`backfill_missed_sessions.py` 的 local−hub diff、手工
+`upload_sessions.py` 批传；sweep 在 spool 终态记录失效后同理），只删 Hub 不处理本地，已删 session
+会被后续批传当漏传重新上传（2026-10-20 清理 dawarich-commute eval 垃圾 session 时确认）。二选一：
+
+- 无保留价值 → 连同本地 transcript 一并删除（eval 产物通常在 harness workspace 另有归档）；
+- 要留本地 → `sweep_missed_sessions.py --ignore <uuid>...` 逐个写入 sweep-state.json 终态 `ignored`。
