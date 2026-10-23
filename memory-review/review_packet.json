@@ -1,364 +1,134 @@
 [
  {
-  "memory_id": "01a150ab-4cb7-767b-82a8-0baf7d167b6a",
-  "session_id": "pi:memory-hub:01a14f85-f432-7698-994d-9e5508ad8e1f",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:memory-hub",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 0,
-  "updated_at": "2026-10-18T20:26:43.438961Z",
-  "snapshot_token": "rs1:4c4102fd32ca88d6d8c6c138034634d3aa1972e16de5ad3389f1997b582c6b8a",
-  "review_id": "01a150b1-a083-7195-8bfe-5b22a175cab5",
-  "project_id": "memory-hub",
-  "memory_type": "dream_experience",
-  "summary": "memory-hub 部署约束：frontend/dist 不入库，NAS 更新需本机构建后同步",
-  "created_at": "2026-10-18T20:26:20.659337Z",
-  "entity_count": 3,
-  "edge_count": 2,
-  "novelty": {
-   "status": "completed",
-   "admission": "duplicate",
-   "rationale": "新记忆的两个要点——`frontend/dist` 不入库、NAS 部署需本机构建后同步产物——均已由候选 4（dist 不入库且 NAS 无 node 必须本机构建 rsync）、候选 1（dist 不入库需同步本机构建产物）与候选 3（dist 不入库本机 build 后同步）明确陈述；新记忆未增加任何新条件、边界、原因或纠正，属于重复确认。"
-  },
-  "distilled_content": "memory-hub 仓库的 `frontend/dist` 不纳入版本库；向 NAS（luckeyhome.site）部署前端更新时，必须在本机执行构建后再同步产物，不能指望远端拉取代码自行构建。",
-  "proposed": {
-   "entities": [
-    {
-     "name": "memory-hub",
-     "type": "Project",
-     "summary": "包含 frontend 的项目；其 frontend/dist 构建产物不纳入版本库，前端更新需以本机构建产物为准进行部署。"
-    },
-    {
-     "name": "memory-hub-frontend-deploy",
-     "type": "Convention",
-     "summary": "memory-hub 前端发布约定：frontend/dist 不入库；部署到 NAS 时必须在本机执行构建并同步产物，不能依赖远端拉取源码后自行构建。"
-    },
-    {
-     "name": "luckeyhome.site",
-     "type": "Service",
-     "summary": "作为 memory-hub 前端更新部署目标的 NAS/站点；部署方式是接收本机构建后的产物同步，而非在远端构建。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "memory-hub-frontend-deploy",
-     "target": "memory-hub",
-     "name": "APPLIES_TO",
-     "fact": "memory-hub 仓库的 frontend/dist 不纳入版本库，前端发布以本机构建产物为准。"
-    },
-    {
-     "source": "memory-hub-frontend-deploy",
-     "target": "luckeyhome.site",
-     "name": "APPLIES_TO",
-     "fact": "向 luckeyhome.site 部署 memory-hub 前端更新时，必须在本机执行构建后再同步产物，不能指望远端拉取代码自行构建。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "memory-hub",
-      "status": "exact",
-      "candidates": [
-       {
-        "uuid": "1cce5920-443d-48b7-b002-2e0bd60b1b04",
-        "canonical_name": "memory-hub",
-        "match_basis": "exact",
-        "created_at": "2026-08-19T09:26:59.730368000+00:00",
-        "group_id": "project:memory-hub",
-        "summary": "memory-hub 是服务端记忆系统（本工作区仓库）：长期记忆管理 Web 前端（Vue），QNAP NAS 后端静态托管 dist，生产地址 luckeyhome.site/memory-hub；核心仓库根 D:\\Github\\memory-hub（工作区 ws:memory-hub），生产实例在 QNAP NAS 的 /share/cacheddev1_data/container/memo"
-       }
-      ]
-     },
-     {
-      "input_name": "memory-hub-frontend-deploy",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "luckeyhome.site",
-      "status": "exact",
-      "candidates": [
-       {
-        "uuid": "8ad41610-feb5-4668-acdf-2cc2898d1d1c",
-        "canonical_name": "luckeyhome.site",
-        "match_basis": "exact",
-        "created_at": "2026-09-04T23:59:46.273575000+00:00",
-        "group_id": "project:memory-hub",
-        "summary": "luckeyhome.site 是 memory-hub 项目的部署站点。memory-hub 是部署在 luckeyhome.site 上的记忆管理服务（记忆中枢），FastAPI 后端 + 前端，包含 admin/users、graph edits、review 等 API，以及 review-prompts 页面（用于查看 extraction-preview、llm-summary 等审核"
-       }
-      ]
-     }
-    ]
-   }
-  },
-  "flags": [
-   {
-    "check": "novelty_duplicate",
-    "severity": "escalate",
-    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   }
-  ],
-  "suggestion": {
-   "action": "escalate",
-   "auto": false,
-   "reasons": [
-    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   ],
-   "removals": []
-  }
- },
- {
-  "memory_id": "01a150aa-6b09-7f15-b7c5-1f090d1bcdd0",
-  "session_id": "pi:saldo:01a14f0b-c2ef-7791-bc43-b28934ed56ab",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:saldo",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 0,
-  "updated_at": "2026-10-18T20:23:23.601307Z",
-  "snapshot_token": "rs1:d73b48cd1e29908cbcd375cd8d0f046d376661230e85ed9072c2da691fa6f768",
-  "review_id": "01a150ae-5695-788e-8842-6180172bd87a",
-  "project_id": "saldo",
-  "memory_type": "dream_experience",
-  "summary": "Saldo 旧版本读到未知 typeValue 的兜底行为与跨版本风险",
-  "created_at": "2026-10-18T20:22:45.126934Z",
-  "entity_count": 2,
-  "edge_count": 2,
-  "novelty": {
-   "status": "completed",
-   "admission": "duplicate",
-   "rationale": "新记忆包含两个长期事实：(1) 旧版 app 读未知 type_value 兜底 custom(99)、汇总走 category_value 不受影响、但旧版编辑保存会把 category_value 改写为流动资金(0)——这与候选 1 第 5 点逐句一致；(2) 当前单版本未处理、留待同步/多设备场景解决——候选 3 已明确记录同一决策。无新增条件、边界或纠正，全部事实均被 CONFIRMS 覆盖。"
-  },
-  "distilled_content": "Saldo 未来新增账户类型后，旧版 app 读到未知 type_value 会由 AccountType.fromValue() 兜底成 custom(99)；汇总展示不受影响（读路径走 category_value 列），但在旧版里编辑保存该账户会把 category_value 改写成流动资金(0)，造成归属错乱。当前单版本场景未处理（会话中明确没动），后续做同步/多设备时必须解决。",
-  "proposed": {
-   "entities": [
-    {
-     "name": "saldo",
-     "type": "Project",
-     "summary": "记账应用。账户类型经 type_value 列存储，汇总展示走 category_value 列。存在已知前向兼容风险：未来新增账户类型后，旧版 app 的 AccountType.fromValue() 会把未知 type_value 兜底为 custom(99)，旧版编辑保存该账户还会把 category_value 改写成流动资金(0) 造成归属错乱；当前单版本场景会话中明确未处理。"
-    },
-    {
-     "name": "saldo-account-type-forward-compat",
-     "type": "Concept",
-     "summary": "Saldo 账户类型前向兼容问题：旧版 AccountType.fromValue() 对未知 type_value 兜底为 custom(99)，读路径（category_value 列）不受影响，但旧版编辑保存会改写 category_value 为流动资金(0)；须在后续做同步/多设备时解决。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "saldo-account-type-forward-compat",
-     "target": "saldo",
-     "name": "APPLIES_TO",
-     "fact": "Saldo 旧版 app 读到未来新增的未知 type_value 时由 AccountType.fromValue() 兜底成 custom(99)；汇总展示因读 category_value 列不受影响，但在旧版里编辑保存该账户会把 category_value 改写成流动资金(0)，造成归属错乱。"
-    },
-    {
-     "source": "saldo",
-     "target": "saldo-account-type-forward-compat",
-     "name": "PLANS_TO_IMPLEMENT",
-     "fact": "Saldo 的账户类型前向兼容问题在当前单版本场景明确未处理，后续做同步/多设备时必须解决；截至会话结束为既定待办，尚无实现确认。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "saldo",
-      "status": "exact",
-      "candidates": [
-       {
-        "uuid": "7e161da3-0c67-4318-9f7f-43d16a12e704",
-        "canonical_name": "saldo",
-        "match_basis": "exact",
-        "created_at": "2026-10-11T10:14:39.199315000+00:00",
-        "group_id": "project:saldo",
-        "summary": "saldo 是 Flutter 记账应用（macOS 桌面端为主、暗色主题），逆向对标本尊 Percento（档案存于 docs/hopper/modules/），drift 数据库 schema 版本 currentSchemaVersion = 7，账户有 optOutSum 与 optOutCharts 两个正交开关。\n\n查询接口：watchActiveAccounts、getActiveA"
-       }
-      ]
-     },
-     {
-      "input_name": "saldo-account-type-forward-compat",
-      "status": "new",
-      "candidates": []
-     }
-    ]
-   }
-  },
-  "flags": [
-   {
-    "check": "novelty_duplicate",
-    "severity": "escalate",
-    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   }
-  ],
-  "suggestion": {
-   "action": "escalate",
-   "auto": false,
-   "reasons": [
-    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   ],
-   "removals": []
-  }
- },
- {
-  "memory_id": "01a150a8-f320-7904-b494-a5b89119e449",
-  "session_id": "claude:maindev:2be223a5-a222-4c55-ba5a-35658d968b27",
+  "memory_id": "01a16537-9626-7479-8792-be684932d63e",
+  "session_id": "pi:maindev:01a16232-524a-73f3-921d-e250e4ac75ad",
   "session_version": null,
   "scope_type": "project",
   "group_id": "project:maindev",
   "status": "review",
   "memory_status": "pending_extraction",
   "preview_attempts": 0,
-  "updated_at": "2026-10-18T20:22:15.471967Z",
-  "snapshot_token": "rs1:af637a66954ff9a95a8d28e8120cf61111d891508c961b7894ef2936a413eb19",
-  "review_id": "01a150ac-ed72-7d00-9893-7960aace356c",
+  "updated_at": "2026-10-22T20:09:10.274199Z",
+  "snapshot_token": "rs1:6fcdbd141bf676cffd924efdb05f48044c9a1e4e493747e079d4d8ce18ac93c4",
+  "review_id": "01a1653a-5c0d-7e7d-b749-676a42d81887",
   "project_id": "maindev",
-  "memory_type": "dream_experience",
-  "summary": "PLScriptAsync 热重载精细化取消需编译器侧先行设计",
-  "created_at": "2026-10-18T20:21:12.675637Z",
-  "entity_count": 3,
-  "edge_count": 2,
+  "memory_type": "dream_lesson",
+  "summary": "rpdt导表巡检负责人归属链：正确口径与两类「未注册」根因",
+  "created_at": "2026-10-22T20:08:05.886387Z",
+  "entity_count": 5,
+  "edge_count": 4,
   "novelty": {
    "status": "completed",
    "admission": "duplicate",
-   "rationale": "新记忆包含的两个有长期价值的事实——(1) OnPreCompile 时点不知哪些类会被重载、MoveNext 跨编译存活未验证、需编译器侧先行设计；(2) Async::Completed/NextFrame/Delay 在 CL 139335 中已不建 producer lease、返回脚本前无 native 根引用、窗口内无 GC 点但最需测试确认——均已被 rank 1 候选的「没做的两项」E 项和第 3 项及注意事项完整覆盖，未新增条件、边界、原因或决策。其余候选主题相关但不陈述同一事实，不构成关系。"
+   "rationale": "新记忆的三组核心事实——①report_package() 优先取日志 Asset 导致 ActorStaticTag mismatch 类归属错、rpdt_classify.py 改走 Excel→BP→content_manager 链（CL 140716）及 isinstance 防御（CL 140653）、日志 Asset 仅作问题定位展示——已由候选 1（实施后结果）与候选 6（根因诊断与修复方向）完整记录；②本地映射表版本滞后、VineBridge #637 无 #638 新增、巡检跑在同步前致 bp_package/package 双空——已由候选 2 完整记录。新记忆仅做结构化合并，未增加任何历史候选未覆盖的条件、边界、原因或纠正，故判定 duplicate。"
   },
-  "distilled_content": "PLScriptAsync 的 OnPreCompile 热重载当前会取消全部状态机；要做成只取消受影响类的状态机，在 OnPreCompile 时点还不知道哪些类会被重载，且未重载类的 MoveNext 函数对象能否跨编译安全存活未经验证。该优化不能只在插件侧硬改，需要先在编译器侧设计。另：Async::Completed/NextFrame/Delay 等内置任务已改为不建 producer lease（CL 139335），返回脚本前无 native 根引用，该窗口内虽无 GC 点、行为应与之前一致，但属于最需测试确认的风险点。",
+  "distilled_content": "背景：rpdt 每日导表巡检的飞书负责人报告出现「未注册」误判。正确归属口径：实体 Tag → 本地 PLEntityTagMapping*.xlsx 的 Soft* 列 → BP 目录 → 2.13:5000 content_manager 最近祖先匹配；映射缺失才回落资产路径目录。两类已确认根因：①脚本 report_package() 优先取日志行 Asset 字段，ActorStaticTag mismatch 类日志的 Asset 指向 PLID 表而非 BP，导致归属错（rpdt_classify.py 已改走 Excel→BP→content_manager 链，CL 140716，isinstance 防御 CL 140653）；②本地映射表版本滞后——新实体行当天 CL 才提交（如 VineBridge #637 无、#638 新增），巡检跑在工作区同步之前，解析 bp_package/package 双空，非注册问题。限制：日志 Asset 仅作问题定位展示，不可用于负责人派单。",
   "proposed": {
    "entities": [
     {
-     "name": "plscript-async",
+     "name": "rpdt",
      "type": "Project",
-     "summary": "脚本异步插件；当前 OnPreCompile 热重载会取消全部状态机。Async 内置任务 Async::Completed/NextFrame/Delay 已改为不建 producer lease，返回脚本前无 native 根引用，但该窗口的行为一致性仍被标为最需测试确认的风险点。"
+     "summary": "每日导表巡检工具，按负责人归属口径生成飞书负责人报告。归属解析脚本 rpdt_classify.py 的 report_package() 曾优先取日志行 Asset 字段，而 ActorStaticTag mismatch 类日志的 Asset 指向 PLID 表而非 BP，导致归属误判；已修正为走 Excel→BP→content_manager 链并增加 isinstance 防御。"
     },
     {
-     "name": "selective-hot-reload-cancellation",
-     "type": "Concept",
-     "summary": "将 OnPreCompile 热重载从取消全部状态机优化为只取消受影响类状态机的设计方向；受限于 OnPreCompile 时点尚不知道哪些类会被重载，且未重载类的 MoveNext 函数对象能否跨编译安全存活未经验证，需要先在编译器侧设计，尚无实现确认。"
-    },
-    {
-     "name": "no-producer-lease-async-builtins",
-     "type": "Concept",
-     "summary": "PLScriptAsync 内置任务 Async::Completed/NextFrame/Delay 不建 producer lease 的机制：返回脚本前无 native 根引用；正文认为该窗口内虽无 GC 点、行为应与之前一致，但仍属最需测试确认的风险点。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "plscript-async",
-     "target": "selective-hot-reload-cancellation",
-     "name": "PLANS_TO_IMPLEMENT",
-     "fact": "PLScriptAsync 计划将 OnPreCompile 热重载从取消全部状态机改为只取消受影响类状态机，但在 OnPreCompile 时点还不知道哪些类会被重载，且未重载类的 MoveNext 函数对象能否跨编译安全存活未经验证；该优化不能只在插件侧硬改，需要先在编译器侧设计，截至会话结束为既定方向，尚无实现确认。"
-    },
-    {
-     "source": "plscript-async",
-     "target": "no-producer-lease-async-builtins",
-     "name": "IMPLEMENTS",
-     "fact": "PLScriptAsync 的 Async::Completed/NextFrame/Delay 等内置任务已改为不建 producer lease，返回脚本前无 native 根引用；该窗口内虽无 GC 点、行为应与之前一致，但正文将其标为最需测试确认的风险点。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "plscript-async",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "selective-hot-reload-cancellation",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "no-producer-lease-async-builtins",
-      "status": "new",
-      "candidates": []
-     }
-    ]
-   }
-  },
-  "flags": [
-   {
-    "check": "novelty_duplicate",
-    "severity": "escalate",
-    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   }
-  ],
-  "suggestion": {
-   "action": "escalate",
-   "auto": false,
-   "reasons": [
-    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   ],
-   "removals": []
-  }
- },
- {
-  "memory_id": "01a150a8-67ed-7e27-bcf7-8fb5c8ef8207",
-  "session_id": "pi:mini-as:01a14efb-daa5-70a9-9a5d-d849023b06c9",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:mini-as",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 0,
-  "updated_at": "2026-10-18T20:20:50.381609Z",
-  "snapshot_token": "rs1:5371c13ab70962494622560513240a10546fa786fa3f5181da653513808ae913",
-  "review_id": "01a150ac-0f92-73dc-bf24-2161681e6f9f",
-  "project_id": "mini-as",
-  "memory_type": "dream_experience",
-  "summary": "mini-as changelog 工作流约定：助手不执行 git 提交",
-  "created_at": "2026-10-18T20:20:15.874839Z",
-  "entity_count": 2,
-  "edge_count": 1,
-  "novelty": {
-   "status": "completed",
-   "admission": "duplicate",
-   "rationale": "新记忆的核心长期事实——按 skill 约定助手在 changelog 任务中不执行 git add/commit、提交时机由用户决定——已被候选 rank 9（明确记载同一 skill 约定）和 rank 4（未执行提交、由用户决定）完整覆盖；新记忆仅报告同一约定在本次会话被再次遵守，未新增条件、边界、纠正或决策。"
-  },
-  "distilled_content": "在 mini-as 仓库的 changelog 完善任务中，按 skill 约定助手只修改文档文件，不执行 git add/commit，提交时机由用户自行决定。本次会话中两次完成任务（021 增补、022 改写）均遵守此约定。",
-  "proposed": {
-   "entities": [
-    {
-     "name": "mini-as",
-     "type": "Project",
-     "summary": "进行 changelog 完善任务的仓库；相关文档修改工作遵循特定 skill 提交约定。"
-    },
-    {
-     "name": "changelog-doc-only-user-commit",
+     "name": "rpdt-owner-attribution",
      "type": "Convention",
-     "summary": "mini-as 仓库 changelog 完善任务的 skill 约定：助手只修改文档文件，不执行 git add/commit，提交时机由用户自行决定。"
+     "summary": "rpdt 负责人归属口径：实体 Tag→本地 PLEntityTagMapping*.xlsx 的 Soft* 列→BP 目录→content_manager 最近祖先匹配；映射缺失才回落资产路径目录。"
+    },
+    {
+     "name": "pl-entity-tag-mapping",
+     "type": "Tool",
+     "summary": "本地 PLEntityTagMapping*.xlsx 映射表，Soft* 列提供实体 Tag 到 BP 的映射。版本可能滞后：新实体行当天才提交（如 VineBridge），巡检跑在工作区同步之前会解析出 bp_package/package 双空，属数据滞后而非实体未注册。"
+    },
+    {
+     "name": "content-manager",
+     "type": "Service",
+     "summary": "位于 2.13:5000 的 content_manager 服务，在 rpdt 归属链中用于按 BP 目录做最近祖先匹配。"
+    },
+    {
+     "name": "log-asset-display-only",
+     "type": "Convention",
+     "summary": "限制：日志行 Asset 字段仅用于问题定位展示，不可用于负责人派单。"
     }
    ],
    "edges": [
     {
-     "source": "mini-as",
-     "target": "changelog-doc-only-user-commit",
+     "source": "rpdt",
+     "target": "rpdt-owner-attribution",
      "name": "FOLLOWS",
-     "fact": "在 mini-as 仓库的 changelog 完善任务中，助手遵循 skill 约定：只修改文档文件，不执行 git add/commit，提交时机由用户自行决定。"
+     "fact": "rpdt 的负责人归属口径为实体 Tag→本地 PLEntityTagMapping*.xlsx 的 Soft* 列→BP 目录→content_manager 最近祖先匹配，映射缺失才回落资产路径目录。"
+    },
+    {
+     "source": "rpdt",
+     "target": "pl-entity-tag-mapping",
+     "name": "USES",
+     "fact": "rpdt 通过本地 PLEntityTagMapping*.xlsx 的 Soft* 列解析实体 Tag 到 BP 的映射；映射表版本滞后（新实体行当天才提交，如 VineBridge）且巡检先于工作区同步运行时，bp_package/package 解析双空属数据滞后而非未注册。"
+    },
+    {
+     "source": "rpdt",
+     "target": "content-manager",
+     "name": "USES",
+     "fact": "rpdt 归属链末端通过 2.13:5000 的 content_manager 对 BP 目录做最近祖先匹配。"
+    },
+    {
+     "source": "log-asset-display-only",
+     "target": "rpdt",
+     "name": "APPLIES_TO",
+     "fact": "rpdt 中日志行 Asset 字段仅作问题定位展示，不可用于负责人派单；report_package() 曾因 ActorStaticTag mismatch 类日志的 Asset 指向 PLID 表而非 BP 导致归属误判，已改为 Excel→BP→content_manager 链。"
     }
    ],
    "entity_resolution": {
     "resolution_status": "ok",
     "results": [
      {
-      "input_name": "mini-as",
+      "input_name": "rpdt",
       "status": "exact",
       "candidates": [
        {
-        "uuid": "74a93d6b-972b-48b4-8062-10126c78edcc",
-        "canonical_name": "mini-as",
+        "uuid": "924d773f-c958-46e5-9324-19729ce0e314",
+        "canonical_name": "rpdt",
         "match_basis": "exact",
-        "created_at": "2026-08-19T12:43:13.772741000+00:00",
-        "group_id": "project:mini-as",
-        "summary": "mini-as 是 AngelScript 兼容实现项目，工作目录为 D:\\Github\\mini-as，也是教学版脚本引擎项目，对象内存采用引用计数管理，并实现基于 trial deletion 的循环引用 GC（教学版为 stop-the-world，设计文档在 docs/stages/14-cycle-gc.md）。\n\n差分门禁机制保证与官方 AngelScript 2.38.0 行为一致："
+        "created_at": "2026-10-17T08:16:01.671063000+00:00",
+        "group_id": "project:maindev",
+        "summary": "excel-export 中现有 rpdt 参数的 --owners 采用「P4 最近提交人」视角，与 rpdt-owner 的「content_manager 注册负责人」视角是两套语义；两者边界为：rpdt = 分类→修复闭环，rpdt-owner = 只读派单归因。\nrpdt --owners 的负责人归因基于 P4 最近提交人，与 content_manager 的注册口径是两套不同的归因"
        }
       ]
      },
      {
-      "input_name": "changelog-doc-only-user-commit",
+      "input_name": "rpdt-owner-attribution",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "db0cd64b-a2b5-454e-a605-6feaf70f9fa7",
+        "canonical_name": "rpdt-owner-attribution",
+        "match_basis": "exact",
+        "created_at": "2026-10-22T09:13:24.523243000+00:00",
+        "group_id": "project:maindev",
+        "summary": "rpdt-owner-attribution 口径规定导表巡检的负责人派单链为 实体 Tag → PLEntityTagMapping Soft* 列 → BP 目录 → content_manager，映射缺失时才回落资产路径目录；资产路径列仅用于问题定位展示（日志 Asset 优先，ED/PLID 类指向表资产）。\nrpdt-owner-attribution 口径中，负责人派单链的末端为拿 "
+       }
+      ]
+     },
+     {
+      "input_name": "pl-entity-tag-mapping",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "content-manager",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "27f8784d-6119-47c0-9f78-0f0558bb8352",
+        "canonical_name": "content-manager",
+        "match_basis": "exact",
+        "created_at": "2026-10-17T02:07:25.146022000+00:00",
+        "group_id": "project:maindev",
+        "summary": "数值校验报错归因流程在从 PL_RunProcessorsOnDT 构建日志提取实体标签并解析出蓝图资产路径后，调用 content-manager 的 GET /content_manager/search 接口传入内容资产路径，从返回结果的 owner_ids 与 owners_info 中解析负责人完成报错归因。\nentity-tag-owner-attribution 流程将 PLEnti"
+       }
+      ]
+     },
+     {
+      "input_name": "log-asset-display-only",
       "status": "new",
       "candidates": []
      }
@@ -382,76 +152,413 @@
   }
  },
  {
-  "memory_id": "01a150a5-de04-7b29-8b51-d0d829ce6b9d",
-  "session_id": "pi:saldo:01a14ddd-3892-7562-9069-8c8b1a44ba05",
+  "memory_id": "01a16537-1883-7602-8239-ff17e5a9ff80",
+  "session_id": "pi:obsidianvault:01a1617f-7e69-74eb-8e84-b2a8c0dee316",
   "session_version": null,
   "scope_type": "project",
-  "group_id": "project:saldo",
+  "group_id": "project:obsidianvault",
   "status": "review",
   "memory_status": "pending_extraction",
   "preview_attempts": 0,
-  "updated_at": "2026-10-18T20:19:04.681583Z",
-  "snapshot_token": "rs1:6d894caef2005305b5cff2c569b5ab6b3cc5c293734864061ecdf92aa7480216",
-  "review_id": "01a150aa-9c32-743c-be6c-86d6eb479e07",
-  "project_id": "saldo",
-  "memory_type": "dream_experience",
-  "summary": "saldo 余额链一致性检查只能做告警级",
-  "created_at": "2026-10-18T20:18:40.804058Z",
+  "updated_at": "2026-10-22T20:07:38.855588Z",
+  "snapshot_token": "rs1:0963ced139b4cd713888645c495990a58e70dfcc6e838ef30e0362076e8cc026",
+  "review_id": "01a16538-e68a-7785-96cf-3e00fda29217",
+  "project_id": "obsidianvault",
+  "memory_type": "dream_lesson",
+  "summary": "auto-skill 提取子会话干扰 Orca 显示：resourceLoader 设 noExtensions:true，已提交 f3adedc9",
+  "created_at": "2026-10-22T20:06:30.268024Z",
   "entity_count": 3,
   "edge_count": 2,
   "novelty": {
    "status": "completed",
    "admission": "duplicate",
-   "rationale": "新记忆唯一有长期价值的事实是『saldo app 允许补记旧日期，因此 CLI doctor 的余额链不等式检查只能作为告警而非硬错误』，该结论及其原因已被候选 1 中『doctor 的余额链检查只能做告警级，因为 app 允许补记旧日期、链式不等不必然为错』完整覆盖，没有新增条件、边界或纠正。"
+   "rationale": "新记忆中每个有长期价值的事实——根因链路（子会话加载全部扩展导致 Orca 上报干扰条目、非 session 文件污染）、修复方案（DefaultResourceLoader 加 noExtensions:true）、提交信息（f3adedc9，仅该文件 +20/-8）、生效时机（新会话起生效）——均已被候选 1 和候选 2 完整覆盖，没有新增条件、边界、原因、步骤、纠正或决策。"
   },
-  "distilled_content": "saldo app 的余额是『插入时基于 lastEntryBalance 累进』且允许补记旧日期，因此 CLI doctor 的余额链不等式检查只能作为告警而非硬错误——链式不等不必然代表数据损坏。",
+  "distilled_content": "每次主会话结束后 auto-skill 用 createAgentSession 在同进程拉起 Skill 提取子会话，子会话默认完整加载全部扩展（含全局 orca-agent-status.ts），其 before_agent_start 携带 'You are the Skill extraction sub-agent...' 经 Orca hook 上报，导致 Orca 代理列表多出干扰条目。排查确认非 session 文件污染（SessionManager.inMemory 落盘修复一直有效）。修复：.pi/extensions/auto-skill/index.ts 中子会话的 DefaultResourceLoader 加 noExtensions: true，子会话零扩展加载，orca 不再上报、memory-hub hook 不再干扰。已提交 f3adedc9（仅该文件 +20/-8），新会话起生效。",
   "proposed": {
    "entities": [
     {
-     "name": "saldo-app",
+     "name": "auto-skill",
      "type": "Project",
-     "summary": "记账应用；余额在插入条目时基于上一条目的 lastEntryBalance 累进计算，并允许补记旧日期的条目，因此余额链可能出现链式不等。"
+     "summary": "pi 扩展（位于 .pi/extensions/auto-skill/index.ts），每次主会话结束后用 createAgentSession 在同进程拉起 Skill 提取子会话。曾因子会话默认加载全部扩展导致 Orca 代理列表出现干扰条目；修复为子会话的 DefaultResourceLoader 设置 noExtensions: true，子会话零扩展加载，新会话起生效。"
     },
     {
-     "name": "cli-doctor",
+     "name": "createAgentSession",
      "type": "Tool",
-     "summary": "saldo app 的 CLI 诊断命令，包含余额链不等式检查，用于发现潜在数据问题。"
+     "summary": "用于在同进程创建子会话的 API；子会话默认通过 DefaultResourceLoader 完整加载全部扩展（含全局扩展如 orca-agent-status.ts）。"
     },
     {
-     "name": "doctor-balance-chain-warning-only",
-     "type": "Decision",
-     "summary": "CLI doctor 的余额链不等式检查只作为告警而非硬错误：由于余额按插入时累进且允许补记旧日期，链式不等不必然代表数据损坏。"
+     "name": "DefaultResourceLoader",
+     "type": "Tool",
+     "summary": "扩展/资源加载器，支持 noExtensions 选项；设为 true 时子会话不加载任何扩展，从而避免扩展钩子（如 before_agent_start 上报）在子会话中触发。"
     }
    ],
    "edges": [
     {
-     "source": "saldo-app",
-     "target": "cli-doctor",
-     "name": "IMPLEMENTS",
-     "fact": "saldo app 提供 CLI doctor 命令，其中包含对余额链不等式的检查。"
+     "source": "auto-skill",
+     "target": "createAgentSession",
+     "name": "USES",
+     "fact": "auto-skill 在每次主会话结束后用 createAgentSession 在同进程拉起 Skill 提取子会话；子会话默认完整加载全部扩展（含全局 orca-agent-status.ts），其 before_agent_start 携带 'You are the Skill extraction sub-agent...' 经 Orca hook 上报，曾导致 Orca 代理列表多出干扰条目。"
     },
     {
-     "source": "doctor-balance-chain-warning-only",
-     "target": "cli-doctor",
-     "name": "APPLIES_TO",
-     "fact": "由于 saldo app 的余额在插入时基于 lastEntryBalance 累进且允许补记旧日期，链式不等不必然代表数据损坏，因此 CLI doctor 的余额链不等式检查只能作为告警而非硬错误。"
+     "source": "auto-skill",
+     "target": "DefaultResourceLoader",
+     "name": "USES",
+     "fact": "修复：auto-skill 在 .pi/extensions/auto-skill/index.ts 中为子会话的 DefaultResourceLoader 增加 noExtensions: true，子会话零扩展加载，orca 不再上报、memory-hub hook 不再干扰；排查已确认干扰非 session 文件污染所致。"
     }
    ],
    "entity_resolution": {
     "resolution_status": "ok",
     "results": [
      {
-      "input_name": "saldo-app",
+      "input_name": "auto-skill",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "8aa377e0-bebc-4366-a4a7-cb1d36b9861e",
+        "canonical_name": "auto-skill",
+        "match_basis": "exact",
+        "created_at": "2026-08-19T19:11:51.896674000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "auto-skill 是 pi 扩展，位于 `.pi/extensions/auto-skill/index.ts`。在主会话首个 agent_end（≥4 条消息）后用 createAgentSession 以 SessionManager.inMemory 拉起技能提取子会话。已修复：子会话的 DefaultResourceLoader 改为 noExtensions: true，子会话零扩展"
+       }
+      ]
+     },
+     {
+      "input_name": "createAgentSession",
       "status": "new",
       "candidates": []
      },
      {
-      "input_name": "cli-doctor",
+      "input_name": "DefaultResourceLoader",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "3de70a65-8ae6-4727-a138-1ee19f1c6646",
+        "canonical_name": "DefaultResourceLoader",
+        "match_basis": "exact",
+        "created_at": "2026-10-22T03:03:09.701874000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "auto-skill 的提取子会话改用 DefaultResourceLoader 并传 noExtensions: true，子会话从此零扩展加载（仅用内置 read/write/edit/bash/grep/find 工具），PI_AUTO_SKILL_CHILD 标记保留为兜底；该修复已实现并冒烟验证通过，新会话起生效。\nDefaultResourceLoader 是 pi 的资源加载器，支"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "flags": [
+   {
+    "check": "novelty_duplicate",
+    "severity": "escalate",
+    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   ],
+   "removals": []
+  }
+ },
+ {
+  "memory_id": "01a15ccb-9fa4-7d10-9556-fda1283ee9cc",
+  "session_id": "pi:maindev:01a15c92-0ab6-74c1-a28d-fd74e4a483e9",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:maindev",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-10-21T04:50:57.780708Z",
+  "snapshot_token": "rs1:2c119bc17033f5fd2177b29de98926127306e1f442111b9f9fe26d7f8097cdf6",
+  "review_id": "01a15ccb-bc9e-7665-bc5c-de79aa228216",
+  "project_id": "maindev",
+  "memory_type": "session_summary",
+  "summary": "UE引擎测试用例修改与RPC调试",
+  "created_at": "2026-10-21T04:50:18.382470Z",
+  "entity_count": 3,
+  "edge_count": 1,
+  "novelty": {
+   "status": "completed",
+   "admission": "duplicate",
+   "rationale": "新记忆的三条事实均已被候选 2（同一测试用例修改会话）覆盖：自动 PIE 落在玩法图与 run-plauto 对齐的机制候选 2 已明确陈述；RPC 轮询必须宽超时的教训候选 2 已完整记录且新记忆自认插入行为重复并已删除；CharacterMovementRuntime_AS 跑通结果候选 2 已记录（第二轮 Success）。收割落点、CL 编号、未改 SKILL.md 等均为元信息而非系统事实，故判定 duplicate。"
+  },
+  "distilled_content": "首个用户目标：修改 Main\\Script\\Tests\\1000_RuntimeTests\\TestCase_50_CharacterMovementRuntime_AS.as 在 用例最后，追加三次 左键 攻击，最后 按 鼠标中键 踢，添加修改，然后发送测试用例，rpcport可能没打开，你可以重启自己打开后连editor测试。最近用户目标：更新 rpc 命令。会话结果：收割完成。落点全部为 `.claude/skills/ue-cli-automation/references/rpc-automation.md`（与用例改动同处 CL 140244，未提交）： | 内容 | 处置 | |---|---| | **自动 PIE 播放编辑器当前打开的地图** → Editor 启动参数传玩法图 = run-plauto `--map` 等效物 | 新增段落（系统架构节），附本次实测命令 | | 2026-10-21 `CharacterMovementRuntime_AS` 跑通记录 | 追加到顶部验证记录行 | | 轮询短超时 → `socket_send_failure` → 假 Fail | **去重**：表尾已有更完整条目（含「Running 期间不做旁路探测」），删除了我重复插入的行 | 未改任何 SKILL.md 正文，无需重建 skill 索引。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "ue-cli-automation",
+     "type": "Tool",
+     "summary": "CLI 自动化 skill，其参考文档 references/rpc-automation.md（相对路径 .claude/skills/ue-cli-automation/references/rpc-automation.md）记录 RPC 自动化机制；本次在系统架构节新增段落，说明通过 Editor 启动参数传玩法图即可自动 PIE 播放编辑器当前打开的地图，是 run-plauto --map 的等效物。"
+    },
+    {
+     "name": "character-movement-runtime-as",
+     "type": "Tool",
+     "summary": "运行时测试用例 Script/Tests/1000_RuntimeTests/TestCase_50_CharacterMovementRuntime_AS.as；按用户要求在用例末尾追加三次左键攻击，最后以鼠标中键踢收尾。"
+    },
+    {
+     "name": "rpc-polling-fake-fail-guidance",
+     "type": "Convention",
+     "summary": "RPC 自动化文档约定：轮询短超时返回 socket_send_failure 会造成假 Fail，因此 Running 期间不做旁路探测。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "rpc-polling-fake-fail-guidance",
+     "target": "ue-cli-automation",
+     "name": "APPLIES_TO",
+     "fact": "rpc-automation.md 约定：RPC 轮询短超时返回 socket_send_failure 会导致假 Fail，因此 Running 期间不做旁路探测。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "ue-cli-automation",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "a3c4d5bf-15ff-4e74-9579-8ecceed9fa39",
+        "canonical_name": "ue-cli-automation",
+        "match_basis": "exact",
+        "created_at": "2026-08-18T13:59:44.814944000+00:00",
+        "group_id": "project:maindev",
+        "summary": "ue-cli-automation 是 Claude skill，位于 .claude/skills/ue-cli-automation/（工作区内相对路径），沉淀 UE 命令行自动化用法；文档 SKILL.md 按测试类型区分调用方式。遵循 native-unit-test-invocation 约定：UnitTests/FUnitTest 等 C++ 原生单测走 Editor-Cmd 或 RP"
+       }
+      ]
+     },
+     {
+      "input_name": "character-movement-runtime-as",
       "status": "new",
       "candidates": []
      },
      {
-      "input_name": "doctor-balance-chain-warning-only",
+      "input_name": "rpc-polling-fake-fail-guidance",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [
+   {
+    "check": "novelty_duplicate",
+    "severity": "escalate",
+    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   ],
+   "removals": []
+  }
+ },
+ {
+  "memory_id": "01a15c93-6764-722a-a659-4ad84b5da7fc",
+  "session_id": "pi:maindev:01a15c14-1afe-7386-a7f2-b68473e547c0",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:maindev",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-10-21T03:49:53.420612Z",
+  "snapshot_token": "rs1:a048b2959d90f133d55f3eeb760acde5d5711eeec97258e651689f7281348937",
+  "review_id": "01a15c93-8b13-7cdb-8c01-7c3f11ada38b",
+  "project_id": "maindev",
+  "memory_type": "session_summary",
+  "summary": "引擎未初始化属性报错处理",
+  "created_at": "2026-10-21T03:48:55.684107Z",
+  "entity_count": 3,
+  "edge_count": 2,
+  "novelty": {
+   "status": "completed",
+   "admission": "duplicate",
+   "rationale": "新记忆的核心事实——CL 140233 pending 已含全部改动、DefaultEngine.ini 引擎侧 Fatal→Warning 而项目侧保持 Fatal、SKILL.md 处置策略更新——与候选 rank1 的已落地记录完全一致；SKILL.index.json 重建无 diff 被生成器自动 revert 只是候选 rank3 已确立规则（正文/章节变化不影响根索引、无 diff 自动 revert 不入 CL）的再次实例；提交需用户明确发话并先跑 PreCheckin 的纪律已在候选 rank6 核心知识卡中。没有任何新增条件、边界、纠正或决策，故判定 duplicate。"
+  },
+  "distilled_content": "首个用户目标：排查下 为啥上一个编译都还是好的，后一个没啥相关的变化，出现了编译报错（检查变量是否初始化） http://192.168.2.13:8111/buildConfiguration/PL_BuildUgsBinaries/34600?buildTab=log&linesState=8882&logView=flowAware @winbuilder3-maindev 这个报错是 Engine\\Source\\Runtime\\CoreUObject\\Private\\UObject\\Class.cpp line 4421 打印的。最近用户目标：可以，按你说的修改。会话结果：修改上一轮已经全部落地了，当前状态： **CL 140233（pending）已包含全部改动**： - `Main/Config/DefaultEngine.ini` — `EngineModuleReflectedUninitializedPropertyVerbosity` Fatal→Warning（带注释说明），项目模块保持 Fatal - `.claude/skills/unreal-build-fix/SKILL.md` — 该症状的处置策略已按新决策更新 - `.team/sunlaibing/reference_uninitialized_struct_check_fatal.md` + `memory.md` — Dataflow 实例与决策记录 - SKILL.index.json 重建过，无结构性变化（生成器已自动 revert） 剩下的只有提交这一步。按仓库规矩提交需要你明确发话——**现在提交 CL 140233 吗？** 你确认后我先跑 PreCheckin 打标记再提交；提交后 CI 下次同步生效，build 34600 那个红构建直接重跑止血即可。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "engine-uninitialized-property-warning",
+     "type": "Decision",
+     "summary": "用户明确批准并已落地的配置决策：在 Config/DefaultEngine.ini 将 EngineModuleReflectedUninitializedPropertyVerbosity 由 Fatal 降为 Warning（仅引擎模块，附注释说明），项目模块的检查保持 Fatal；起因是引擎模块反射属性未初始化检查（打印于 Engine/Source/Runtime/CoreUObject/Private/UObject/Class.cpp 第 4421 行）导致与本次改动无关的构建失败。截至会话结束改动在 pending CL 中、尚未提交。"
+    },
+    {
+     "name": "EngineModuleReflectedUninitializedPropertyVerbosity",
+     "type": "Convention",
+     "summary": "Unreal 项目配置键，位于 Config/DefaultEngine.ini，控制引擎模块反射属性未初始化检查的报告级别；该检查的诊断打印位于引擎源码 Engine/Source/Runtime/CoreUObject/Private/UObject/Class.cpp 第 4421 行。"
+    },
+    {
+     "name": "unreal-build-fix",
+     "type": "Tool",
+     "summary": "位于 .claude/skills/unreal-build-fix 的构建修复技能（SKILL.md），记录 UE 构建错误的处置策略；本轮已按新决策更新引擎模块反射属性未初始化 Fatal 症状的处置策略。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "engine-uninitialized-property-warning",
+     "target": "EngineModuleReflectedUninitializedPropertyVerbosity",
+     "name": "CONFIGURES",
+     "fact": "按用户批准的决策，Config/DefaultEngine.ini 中 EngineModuleReflectedUninitializedPropertyVerbosity 对引擎模块由 Fatal 降为 Warning 并附注释，项目模块保持 Fatal；截至会话结束改动在 pending CL 中尚未提交。"
+    },
+    {
+     "source": "unreal-build-fix",
+     "target": "engine-uninitialized-property-warning",
+     "name": "FOLLOWS",
+     "fact": "unreal-build-fix 技能（SKILL.md）对引擎模块反射属性未初始化检查 Fatal 症状的处置策略已按该决策更新。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "engine-uninitialized-property-warning",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "EngineModuleReflectedUninitializedPropertyVerbosity",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "unreal-build-fix",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "3c255e93-d33c-45f4-aaea-5b9e33044bbf",
+        "canonical_name": "unreal-build-fix",
+        "match_basis": "exact",
+        "created_at": "2026-09-07T22:56:18.380234000+00:00",
+        "group_id": "project:maindev",
+        "summary": "unreal-build-fix 是一个编译错误诊断 skill（工具），覆盖 crash dump、断言、Shipping 报错、插件丢 DLL 等场景。当编译错误出现时，应优先走此 skill 进行诊断，而不是默认使用 Clean/Rebuild/删缓存/重新生成工程等恢复手段。MainDev 的编译错误诊断（含 crash dump、断言、Shipping 报错、插件丢 DLL）走 skil"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "flags": [
+   {
+    "check": "novelty_duplicate",
+    "severity": "escalate",
+    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   ],
+   "removals": []
+  }
+ },
+ {
+  "memory_id": "01a15c55-39e2-70d0-96a2-87d26a89cd98",
+  "session_id": "pi:maindev:01a15c14-1afe-7386-a7f2-b68473e547c0",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:maindev",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-10-21T02:42:36.458512Z",
+  "snapshot_token": "rs1:21949b9e0282e840daf4bf45addee4c8c30d0130710fd2e29174acf3d0091a82",
+  "review_id": "01a15c55-8436-76c4-a481-d51b04de0900",
+  "project_id": "maindev",
+  "memory_type": "session_summary",
+  "summary": "FDateTime默认值导致编译误报排查",
+  "created_at": "2026-10-21T02:41:10.695968Z",
+  "entity_count": 4,
+  "edge_count": 2,
+  "novelty": {
+   "status": "completed",
+   "admission": "duplicate",
+   "rationale": "新记忆的全部长期事实（误报对象FDataflowToolNodeSnapshot::Date、触发机制、误报条件、Fatal日志路径、排除回归证据、IgnoreForMemberInitializationTest修法）均已被候选1逐条完整覆盖；唯一的文本差异是『最近用户目标：尽量减少对引擎的修改』，这是用户意向而非已确立的新事实，不构成新增条件、边界、纠正或决策。修法本身也与候选2记录的Concert先例一致，无演进。"
+  },
+  "distilled_content": "首个用户目标：排查下 为啥上一个编译都还是好的，后一个没啥相关的变化，出现了编译报错（检查变量是否初始化） http://192.168.2.13:8111/buildConfiguration/PL_BuildUgsBinaries/34600?buildTab=log&linesState=8882&logView=flowAware @winbuilder3-maindev 这个报错是 Engine\\Source\\Runtime\\CoreUObject\\Private\\UObject\\Class.cpp line 4421 打印的。最近用户目标：但是我要尽量减少对引擎的修改，该怎么弄，。会话结果：核实完毕，本地代码与 winbuilder3 日志完全吻合。结论如下： ## 诊断结论：概率性误报，不是代码回归 **报错对象**：`FDataflowToolNodeSnapshot::Date`（引擎插件 `Engine/Plugins/Dataflow/Source/DataflowNodes/Public/Dataflow/DataflowToolNode.h:47`） ```cpp UPROPERTY(VisibleAnywhere, Category = Snapshots) FDateTime Date = FDateTime::Now(); // ← 非确定性默认值 ``` ### 为什么\"没改任何相关代码\"也会挂 1. **触发机制**：`FStructUtils::AttemptToFindUninitializedScriptStructMembers()`（Class.cpp:4421，4397 是 Logf 行）对每个 native struct 做两次构造——内存分别填 `0xAA` / `0x55` 后跑默认构造，再逐个比较 UPROPERTY。**两次构造结果不一致就判\"未初始化\"**。 2. **误报条件**：`FDateTime::Now()` 在 Windows 上只有 ~15.6ms 时钟粒度。两次背靠背构造绝大多数时候落在同一 tick 内 → 通过；**偶尔跨过 tick 边界差 1ms → 误判**。高负载时更容易撞上。 3. **为什么直接红**：项目 `DefaultEngine.ini` 把 `UninitializedPropertyVerbosity` 设为 `Fatal`，Error 日志在 commandlet `-unattended` 下转 appError → exit 3，挂在 Step 11/17（AngelScript Compile Check）收尾阶段——**AS 编译和单测本身全部通过**。 ### 排除回归的证据 - 本次构建同步范围 **CL 140210→140215**：140211（飞书机器人）、140213（CI 二进制 zip）、140215（实体数据表 uasset），全部无关； - `DataflowNodes.dll` 是 9-24 编译的，本次未重编；检查代码 Class.cpp 最近改动是 8-26 的 CL126598——**上一次成功构建和本次失败构建跑的是完全相同的二进制**，上次同样检查 0 条报错。 ### 修复建议（与 Concert 先例同款） 这正是之前 `FConcertSessionChallengeData::CreationTimeInTicks` 的同款问题，标准修法是给该 UPROPERTY 加忽略标记（引擎文件，需 @CYANCOOK）： ```cpp // @CYANCOOK: Ignore non-deterministic default in member initialization self-check UPROPERTY(VisibleAnywhere, Category = Snapshots, Meta = (IgnoreForMemberInitializationTest)) FDateTime D",
+  "proposed": {
+   "entities": [
+    {
+     "name": "FStructUtils::AttemptToFindUninitializedScriptStructMembers",
+     "type": "Tool",
+     "summary": "UE 引擎 CoreUObject 的 native struct 未初始化成员自检（Engine/Source/Runtime/CoreUObject/Private/UObject/Class.cpp）：对每个 native struct 分别以 0xAA/0x55 填充内存后各跑一次默认构造，再逐个比较 UPROPERTY，两次构造结果不一致即报未初始化；带非确定性默认值的属性（如 FDateTime::Now()，Windows 时钟粒度约 15.6ms，偶跨 tick 边界）会产生概率性误报，与代码是否改动无关。"
+    },
+    {
+     "name": "IgnoreForMemberInitializationTest",
+     "type": "Convention",
+     "summary": "UPROPERTY 元标记（Meta=(IgnoreForMemberInitializationTest)），使该属性免于成员初始化自检，用于默认值非确定性的属性；引擎内先例为 FConcertSessionChallengeData::CreationTimeInTicks 的同款修复；对 FDataflowToolNodeSnapshot::Date 的同款修改当时仅为助手建议。"
+    },
+    {
+     "name": "UninitializedPropertyVerbosity",
+     "type": "Convention",
+     "summary": "UE 配置项，控制未初始化成员检查的日志级别；项目 DefaultEngine.ini 将其设为 Fatal 时，检查的 Error 日志在 commandlet -unattended 下转为 appError（exit 3），导致构建失败。"
+    },
+    {
+     "name": "minimize-engine-source-modifications",
+     "type": "Decision",
+     "summary": "用户明确要求：修复方案应尽量减少对引擎源码的修改（在排查未初始化成员误报的修复方式时提出）。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "IgnoreForMemberInitializationTest",
+     "target": "FStructUtils::AttemptToFindUninitializedScriptStructMembers",
+     "name": "APPLIES_TO",
+     "fact": "为 UPROPERTY 添加 Meta=(IgnoreForMemberInitializationTest) 可使其免于 FStructUtils::AttemptToFindUninitializedScriptStructMembers 的成员初始化自检，适用于默认值非确定性导致的概率性误报；先例为 FConcertSessionChallengeData::CreationTimeInTicks，对 FDataflowToolNodeSnapshot::Date（Engine/Plugins/Dataflow/Source/DataflowNodes/Public/Dataflow/DataflowToolNode.h:47）的同款修复当时仅为助手建议，尚无实施确认。"
+    },
+    {
+     "source": "UninitializedPropertyVerbosity",
+     "target": "FStructUtils::AttemptToFindUninitializedScriptStructMembers",
+     "name": "CONFIGURES",
+     "fact": "项目 DefaultEngine.ini 将 UninitializedPropertyVerbosity 设为 Fatal，使该自检的 Error 日志在 commandlet -unattended 下转为 appError（exit 3），概率性误报因此直接令构建失败。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "FStructUtils::AttemptToFindUninitializedScriptStructMembers",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "IgnoreForMemberInitializationTest",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "611db28c-864a-4136-ba37-9b9d45fb500d",
+        "canonical_name": "IgnoreForMemberInitializationTest",
+        "match_basis": "exact",
+        "created_at": "2026-10-11T00:32:36.191328000+00:00",
+        "group_id": "project:maindev",
+        "summary": "concert-creationtimeinticks-uninitialized-fix 使用 IgnoreForMemberInitializationTest 元标记，使 UObject 的 AttemptToFindUninitializedScriptStructMembers 成员初始化自检跳过 FConcertSessionChallengeData::CreationTimeInT"
+       }
+      ]
+     },
+     {
+      "input_name": "UninitializedPropertyVerbosity",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "0f680c19-ac59-41d0-9782-a16766cf4ad7",
+        "canonical_name": "UninitializedPropertyVerbosity",
+        "match_basis": "exact",
+        "created_at": "2026-10-21T01:54:17.896336000+00:00",
+        "group_id": "project:maindev",
+        "summary": "受影响项目的 DefaultEngine.ini 将 UninitializedPropertyVerbosity 设为 Fatal，会把 member-initialization-self-check 产生的 Error 提升为 commandlet -unattended 下的 appError，导致构建以 exit 3 失败。"
+       }
+      ]
+     },
+     {
+      "input_name": "minimize-engine-source-modifications",
       "status": "new",
       "candidates": []
      }

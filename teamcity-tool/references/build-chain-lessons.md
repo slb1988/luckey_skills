@@ -171,3 +171,14 @@ project {
 cd .teamcity && mvn teamcity-configs:generate
 ```
 BUILD SUCCESS confirms the DSL compiles. Then `p4 reconcile` + `p4 submit` the `.teamcity/` source files (exclude `target/`).
+
+## Versioned settings 同步模式按项目分：UI/REST 直改是否会被覆盖
+
+同一台 TC 上各项目的 Kotlin DSL 版本化策略不同，决定「UI 或 REST 直接改配置」是否持久：
+
+| 项目 | DSL depot 路径 | 同步模式 | UI/REST 直改 |
+|---|---|---|---|
+| PL（`PL_*`，如 PL_RunProcessorsOnDT） | `//depot/Teamcity/` | `allowUIEditing: true` | **安全持久**：TC 自动把改动作为新 CL 提交回 P4（描述如 "Build trigger replace"），重启/同步不覆盖 |
+| PLN（`PLN_*`，AI Review 链） | `//depot/Teamcity_PLN/` | `PREFER_VCS` | **会被覆盖**：必须改版本化 DSL 提交，UI-only 改动只是临时态 |
+
+改 PL 项目的触发器/参数时 REST PUT 与 UI 操作等价；改完用 `p4 changes //depot/Teamcity/...` 并读 depot head 的 kts，核实 TC 自动回写的 CL 已落地。判断某项目当前模式的依据：项目 Versioned Settings 页的 sync mode / allowUIEditing（patch 文件历史里存在 TC 自己提交的 CL 也是旁证）。

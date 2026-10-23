@@ -9,6 +9,10 @@ description: 从 build-api-proxy 网关的 history.db 请求留档中按天蒸�
 
 build-api-proxy 把全团队所有经网关的 LLM 请求**完整留档**（含请求/响应原文）在 `history.db`。本 skill 把这些对话按天蒸馏成可复用的经验文档，产出到 **`~/llm-distill/<YYYY-MM-DD>.md`**，一天一个文件。
 
+<memory category="code-locations">
+蒸馏管线与产物都在 **auto-server**：`dev@192.168.2.13:/home/dev/llm-distill/`（每日凌晨 ~04:25–04:35 生成当天文件；目录另含 `README.md` 进度索引与 `logs/`）——**不在 QNAP NAS**：2026-10-21 实地核查 NAS 上无 dev 用户、无 llm-distill 目录、无 build-api-proxy 容器，别再按 @nas 假设去找。读取产物用本仓库 `.env` 已有的 `AUTO_SERVER_SSH_HOST/PORT/USER/PASSWORD`（paramiko 实测可登录），无需另配凭据。
+</memory>
+
 ## ⚠️ 两条铁律
 
 1. **30 天正文保留窗口**：`HISTORY_RETENTION_DAYS` 默认 30，超期记录**删正文留元数据**——更老的日期只剩 token 统计，无内容可蒸。蒸馏前先查正文完整率（见 references/extraction.md），空壳日期直接跳过并记录。**优先蒸最老的可用日期**（从旧往新），因为时间越久越接近被清。

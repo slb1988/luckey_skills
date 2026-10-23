@@ -110,7 +110,8 @@ family 内的错误源组，只有在人工明确确认“这是 scope 修复”
 预览生成的 attempt 记账（D:/Github/memory-hub service.py）：只有两类事烧 `preview_attempts`——
 LLM 调用异常与 JSON 解析失败（3196-3202）；「0 实体 0 边」的合法空预览是成功路径，不烧次数。
 3 次到顶进入 `preview_failed` 终态，无自动恢复；auto-review 只 claim `status='review'` 的条目
-（3301），preview_failed 永不接管。
+（3301），preview_failed 永不接管。（此终态口径为 v31 之前：schema v31 起改为 4h 冷却自动重排
++ 3 轮护栏，见 SKILL.md 对应块；novelty 侧无同等待遇，见下节。）
 
 预览 `max_tokens=2048` 硬编码、输入全文不截断（3121-3125），且 temperature=0：同一超长正文
 （典型为 UE/P4 调试类长蒸馏文）三次重试产出相同输出，连续烧满 3 次是确定性失败而非运气。
@@ -124,3 +125,21 @@ worker.log 错误签名判读：
 排查「队列卡住」先 scan 按 status 分层：`preview_failed`（attempts 烧满的终态，只能人工处置）
 与 `preview_pending`（attempts=0 从未被执行，查 worker 存活与 SQLite 写锁）是两类完全不同的
 卡住，证据链与恢复入口不同，不能混查。
+
+## novelty failed 终态与 dream duplicate 自动核销
+
+`novelty.status=failed` 与 preview_failed 口径不同：**仍是终态、零自动重试**，也没有手动
+retry 接口（preview_failed 自 schema v31 起有 4h 冷却自动重排 + `retry_preview`，novelty 侧
+未获同等待遇）。failed 多为 LLM 瞬断签名（`llm timed out` / `LLM returned empty content`），
+不是正文缺陷。处置只能人工：核正文质量后带 `acknowledge_novelty_warning=true` approve
+（正文合格时 novelty 失败本身不构成拒绝理由）或 reject。自动重试自愈 = 改进清单 P2-11
+（`.claude/plans/memory-hub-review-server-improvements.md`），截至 2026-10-23 未实施——
+因此 auto 模式下 novelty failed 条目会永久滞留，这是 fail-closed 设计行为，不是 auto-review 失效。
+
+dream 产物（dream_experience/dream_lesson）的 novelty=duplicate 自 `f1275c4`
+（2026-10-20 部署）起**不再依赖人工**：覆盖源全部 indexed 的 dream duplicate 会在下一次
+dream run 的回读核销中被自动拒绝（rationale `auto:dream-duplicate`），入队到自动清理有
+≤24h 延迟（dream run 固定在本地 04:00）。部署生效的验证信号 = dream run 的 `skipped_covered`
+计数（修复前全历史 0 次；10-22 run 9 条、10-23 run 1 条）。队列里见到 dream 类型 duplicate
+先查当晨 run 的 skipped_covered，大概率次日自清，不必逐条人工核；非 dream 的
+session_summary duplicate 无此通道（reject 不可逆），仍须人工确认后处置。

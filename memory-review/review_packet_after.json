@@ -1,86 +1,53 @@
 [
  {
-  "memory_id": "01a150a8-67ed-7e27-bcf7-8fb5c8ef8207",
-  "session_id": "pi:mini-as:01a14efb-daa5-70a9-9a5d-d849023b06c9",
+  "memory_id": "01a166a6-b4dc-72c7-aa55-5935a3edc6eb",
+  "session_id": "claude:obsidianvault:7e6b91db-d59f-40e7-9ce3-f933705982fa",
   "session_version": null,
   "scope_type": "project",
-  "group_id": "project:mini-as",
-  "status": "review",
+  "group_id": "project:obsidianvault",
+  "status": "preview_pending",
   "memory_status": "pending_extraction",
   "preview_attempts": 0,
-  "updated_at": "2026-10-18T20:20:50.381609Z",
-  "snapshot_token": "rs1:5371c13ab70962494622560513240a10546fa786fa3f5181da653513808ae913",
-  "review_id": "01a150ac-0f92-73dc-bf24-2161681e6f9f",
-  "project_id": "mini-as",
-  "memory_type": "dream_experience",
-  "summary": "mini-as changelog 工作流约定：助手不执行 git 提交",
-  "created_at": "2026-10-18T20:20:15.874839Z",
-  "entity_count": 2,
-  "edge_count": 1,
+  "updated_at": "2026-10-23T02:46:18.190178Z",
+  "snapshot_token": "rs1:e930abddc7b97d48030d7d1c2ac66f52b82a9c4a7a134531159b8526d45af151",
+  "review_id": "01a166a6-d9b2-7b7f-9e75-5cf792c06c5d",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "memory-hub 修复与批量处理优化",
+  "created_at": "2026-10-23T02:46:13.154292Z",
+  "entity_count": 0,
+  "edge_count": 0,
   "novelty": {
-   "status": "completed",
-   "admission": "duplicate",
-   "rationale": "新记忆的核心长期事实——按 skill 约定助手在 changelog 任务中不执行 git add/commit、提交时机由用户决定——已被候选 rank 9（明确记载同一 skill 约定）和 rank 4（未执行提交、由用户决定）完整覆盖；新记忆仅报告同一约定在本次会话被再次遵守，未新增条件、边界、纠正或决策。"
+   "status": "processing",
+   "admission": null,
+   "rationale": "历史知识比对进行中"
   },
-  "distilled_content": "在 mini-as 仓库的 changelog 完善任务中，按 skill 约定助手只修改文档文件，不执行 git add/commit，提交时机由用户自行决定。本次会话中两次完成任务（021 增补、022 改写）均遵守此约定。",
-  "proposed": {
-   "entities": [
-    {
-     "name": "mini-as",
-     "type": "Project",
-     "summary": "进行 changelog 完善任务的仓库；相关文档修改工作遵循特定 skill 提交约定。"
-    },
-    {
-     "name": "changelog-doc-only-user-commit",
-     "type": "Convention",
-     "summary": "mini-as 仓库 changelog 完善任务的 skill 约定：助手只修改文档文件，不执行 git add/commit，提交时机由用户自行决定。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "mini-as",
-     "target": "changelog-doc-only-user-commit",
-     "name": "FOLLOWS",
-     "fact": "在 mini-as 仓库的 changelog 完善任务中，助手遵循 skill 约定：只修改文档文件，不执行 git add/commit，提交时机由用户自行决定。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "mini-as",
-      "status": "exact",
-      "candidates": [
-       {
-        "uuid": "74a93d6b-972b-48b4-8062-10126c78edcc",
-        "canonical_name": "mini-as",
-        "match_basis": "exact",
-        "created_at": "2026-08-19T12:43:13.772741000+00:00",
-        "group_id": "project:mini-as",
-        "summary": "mini-as 是 AngelScript 兼容实现项目，工作目录为 D:\\Github\\mini-as，也是教学版脚本引擎项目，对象内存采用引用计数管理，并实现基于 trial deletion 的循环引用 GC（教学版为 stop-the-world，设计文档在 docs/stages/14-cycle-gc.md）。\n\n差分门禁机制保证与官方 AngelScript 2.38.0 行为一致："
-       }
-      ]
-     },
-     {
-      "input_name": "changelog-doc-only-user-commit",
-      "status": "new",
-      "candidates": []
-     }
-    ]
-   }
-  },
+  "distilled_content": "首个用户目标：参考 D:/Github/ObsidianVault/.claude/plans/memory-hub-review-server-improvements.md 迭代优化。最近用户目标：已经发布了，你继续剩下的修改，默认关闭吧。会话结果：计划里剩下的两项都做完了，12 项全部处理完毕。memory-hub 新增两个本地提交：`6bd62b1` 和 `82cb13b`，**都还没 push，也没部署**。 **P2-10 original fallback（`6bd62b1`，默认关闭）** - 新增开关 `EXTRACTION_AUTO_ORIGINAL_FALLBACK`，默认 `false`，只在自动审核为 shadow 或 auto 时起作用。 - 打开后，auto-review 会额外处理\"预览自动重试全部用完仍失败\"的条目。还有重试机会的不碰，等它冷却后自己重试。 - LLM 看到的是空预览，按现有 prompt 决定：正文有长期价值就按原文批准，否则转人工。novelty 门禁、敏感信息检查、置信度门槛都不变，仍然永不自动拒绝。 - 这类批准的理由以 `auto-original:` 开头，事后能和普通的 `auto-review:` 区分开。 - 同组有入图任务在跑时不处理，也不消耗 LLM。如果领取后才碰上门禁，条目保持 `preview_failed` 等下一轮，不会被打回去重建预览。否则会陷入\"重建 → 失败 → 再 fallback\"的循环，一直烧 token。 - 要启用：在 NAS 的 `.env` 里加 `EXTRACTION_AUTO_ORIGINAL_FALLBACK=true` 后重启。建议先在 shadow 模式下看几轮审计记录，再切 auto。 **P3-12 duplicate 批量处置（`82cb13b`）** - 队列接口加了 `novelty=duplicate|failed` 过滤，可以和 status 一起用；protocol、BFF、前端三处一起改了。 - 队列页： - 新增\"历史比对\"下拉框； - 可以勾选本页的条目，批量拒绝，或批量按原文批准。按审核结果批准需要逐条看预览，所以批量里不提供。 - 点批量后，确认弹框会先把每条的摘要和比对理由拉出来展示。批准只用弹框里展示的那个版本，不会在提交前偷偷换成最新版本；期间被改过的条目会显示\"内容已变化\"并跳过。 - 只有选中的条目里有 duplicate 或 failed 时，才会一并确认 novelty 风险，弹框里会写明。 - 计划里的\"duplicate 超期自动拒绝\"没做，因为它违反\"永不自动拒绝\"的红线。 **验证**：Hub 测试 1307 个通过，失败的仍是那 6 个 Windows 上没有 `fcntl` 的用例（改动前就失败）。BFF 328 个通过。前端 220 个通过，typecheck 和 build 正常。新增测试覆盖了： - fallback 默认关闭； - 冷却期内或 novelty 不放行时不处理； - 同组入图时不调用 LLM，领取后才撞上门禁的竞态也不会被打回重建； - 批量批准只用弹框里展示的版本。 **你需要知道的：** - 批量勾选只在桌面表格里有，手机卡片列表没有；一次只能选当前页（最多 100 条）。 - 计划文件已标为全部完成，提交并 push 到 vault（`dd6eabd8`）。 发布时 Hub 和 BFF 都要重启，前端也要重新构建。这次没有 schema 迁移。",
+  "proposed": {},
   "flags": [
    {
-    "check": "novelty_duplicate",
+    "check": "preview_pending",
     "severity": "escalate",
-    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+    "detail": "审核状态 preview_pending，preview_attempts=0；需核对预览生命周期"
+   },
+   {
+    "check": "empty_preview",
+    "severity": "escalate",
+    "detail": "预览为空；curated 不可用，只能 original 或人工看正文"
+   },
+   {
+    "check": "novelty_not_completed",
+    "severity": "escalate",
+    "detail": "novelty 分析未完成：processing（批准会 fail-closed）"
    }
   ],
   "suggestion": {
    "action": "escalate",
    "auto": false,
    "reasons": [
-    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+    "审核状态 preview_pending，preview_attempts=0；需核对预览生命周期",
+    "预览为空；curated 不可用，只能 original 或人工看正文",
+    "novelty 分析未完成：processing（批准会 fail-closed）"
    ],
    "removals": []
   }

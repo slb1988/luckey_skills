@@ -3,20 +3,24 @@
   "approvals": [],
   "rejections": [
     {
-      "review_id": "01a150b1-a083-7195-8bfe-5b22a175cab5",
-      "rationale": "审核: novelty duplicate 已用 memory_search 核实——图谱已含同一约定且更详(nas deploy convention: dist gitignored、NAS 无 node 须本机 build 后 rsync/scp，另含 401 症状与 SHA-256 校验部署流)；本条为纯重复确认无增量，reject 不丢知识"
+      "review_id": "01a1653a-5c0d-7e7d-b749-676a42d81887",
+      "rationale": "agent-review: novelty=duplicate 经独立图谱检索核实——rpdt 归属链（Tag→PLEntityTagMapping Soft*→BP→content_manager）与两类「未注册」根因（日志 Asset 优先/映射表滞后）均已在图谱 indexed，正文无新增事实，拒。"
     },
     {
-      "review_id": "01a150ae-5695-788e-8842-6180172bd87a",
-      "rationale": "审核: novelty duplicate 已核实——图谱已确认 legacy-category-rewrite-risk(旧版编辑未知 typeValue 改写 categoryValue、当前单版本未处理、待同步/多设备时再解决)及 AccountType custom(99) 兜底定位；本条为同一事实重述无新增边界，reject 不丢知识"
+      "review_id": "01a16538-e68a-7785-96cf-3e00fda29217",
+      "rationale": "agent-review: novelty=duplicate 经独立图谱检索核实——auto-skill 提取子会话 DefaultResourceLoader noExtensions:true 修复（f3adedc9、零扩展加载、新会话生效）已在图谱 indexed，无新增事实，拒。"
     },
     {
-      "review_id": "01a150ac-ed72-7d00-9893-7960aace356c",
-      "rationale": "审核: novelty duplicate 已核实——两个事实均逐字在图谱: ①热重载只取消受影响状态机为明确未做项(OnPreCompile 不知哪些类重载/MoveNext 跨编译存活未验证/需编译器侧先行设计) ②内置任务 Async::Completed/NextFrame/Delay 不建 producer lease(无 native 根引用、最需测试确认)；纯重复，reject 不丢知识"
+      "review_id": "01a15ccb-bc9e-7665-bc5c-de79aa228216",
+      "rationale": "agent-review: novelty=duplicate 经独立图谱检索核实——RPC 轮询宽超时/socket_send_failure 假 Fail 教训与 CharacterMovementRuntime_AS 跑通结果均已在图谱 indexed，收割落点为文档元信息，无新增事实，拒。"
     },
     {
-      "review_id": "01a150aa-9c32-743c-be6c-86d6eb479e07",
-      "rationale": "审核: novelty duplicate 已核实——图谱已逐字确认『doctor 的余额链检查只能做告警级，因为 app 允许补记旧日期、链式不等不必然为错』；本条为同一结论重述，reject 不丢知识"
+      "review_id": "01a15c93-8b13-7cdb-8c01-7c3f11ada38b",
+      "rationale": "agent-review: novelty=duplicate 经独立图谱检索核实——EngineModuleReflectedUninitializedPropertyVerbosity Fatal→Warning 决策（零引擎代码改动）与 pending CL 状态均已在图谱 indexed，无新增事实，拒。"
+    },
+    {
+      "review_id": "01a15c55-8436-76c4-a481-d51b04de0900",
+      "rationale": "agent-review: novelty=duplicate 经独立图谱检索核实——FDateTime 概率性误报机制（0xAA/0x55 两次构造比较、15.6ms tick）、IgnoreForMemberInitializationTest 修法与 Concert 先例均已在图谱 indexed；唯一文本差异「尽量减少引擎修改」为用户意向，已由图谱中对应决策记忆覆盖，拒。"
     }
   ]
 }

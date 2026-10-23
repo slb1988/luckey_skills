@@ -14,7 +14,7 @@ description: QNAP NAS 综合运维工具。当用户提到 QNAP 命令行、NAS 
 - **网络身份（2026-09-04 实测更新）**: LAN `192.168.50.2/24`（qvs0 虚拟交换机，DHCP 来自 192.168.50.1，eth0 DOWN），WireGuard `10.77.77.6` 为兜底通道。**旧资料中的 `192.168.2.13` 不再是 NAS**——那是同网段另一台服务器（TeamCity :8111 / nginx :80，其 :1666 也有服务）；NAS 的 Perforce 现为 `192.168.50.2:1666`。工作站（192.168.2.x）到 192.168.50.x 跨网段路由可通。注意 NAS 网口是 DHCP，有换号风险，WG 地址永远可靠。
 - **SMB**: 服务端正常（smbd 监听 0.0.0.0:445/139，无防火墙/接口绑定限制），但禁 guest（匿名 net use 报 error 64）；工作站无已存凭据时需先配 `cmdkey`/`net use /persistent`。`net view` 报 1702 只是 NetBIOS 浏览被禁，不影响按 UNC 路径直连。
 - **QPKG 路径**: `/share/CACHEDEV1_DATA/.qpkg/`
-- **Shell 环境**: `/bin/sh`（BusyBox，非 bash），需注意兼容性；**无 `nohup`**，后台任务用 `setsid` 替代
+- **Shell 环境**: `/bin/sh`（BusyBox，非 bash），需注意兼容性；**无 `nohup`**，后台任务用 `setsid` 替代；（2026-10-23 发现）**`curl` 权限被剥**、执行报 Permission denied，下载与健康检查改用 `python3` 标准库 `urllib`（@nas 派发任务里的 curl 命令同样要替换）
 - **远程 agent 权限模型（2026-09-07 实测）**: pyauto agent 以 `slb1988` 运行；`.system/`、`dbbackup/` 等系统目录属主 `admin:administrators`(755)，agent 无目录写权限**无法删文件**，降级方案：组可写文件 `truncate -s 0` 足额回收空间（空文件条目留待 admin 顺手删）；`-rw-r--r--` 属 admin 独写的文件（如 2022 旧 sql）truncate 也被拒，只能 admin 处理
 - **磁盘空间治理**: 卷拓扑、可清理缓存清单、排查结论 → [references/disk-space.md](references/disk-space.md)
 - **pyauto-computer agent**: NAS 上跑 pyAutomation 受管 agent（名 `nas`，端口 9100），**重启后不自启**（QTS 无 systemd user session），恢复方法 → [references/pyauto-agent.md](references/pyauto-agent.md)

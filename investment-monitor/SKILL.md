@@ -58,7 +58,7 @@ python daily_valuation_check.py --no-notify
 
 ## 定时任务
 
-任务名 `InvestmentMonitor-DailyValuation`，工作日 18:00。重建命令：
+任务名 `InvestmentMonitor-DailyValuation`，工作日 18:00。**当前已 Disabled**（用户不再需要该通知）；恢复用 `Enable-ScheduledTask -TaskName 'InvestmentMonitor-DailyValuation'`。重建命令：
 
 ```powershell
 schtasks /create /f /tn "InvestmentMonitor-DailyValuation" `

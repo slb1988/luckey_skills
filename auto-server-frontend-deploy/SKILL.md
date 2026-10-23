@@ -53,6 +53,11 @@ AI Review 的标题、评论和编译分析是分散在 `ReviewDetail.vue`、`co
 
 ## 注意事项
 
+<memory category="troubleshooting">
+`npm run build` 的 vite chunk 体积警告（`Some chunks are larger than 500 kB`，element-plus
+约 1062 kB 等）是历史遗留，历次发布均出现，不阻断构建也不影响发布，无需处理或上报为异常。
+</memory>
+
 - 只在已核实的 `dev@auto-server` 会话执行；不要假定当前机器就是目标机
 - **必须设置 `P4CHARSET=utf8`**，否则 P4 服务器会报 `Unicode server permits only unicode enabled clients` 导致同步静默失败
 - 确保 P4 用户 `admin_sun` 有权限访问仓库

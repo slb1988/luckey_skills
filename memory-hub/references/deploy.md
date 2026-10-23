@@ -413,6 +413,10 @@ curl -sS http://127.0.0.1:9288/api/v1/health/live
 
 浏览器访问 `http://10.77.77.6:9288/`。详细配置见仓库 `docs/DASHBOARD.md`。
 
+<memory category="common-patterns">
+dist 的另一条已验证发布路径（2026-10-23 发布 88c465e 实证，与上文 NAS 本地构建并存）：本机门禁 `vue-tsc` typecheck + `vite build` → 版本化包 `memory-hub-dist-<sha7>.tar.gz`（记录字节数 + SHA-256）→ 本机绑 WG IP 开临时 HTTP 服务供 NAS 拉取（传完即关）→ NAS 侧先验 SHA-256、staging 目录校验通过后再切换 `frontend/dist`。停写前成套备份、schema 迁移只读验证等门禁不因走此路径而省略；NAS 侧下载/健康检查若 curl 不可用改用 python3 urllib（见 qnap-nas 的 Shell 环境注记）。
+</memory>
+
 ## 运行测试（改代码后）
 
 ```bash

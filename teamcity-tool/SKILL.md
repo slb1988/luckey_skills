@@ -54,7 +54,7 @@ Always read the reference file before acting — it contains the actual paths, p
 | LDAP setup / auth | `references/ldap-config.md` |
 | REST API (queries, parameters, queue, buildType settings/并发上限 `maximumNumberOfBuilds`) | `references/rest-api.md` |
 | Build chain 参数所有权、override/reverse 解析、隐式 Agent 要求、工作区、安全重排与验证（chain 问题先读） | `references/build-chain-parameters.md` |
-| Kotlin DSL、VCS/checkout 与链配置补充 | `references/build-chain-lessons.md` |
+| Kotlin DSL、versioned settings 同步模式（PL allowUIEditing 可直改 vs PLN PREFER_VCS 必须改 DSL）、VCS/checkout 与链配置补充 | `references/build-chain-lessons.md` |
 | Agent 名称正则、白名单与 Pool | `references/agent-pinning.md` |
 | Non-obvious traps（含构建日志清理范围与 ZFS 空间口径、executionTimeout 链级语义/无「无输出超时」） | [references/gotchas.md](references/gotchas.md) |
 | 打包管线 (PL_BuildProjectWindows / PL_BuildUgsBinaries / UAT cook) | `references/package-pipeline.md` |
