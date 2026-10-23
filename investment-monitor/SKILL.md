@@ -73,6 +73,7 @@ schtasks /create /f /tn "InvestmentMonitor-DailyValuation" `
 | 现象 | 排查 |
 |---|---|
 | 没收到通知 | 先确认当天是否真的无状态变化（看快照文件）；再用 `--force-notify` 验证飞书链路 |
+| 突然收到飞书 DM（平时是微信推送） | 飞书是微信失败时的回落通道——收到 DM 即说明当天 relay 没通（且确有状态变化），按下行排查微信 relay |
 | 微信推送失败 | relay 健康: `curl http://10.77.77.5:7399/health`（sock=true 才正常）；CHAT_HUB_RELAY_TOKEN 是否在 wrapper ps1 里设了；Mac 侧 `launchctl list \| grep chat-hub-relay` 与 `~/.chat-hub-relay/relay.log` |
 | 飞书发送失败 | `FEISHU_APP_SECRET` 是否在 wrapper ps1 里设了；open_id 走 `192.168.2.13:5000` 内网 API，连不上时检查网络/VPN |
 | 指数缺失告警 | 蛋卷改名或下线了该指数，浏览器开 `https://danjuanapp.com/djapi/index_eva/dj` 核对名称后改 `WATCHLIST` |
