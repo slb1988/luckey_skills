@@ -66,7 +66,8 @@ class ReviewQueueTests(unittest.TestCase):
 
     def run_scan(self, item):
         client = Mock()
-        client.get.side_effect = [{"items": [{"review_id": item["review_id"]}]}, item]
+        client.get.side_effect = [{"items": [{"review_id": item["review_id"]}]}]
+        client.post.return_value = (200, {"items": [item], "missing": []})
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "packet.json"
@@ -85,8 +86,42 @@ class ReviewQueueTests(unittest.TestCase):
             self.assertEqual(packet[key], item[key])
         self.assertIn("preview_failed/3", output)
         self.assertIn("preview_failed", {f["check"] for f in packet["flags"]})
+        self.assertEqual(client.get.call_count, 1)  # 只读列表；详情走一次 bulk-details
+        client.post.assert_called_once_with("/review/extraction/bulk-details", {"review_ids": [item["review_id"]]})
+
+    def test_fetch_details_chunks_and_keeps_input_order(self):
+        ids = [f"r{i:03d}" for i in range(250)]
+        client = Mock()
+        client.post.side_effect = lambda path, body: (
+            200, {"items": [detail(rid) for rid in reversed(body["review_ids"])], "missing": []})
+        details, errors = review.fetch_details(client, ids)
+        self.assertEqual(errors, {})
+        self.assertEqual([d["review_id"] for d in details], ids)
+        self.assertEqual([len(c.args[1]["review_ids"]) for c in client.post.call_args_list], [100, 100, 50])
+        client.get.assert_not_called()
+
+    def test_fetch_details_missing_and_failed_chunks_become_errors(self):
+        client = Mock()
+        client.post.return_value = (200, {"items": [detail("a")], "missing": ["b"]})
+        details, errors = review.fetch_details(client, ["a", "b", "c"])
+        self.assertEqual([d["review_id"] for d in details], ["a"])
+        self.assertEqual(set(errors), {"b", "c"})
+        self.assertIn("不存在", errors["b"])
+
+        client.post.return_value = (503, {"error": {"code": "X"}})
+        details, errors = review.fetch_details(client, ["a"])
+        self.assertEqual(details, [])
+        self.assertIn("HTTP 503", errors["a"])
+        client.get.assert_not_called()  # 只有 404/405 才回退逐条
+
+    def test_fetch_details_falls_back_to_per_item_on_legacy_server(self):
+        client = Mock()
+        client.post.return_value = (405, {"detail": "Method Not Allowed"})
+        client.get.side_effect = lambda path: detail(path.rsplit("/", 1)[1])
+        details, errors = review.fetch_details(client, ["a", "b"])
+        self.assertEqual(errors, {})
+        self.assertEqual([d["review_id"] for d in details], ["a", "b"])
         self.assertEqual(client.get.call_count, 2)
-        client.post.assert_not_called()
 
     def test_scan_does_not_invent_missing_group_version_or_token(self):
         item = detail()

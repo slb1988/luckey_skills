@@ -36,7 +36,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 DEFAULT_BASE = "https://luckeyhome.site/memory-hub"
 
 SCAN_LIMIT = 200   # open 队列单次请求上限；返回达到上限即覆盖未确定
-DETAIL_WORKERS = 8  # 只读详情的有限并发上限；POST 不并发化
+DETAIL_WORKERS = 8  # 回退逐条拉详情时的有限并发上限；POST 不并发化
+BULK_DETAIL_CHUNK = 100  # 服务端 bulk-details 单请求上限
 
 # 高置信敏感信息模式（宁漏勿错：命中只升级人工，不自动拒）
 SENSITIVE_PATTERNS = [
@@ -197,8 +198,11 @@ def suggest_decision(detail: dict, flags: list[dict]) -> dict:
 
 
 def fetch_details(client, review_ids, progress=None):
-    """有限并发拉取详情（只读）。返回 (按输入顺序的成功详情列表, {完整ID: 错误})；
+    """拉取详情（只读）。返回 (按输入顺序的成功详情列表, {完整ID: 错误})；
     每个请求 ID 必居成功或错误集合之一，HTTP/解析失败不会变成“条目不在队列”。
+
+    优先 POST bulk-details（每 BULK_DETAIL_CHUNK 条一次往返，snapshot_token 逐条签发）；
+    首个批量请求 404/405（服务端未部署该端点）时整体回退逐条并发 GET。
     首版不自动重试，避免隐藏失败和放大不明等待。"""
     details: dict[str, dict] = {}
     errors: dict[str, str] = {}
@@ -206,6 +210,49 @@ def fetch_details(client, review_ids, progress=None):
     if not total:
         return [], errors
 
+    done = 0
+
+    def settle(rid: str, item: dict | None, err: str | None) -> None:
+        nonlocal done
+        done += 1
+        if err is None:
+            details[rid] = item
+        else:
+            errors[rid] = err
+        if progress:
+            progress(done, total, rid, err)
+
+    for start in range(0, total, BULK_DETAIL_CHUNK):
+        chunk = review_ids[start:start + BULK_DETAIL_CHUNK]
+        try:
+            status, body = client.post("/review/extraction/bulk-details", {"review_ids": chunk})
+        except Exception as exc:
+            for rid in chunk:
+                settle(rid, None, f"bulk-details {type(exc).__name__}: {exc}")
+            continue
+        if start == 0 and status in (404, 405):
+            return _fetch_details_individually(client, review_ids, progress)
+        if status != 200:
+            for rid in chunk:
+                settle(rid, None, f"bulk-details HTTP {status}: {json.dumps(body, ensure_ascii=False)[:300]}")
+            continue
+        by_id = {item.get("review_id"): item for item in body.get("items") or []}
+        missing = set(body.get("missing") or [])
+        for rid in chunk:
+            if rid in by_id:
+                settle(rid, by_id[rid], None)
+            elif rid in missing:
+                settle(rid, None, "bulk-details: review 不存在（列表与详情之间被删除？）")
+            else:
+                settle(rid, None, "bulk-details 响应缺少该 ID")
+    return [details[rid] for rid in review_ids if rid in details], errors
+
+
+def _fetch_details_individually(client, review_ids, progress=None):
+    """旧服务端回退：有限并发逐条 GET 详情，契约同 fetch_details。"""
+    details: dict[str, dict] = {}
+    errors: dict[str, str] = {}
+    total = len(review_ids)
     done = 0
     with ThreadPoolExecutor(max_workers=min(DETAIL_WORKERS, total)) as pool:
         futures = {pool.submit(client.get, f"/review/extraction/{rid}"): rid for rid in review_ids}

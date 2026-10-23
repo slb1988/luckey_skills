@@ -27,7 +27,7 @@ memory → pending_intake → [关卡 1 intake 过滤] → pending_extraction �
 ## 标准工作流
 
 ```bash
-# 1) 扫描：拉队列 + 有限并发详情（上限 8）+ 确定性检查 → review_packet.json + 摘要表
+# 1) 扫描：拉队列 + bulk-details 批量详情（每 100 条一次；旧服务端回退逐条并发 8）+ 确定性检查 → review_packet.json + 摘要表
 #    逐完整 ID 即时进度；部分失败不发布正式审核包，只写 <输出>.incomplete.json 诊断包并非零退出；
 #    返回达到 limit=200 上限时明确提示「覆盖未确定」，不能当作全队列扫描完成
 python scripts/review_queue.py scan -o review_packet.json
