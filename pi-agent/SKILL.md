@@ -137,6 +137,10 @@ REA↔Pi 注册形态：setup 只写 user scope——`~/.pi/agent/mcp.json` 的 
 </memory>
 
 <memory category="troubleshooting">
+Windows 侧 REA↔Pi 注册（npm 发布版 6.3.0，2026-11 实测；与 Mac main 构建行为不同，勿套用上面两条）：(1) `rea mcp add --agent pi` 必败 `MCP_ADD_FAILED: spawn npx ENOENT`——根因是 rea 安装器 spawn 不带 shell，Windows 解析不到 `npx.cmd` shim；改用 pi 自己的 CLI：`pi mcp add rea -- cmd.exe /d /c npx -y rea-agents@6.3.0 mcp`（版本锁 6.3.0 与 Mac 对齐）。(2) npm 版 `rea setup` 默认写 `~/.omp/agent/mcp.json`（pi 是 `.pi`），须先 `PI_CONFIG_DIR=.pi` 再跑；且它会把注册改写成 `node.exe + npm 缓存内 rea.mjs` 直路径——npm 缓存一清 MCP 即断，setup 跑完须用 `pi mcp remove/add` 恢复 npx 锁定形式（setup 自动备份为 `mcp.json.rea.backup`）。个人运维细节见 `.team/sunlaibing/reference_rea-hopper-macos.md`「Windows 安装注册要点」。
+</memory>
+
+<memory category="troubleshooting">
 `/new` 或 `/reload` 后扩展报 `This extension ctx is stale after session replacement or reload`，常伴随 `<boundary>` "turn_end could not resolve the persisted assistant entry ID" 且该轮 user 消息没落盘：pi 会话替换/reload 立即使旧 runner 失效、**不等在途 handler**（`newSession` 的 teardown 会先 `abort()` 故较安全，`reload()` 直接 invalidate），慢 handler（网络选择、LLM 召回）await 后访问 `ctx`/`pi` 必抛。机制细节与扩展侧 try/catch 静默兜底模式见 `.pi/extensions/SKILL.md` 常见问题表；本仓库 skill-gateway/team-profile/audio-feedback 与全局 memory-hub v39 均已兜底（主仓库 commit 6e932ebe，skills 3ca7ea7）。两个排障技巧：(1) stack trace 里的 `chunk-*.js` 文件名与 npm 包 dist bundle 一一对应，可比对确定报错时实际运行的 pi 版本——`pi update` 后已开进程内存里仍跑旧版；(2) 竞态回归脚本在 `.local/pi-stale-ctx-repro/`（RPC 版 repro.py + SDK 版 reload-race.mjs）。
 </memory>
 
@@ -147,7 +151,7 @@ REA↔Pi 注册形态：setup 只写 user scope——`~/.pi/agent/mcp.json` 的 
 ## 快速排查
 
 - `/new`/`/reload` 后扩展报 `ctx is stale` / `<boundary>` turn_end 错误 → 见上方 troubleshooting memory（旧 runner 不等在途 handler）；扩展侧修复模式见 `.pi/extensions/SKILL.md` 常见问题表。
-- `rea setup --client pi` 报不支持 / rea 命令突然消失 / 某项目里 rea 不可用 → 见上方 REA 两条 memory。
+- `rea setup --client pi` 报不支持 / rea 命令突然消失 / 某项目里 rea 不可用 / Windows 注册报 `spawn npx ENOENT` → 见上方 REA 相关 memory。
 - 扩展加载失败，先 `pi -ne`（无扩展启动）确认是扩展问题还是 pi 本身问题。
 - 报错细节看 `~/.pi/agent/pi-debug.log`。
 - 扩展冲突 / 插件卸载 / 配置问题 → 读 [references/troubleshooting.md](references/troubleshooting.md)。
