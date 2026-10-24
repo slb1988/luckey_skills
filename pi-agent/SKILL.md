@@ -34,6 +34,10 @@ description: Pi agent（pi，@earendil-works 的 coding agent）使用与排障�
 </memory>
 
 <memory category="common-patterns">
+给网关 provider 加**全新模型条目**（区别于上面的 modelOverrides 覆盖内置模型）：`~/.pi/agent/models.json` 的 `providers.pl-anthropic.models[]` 数组加完整条目，再把 `pl-anthropic/<id>` 加进 `~/.pi/agent/settings.json` 的 `enabledModels`；`/model` 重选或重启生效，`pi --list-models <关键字>` 验证。k3.1-pro 实测条目与 kimi-k3 全量对齐：contextWindow 1048576、maxTokens 131072、reasoning、input text+image、adaptive thinking + 同款 thinkingLevelMap。模型 id 必须填网关**真实可路由的上游 id**（k3.1 系真实 id 是 `k3.1-pro`，不是网关目录名 `kimi-k3.1-pro`——详见 build-api-proxy skill）。
+</memory>
+
+<memory category="common-patterns">
 gpt-6-astra（openai-codex provider，ChatGPT Codex 后端）的「极速/Fast mode」= 请求 payload 里的 `service_tier: "fast"`；Fast 档按 **2x 配额**消耗，pi 计费已内置该倍率，会话成本显示即真实档位。pi 无配置开关：`modelOverrides` 只支持 contextWindow/cost/samplingParams 等键，**不支持 `serviceTier`**；`gpt-6-astra-fast` 变体只存在于 Vercel AI Gateway 目录，openai-codex 渠道选不到。可行注入点：pi 核心把 Codex 请求 payload 经过 `before_provider_request` 扩展事件，handler 返回修改后的 payload 即可注入字段（按 `payload.model` 过滤目标模型）。现成实现：全局扩展 `~/.pi/agent/extensions/astra-fast.ts`（默认开，`/fast` 命令切换；Windows 对应 `C:\Users\admin\.pi\agent\extensions\`），扩展改动需重启 pi 生效。
 </memory>
 

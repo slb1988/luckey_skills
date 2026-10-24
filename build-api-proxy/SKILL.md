@@ -14,6 +14,10 @@ pyAutomation 集成共性知识：[pyauto-shared](../pyauto-shared/SKILL.md)。�
 - pyautomation 后端的 `/user/get_llm_balance/<user>` 接口查询的就是它（余额数据经 `balance-push-cache.json` 推送）
 - 所有经网关的 LLM 请求**完整留档**（含请求/响应原文），用于排障与用量分析
 
+<memory category="troubleshooting">
+客户端请求里的 model id 必须命中网关**真实可路由的上游 id**，网关目录/display 名 ≠ 可路由 id。Kimi k3.1 实测（2026-10）：可路由 id 是 `k3.1-pro`（curl 直连验证 thinking 正常），目录里的 `kimi-k3.1-pro` 反而路由不通；另有高速档 `k3.1-pro-highspeed` 上游实测可用。给新客户端配模型时先用 curl 直连网关验证 id，不要照抄目录名。
+</memory>
+
 ## 部署形态
 
 | 项 | 值 |
