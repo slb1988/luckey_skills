@@ -12,6 +12,7 @@
 | MySQL 连接断开 | `Database connection issue` / `MySQL server has gone away` | 高负载下 MySQL 连接超时 | 通常是瞬时故障，RAGFlow 有重试机制；频繁出现则检查宿主机内存 |
 | 文档状态长期停留在 RUNNING | 排队提示或分块数长期不变 | 数据库状态、队列派发和索引产物有独立生命周期 | 按下方[观测信号](#观测信号的边界)交叉判断 |
 | binlog 写入量与解析工作量不成比例 | 进度和消息不变，计时字段仍更新 | SQL 更新列范围与 FULL binlog 行镜像范围不同 | 见下方[配置与行镜像](#parser_config-与行镜像) |
+| binlog 仅在解析批次期间暴涨、批次结束即零增长 | 大批文档真实重解析、队列有活跃消费，parse 完成即停 | 胖行（KB/document 大 JSON 列）× FULL 行镜像 × 真实行更新 | 同上，见「已确认的膨胀根因」 |
 
 ---
 
@@ -155,6 +156,8 @@ SQL 的 `SET` 列表、SELECT 投影与 binlog 行镜像是三个不同范围。
 ```
 
 窄 SELECT 减少读取与反序列化；无业务变化时跳过 UPDATE 才消除相应写事件。修改行镜像策略属于 MySQL 复制/CDC 契约，不只是 RAGFlow 内部开关。
+
+**已确认的膨胀根因与本部署补丁现状（2026-10-24）**：上游 `rag/app/table.py` 每次表格解析后无条件重写 KB 行 parser_config，`field_map`/`table_column_names` 随解析次数持续累加（本部署实测 ~900KB → ~1.49MB）；FULL 镜像下每次行更新写约两倍行大小的 binlog，一批真实重解析即成洪水（99 篇/104min ≈ 17.7GB，解析跑完自行停止——区别于无队列活动仍增长的心跳形态）。本部署已 bind mount 热修（未提交上游）：KB 行重写以「确有新增列/映射」为条件；4 处新文档创建点不再把这两个键拷进 document 行（document 级无读取方——运行时由 task_service 快照 KB 级配置 + table_es_metadata 现场注入）；存量胖 document 行已 JSON_REMOVE 瘦身（均值 287KB→1.5KB）。**残留放大器**：KB 行仍持有派生 schema（运行时有用，不能删），每次解析完成的计数器 tick 在 FULL 镜像下仍 ~2.9MB/次，大批重解析日仍有数百 MB binlog、可能偶触告警线。根治候选：`binlog_row_image=MINIMAL`（须先确认无 CDC/复制消费方）、派生 schema 迁出行外、计数器惰性聚合。
 
 ### Redis 与容器配置配对
 
