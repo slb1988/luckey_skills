@@ -1,6 +1,6 @@
 ---
 name: build-api-proxy
-description: build-api-proxy（内网 LLM API 中转网关）运维参考。虚拟 key 转发到 Kimi(moonshot)/DeepSeek 上游，Anthropic 兼容协议，Docker 部署于本机 8600 端口。当用户提到 build-api-proxy、LLM 网关、虚拟 key、history.db、relay.db、request_history、LLM 用量/余额查询、8600 端口、团队 token 统计、请求留档、留档清理/HISTORY_RETENTION 时触发。即使用户只说"网关挂了"、"查一下谁的 token 用得多"、"history.db 太大了"、"看看 LLM 请求记录"也应触发。
+description: build-api-proxy（内网 LLM API 中转网关）运维参考。虚拟 key 转发到 Kimi(moonshot)/DeepSeek 上游，Anthropic 兼容协议，Docker 部署于本机 8600 端口。当用户提到 build-api-proxy、LLM 网关、虚拟 key、history.db、relay.db、request_history、LLM 用量/余额查询、8600 端口、团队 token 统计、请求留档、留档清理/HISTORY_RETENTION 时触发。即使用户只说"网关挂了"、"查一下谁的 token 用得多"、"history.db 太大了"、"看看 LLM 请求记录"、"模型 id 不通/模型目录里有没有某模型"也应触发。
 ---
 
 # build-api-proxy 运维参考
@@ -95,3 +95,7 @@ curl -s localhost:8600/                     # 探活
 - 本机共 3 个 MySQL：`mysql`:13306（pyautomation 主库）、`mysql3`:14306、`docker-mysql-1`:14307（ragflow）——2026-09-08 磁盘写满事故中三者曾集体"假活"（docker ps 显示 Up 实际 exited），修复手法=删容器+清残留网络端点+原数据卷重建
 - 磁盘看门狗 `/data/scripts/server_watchdog.sh`（cron 每 10 分钟）监控磁盘水位与 ragflow binlog 洪水，告警发飞书管理群
 - 磁盘大头参考：本服务 history.db、ragflow binlog、opencode 容器内日志、`/data/minio`（未经确认不要动）
+
+<memory category="troubleshooting">
+- 网关模型目录（/v1/models）列出的 id **不等于上游真实可用 id**，接入新模型必须发真实请求验证，不能照抄目录。2026-10 实测：目录里的 `kimi-k3.1-pro` 上游路由不通（报 `recognized as other`），Kimi 3.1 真实可用 id 是 `k3.1-pro` / `k3.1`，另有高速档 `k3.1-pro-highspeed`（均 Anthropic 协议，已验证）。给 pi/Claude Code 等客户端配新模型时先用 curl 打一次真实 chat 请求确认 id 再写配置。
+</memory>
