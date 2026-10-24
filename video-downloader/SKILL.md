@@ -94,4 +94,4 @@ ffmpeg -i video.f400.mp4 -i audio.f140.m4a -c copy output.mp4 -y
 
 - 运行前检查对应 cookies 文件是否已填写真实内容（非空模板）
 - 下载目录默认为当前工作目录，建议 cd 到目标目录后再运行
-- you-get 依赖 Python，安装后若 shebang 指向旧版 Python 会报 bad interpreter，用 `pip3 install you-get` 重装修复
+- you-get 和 yt-dlp 都是 pip 包，Python 升级/卸载后 shebang 可能指向已不存在的解释器（如旧 miniconda python3.11）报 bad interpreter，用 `pip3 install -U you-get` / `pip3 install -U yt-dlp` 重装修复
