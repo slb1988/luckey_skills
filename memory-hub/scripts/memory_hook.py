@@ -91,6 +91,10 @@ REFERENCED_PROJECT_RE = re.compile(
 # 提取源文本和实际提交内容，方便离线判断是否因摘要预算而丢失关键信息。
 MEMORY_DRAFTS_DIRNAME = "memory-drafts"
 RECALL_RESULTS_DIRNAME = "recall-results"
+# 同一 session 已注入的 memory_id 台账：后续 search 传给服务端 exclude_memory_ids，
+# 让第二次检索带来新记忆，而不是再花一次 Stage A 返回同一条。
+RECALL_INJECTED_DIRNAME = "recall-injected"
+RECALL_INJECTED_MAX_IDS = 64
 SKIP_CAPTURE_ENV = "MEMORY_HUB_SKIP_CAPTURE"
 # 兜底签名：auto-skill extraction 子 session 的首条 user 消息一定以此开头
 # （对应 .pi/extensions/auto-skill/lib/extractPrompt.ts 首行，改该行需同步此处）。
@@ -2381,27 +2385,41 @@ class HubClient:
         referenced_project_ids: Optional[List[str]] = None,
         include_audit: bool = True,
         retrieval_hints: Optional[List[str]] = None,
+        exclude_memory_ids: Optional[List[str]] = None,
+        platform: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            result = self.request(
-                "POST",
-                "/v1/memories/search-v2",
-                project_id,
-                user_id,
-                json_body={
-                    "schema_version": "memory-search/2",
-                    "query": query,
-                    **({"retrieval_hints": retrieval_hints} if retrieval_hints else {}),
-                    "agent_id": self.config.agent_id,
-                    "project_id": project_id,
-                    "limit": limit,
-                    "session_view": "captured",
-                    "scope_mode": "current_project",
-                    "referenced_project_ids": referenced_project_ids or [],
-                    "quality_mode": "llm",
-                    "include_audit": include_audit,
-                },
-            )
+            body: Dict[str, Any] = {
+                "schema_version": "memory-search/2",
+                "query": query,
+                **({"retrieval_hints": retrieval_hints} if retrieval_hints else {}),
+                "agent_id": self.config.agent_id,
+                "project_id": project_id,
+                "limit": limit,
+                "session_view": "captured",
+                "scope_mode": "current_project",
+                "referenced_project_ids": referenced_project_ids or [],
+                "quality_mode": "llm",
+                "include_audit": include_audit,
+            }
+            optional: Dict[str, Any] = {
+                **({"exclude_memory_ids": exclude_memory_ids[-RECALL_INJECTED_MAX_IDS:]}
+                   if exclude_memory_ids else {}),
+                **({"client_platform": platform} if platform else {}),
+            }
+            try:
+                result = self.request(
+                    "POST", "/v1/memories/search-v2", project_id, user_id,
+                    json_body={**body, **optional},
+                )
+            except HubError as error:
+                # 滚动升级：旧 Hub 的 StrictModel 以 400/422 拒绝未知字段（校验在判分前，
+                # 很快返回）；去掉可选字段重试一次，鉴权/服务错误照常抛出。
+                if not optional or not str(error).startswith(("HTTP 400:", "HTTP 422:")):
+                    raise
+                result = self.request(
+                    "POST", "/v1/memories/search-v2", project_id, user_id, json_body=body,
+                )
             results = result.get("results")
             if not isinstance(results, list) or any(not isinstance(row, dict) for row in results):
                 raise HubError("invalid search results", error_code="BAD_RESPONSE")
@@ -3406,6 +3424,78 @@ def rendered_context_stats(audit: Optional[Dict[str, Any]], context: str, inject
             "audit_items": len(items), "unknown_items": sum(1 for item in items if item.get("status") == "unknown")}
 
 
+def client_platform() -> Optional[str]:
+    if sys.platform == "win32":
+        return "windows"
+    if sys.platform == "darwin":
+        return "macos"
+    return "linux" if sys.platform.startswith("linux") else None
+
+
+def rendered_memory_ids(audit: Optional[Dict[str, Any]], context: str) -> List[str]:
+    """实际渲染进 context 的来源记忆（未渲染的候选不算已注入）。"""
+    if not context:
+        return []
+    stage_b = (audit or {}).get("stage_b") or {}
+    source_ids = {
+        sid for item in stage_b.get("rendered_items") or [] if isinstance(item, dict)
+        for sid in item.get("source_ids") or []
+    }
+    memory_ids = [
+        provenance["memory_id"]
+        for source in stage_b.get("input_sources") or []
+        if isinstance(source, dict) and source.get("source_id") in source_ids
+        for provenance in source.get("provenance") or []
+        if isinstance(provenance, dict) and isinstance(provenance.get("memory_id"), str)
+        and provenance["memory_id"]
+    ]
+    return list(dict.fromkeys(memory_ids))
+
+
+def _recall_injected_path(config: Config, source: str, session_id: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9_.:-]", "_", session_id)[:128]
+    return config.state_dir / RECALL_INJECTED_DIRNAME / ("%s-%s.json" % (source, safe))
+
+
+def load_injected_memory_ids(config: Config, source: str, session_id: Optional[str]) -> List[str]:
+    if not session_id:
+        return []
+    try:
+        data = json.loads(_recall_injected_path(config, source, session_id).read_text("utf-8"))
+    except (OSError, ValueError):
+        return []
+    ids = data.get("memory_ids") if isinstance(data, dict) else None
+    if not isinstance(ids, list):
+        return []
+    return [value for value in ids if isinstance(value, str) and value][-RECALL_INJECTED_MAX_IDS:]
+
+
+def remember_injected_memory_ids(
+    config: Config, source: str, session_id: Optional[str], memory_ids: List[str]
+) -> None:
+    """best-effort：台账失败只会让后续检索少排除，不能影响本次注入。"""
+    if not session_id or not memory_ids:
+        return
+    path = _recall_injected_path(config, source, session_id)
+    merged = list(dict.fromkeys(
+        [*load_injected_memory_ids(config, source, session_id), *memory_ids]
+    ))[-RECALL_INJECTED_MAX_IDS:]
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"memory_ids": merged}, ensure_ascii=False), "utf-8")
+        os.replace(tmp, path)
+        cutoff = time.time() - RECALL_MARKER_MAX_AGE_SECONDS
+        for entry in path.parent.iterdir():
+            try:
+                if entry.is_file() and entry.stat().st_mtime < cutoff:
+                    entry.unlink()
+            except OSError:
+                continue
+    except OSError:
+        pass
+
+
 def command_recall_feedback(args: argparse.Namespace, config: Config) -> int:
     """Explicit local observations; not memory writes, ratings, or automatic admission."""
     try:
@@ -3481,6 +3571,9 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             config, project_id, profile.user_id, original_query, referenced_projects
         )
         query_stats.update({"pre_hint_query_chars": len(original_query), "query_chars": len(args.query)})
+        ledger_source = getattr(args, "source", None) or "agent"
+        ledger_session = getattr(args, "session_id", None)
+        excluded_memory_ids = load_injected_memory_ids(config, ledger_source, ledger_session)
         # 在线召回包含同步 LLM 审核，不能沿用 capture/upload 的 8 秒网络预算。
         response = HubClient(
             replace(config, timeout_seconds=ONLINE_SEARCH_TIMEOUT_SECONDS)
@@ -3491,6 +3584,8 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             profile.user_id,
             referenced_project_ids=referenced_projects,
             include_audit=True,
+            exclude_memory_ids=excluded_memory_ids,
+            platform=client_platform(),
             **({"retrieval_hints": feedback_hints["locators"]} if feedback_hints.get("locators") else {}),
         )
         facts = response["facts"]
@@ -3533,11 +3628,15 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             "feedback_checks": replay_feedback(config.state_dir, project_id=project_id, user_id=profile.user_id, query=args.query, context=context),
             "feedback_capture": remember_recall_navigation(config, project_id, profile.user_id, original_query, response, context),
             "referenced_projects": referenced_projects,
+            "excluded_memory_ids": len(excluded_memory_ids),
             "scope": scope,
             "injected": injected_count,
             "chars": len(context),
             "max_chars": args.max_chars,
         }
+        remember_injected_memory_ids(
+            config, ledger_source, ledger_session, rendered_memory_ids(audit, context)
+        )
         duration_ms = int((time.monotonic() - started) * 1000)
         result_file = None
         result_file_error = None
@@ -3739,6 +3838,7 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
             profile.user_id,
             referenced_project_ids=referenced_projects,
             include_audit=True,
+            platform=client_platform(),
             **({"retrieval_hints": feedback_hints["locators"]} if feedback_hints.get("locators") else {}),
         )
         facts = response["facts"]
@@ -3764,6 +3864,9 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
             if isinstance(item, dict) and isinstance(item.get("result_id"), str)
         }
         actual_stats = rendered_context_stats(audit, recalled, injected_count)
+        remember_injected_memory_ids(
+            config, args.source, session_id, rendered_memory_ids(audit, recalled)
+        )
         feedback_checks = replay_feedback(config.state_dir, project_id=project_id, user_id=profile.user_id, query=query, context=recalled)
         actual_stats.update({"feedback_hints": feedback_hints, "query_stats": query_stats,
                             "feedback_checks": feedback_checks,

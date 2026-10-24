@@ -73,7 +73,9 @@ import { Type } from "typebox";
 // v39：/reload 或会话替换（/new 等）会使旧 extension runner 立即失效且不等
 //   在途 handler；before_agent_start/agent_end 在等待子进程后再访问 ctx/pi
 //   会抛 stale ctx。两个 handler 外包一层，stale 时静默放弃（会话已销毁）。
-const EXTENSION_VERSION = "39";
+// v40：memory_search 说明首轮预热已注入背景，只为新的子问题再检索；memory_hook
+//   按 session 台账把已注入记忆作为 exclude_memory_ids 传给服务端，不再重复返回。
+const EXTENSION_VERSION = "40";
 const memoryHook = __MEMORY_HOOK_JSON__;
 // python 解释器路径由 install_hooks.py 在安装时注入（__PYTHON_JSON__），
 // 不再硬编码 /usr/bin/python3——Windows 上该路径不存在，spawn 会 exit 127 静默失败。
@@ -2116,6 +2118,9 @@ export default function memoryHubExtension(pi: ExtensionAPI) {
 		label: "Memory Search",
 		description:
 			"Search durable memories captured from Claude Code, Codex, and Pi sessions. " +
+			"The first prompt of a session is already pre-warmed: if a \"Memory Hub\" background block " +
+			"was injected, do not search again for the same topic or with keywords copied from that block; " +
+			"memories already injected in this session are excluded from results automatically. " +
 			"Use proactively when the current context is insufficient: references to past work " +
 			"(上次/之前/继续), unfamiliar project names or past decisions, user preferences, or facts " +
 			"not present in this session. Compose a focused keyword query instead of guessing; " +

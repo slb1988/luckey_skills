@@ -222,9 +222,9 @@ class PiExtensionE2ETest(unittest.TestCase):
             summary = self.run_driver(Path(directory), {"SEARCH_DIAGNOSTICS": "1"})
             self.assertEqual(summary["mode"], "search-diagnostics")
 
-    def test_pi_template_is_v38(self):
+    def test_pi_template_is_v40(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
-        self.assertIn('const EXTENSION_VERSION = "38";', template)
+        self.assertIn('const EXTENSION_VERSION = "40";', template)
 
     def test_input_prewarm_adopted_and_respawn_on_prompt_rewrite(self):
         with tempfile.TemporaryDirectory() as directory:
