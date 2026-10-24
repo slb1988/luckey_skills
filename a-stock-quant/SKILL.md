@@ -86,3 +86,8 @@ python backtest.py 2024-01-01 2026-06-26   # 回测
 
 所有参数在 `scripts/strategy.py` 的 `PARAMS` 字典。改完直接重跑 backtest.py 验证。
 调优优先级: ①扩大股票池 ②回测引入真实资金流持续性 ③轮换阈值/调仓频率 ④止损位。
+
+<memory category="core-rules">
+- 用户个人实盘的红利逆向策略与本平台动量策略**信号方向相反**（动量买「涨得好」、红利买「没人要」），必须做成平行独立模块：共享 datafeed 缓存层、独立信号逻辑与报告，不融合。模块设计（五指标/信号分区/价值陷阱过滤/筛选基线）见 [references/dividend-watch.md](references/dividend-watch.md)。
+- 红利筛选数据源分工（2026-10 验证可取）：PE 十年分位←百度估值接口；股息率TTM+连续分红年数←巨潮分红明细；回购公告←akshare stock_repurchase_em；换手率分位←baostock 缓存管道。
+</memory>
