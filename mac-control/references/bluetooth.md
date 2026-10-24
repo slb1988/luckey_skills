@@ -21,9 +21,9 @@ system_profiler SPBluetoothDataType | grep -E "State:|Connected"
 ## 关键事实（为什么脚本长这样）
 
 1. **关蓝牙有强制确认框**「确定要关闭蓝牙吗？你将无法通过蓝牙键盘、鼠标或触控板控制此电脑。」不点「关闭」不生效。确认框是 `sheet 1 of window "蓝牙"`，里面两个按钮**没有可访问名称**（name 为 missing value），按位置取：`button 1`=取消、`button 2`=关闭。弹窗出现有延迟，脚本用 5 秒轮询等待。开蓝牙无弹窗。
-2. **开关的元素路径**（macOS 15.6.1）：
-   `checkbox 1 of group 1 of scroll area 1 of group 1 of group 2 of splitter group 1 of group 1 of window "蓝牙"`
-   系统升级后若路径漂移，用 System Events 逐层 dump `UI elements of window "蓝牙"` 重建，别瞎猜索引。
+2. **开关的元素路径**（macOS 26.x）：
+   `checkbox 1 of group 1 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window "蓝牙"`
+   （macOS 15.6.1 时是 `group 2 of splitter group 1`，后来 split pane 里多了个 search text field 占 group 2，详情面板顺位到 group 3。）系统升级后若路径再漂移，用 System Events 逐层 dump `UI elements of window "蓝牙"` 重建，别瞎猜索引。
 3. **关蓝牙会立即断开所有已连接设备**（耳机/键鼠）。用户若正用蓝牙音频，操作前值得在回复里提一句。
 4. **执行环境**：脚本会唤起系统设置窗口到前台并停留；要求调用 osascript 的终端已有「辅助功能」权限（能 `osascript -e 'tell application "System Events" to get name of every process'` 不报错即具备）。
 

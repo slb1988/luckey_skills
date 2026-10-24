@@ -9,7 +9,7 @@ on run argv
 			set frontmost to true
 			delay 0.8
 			set w to window "蓝牙"
-			set sw to checkbox 1 of group 1 of scroll area 1 of group 1 of group 2 of splitter group 1 of group 1 of w
+			set sw to checkbox 1 of group 1 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of w
 			set want to 0
 			if target is "on" then set want to 1
 			if (value of sw as integer) is want then return "already " & target
