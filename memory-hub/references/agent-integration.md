@@ -194,6 +194,14 @@ error/timeout 抛真正的 Pi 工具错误，取消保持独立。CLI `search --
 与安全结构化 error（code/http_status/retryable/request_id/retrieval_id）；这些字段进入 hook/Pi trace，
 不回显原始响应体/HTML/凭据。
 
+**v40 同 session 去重 + 平台标注**：`memory_hook.py search/recall` 把实际渲染进 context 的来源
+memory_id 记到 `<state_dir>/recall-injected/<source>-<session>.json`（≤64 条，14 天 GC），同一
+`--session-id` 的后续 search 以 `exclude_memory_ids` 发给 search-v2，服务端先剔除这些候选再判分。
+起因（2026-10-24 rea 安装）：预热刚注入一条记忆，agent 抄注入内容的关键词再搜，14s 后拿回同一条。
+请求还带 `client_platform`，服务端给只含另一桌面平台（macOS/Windows）路径/命令特征的线索追加
+「记录来自 X 环境，当前为 Y」。两字段对旧 Hub 是未知字段（400），客户端去掉后重试一次；
+审计 `context_stats.excluded_memory_ids` 是本次排除数。
+
 **v37 定时任务跳过召回**：首轮 prompt 任意位置含 `memory-hub:no-recall`（约定写成首行
 `<!-- memory-hub:no-recall -->`）时 Pi 跳过首轮预热（recall 与 persona），trace outcome=
 `skipped_no_recall_marker` 并写完成 marker；session 照常归档。已标记：Orca automations「RagFlow 全量同步」
