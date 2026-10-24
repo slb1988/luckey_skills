@@ -14,6 +14,7 @@ description: A股量化模拟炒股平台。「主线动量+板块轮动」非�
 ## 何时用本 Skill
 
 - 用户问"今天/这周该买什么"、"复盘一下"、"模拟盘现在如何" → 跑对应脚本
+- 用户问红利股/分红股/低估蓝筹(长江电力/银行/神华这类)、"有没有无人问津的高息股" → 跑 dividend_watch.py
 - 用户想"回测策略"、"调参" → 跑 backtest.py
 - 用户想"采集今天热点/资金流" → 跑 daily_collect.py
 - 用户想了解策略逻辑/数据源 → 看本文件 + references/
@@ -31,9 +32,12 @@ a-stock-quant/
     daily_collect.py    盘后采集 (15:30): 热点+资金流持续性表
     daily_review.py     每日复盘 (21:30): 持仓预警+主线变化, 周五出名单
     weekly_execute.py   周一执行 (09:35): 模拟盘调仓下单 (--force 可非周一强制)
+    dividend_watch.py   红利守望 (每日21:40): 低估+分红+回购筛查, 跨区才推送
+    watchlist.yaml      红利守望观察池 (央企/国企/护城河, 红利桶+周期桶)
   data/                 parquet缓存 + 模拟账户 + 每日报告 (.md/.json)
   references/
     strategy.md         策略完整规则与学术依据
+    dividend-watch.md   红利守望模块: 铁律/信号分区/数据源分工 (与动量策略平行独立)
     data-sources.md     数据源对比与接口清单
     operations.md       常用操作命令速查
 ```
@@ -45,6 +49,7 @@ cd C:\Users\admin\.violoop\skills\a-stock-quant\scripts
 python daily_collect.py            # 采集今日热点+资金流
 python daily_review.py             # 复盘当前持仓
 python weekly_execute.py --force   # 立即按信号模拟调仓 (测试用)
+python dividend_watch.py --force-notify   # 立即跑红利守望并推送 (测试用)
 python backtest.py 2024-01-01 2026-06-26   # 回测
 ```
 
@@ -71,6 +76,7 @@ python backtest.py 2024-01-01 2026-06-26   # 回测
 | 盘后采集 | 工作日 15:30 | daily_collect.py — 累积资金流持续性表 (只采不交易) |
 | 每日复盘 | 每日 21:30 | daily_review.py — 持仓预警+主线变化, 周五出名单 |
 | 周一执行 | 周一 09:35 | weekly_execute.py — 按信号模拟调仓 |
+| 红利守望 | 每日 21:40 | dividend_watch.py — 红利股低估筛查, 状态跨区才推送 |
 
 ## 已知局限 (诚实提示)
 

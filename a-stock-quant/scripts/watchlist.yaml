@@ -1,0 +1,24 @@
+# 红利守望观察池 — dividend_watch.py 读取
+# bucket: value=红利稳健(看PE分位) / cyclical=周期红利(看PB分位, E波动大PE分位会误导)
+# short_history: 回A/上市时间短, 估值分位数据不足5年, 分位可信度低
+stocks:
+  - {code: "600900", name: 长江电力, bucket: value, tags: [央企, 电力, 护城河]}
+  - {code: "600025", name: 华能水电, bucket: value, tags: [央企, 电力]}
+  - {code: "600674", name: 川投能源, bucket: value, tags: [央企, 电力]}
+  - {code: "601288", name: 农业银行, bucket: value, tags: [央企, 银行]}
+  - {code: "601398", name: 工商银行, bucket: value, tags: [央企, 银行]}
+  - {code: "601939", name: 建设银行, bucket: value, tags: [央企, 银行]}
+  - {code: "601988", name: 中国银行, bucket: value, tags: [央企, 银行]}
+  - {code: "601328", name: 交通银行, bucket: value, tags: [央企, 银行]}
+  - {code: "600036", name: 招商银行, bucket: value, tags: [央企背景, 银行, 零售护城河]}
+  - {code: "601006", name: 大秦铁路, bucket: value, tags: [央企, 铁路]}
+  - {code: "600377", name: 宁沪高速, bucket: value, tags: [国企, 公路]}
+  - {code: "600350", name: 山东高速, bucket: value, tags: [国企, 公路]}
+  - {code: "000429", name: 粤高速A, bucket: value, tags: [国企, 公路]}
+  - {code: "601668", name: 中国建筑, bucket: value, tags: [央企, 建筑]}
+  - {code: "000651", name: 格力电器, bucket: value, tags: [混合所有制, 家电, 护城河], note: 非央企}
+  - {code: "600941", name: 中国移动, bucket: value, tags: [央企, 通信], short_history: true}
+  - {code: "601088", name: 中国神华, bucket: cyclical, tags: [央企, 煤炭]}
+  - {code: "601225", name: 陕西煤业, bucket: cyclical, tags: [国企, 煤炭]}
+  - {code: "600938", name: 中国海油, bucket: cyclical, tags: [央企, 油气], short_history: true}
+  - {code: "600028", name: 中国石化, bucket: cyclical, tags: [央企, 石化]}
