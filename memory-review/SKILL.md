@@ -189,6 +189,13 @@ scan 保留服务端 token、状态、attempts、memory/session/group 等元数�
 已 indexed 记忆失效后的 episode 与关系 provenance 验收，见
 [审核状态与快照：Scope 修复与失效验收](references/review-state-and-snapshots.md#scope-修复与失效验收)。
 
+<memory category="common-patterns">
+scan packet 不含 novelty 比对的候选明细，`duplicate` 的「已被覆盖」声明无法从 packet 内核验。
+对判 duplicate 的条目升级建议 reject 前，先用 memory_search 只读独立验证覆盖声明是否属实
+（reject 终态不可逆，核验是升级人工前的必要尽调）；验证不属实或拿不准则留队列升级，
+不凭 packet 内信息直接批准或拒绝。
+</memory>
+
 <memory category="core-rules">
 「preview 高频出现图谱已有实体、看似无增量」是机制性噪音而非数据 bug（2026-09-06 线上取证：
 Top10 高频实体 100% 已在图谱）。根因四叠加：① preview 盲抽——LLM 只看 distilled_content，无图谱
