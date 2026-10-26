@@ -379,6 +379,72 @@ class MemoryHookTest(unittest.TestCase):
             self.assertIn("session_id: `sess-ui`", result_text)
             self.assertNotIn(str(result_file), payload["context"])
 
+    def test_recall_result_file_includes_source_index(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.config(directory)
+            audit = {
+                "stage_a": {
+                    "required_slots": [
+                        {"slot_id": "entry", "description": "任务对象的定位核验入口"},
+                        {"slot_id": "known_pitfalls", "description": "导航构建已知坑"},
+                    ],
+                    "judgments": [
+                        {"rank": 1, "result_id": "mem-1", "rating": 2, "conflict": ""},
+                        {"rank": 2, "result_id": "mem-2", "rating": 1,
+                         "conflict": "related 缺少原始任务/所选证据的可核验锚点，已自动降级"},
+                    ],
+                },
+                "stage_b": {
+                    "status": "completed",
+                    "input_sources": [
+                        {"source_id": "e1", "rank": 1, "result_id": "mem-1",
+                         "provenance": [
+                             {"agent_id": "pi", "memory_id": "mem-1",
+                              "session_id": "pi:maindev:sess-src", "session_version": 2,
+                              "status": "indexed",
+                              "content_source": {"layer": "distilled"}},
+                         ]},
+                    ],
+                    "items": [
+                        {"slot_id": "entry", "status": "related", "category": "related",
+                         "source_ids": ["e1"], "conclusion": "…", "applicability": "仅历史定位线索"},
+                        {"slot_id": "known_pitfalls", "status": "unknown", "category": "to_verify",
+                         "source_ids": [], "conclusion": "导航构建已知坑：本次召回无可验证证据。"},
+                    ],
+                    "rendered_items": [
+                        {"slot_id": "entry", "status": "related", "source_ids": ["e1"],
+                         "rendered_text": "- 任务对象的定位核验入口：…"},
+                    ],
+                },
+            }
+            context = "相关线索（非已确认答案）\n- 任务对象的定位核验入口：…"
+            result = write_recall_result_file(
+                config, source="pi", session_id="sess-cur", project_id="maindev", query="q",
+                facts=[], injection_results=None, scope=None, audit=audit,
+                server_injection_context=context, injection_context_status="completed",
+                injection_suppression_reason=None, injection_context_error=None,
+                server_response=None,
+                retrieval={"retrieval_id": "r-9", "policy_version": "v2-test"},
+                quality={"min_rating": 2}, duration_ms=1,
+                context=context, context_stats={}, injected_count=1,
+                context_chars=len(context), max_chars=4000,
+            )
+            text = result.read_text(encoding="utf-8")
+            self.assertIn("## 线索来源索引（仅本地审计）", text)
+            self.assertIn("session_id `sess-cur`", text)
+            self.assertIn("retrieval_id `r-9`", text)
+            self.assertIn("任务对象的定位核验入口", text)
+            self.assertIn("pi:maindev:sess-src", text)
+            self.assertIn("memory `mem-1`", text)
+            self.assertIn("内容层 distilled", text)
+            # 未覆盖槽位与被降级候选都进入索引
+            self.assertIn("`known_pitfalls`：导航构建已知坑", text)
+            self.assertIn("mem-2", text)
+            self.assertIn("已自动降级", text)
+            # 索引出现在摘要之后、JSON 审计之前
+            self.assertLess(text.index("## 本轮摘要"), text.index("## 线索来源索引"))
+            self.assertLess(text.index("## 线索来源索引"), text.index("## 客户端上下文与统计"))
+
     def test_recall_result_files_never_overwrite_within_same_second(self):
         with tempfile.TemporaryDirectory() as directory:
             config = self.config(directory)

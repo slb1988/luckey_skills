@@ -2927,6 +2927,144 @@ def recall_prompt_audit_lines(prompt: Optional[Dict[str, Any]]) -> List[str]:
               else ["原始用户输入未记录；不能用 query 或摘要复原。"]), ""]
 
 
+def recall_source_index_lines(
+    audit: Optional[Dict[str, Any]],
+    *,
+    session_id: str,
+    retrieval: Optional[Dict[str, Any]],
+    quality: Optional[Dict[str, Any]],
+) -> List[str]:
+    """Readable clue → source session/memory index for offline investigation.
+
+    注入正文按设计不带溯源元数据（服务端渲染与客户端校验双重闸门），本节是
+    本地审计文件里的溯源句柄：每条注入线索来自哪个会话/记忆、哪些槽位没有
+    证据、哪些候选被门禁降级。全部数据来自服务端审计响应，不做二次推断。
+    """
+    lines = [
+        "## 线索来源索引（仅本地审计）",
+        "",
+        "注入正文有意不带溯源元数据；每条线索的来源会话/记忆在此单列，供后续调研，不进 agent context。",
+        "",
+    ]
+    retrieval_id = retrieval.get("retrieval_id") if isinstance(retrieval, dict) else None
+    policy = retrieval.get("policy_version") if isinstance(retrieval, dict) else None
+    summary = "- 本轮召回：session_id `%s` · retrieval_id `%s`" % (
+        session_id, retrieval_id or "未知")
+    if policy:
+        summary += " · policy `%s`" % policy
+    lines.extend((summary, ""))
+    if not isinstance(audit, dict):
+        lines.extend(("- 无服务端审计数据。", ""))
+        return lines
+    stage_a = audit.get("stage_a") if isinstance(audit.get("stage_a"), dict) else {}
+    stage_b = audit.get("stage_b") if isinstance(audit.get("stage_b"), dict) else {}
+    slot_descriptions = {
+        str(slot.get("slot_id")): str(slot.get("description") or "").strip()
+        for slot in stage_a.get("required_slots") or []
+        if isinstance(slot, dict) and slot.get("slot_id")
+    }
+    sources = {
+        str(source.get("source_id")): source
+        for source in stage_b.get("input_sources") or []
+        if isinstance(source, dict) and source.get("source_id")
+    }
+    # 同一来源可能支撑多个槽位（渲染时会合并成一条线索），按来源汇总槽位覆盖。
+    source_slots: Dict[str, List[str]] = {}
+    for item in stage_b.get("items") or []:
+        if not isinstance(item, dict):
+            continue
+        for source_id in item.get("source_ids") or []:
+            source_slots.setdefault(str(source_id), [])
+            slot_id = str(item.get("slot_id") or "")
+            if slot_id and slot_id not in source_slots[str(source_id)]:
+                source_slots[str(source_id)].append(slot_id)
+
+    def provenance_text(source: Dict[str, Any]) -> List[str]:
+        entries = []
+        for prov in source.get("provenance") or []:
+            if not isinstance(prov, dict):
+                continue
+            parts = []
+            if prov.get("memory_id"):
+                parts.append("memory `%s`" % prov["memory_id"])
+            if prov.get("session_id"):
+                version = prov.get("session_version")
+                parts.append("会话 `%s`%s" % (
+                    prov["session_id"], " v%s" % version if version else ""))
+            if prov.get("agent_id"):
+                parts.append("agent %s" % prov["agent_id"])
+            layer = ((prov.get("content_source") or {}).get("layer")
+                     if isinstance(prov.get("content_source"), dict) else None) or (
+                    (source.get("content_source") or {}).get("layer")
+                    if isinstance(source.get("content_source"), dict) else None)
+            if layer:
+                parts.append("内容层 %s" % layer)
+            if prov.get("status"):
+                parts.append("状态 %s" % prov["status"])
+            if parts:
+                entries.append(" ".join(parts))
+        return entries or ["（无 provenance 记录）"]
+
+    if stage_b.get("status") and stage_b.get("status") != "completed":
+        lines.append("- Stage B：status `%s` · 原因 `%s`" % (
+            stage_b.get("status"), stage_b.get("suppression_reason") or "无"))
+        lines.append("")
+    rendered = [
+        item for item in stage_b.get("rendered_items") or []
+        if isinstance(item, dict) and item.get("source_ids")
+    ]
+    if rendered:
+        lines.append("注入线索 %d 条：" % len(rendered))
+        lines.append("")
+        for index, item in enumerate(rendered, 1):
+            slot_id = str(item.get("slot_id") or "")
+            lines.append("- 线索 %d [%s]：槽位「%s」" % (
+                index, item.get("status") or "unknown",
+                slot_descriptions.get(slot_id, slot_id or "未知")))
+            for source_id in item.get("source_ids") or []:
+                source = sources.get(str(source_id))
+                if source is None:
+                    lines.append("  - 来源 `%s`（审计中缺失）" % source_id)
+                    continue
+                extra_slots = [
+                    slot for slot in source_slots.get(str(source_id), [])
+                    if slot != slot_id
+                ]
+                suffix = "（兼支撑槽位：%s）" % "、".join(
+                    slot_descriptions.get(slot, slot) for slot in extra_slots
+                ) if extra_slots else ""
+                for entry in provenance_text(source):
+                    lines.append("  - 来源 `%s` → %s%s" % (source_id, entry, suffix))
+        lines.append("")
+    unknown = [
+        item for item in stage_b.get("items") or []
+        if isinstance(item, dict) and item.get("status") == "unknown"
+    ]
+    if unknown:
+        lines.append("未覆盖槽位 %d 个（无可验证证据，未注入）：" % len(unknown))
+        lines.extend(
+            "- `%s`：%s" % (
+                item.get("slot_id"),
+                slot_descriptions.get(str(item.get("slot_id")), ""))
+            for item in unknown
+        )
+        lines.append("")
+    min_rating = quality.get("min_rating") if isinstance(quality, dict) else None
+    demoted = [
+        row for row in stage_a.get("judgments") or []
+        if isinstance(row, dict) and "已自动降级" in str(row.get("conflict") or "")
+    ]
+    if demoted:
+        lines.append("门禁降级候选 %d 条（min_rating=%s，未注入）：" % (
+            len(demoted), min_rating if min_rating is not None else "未知"))
+        for row in demoted:
+            lines.append("- rank %s · result `%s` · rating %s：%s" % (
+                row.get("rank"), row.get("result_id"), row.get("rating"),
+                compact_text(str(row.get("conflict") or ""), 200)))
+        lines.append("")
+    return lines
+
+
 def write_recall_result_file(
     config: Config,
     *,
@@ -3005,6 +3143,7 @@ def write_recall_result_file(
         "- 注入来源：`%s`" % context_stats.get("source", "unknown"),
         "- 审计边界：本文件保留服务端完整响应与客户端实际注入原文；文件路径和审计元数据不进入 agent context",
         "",
+        *recall_source_index_lines(audit, session_id=session_id, retrieval=retrieval, quality=quality),
         "## 客户端上下文与统计（JSON 审计）",
         "",
         *markdown_json_lines({"context_stats": context_stats, "context": context}),

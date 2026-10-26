@@ -420,7 +420,7 @@ full-session 资产为准。该改动只在直接引用的 Python script 中，�
   候选级真实用户标注；集体 review 时先按 `session_id` 与 Pi transcript 关联。
 - 同目录 `memory-drafts/pi/<project>/*.md`——Pi 向 Hub 写 session memory 前的可读提取稿；同时包含
   较完整源字段与实际 outbound `distilled_content`，不受 trace 单字段 20k 字符截断影响。
-- 同目录 `recall-results/pi/<project>/*.md`——Pi 召回的完整本地审计包：跨 project scope、Stage A/B 解析结果与模型/尝试/耗时/来源、服务端与客户端最终上下文、suppression/validation、Hub 原始响应和全部 facts/provenance；文件路径只显示给 TUI，不注入 agent context。
+- 同目录 `recall-results/pi/<project>/*.md`——Pi 召回的完整本地审计包：跨 project scope、Stage A/B 解析结果与模型/尝试/耗时/来源、服务端与客户端最终上下文、suppression/validation、Hub 原始响应和全部 facts/provenance；文件路径只显示给 TUI，不注入 agent context。「线索来源索引」小节（摘要之后）把每条注入线索映射到来源 session/memory/内容层，并单列未覆盖槽位与门禁降级候选（含 result_id 与降级原因）——注入正文有意不带溯源元数据，溯源调研用这个索引。
 
 每轮检索测试/分析前用 `python3 scripts/rotate_pi_trace.py`（可加 `--include-hook-trace`）把旧
 trace 轮转到 `trace-backups/`，保证当轮数据干净；扩展按事件 append 写 trace、无持久句柄，
