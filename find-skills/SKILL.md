@@ -47,6 +47,10 @@ Without `-g`, the skill installs only into the current project. Same skill can b
 两条观察其实互补（2026-09-05 Mac 实测）：物理文件落 `~/.agents/skills/`，再以 symlink 传播到各 host 目录（如 `~/.pi/agent/skills/orchestration -> ~/.agents/skills/orchestration`）；但 `~/.claude/skills` 本机是独立实体目录，不在传播链上。
 </memory>
 
+<memory category="common-patterns">
+厂商站点直发的 skill zip（不走 skills.sh 生态，如知乎 developer.zhihu.com 的 zhihu_search，2026-10-26 Windows 实测）手动全局安装：直接解压到对应 host 的用户级 skills 目录（pi = `~/.pi/agent/skills/<name>/`，Windows 本机 `C:\Users\admin\.pi\agent\skills\`），含 SKILL.md 的目录即被识别，无需注册步骤。pi 的 skill 列表在会话启动时加载，新装 skill 要**新开会话**才进列表（当前会话可直接手动跑脚本不等重开）。本机 Windows 安装 Unix 系 skill 的两个固定适配：(1) 没有 `python3` 命令（只有 `python`，Python 3.11），SKILL.md 里的 `python3` 要改成 `python`；(2) SKILL.md 里的 `{baseDir}` 占位符要替换成实际安装路径。skill 密钥类配置用 `setx VAR "值"`（User 级永久，避免明文进会话记录）；已运行进程继承旧环境读不到新值，须新开终端/会话生效。
+</memory>
+
 ## How to Help Users Find Skills
 
 ### Step 1: Understand What They Need
