@@ -2956,18 +2956,28 @@ def write_recall_result_file(
     """Atomically persist a readable recall result outside model context."""
     source_name = _safe_filename_component(source, "agent")
     project_name = _safe_filename_component(project_id, "project")
-    session_name = _safe_filename_component(session_id, "session")
-    retrieval_id = retrieval.get("retrieval_id") if isinstance(retrieval, dict) else None
-    suffix = _safe_filename_component(str(retrieval_id or time.time_ns()), "result")
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    path = (
+    result_dir = (
         config.state_dir
         / RECALL_RESULTS_DIRNAME
         / source_name
         / project_name
-        / ("%s-%s-%s.md" % (stamp, session_name, suffix))
     )
-    path.parent.mkdir(parents=True, exist_ok=True)
+    result_dir.mkdir(parents=True, exist_ok=True)
+    # Claim the final name atomically: O_EXCL fails if another process took the
+    # name first, so concurrent recalls in the same second cannot overwrite
+    # each other (check-then-create would leave a last-writer-wins window).
+    path = result_dir / ("%s.md" % stamp)
+    counter = 2
+    while True:
+        try:
+            placeholder = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            path = result_dir / ("%s-%d.md" % (stamp, counter))
+            counter += 1
+            continue
+        os.close(placeholder)
+        break
 
     candidates = quality.get("candidates") if isinstance(quality, dict) else None
     kept = quality.get("kept") if isinstance(quality, dict) else len(facts)
@@ -3099,6 +3109,7 @@ def write_recall_result_file(
         return path.resolve()
     except Exception:
         temporary_path.unlink(missing_ok=True)
+        path.unlink(missing_ok=True)  # remove the placeholder claimed above
         raise
 
 

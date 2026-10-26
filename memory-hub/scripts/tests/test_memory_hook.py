@@ -379,6 +379,36 @@ class MemoryHookTest(unittest.TestCase):
             self.assertIn("session_id: `sess-ui`", result_text)
             self.assertNotIn(str(result_file), payload["context"])
 
+    def test_recall_result_files_never_overwrite_within_same_second(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.config(directory)
+            common = dict(
+                source="pi",
+                project_id="maindev",
+                facts=[],
+                injection_results=None,
+                scope=None,
+                audit=None,
+                server_injection_context=None,
+                injection_context_status=None,
+                injection_suppression_reason=None,
+                injection_context_error=None,
+                server_response=None,
+                retrieval=None,
+                quality=None,
+                duration_ms=1,
+                context="",
+                context_stats={},
+                injected_count=0,
+                context_chars=0,
+                max_chars=4000,
+            )
+            first = write_recall_result_file(config, session_id="sess-a", query="q1", **common)
+            second = write_recall_result_file(config, session_id="sess-b", query="q2", **common)
+            self.assertNotEqual(first, second)
+            self.assertIn("sess-a", first.read_text(encoding="utf-8"))
+            self.assertIn("sess-b", second.read_text(encoding="utf-8"))
+
     def test_recall_result_preserves_fences_and_shows_empty_client_context(self):
         contexts = (
             "已确认\n- 多行正文\n```python\nprint('example')\n```\n保留字面转义：\\n\n",
