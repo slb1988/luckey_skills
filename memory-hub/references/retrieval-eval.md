@@ -48,9 +48,20 @@ release 只做明确授权的运维。
 "存错/取错"六步解决存侧与 v1/v2 检索层；slots 管线（policy `v2-fts-stage-ab-slots-…`）的
 取错侧要再分五层。第一证据源是本地审计文件
 `~/.local/state/memory-hub-hook/recall-results/<agent>/<project>/<ts>Z-<session_id>-<retrieval_id>.md`
+（2026-10-26 起新文件为 `<ts>Z[-N].md`，双 id 不再入文件名，根因见下条 memory）
 ——含最终注入原文、context_stats、原始 prompt、实际 query、policy_version 与 stage_a/stage_b
 完整结构化审计 + 服务端原始响应；只有 `injection_context` 进入模型，其余仅供审计，
 定位一次漏召回不需要服务端访问。
+
+<memory category="common-patterns">
+recall 审计文件名双 id 丢失的根因（skills `123d280`，2026-10-26）：`memory_hook.py
+write_recall_result_file()` 为修「同秒并发 recall 互相覆盖」改用 O_EXCL 原子占位（冲突追加
+`-2/-3` 计数），顺手把文件名改成纯时间戳。溯源数据没丢——文件内容里 `查询信息.session_id`、
+`Retrieval.retrieval_id`、`stage_b.input_sources[].provenance[]` 完整保留，丢的只是目录级句柄；
+按文件名定位 session 时改用内容检索。注入正文**按设计**不含任何 id/路径（客户端
+`model_context_has_provenance_envelope` 校验 + 服务端 `_CONTEXT_METADATA` 渲染闸 fail-closed），
+不要把「线索行内缺 session-id」当 bug 修。
+</memory>
 
 <memory category="common-patterns">
 search-v2 llm 模式漏斗（service.py / retrieval_judge.py 定版语义）：fusion 池 top-30
@@ -72,6 +83,22 @@ min_rating（默认 2）→ 确定性后处理 → Stage B 只接收 kept 源 �
    槽位仅供审计、绝不注入；同结论按指纹去重，多槽位并成一条并追加「；{槽位}：同一结论」；
    单行超预算被逐条跳过（看 context_stats.chars vs max_chars）；conclusion/label 命中
    元数据正则（UUID、session_id 等）则整个渲染 fail-closed 返回 None（表现为 suppressed）。
+</memory>
+
+<memory category="common-patterns">
+「线索缺失/拼接感」的三个定版根因（2026-10-26 实证，服务端 retrieval_judge.py / agent_integration.py）：
+- 漏斗第 3 层还有第三种改分来源——确定性锚点核验 `task_relevance_verified()`：related 条目须
+  `task_relevance.kind` ∈ {task_detail, method_request} 且 explanation 非空，`task_anchor`/`evidence_anchor`
+  为原文子串或 `_anchor_mostly_quoted` 覆盖率 ≥0.7（token=ASCII 标识符/CJK bigram，「排障/方法」等泛词
+  锚点直拒）；不过则 conflict 注「related 缺少原始任务/所选证据的可核验锚点，已自动降级」压到
+  min_rating−1 → 槽位 unknown 不注入。契约错位：judge prompt 允许锚点轻度改写（`75bbcd9` 放宽出 0.7
+  比率闸），但模型同义缩写任务句时 CJK bigram 缺失仍会近失误杀（实证 0.667 对 0.7 丢 known_pitfalls
+  线索）——阈值/子串契约是「线索全不全」的已知调谐旋钮。
+- 全 related 召回即使切回 LLM Stage B 也按来源整段注入：`RETRIEVAL_SYNTHESIS_PROMPT` 规定 related
+  「服务端逐来源呈现原文线索，不要复写 conclusion」——拼接感根源是该渲染契约，非 deterministic 开关。
+- 写入侧证据形态：`agent_integration.py _compact_text` 把快照 last_user/last_assistant 的 `\s+` 压成
+  单空格再硬截断（700/1400 字符），表格/代码变单行巨石且在结构半中腰切断——judge 与 Stage B
+  看到的就是这种证据，选出的 passage 自然是一整坨。
 </memory>
 
 <memory category="common-patterns">
