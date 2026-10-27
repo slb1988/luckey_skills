@@ -79,6 +79,7 @@ def analyse(rows, hub_src: str | None):
     attempts: Counter = Counter()
     policies: Counter = Counter()
     anchor_sides: Counter = Counter()
+    supersede_reasons: Counter = Counter()
     cases = []
     for path, agent, project, response, duration in rows:
         audit = response.get("audit") or {}
@@ -120,6 +121,11 @@ def analyse(rows, hub_src: str | None):
                 counts["supersede"] += 1
                 counts["supersede_successor_missing"] += successor is None
                 counts["supersede_successor_kept"] += bool(successor and (successor.get("rating") or 0) >= 2)
+                # 无 evidence/槽位的候选本就进不了注入，只有「有用」的清零才是损失（10-24~27：73 次中 32 次）。
+                useful = bool(judgment.get("evidence") and judgment.get("supports_slots"))
+                counts["supersede_useful"] += useful
+                if useful:
+                    supersede_reasons[judgment.get("superseded_reason") or "unrecorded(<89ed110)"] += 1
             elif "可核验锚点" in conflict:
                 reason = "anchor"
                 counts["anchor"] += 1
@@ -139,7 +145,7 @@ def analyse(rows, hub_src: str | None):
                     "evidence_anchor": relevance.get("evidence_anchor"),
                     "evidence": (judgment.get("evidence") or "")[:600], "label": None,
                 })
-    return metrics, counts, attempts, policies, anchor_sides, cases
+    return metrics, counts, attempts, policies, anchor_sides, supersede_reasons, cases
 
 
 def _anchor_side(rj, judgment: dict, query: str) -> str:
@@ -166,7 +172,7 @@ def _anchor_side(rj, judgment: dict, query: str) -> str:
 
 
 def report(args, rows, skipped, result) -> str:
-    metrics, counts, attempts, policies, anchor_sides, _ = result
+    metrics, counts, attempts, policies, anchor_sides, supersede_reasons, _ = result
     nonempty = counts["nonempty"] or 1
     lines = [
         f"# Recall audit baseline since {args.since}",
@@ -189,17 +195,18 @@ def report(args, rows, skipped, result) -> str:
         f"- unknown 槽位 {counts['unknown_slots']} 个",
         "",
         "门禁击杀（judgment 数）：",
-        f"- SUPERSEDES 整条清零 {counts['supersede']}（替代者不在候选池 {counts['supersede_successor_missing']}，"
+        f"- SUPERSEDES 整条清零 {counts['supersede']}，其中有用候选 {counts['supersede_useful']}"
+        f"（原因 {dict(supersede_reasons)}；替代者不在候选池 {counts['supersede_successor_missing']}，"
         f"替代者被放行 {counts['supersede_successor_kept']}）；部分保留「较早记录」出现于 {counts['f_superseded_note']} 份注入",
         f"- 锚点降级 {counts['anchor']}" + (f"：{dict(anchor_sides)}" if anchor_sides else "（加 --hub-src 拆分失败侧）"),
         f"- 其他 conflict {counts['other_conflict']}",
         "",
         "台账行：",
-        "| 日期窗 | 版本 | n | 空注入 | e2e p50/p90 s | judge p50 s | out tok p50 | 近重复 | SUPERSEDES 清零 | 锚点降级 |",
+        "| 日期窗 | 版本 | n | 空注入 | e2e p50/p90 s | judge p50 s | out tok p50 | 近重复 | SUPERSEDES 有用清零 | 锚点降级 |",
         f"| {args.since}~ | <commit> | {counts['files']} | {counts['empty']} | "
         f"{(_pct(metrics['dur'], .5) or 0) / 1000:.0f}/{(_pct(metrics['dur'], .9) or 0) / 1000:.0f} | "
         f"{(_pct(metrics['judge'], .5) or 0) / 1000:.0f} | {_pct(metrics['out_tokens'], .5)} | "
-        f"{counts['f_near_dup']}/{counts['nonempty']} | {counts['supersede']} | {counts['anchor']} |",
+        f"{counts['f_near_dup']}/{counts['nonempty']} | {counts['supersede_useful']} | {counts['anchor']} |",
     ]
     return "\n".join(lines)
 
