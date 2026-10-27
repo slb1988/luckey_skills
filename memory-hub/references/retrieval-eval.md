@@ -174,6 +174,18 @@ MRR/Noise 可比；在线 hook 则使用服务端默认的 `quality_mode=llm`。
 
 详尽 schema/runner 说明以 `D:\Github\memory-hub\tests\eval\README.md` 为准。
 
+### 线上召回审计基线（本机 recall-results，只读）
+
+```bash
+python scripts/recall_audit_stats.py --since 20261020                                   # 速度/组织/击杀基线 + 台账行
+python scripts/recall_audit_stats.py --since 20261020 --hub-src D:/Github/memory-hub/src  # 用当前闸门代码拆锚点失败侧
+python scripts/recall_audit_stats.py --since 20261020 --export-cases cases.jsonl          # 击杀案例导出待标注
+```
+
+- 默认排除 project 名含 `dwa-iso / skills / isolated / skill-creator / tests` 的评测/隔离批量。10-20 两批 skill 触发评测共 394 次，几乎全部为空注入，不排除会严重拉低质量指标。
+- 每次部署后按同口径追加台账行，见 ObsidianVault `.claude/plans/MemoryHub召回质量迭代路线.md` §3。
+- `--since` 按文件名前缀比较，可以精确到部署时刻，例如 `20261024T05`，用来切分改动前后。
+
 ## 指标与 answer-level 评级
 
 - 排名指标：StrongHit@5、AnswerHit@10、expected-memory Recall@K、MRR/nDCG、Noise@10。
