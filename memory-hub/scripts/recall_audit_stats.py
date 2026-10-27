@@ -140,10 +140,11 @@ def analyse(rows, hub_src: str | None):
                 cases.append({
                     "file": f"{agent}/{project}/{path.name}", "rank": judgment.get("rank"),
                     "result_id": judgment.get("result_id"), "reason": reason,
-                    "conflict": conflict[:200], "query": (response.get("query") or "")[:300],
+                    "conflict": conflict[:200], "query": response.get("query") or "",
                     "task_anchor": relevance.get("task_anchor"),
                     "evidence_anchor": relevance.get("evidence_anchor"),
-                    "evidence": (judgment.get("evidence") or "")[:600], "label": None,
+                    "task_relevance": relevance or None,
+                    "evidence": judgment.get("evidence") or "", "label": None,
                 })
     return metrics, counts, attempts, policies, anchor_sides, supersede_reasons, cases
 
