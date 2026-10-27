@@ -2776,6 +2776,86 @@ def trace_event(config: "Config", kind: str, data: Dict[str, Any]) -> None:
         pass
 
 
+METRICS_FILENAME = "recall-metrics.jsonl"
+# 评测/批量回放 harness 设置该变量（如 eval、automation），召回台账据此与真实交互分开统计。
+RECALL_ORIGIN_ENV = "MEMORY_HUB_RECALL_ORIGIN"
+
+
+def recall_origin(cwd: str) -> str:
+    explicit = os.environ.get(RECALL_ORIGIN_ENV, "").strip()
+    if explicit:
+        return compact_text(explicit, 32)
+    folded = "/" + cwd.replace("\\", "/").strip("/").lower() + "/"
+    # 临时目录里的会话是 skill 触发评测等隔离批量（10-20 一天 394 次，几乎全空注入）。
+    return "eval" if "/tmp/" in folded or "/temp/" in folded else "interactive"
+
+
+def recall_metrics_row(
+    *,
+    source: Optional[str],
+    project_id: str,
+    cwd: str,
+    outcome: str,
+    duration_ms: int,
+    response: Optional[Dict[str, Any]] = None,
+    audit: Optional[Dict[str, Any]] = None,
+    context: str = "",
+    error_code: Optional[str] = None,
+) -> Dict[str, Any]:
+    """每次召回一行可聚合指标：不含 query、正文或模型输出。"""
+    response = response if isinstance(response, dict) else {}
+    raw = response.get("raw_response") if isinstance(response.get("raw_response"), dict) else {}
+    audit = audit if isinstance(audit, dict) else (raw.get("audit") if isinstance(raw.get("audit"), dict) else {})
+    stage_a = audit.get("stage_a") if isinstance(audit.get("stage_a"), dict) else {}
+    judgments = [row for row in stage_a.get("judgments") or [] if isinstance(row, dict)]
+    judge_calls = [call for call in stage_a.get("llm_calls") or []
+                   if isinstance(call, dict) and call.get("stage") == "judge"]
+    quality = response.get("quality") if isinstance(response.get("quality"), dict) else {}
+    retrieval = response.get("retrieval") if isinstance(response.get("retrieval"), dict) else {}
+    fusion = raw.get("fusion") if isinstance(raw.get("fusion"), dict) else {}
+    resolution = stage_a.get("correction_resolution") if isinstance(stage_a.get("correction_resolution"), dict) else {}
+    superseded = [row for row in judgments if "SUPERSEDES" in str(row.get("conflict") or "")]
+    reasons: Dict[str, int] = {}
+    for row in superseded:
+        if row.get("evidence") and row.get("supports_slots"):
+            reason = str(row.get("superseded_reason") or "unrecorded")
+            reasons[reason] = reasons.get(reason, 0) + 1
+    return {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "source": source,
+        "project_id": project_id,
+        "origin": recall_origin(cwd),
+        "outcome": outcome,
+        "error_code": error_code,
+        "duration_ms": duration_ms,
+        "retrieval_id": retrieval.get("retrieval_id") or raw.get("retrieval_id"),
+        "policy_version": retrieval.get("policy_version") or raw.get("policy_version"),
+        "candidates": quality.get("candidates"),
+        "kept": quality.get("kept"),
+        "judge_calls": len(judge_calls),
+        "judge_ms": sum(int(call.get("latency_ms") or 0) for call in judge_calls),
+        "judge_out_tokens": sum(int((call.get("usage") or {}).get("output_tokens") or 0) for call in judge_calls),
+        "resolver_degraded": resolution.get("degraded"),
+        "graph_fallback": fusion.get("fallback"),
+        "context_chars": len(context),
+        "context_lines": sum(1 for line in context.splitlines() if line.startswith("- ")),
+        "supersede_kills": len(superseded),
+        "supersede_useful_reasons": reasons,
+        "supersede_partial": sum(1 for row in judgments if row.get("history_note")),
+        "anchor_kills": sum(1 for row in judgments if "可核验锚点" in str(row.get("conflict") or "")),
+    }
+
+
+def record_recall_metrics(config: "Config", row: Dict[str, Any]) -> None:
+    """追加到 state_dir/recall-metrics.jsonl；失败不阻断主流程。"""
+    try:
+        config.state_dir.mkdir(parents=True, exist_ok=True)
+        with open(config.state_dir / METRICS_FILENAME, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
 def fact_text(fact: Any) -> str:
     if isinstance(fact, dict):
         for key in ("text", "fact", "content", "name"):
@@ -3880,6 +3960,11 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
                 "output": output,
             },
         )
+        record_recall_metrics(config, recall_metrics_row(
+            source=getattr(args, "source", None), project_id=project_id, cwd=os.getcwd(),
+            outcome="injected" if context else "empty", duration_ms=duration_ms,
+            response=response, audit=audit, context=context,
+        ))
         return 0
     except Exception as error:
         diagnostics = search_error_diagnostics(error)
@@ -3898,6 +3983,11 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
             "duration_ms": int((time.monotonic() - started) * 1000),
             "error": diagnostics,
         })
+        record_recall_metrics(config, recall_metrics_row(
+            source=getattr(args, "source", None), project_id=args.project or "", cwd=os.getcwd(),
+            outcome=outcome, duration_ms=int((time.monotonic() - started) * 1000),
+            error_code=diagnostics.get("code"),
+        ))
         return exit_code
 
 
@@ -3932,6 +4022,7 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
     started = time.monotonic()
     hook: Dict[str, Any] = {}
     outcome = "error"
+    recall_error_code: Optional[str] = None
     output = ""
     query = ""
     project_id = ""
@@ -4068,9 +4159,22 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
         )
         return 0
     except Exception as error:
+        recall_error_code = getattr(error, "error_code", None) or type(error).__name__
         print("memory hook recall: %s" % error, file=sys.stderr)
         return 0
     finally:
+        if outcome in {"injected", "suppressed", "empty", "error"}:
+            record_recall_metrics(config, recall_metrics_row(
+                source=getattr(args, "source", None),
+                project_id=project_id,
+                cwd=str(hook.get("cwd") or "") if hook else "",
+                outcome=outcome,
+                duration_ms=int((time.monotonic() - started) * 1000),
+                response=response if "response" in locals() else None,
+                audit=audit if "audit" in locals() else None,
+                context=recalled if "recalled" in locals() else "",
+                error_code=recall_error_code,
+            ))
         trace_event(
             config,
             "recall",

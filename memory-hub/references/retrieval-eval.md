@@ -185,6 +185,13 @@ python scripts/recall_audit_stats.py --since 20261020 --export-cases cases.jsonl
 - 默认排除 project 名含 `dwa-iso / skills / isolated / skill-creator / tests` 的评测/隔离批量。10-20 两批 skill 触发评测共 394 次，几乎全部为空注入，不排除会严重拉低质量指标。
 - 每次部署后按同口径追加台账行，见 ObsidianVault `.claude/plans/MemoryHub召回质量迭代路线.md` §3。
 - `--since` 按文件名前缀比较，可以精确到部署时刻，例如 `20261024T05`，用来切分改动前后。
+- 每次召回（含 503 失败）另追加一行 `~/.local/state/memory-hub-hook/recall-metrics.jsonl`，不含 query/正文。字段包括：
+  - origin、outcome/error_code、duration；
+  - judge 耗时与输出 token、resolver degraded、graph fallback；
+  - 注入行数、SUPERSEDES 有用清零原因、锚点降级。
+
+  `python scripts/recall_audit_stats.py --since 20261028 --metrics` 按 origin 汇总，**失败率只能从这里看**（md 审计只记成功的召回）。
+- 评测/批量回放 harness 应设置 `MEMORY_HUB_RECALL_ORIGIN=eval`（或 automation），不设时临时目录下的 cwd 自动记为 eval。
 
 ## 指标与 answer-level 评级
 

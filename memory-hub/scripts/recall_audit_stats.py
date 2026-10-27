@@ -8,6 +8,7 @@ row to the iteration ledger (.claude/plans/MemoryHub召回质量迭代路线.md)
     python recall_audit_stats.py --since 20261020
     python recall_audit_stats.py --since 20261020 --hub-src D:/Github/memory-hub/src  # + anchor replay
     python recall_audit_stats.py --since 20261020 --export-cases cases.jsonl          # gate kills for labeling
+    python recall_audit_stats.py --since 20261028 --metrics                            # 汇总 recall-metrics.jsonl（含失败率）
 """
 from __future__ import annotations
 
@@ -212,6 +213,39 @@ def report(args, rows, skipped, result) -> str:
     return "\n".join(lines)
 
 
+def metrics_report(path: Path, since: str) -> str:
+    """汇总客户端 recall-metrics.jsonl（每次召回一行，含失败）：md 审计看不到的错误率在这里。"""
+    rows = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if str(row.get("ts") or "").replace("-", "")[:len(since)] >= since:
+            rows.append(row)
+    lines = [f"# recall-metrics since {since}", ""]
+    for origin in sorted({row.get("origin") or "unknown" for row in rows}):
+        group = [row for row in rows if (row.get("origin") or "unknown") == origin]
+        done = [row for row in group if row.get("outcome") != "error"]
+        errors = Counter(row.get("error_code") or "unknown" for row in group if row.get("outcome") == "error")
+        reasons: Counter = Counter()
+        for row in group:
+            reasons.update(row.get("supersede_useful_reasons") or {})
+        lines += [
+            f"## {origin}：{len(group)} 次，失败 {sum(errors.values())}（{100 * sum(errors.values()) / max(1, len(group)):.1f}%）",
+            f"- 结果：{dict(Counter(row.get('outcome') for row in group))}；错误码：{dict(errors)}",
+            f"- 端到端 p50/p90 {_pct([r.get('duration_ms') for r in done], .5)}/{_pct([r.get('duration_ms') for r in done], .9)} ms；"
+            f"judge p50 {_pct([r.get('judge_ms') for r in done if r.get('judge_calls')], .5)} ms；"
+            f"输出 token p50 {_pct([r.get('judge_out_tokens') for r in done if r.get('judge_calls')], .5)}",
+            f"- resolver 降级 {sum(1 for r in group if r.get('resolver_degraded'))}；graph fallback "
+            f"{sum(1 for r in group if r.get('graph_fallback'))}；注入行 p50 {_pct([r.get('context_lines') for r in done if r.get('context_chars')], .5)}",
+            f"- SUPERSEDES 有用清零 {sum(reasons.values())} {dict(reasons)}，部分保留 {sum(r.get('supersede_partial') or 0 for r in group)}；"
+            f"锚点降级 {sum(r.get('anchor_kills') or 0 for r in group)}",
+            "",
+        ]
+    return "\n".join(lines)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
@@ -219,7 +253,12 @@ def main() -> int:
     parser.add_argument("--exclude", default=",".join(DEFAULT_EXCLUDE), help="project 目录名包含即排除，逗号分隔")
     parser.add_argument("--hub-src", help="memory-hub 仓库 src 目录：用当前代码重放锚点降级的失败侧")
     parser.add_argument("--export-cases", type=Path, help="把门禁击杀案例写成 JSONL（label 留空待人工标注）")
+    parser.add_argument("--metrics", nargs="?", const=DEFAULT_ROOT.parent / "recall-metrics.jsonl", type=Path,
+                        help="改为汇总客户端 recall-metrics.jsonl（含失败召回；按 origin 分组）")
     args = parser.parse_args()
+    if args.metrics:
+        print(metrics_report(args.metrics, args.since))
+        return 0
     exclude = tuple(token for token in args.exclude.split(",") if token)
     rows, skipped = load(args.root, args.since, exclude)
     result = analyse(rows, args.hub_src)
