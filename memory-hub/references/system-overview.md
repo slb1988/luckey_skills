@@ -45,6 +45,7 @@
 |---|---|---|---|---|
 | Memory Hub API | NAS 10.77.77.6 `/share/Container/memory-hub` | 宿主机进程（.venv Python 3.12） | 9287 | pid 22266，ready，graphiti/metadata 依赖 true |
 | Hub outbox worker | 同上 | 独立进程 hub-worker | — | pid 22290 |
+| Hub graph-dream worker | 同上 | 独立进程 `memory-hub-dream`（`memory-hub dream-worker`，独立 pid/log） | — | `GRAPH_DREAM_ENABLED` 闸门（false 时 start_all 打印 `[skip]`），按 `USAGE_TIMEZONE` 当地 04:00 poll-due；start_all/stop_all/status 三脚本均已管理，发布重启后 4 进程（hub/dashboard/hub-worker/hub-dream）全部就绪才算完成（2026-11 起，细节见仓库 `docs/GRAPH_DREAM.md`） |
 | Dashboard | 同上 `backend/` + `frontend/dist` | 宿主机进程 | 9288 | pid 22382，healthy，纯局域网直连无反代/域名 |
 | Graphiti | 同上 `/share/Container/memory_center/memory-center` | Docker `memory-center-graphiti` | 8005→8000 | Up 8d healthy，队列已清空（remaining queue 0） |
 | cypher-ro | 同上 | Docker `memory-center-cypher-ro` | 8006→8000 | Up 10d healthy（无 /healthcheck 路由，属正常） |

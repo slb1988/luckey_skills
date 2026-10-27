@@ -25,6 +25,7 @@ Memory Hub 提供 `GET /v1/projects` 列出已知 project（含 memory/session �
 | `memory-hub` | memory-hub 项目自身 | pi 端为主 |
 | `mini-as` | 教学脚本引擎 `D:\Github\mini-as` | 2026-08 手动归档新建 |
 | `sun-p4` | QNAP P4 depot（`E:\My\pc_qnap_depot_9516`）工具区：claude-code 源码分析/二开（去遥测、/buddy、打包 exe、TUI 渲染、SKILL.md 整理） | 2026-08 codex 归档新建，15 sessions |
+| `renderdoc` | RenderDoc 源码 `D:\Github\renderdoc` | 2026-10 workspace auto-discovery 自动注册 ws 绑定（memoryProject=renderdoc）；目录名派生即恒等，无需别名 |
 | `admin` | `C:\Users\admin` cwd 派生 + `embedding` merge 目标 | merged_sources: embedding |
 | `devops` | 旧 DevOps 仓库 `D:\SunLaibing_Depot_8603\DevOps`（PreCheckin / SKILL.index） | 2026-08 手动归档新建 |
 | `evavm` | EvaVM `D:\Github\EvaVM` | |
@@ -65,6 +66,10 @@ Memory Hub 提供 `GET /v1/projects` 列出已知 project（含 memory/session �
 环境变量 < 安装的 JSON < CLI `--project-alias`。
 目标 project 无需预先在 Hub 存在：group_id 由服务端按身份逐请求计算，首次写入（capture 或批量归档）
 即自动新建对应 scope（碎片 project 正是这样长出来的）；新增指向全新 project 的别名时不存在服务端预建步骤。
+
+**恒等映射不要写别名表**：目录名 == 目标 project id（如 `renderdoc`）时，派生链第 3 步别名未命中后
+回落派生名本身，结果已经正确；这类「pi 打开新目录 project 不对」的问题应先查 agent-control
+auto-discovery 是否已注册 ws 绑定（`agentctl resolve <目录名>`），而不是加别名。
 
 > **本机级映射优先**：state dir 的 `project-aliases.local.json`（`install --project <id>` 写入
 > `{"aliases":{"*":"<id>"}}`，机器级、不进 git）设置后覆盖共享模板，本机 capture/search/批量归档

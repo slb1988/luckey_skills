@@ -281,7 +281,7 @@ setsid .venv/bin/memory-hub serve > data/memory-hub.log 2>&1 < /dev/null &
 
 1. **pull 前先备份 DB**：`cp data/memory-hub.sqlite3 data/memory-hub.sqlite3.bak.$(date +%F_%H%M%S)`，回执只报备份路径和大小。
 2. **测试门禁**：`.venv/bin/pytest tests/unit/test_retrieval_fts.py tests/unit/test_retrieval_judge.py tests/unit/test_review_llm_client.py tests/unit/test_database_migrations.py -q` + `.venv/bin/python -m compileall -q src tests scripts`；任一失败即停，不进入重启。
-   - NAS 环境注记：裸 `.venv/bin/pytest` 需 `PYTHONPATH=.` 才能 import 项目包；NAS `/tmp` 是 64MB tmpfs 易满（sqlite 报 disk 类错误），pytest 加 `--basetemp=<大容量路径>`——**适用于 NAS 上一切 pytest 运行、不限迁移门禁**（2026-09 一次普通增量发布门禁同样两连失败，报错 `database or disk is full` 与代码无关，清 /tmp 残留 + `--basetemp`/TMPDIR 指大盘后稳定全绿）；graphiti overlay 有变更时 compileall 目标追加 `deploy/graphiti-0.22.0`。pytest console script（`.venv/bin/pytest`）曾出现 collection quirk，遇到时改用 `.venv/bin/python -m pytest`（ce3efee 发布实证，测试本身全绿）。
+   - NAS 环境注记：pyproject 已带 `pythonpath = ["."]`（dbfcd0b 起，修复 NAS 全量 collection 报 `No module named 'tests'`），裸 `.venv/bin/pytest` 不再需要手工 `PYTHONPATH=.`；NAS `/tmp` 是 64MB tmpfs 易满（sqlite 报 disk 类错误），pytest 加 `--basetemp=<大容量路径>`——**适用于 NAS 上一切 pytest 运行、不限迁移门禁**（2026-09 一次普通增量发布门禁同样两连失败，报错 `database or disk is full` 与代码无关，清 /tmp 残留 + `--basetemp`/TMPDIR 指大盘后稳定全绿）；graphiti overlay 有变更时 compileall 目标追加 `deploy/graphiti-0.22.0`。pytest console script（`.venv/bin/pytest`）曾出现 collection quirk，遇到时改用 `.venv/bin/python -m pytest`（ce3efee 发布实证，测试本身全绿）。
 3. **重启后只读验证迁移生效**：`schema_migrations` 表最新版本 == 目标版本、新增列存在（如 v7 的 `retrieval_judgments.intent`），再跑 `health/live` + `health/ready`。
 
 **验收失败只完整回报证据，不回滚、不自行改代码/配置后继续**——修复/跳过由用户决策。
@@ -426,3 +426,5 @@ cd /share/Container/memory-hub
 ```
 
 端到端测试用 Fake Graphiti，不污染真实中心服务。
+
+经 a2a 派发在 NAS 上跑**全量 pytest 会撞派发平台 1800s 硬超时**（1343 条规模实测前台被杀）：「更新发布」拆两阶段派发——第一阶段 pull + 前端构建 + 重启 + 健康验证，第二阶段测试用 `setsid .venv/bin/pytest ... > data/pytest.log 2>&1 &` 后台跑，再分次派发轮询日志取结果。pytest 收尾阶段 evolution worker 线程往已关闭的 stdout 写日志属无害噪音，不影响结果（日后可在 teardown 先停 worker 线程消除）。
