@@ -92,10 +92,12 @@ def fetch_points(cfg, start_day, ndays):
         points.extend(batch)
         if total_pages is None:
             try:
-                total_pages = int(hdr.get("X-Total-Pages") or 1)
+                # 服务端可能发小写头，dict(headers) 后不区分大小写就丢了
+                tp = next((v for k, v in hdr.items() if k.lower() == "x-total-pages"), None)
+                total_pages = int(tp) if tp else 0  # 0 = 头缺失，按满页续翻
             except (TypeError, ValueError):
-                total_pages = 1
-        if page >= total_pages or not batch:
+                total_pages = 0
+        if not batch or (total_pages and page >= total_pages) or (not total_pages and len(batch) < 1000):
             break
         page += 1
     out = []
