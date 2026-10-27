@@ -64,6 +64,8 @@ Always read the reference file before acting — it contains the actual paths, p
 | TaskAiReview 失败通知链路（TeamCityLogParserInformer 归因/路由语义、latestCL vs unshelve CL 身份陷阱） | `references/task-aireview-notification.md` |
 | AiReview 工具链本地模拟测试（Collect/Runner/Publish 分工、Runner cwd 硬性前置、copyfile SameFileError 根因） | `references/aireview-local-test.md` |
 
+Read the relevant reference before acting on that topic.
+
 ## Common workflows
 
 ### Service management
