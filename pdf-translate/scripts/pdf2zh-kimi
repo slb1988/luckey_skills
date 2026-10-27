@@ -1,0 +1,19 @@
+#!/bin/bash
+# pdf2zh + 自定义 LLM（默认 kimi-k3，走 build-api-proxy 网关）
+# 凭据从 ObsidianVault 根目录 .env 读取，不在本脚本硬编码
+set -euo pipefail
+
+ENV_FILE="${PDF2ZH_ENV_FILE:-/Users/sun/Documents/ObsidianVault/.env}"
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "缺少凭据文件: $ENV_FILE（参考 .claude/skills/pdf-translate/.env.example）" >&2
+  exit 1
+fi
+set -a; source "$ENV_FILE"; set +a
+
+: "${OPENAILIKED_BASE_URL:?OPENAILIKED_BASE_URL 未在 .env 配置}"
+: "${OPENAILIKED_MODEL:?OPENAILIKED_MODEL 未在 .env 配置}"
+
+# 网关在内网，防代理拦截兜底
+export no_proxy="${no_proxy:+$no_proxy,}10.77.77.4"
+
+exec pdf2zh -s openailiked "$@"
