@@ -176,6 +176,8 @@ MRR/Noise 可比；在线 hook 则使用服务端默认的 `quality_mode=llm`。
 
 ### 线上召回审计基线（本机 recall-results，只读）
 
+迭代改动的验收流程、判据与复盘要点见 [recall-iteration-acceptance.md](recall-iteration-acceptance.md)。
+
 ```bash
 python scripts/recall_audit_stats.py --since 20261020                                   # 速度/组织/击杀基线 + 台账行
 python scripts/recall_audit_stats.py --since 20261020 --hub-src D:/Github/memory-hub/src  # 用当前闸门代码拆锚点失败侧
