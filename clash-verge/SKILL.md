@@ -8,7 +8,7 @@ description: Clash Verge Rev（mihomo 内核）代理客户端的使用、排障
 ## 核心认知（排查前先建立这些心智模型）
 
 1. **内核是 verge-mihomo**（Clash Meta 系），Verge 只是 GUI 壳。所有能力（规则、分组、API）都是 mihomo 的。
-2. **订阅 yaml 会被更新覆盖**。直接改 `profiles/<id>.yaml` 的改动在订阅刷新后丢失；长期方案用 Verge 的「Merge（合并）」处理（`prepend-rules` / `prepend-proxy-groups`），每次更新自动重新注入。临时改动先备份 `.bak`。
+2. **订阅 yaml 会被更新覆盖**。直接改 `profiles/<id>.yaml` 的改动在订阅刷新后丢失；长期方案用 Verge 的「Merge（合并）」处理（`prepend-rules` / `prepend-proxy-groups`），每次更新自动重新注入。临时改动先备份 `.bak`。给特定进程/域名开直连白名单的完整落地流程（双文件同步、service 模式提权覆盖、验证方法论）见 [references/process-whitelist.md](references/process-whitelist.md)。
 3. **端口以 Verge 设置为准，不以 profile yaml 为准**。Verge 会覆盖 profile 里的 `port`/`mixed-port`；默认 mixed 端口 7897。看到 yaml 里写 7890 但实际监听 7897 是正常现象，不是配置错误。
 4. **核心实际加载的是合并生成的运行时配置**（应用数据目录下的 `clash-verge.yaml`），排查时看它而不是看订阅 profile。
 5. **控制 API 走本机 IPC，不一定有 TCP 端口**。以运行时配置里的 `external-controller` / `external-controller-pipe` / `external-controller-unix` / `secret` 字段为准。
