@@ -95,6 +95,8 @@ Agent 必须用 Java 21，老 Java 的 agent 能连上但**无法跑新构建**�
 - `Hide for me` / `Hide for everyone` 只隐藏大日志提醒，不删除日志、不释放空间。
 - 构建页 `Actions → Remove` 或按 build ID 的 REST 删除面向整个构建，日志与构建历史记录一起删除；没有用户产物也不等于“只删日志”。要求保留构建记录时不能用该入口，删除整个构建需另行确认范围。
 - `auto-server` 的 TeamCity 日志存储启用了 **ZFS 压缩**；大日志提醒显示的逻辑大小可远大于实际占盘，不能直接当作预计释放量。清理前分别核对精确逻辑字节数、实际占盘与 GB/GiB 阈值，不仅看取整后的 UI 大小。
+- 健康报告可能列出 **REST 按当前 buildType 查不到的孤儿构建**：构建配置被删除重建后，旧 internal id 的 history 行（`is_canceled=1`）与磁盘日志目录残留，REST 任何过滤条件都不可见。定位清理法：在 `system/artifacts/<projectExtId>/<config名>/<buildId>/` 下按 `du` 找大目录，读该目录 `.teamcity/properties/build.start.properties(.gz)` 里的 `build.number` 与报告编号逐字比对确认身份后才删；DB 侧这些行挂在已不存在的 `build_type_id` 上，属额外残留，与磁盘清理分开决策。注意个别孤儿目录可能是 root 所有，普通 `du`/`rm` 扫不到删不掉（可用 docker 挂卷以 root 处理）。
+- 健康报告的大日志条目可能指向 **DB 中已删除的构建**（2026-09 实证：WP_BuildNavData 6 个大日志目标中 5 个早已删除，REST/UI 都删不到）。判定法：用日期窗口 locator（`state:any,personal:any`、全分支）查同 buildType，**相邻编号存在而目标编号断档**（如 #138/#140 在、#139 无）= 该构建早已被删。此时日志是磁盘上的孤儿目录，只能上服务器手工清：先 REST GET `builds/id:<id>` 确认 404（确属孤儿）再 `rm -rf <build id 目录>`；存储位置 `system/artifacts/.../<build id>/.teamcity/logs`（旧版 `system/messages/*`）。文件清掉后报告条目下一轮扫描自行消失。
 
 ## Failure conditions：execution timeout 与「无输出超时」
 

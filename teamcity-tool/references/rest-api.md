@@ -162,6 +162,14 @@ curl -s -X POST "http://192.168.2.13:8111/app/rest/builds/id:<ID>" \
   -d '<buildCancelRequest comment="reason" readdIntoQueue="false"/>'
 ```
 
+### Delete a build（整构建删除：历史 + 日志 + 产物）
+```bash
+curl -s -X DELETE "http://192.168.2.13:8111/app/rest/builds/id:<ID>" \
+  -H "Authorization: Bearer $TOKEN"
+# 成功返回 204（无 body）；复查 GET 同 URL 应为 404
+```
+删除范围是整个构建，不是只删日志；健康报告里 DB 已删的「幽灵条目」删不到，见 [gotchas](gotchas.md)「构建大日志的清理范围」。
+
 ### Trigger a build
 ```bash
 curl -s -X POST "http://192.168.2.13:8111/app/rest/buildQueue" \
