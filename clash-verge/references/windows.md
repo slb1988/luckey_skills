@@ -80,6 +80,10 @@ C:\ProgramData\clash-verge-service\users\<profile哈希>\runtime\config.yaml
 - **活动 profile 是 local 单节点配置（`MATCH,PROXY` 兜底）时，Merge.yaml 的 `prepend-rules` 在运行时配置里是惰性顶层 key，不进核心规则表**；进程/域名直连实际生效层是全局 Script.js（`config.rules` 前置注入）。改规则要 Merge.yaml 与 Script.js 两边同步，并用 `GET /rules` 核实核心规则表。
 - `DELETE /connections/{id}` 对部分存量 TUN 长连接返回 400（关不掉），规则变更前的老连接会带着旧匹配结果存活到自然断开；判断规则是否生效只看变更后新建的连接。
 
+## 进程级直连规则（PROCESS-NAME）已配置清单
+
+- `PROCESS-NAME,Feishu.exe,DIRECT`（2026-10-28）：飞书主进程直连，按上文惯例 Script.js `directProcesses` 与 Merge.yaml `prepend-rules` 双侧同步。**未覆盖**：飞书安装目录还有 `ttdaemon.exe`、`video_conference_sdk.exe`（会议）等联网子进程——会议/语音流量若仍走代理，按进程名追加同类规则，并用 `GET /connections` 看新建连接的 ProcessName 链验证。
+
 ## 配置持久化：全局 Merge.yaml
 
 应用数据目录下 `profiles\Merge.yaml` 是「全局扩展配置」，对所有 profile 生效、订阅更新不丢。加任意顶层字段（如 `tun:`）会合入最终配置。改完后：
