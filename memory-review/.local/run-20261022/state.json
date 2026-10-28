@@ -1,0 +1,98 @@
+{
+ "run_id": "d8006755c79e",
+ "created": "2026-10-21T16:36:44",
+ "input_sha256": "72bd84b209b77f5f1c426052c0302bf503c75959f8dd27f744980442f01b07c9",
+ "rounds": 2,
+ "items": [
+  {
+   "review_id": "01a15d6f-ad17-7173-a8f2-11679812499d",
+   "memory_id": "01a15d6f-8079-740a-b143-43e35e3ad804",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "rationale": "auto-review(agent): DSL 排障落地版（CL 140335 双文件+§3.5 分工），边 fact 有正文支撑；novelty=evolution(REFINES)",
+   "snapshot_token": "rs1:f10af47614b88aeb80099ca0327548196fa1d2f7880481a8345ce7fe14edb2a9",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a15d36-81e4-7778-b089-9453df115a42",
+   "memory_id": "01a15d36-150a-7950-b3f7-0282555413de",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "rationale": "auto-review(agent): DSL 方案阶段版，措辞诚实标注未实施；与落地版互补不重复；novelty=evolution",
+   "snapshot_token": "rs1:a260c2963eaf5c435015fb51c7f7c6a876ddffdddb9d6094d0cca64efbad61f5",
+   "state": "wait_indexed",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a15d2a-00ef-79f7-9ee6-50c77ce59523",
+   "memory_id": "01a15d29-dba9-765e-ad50-b888a7395588",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "rationale": "auto-review(agent): DSL 三条错因+正确公式有正文支撑；plpythonpipeline 将按 suggested_canonical 改写 PLPythonPipeline；novelty=novel",
+   "snapshot_token": "rs1:0de5a26671274b1d7e3076e93df9126a372597647ffae56fbbc4c66a808a73ec",
+   "state": "pending",
+   "attribution": null,
+   "note": ""
+  },
+  {
+   "review_id": "01a15c61-fcc1-716b-a1e4-b59e9d38b94b",
+   "memory_id": "01a15c61-9d1f-73e1-aaa3-e0328c5fb8c2",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "rationale": "auto-review(agent): rpdt 无人值守管线+Orca 每日14:00自动化，MONITORS/RUNS/USES 边均有正文支撑；novelty=evolution(REFINES)",
+   "snapshot_token": "rs1:7fe08c6933286187fea5b6a92388ccff69c6bfce1c14ddf939a1e1af3c9e449d",
+   "state": "pending",
+   "attribution": null,
+   "note": ""
+  },
+  {
+   "review_id": "01a15c5d-8939-7709-804e-ed5c6e61df7d",
+   "memory_id": "01a15c5d-5721-784d-9abd-b20c07b6f6eb",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "rationale": "auto-review(agent): BUILD1850→1851 hash 对比归因，6xx 自动 chunk 新事实；user PREFERS 为真实用户口径；novelty=evolution(CONFIRMS+新事实)",
+   "snapshot_token": "rs1:df06a699f24e18f8a7ae8136617b7b1644dae2df12040995227f295a70c5c2d2",
+   "state": "pending",
+   "attribution": null,
+   "note": ""
+  },
+  {
+   "review_id": "01a15c4c-7451-76e5-96f8-4da9295cbf7c",
+   "memory_id": "01a15c4b-daaa-708e-bb5b-00e965a56f83",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "rationale": "auto-review(agent): rpdt 分类脚本新增两规则+prod 群通知口径，5 边均有支撑；novelty=evolution(REFINES)",
+   "snapshot_token": "rs1:ca3647cad05ed2d63c1f0357ce28834499b733315977a2a002259bcd24f249a7",
+   "state": "pending",
+   "attribution": null,
+   "note": ""
+  },
+  {
+   "review_id": "01a15aff-9bc5-78b1-ab1e-a964d380fdd9",
+   "memory_id": "01a15af4-9880-7c37-9bb4-1531c813b893",
+   "group_id": "project:memory-hub",
+   "content_mode": "curated",
+   "rationale": "auto-review(agent): sanitize_message_text 剥离 fenced code 根因，与既有候选构成 CONTRADICTS 演进链，事实核验通过；novelty=evolution",
+   "snapshot_token": "rs1:a52f3478125284a2a0a7fb83effa8b69f328162853a65abf3d0c81d01ebee22c",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  },
+  {
+   "review_id": "01a15aef-6439-7f78-9eaf-90723fe43724",
+   "memory_id": "01a15aeb-5ada-74d1-a889-b754d3b4c0b9",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "rationale": "auto-review(agent): 日报 P4 归因两类代提交口径+TC 触发器参数新判据，边有支撑；teamcity 将改写 TeamCity；novelty=evolution",
+   "snapshot_token": "rs1:436a4b71fc401f6078ffd8f36d1f0baa4dc14019be3e393bc19c520f77a7b919",
+   "state": "done",
+   "attribution": "receipt",
+   "note": "本次批准已受理，待 indexed"
+  }
+ ],
+ "saved_at": "2026-10-21T16:43:40",
+ "last_progress": "2026-10-21T16:43:40"
+}

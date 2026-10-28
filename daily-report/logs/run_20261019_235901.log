@@ -1,0 +1,25 @@
+﻿=== 20261019_235901 daily-report scheduled run ===
+--- precheck ---
+work evidence: P4 CL on 192.168.2.236:1666
+--- pi -p ---
+日报已生成。
+
+**写入路径**：`luckey/02_notes/daily/2026-10-19.md`（按模板新建）
+
+**DailySucc 条数**：7 条
+- AI 代码 Review 流水线代提交（主仓库 12 CL，autoserver-MainDev-review 工作区归因，按主题归并）
+- AI Review 功能开发与放行（CICD CL 1981/1984/1985/1986——Add Reviewer、陪审团独立权限、strict 拨关放行）
+- TeamCity 日志解析修复（CL 1982，cook 并行日志 `[CookWorker N]` 中缀）
+- 出包问题排查与 QA 协同（旧版本包定位、打包失败交办）
+- 包体优化推进（1.4G 突降分析、PAK 冗余）
+- 音频日志排查（142 条 real errors，137 条 Wwise）
+- AI Review 使用讨论与推广（/pr 推荐、a2a 平台分享）
+
+**上下班时间**：上班 06:57（早间段有 07:07/07:11 两条 CL 佐证）　下班 18:51　晚间工作 21:13–23:57（21:14–22:48 多条 CL 佐证）
+
+**数据缺口**：
+- `unknown` 470m 为 Orca 内嵌终端（无窗口标题），已在表格标注，未当作具体内容证据
+- 飞书扫描 138 群 / 19 活跃；「包体大小跟踪」首轮解析失败（lark-cli 更新提示污染），重试成功，我的 4 条发言已纳入
+- 10.77.77.6 个人服务器今日无提交（查询正常，非连接失败）
+- CICD 另有 3 条 TC 自动化代提交 CL（1983/1979/1978，xuzhiyang/sunlaibing 触发器参数），按规则排除未计入
+pi exit code: 0

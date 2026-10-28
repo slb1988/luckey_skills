@@ -1,0 +1,12 @@
+﻿=== 20261022_235901 daily-report scheduled run ===
+--- precheck ---
+work evidence: P4 CL on 192.168.2.236:1666
+--- pi -p ---
+日报已生成。
+
+- **写入路径**：`luckey/02_notes/daily/2026-10-22.md`（新建，按模板结构，其余区块保持原样）
+- **DailySucc 条数**：9 条（AI Review 流水线 10 条 CL 按主题归并、导表工具、早间排查、UGS PDB 确定性、Angelscript 调试、skill 答疑、QA 支持、技术研究、服务器运维）
+- **上下班时间**：上班 09:15 / 下班 18:37；另有早间远程排查 06:48–07:35（飞书 + CL 2014 佐证）、晚间工作 20:29–23:58（CL 2016 + 飞书佐证）
+- **App 表格**：18 条（含 unknown 108m 加注、Hearthstone 54m 保留为游戏）
+- **数据缺口**：① Dawarich 今日 0 轨迹点，无法区分在家/在公司，上下班以 AW 活跃段为准；② CICD 的 CL 2015（cyancook 触发器变更）非本人工作已排除
+pi exit code: 0

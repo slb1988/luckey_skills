@@ -1,0 +1,20 @@
+﻿=== 20261026_235902 daily-report scheduled run ===
+--- precheck ---
+work evidence: P4 CL on 192.168.2.236:1666
+--- pi -p ---
+日报已生成。
+
+**写入路径**：`luckey/02_notes/daily/2026-10-26.md`（新建，模板区块保持原样）
+
+**DailySucc 条数**：13 条，主线：
+- QA 测试用例 direct-async 全量迁移（CL 141735/141806/141920，主仓库 AI Review 流水线代提交，共 104 文件）+ 程序组群公告
+- VSCode AS 扩展 1.9.6 发布、AS 调试器 step return 修复（CL 142055，晚间）
+- PLAutomation FlowTask / ChunkPack / memory-hub recall 修复 / pl-review skill 重构等迭代
+- CICD 服务器 19 条均为 cyancook/xuzhiyang 的 TC 代提交，与本人无关，已整体排除
+
+**上下班时间**：上班 06:40（早间段有 CL 141708 07:19 入库佐证）　下班 18:23　晚间工作 20:55–23:56（CL 142018/142019/142055 佐证）
+
+**数据缺口**：
+- Dawarich 今日 0 轨迹点，无法区分在家/在公司，上下班时间以 AW 活跃段 + P4 提交时间推断
+- 飞书 `unknown` 窗口 475m 为 Orca 内嵌终端（已标注，不计入具体工作佐证）
+pi exit code: 0

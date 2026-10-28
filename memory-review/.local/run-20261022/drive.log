@@ -1,0 +1,35 @@
+2026-10-21T16:36:45 [queue] open 列表 16 条（覆盖确定）
+2026-10-21T16:36:45 [detail] [1/3] 01a15d6f-ad17-7173-a8f2-11679812499d 读取完成
+2026-10-21T16:36:45 [detail] [2/3] 01a15aff-9bc5-78b1-ab1e-a964d380fdd9 读取完成
+2026-10-21T16:36:45 [detail] [3/3] 01a15aef-6439-7f78-9eaf-90723fe43724 读取完成
+2026-10-21T16:36:45 [detail] 01a15d6f-ad17-7173-a8f2-11679812499d 在 open 列表：review=review memory=pending_extraction
+2026-10-21T16:36:45 [detail] 01a15aff-9bc5-78b1-ab1e-a964d380fdd9 在 open 列表：review=review memory=pending_extraction
+2026-10-21T16:36:45 [detail] 01a15aef-6439-7f78-9eaf-90723fe43724 在 open 列表：review=review memory=pending_extraction
+2026-10-21T16:36:45 [apply] round 1 提交 3 条：01a15d6f-ad17-7173-a8f2-11679812499d(project:maindev,curated), 01a15aff-9bc5-78b1-ab1e-a964d380fdd9(project:memory-hub,curated), 01a15aef-6439-7f78-9eaf-90723fe43724(project:obsidianvault,curated)
+2026-10-21T16:36:50 [apply] round 1 子进程结束 rc=0
+2026-10-21T16:36:50 [poll] 01a15d6f-ad17-7173-a8f2-11679812499d memory_status=submitted review_status=approved
+2026-10-21T16:37:10 [poll] 01a15d6f-ad17-7173-a8f2-11679812499d memory_status=submitted review_status=approved
+2026-10-21T16:37:30 [poll] 01a15d6f-ad17-7173-a8f2-11679812499d memory_status=indexed review_status=approved
+2026-10-21T16:37:30 [poll] 01a15aff-9bc5-78b1-ab1e-a964d380fdd9 memory_status=submitted review_status=approved
+2026-10-21T16:37:50 [poll] 01a15aff-9bc5-78b1-ab1e-a964d380fdd9 memory_status=submitted review_status=approved
+2026-10-21T16:38:11 [poll] 01a15aff-9bc5-78b1-ab1e-a964d380fdd9 memory_status=submitted review_status=approved
+2026-10-21T16:38:52 [poll] 01a15aff-9bc5-78b1-ab1e-a964d380fdd9 memory_status=None review_status=None err=URLError: <urlopen error [WinError 10060] 由于连接方在一段时间后没有正确答复或连接的主机没有反应，连接尝试失败。>
+2026-10-21T16:39:12 [poll] 01a15aff-9bc5-78b1-ab1e-a964d380fdd9 memory_status=indexed review_status=approved
+2026-10-21T16:39:12 [poll] 01a15aef-6439-7f78-9eaf-90723fe43724 memory_status=submitted review_status=approved
+2026-10-21T16:39:53 [poll] 01a15aef-6439-7f78-9eaf-90723fe43724 memory_status=None review_status=None err=URLError: <urlopen error [WinError 10060] 由于连接方在一段时间后没有正确答复或连接的主机没有反应，连接尝试失败。>
+2026-10-21T16:40:20 [poll] 01a15aef-6439-7f78-9eaf-90723fe43724 memory_status=submitted review_status=approved
+2026-10-21T16:40:40 [poll] 01a15aef-6439-7f78-9eaf-90723fe43724 memory_status=submitted review_status=approved
+2026-10-21T16:41:21 [poll] 01a15aef-6439-7f78-9eaf-90723fe43724 memory_status=None review_status=None err=URLError: <urlopen error [WinError 10060] 由于连接方在一段时间后没有正确答复或连接的主机没有反应，连接尝试失败。>
+2026-10-21T16:41:42 [poll] 01a15aef-6439-7f78-9eaf-90723fe43724 memory_status=submitted review_status=approved
+2026-10-21T16:42:23 [poll] 01a15aef-6439-7f78-9eaf-90723fe43724 memory_status=None review_status=None err=URLError: <urlopen error [WinError 10060] 由于连接方在一段时间后没有正确答复或连接的主机没有反应，连接尝试失败。>
+2026-10-21T16:42:43 [poll] 01a15aef-6439-7f78-9eaf-90723fe43724 memory_status=submitted review_status=approved
+2026-10-21T16:43:10 [poll] 01a15aef-6439-7f78-9eaf-90723fe43724 memory_status=submitted review_status=approved
+2026-10-21T16:43:37 [poll] 01a15aef-6439-7f78-9eaf-90723fe43724 memory_status=indexed review_status=approved
+2026-10-21T16:43:37 [queue] open 列表 13 条（覆盖确定）
+2026-10-21T16:43:38 [detail] [1/1] 01a15d36-81e4-7778-b089-9453df115a42 读取完成
+2026-10-21T16:43:38 [detail] 01a15d36-81e4-7778-b089-9453df115a42 在 open 列表：review=review memory=pending_extraction
+2026-10-21T16:43:38 [apply] round 2 提交 1 条：01a15d36-81e4-7778-b089-9453df115a42(project:maindev,curated)
+2026-10-21T16:43:40 [apply] round 2 子进程结束 rc=0
+2026-10-21T16:43:40 [poll] 01a15d36-81e4-7778-b089-9453df115a42 memory_status=pending review_status=approved
+2026-10-21T16:44:21 [poll] 01a15d36-81e4-7778-b089-9453df115a42 memory_status=None review_status=None err=URLError: <urlopen error [WinError 10060] 由于连接方在一段时间后没有正确答复或连接的主机没有反应，连接尝试失败。>
+2026-10-21T16:44:41 [poll] 01a15d36-81e4-7778-b089-9453df115a42 memory_status=submitted review_status=approved

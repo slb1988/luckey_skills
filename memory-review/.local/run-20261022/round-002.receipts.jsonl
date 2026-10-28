@@ -1,0 +1,2 @@
+{"kind": "intent", "action": "approve", "content_mode": "curated", "rationale": "auto-review(agent): DSL 方案阶段版，措辞诚实标注未实施；与落地版互补不重复；novelty=evolution", "review_ids": ["01a15d36-81e4-7778-b089-9453df115a42"], "expected_snapshot_tokens": {"01a15d36-81e4-7778-b089-9453df115a42": "rs1:a260c2963eaf5c435015fb51c7f7c6a876ddffdddb9d6094d0cca64efbad61f5"}, "ts": "2026-10-21T16:43:38"}
+{"kind": "receipt", "action": "approve", "http_status": 200, "results": [{"error": null, "review_id": "01a15d36-81e4-7778-b089-9453df115a42", "status": "approved"}], "ts": "2026-10-21T16:43:40"}
