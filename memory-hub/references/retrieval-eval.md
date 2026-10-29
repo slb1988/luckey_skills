@@ -53,6 +53,10 @@ release 只做明确授权的运维。
 完整结构化审计 + 服务端原始响应；只有 `injection_context` 进入模型，其余仅供审计，
 定位一次漏召回不需要服务端访问。
 
+<memory category="troubleshooting">
+「这条召回莫名其妙」先归因事件、再评 prompt：recall-results 目录里自动预热（trace `kind=project_bootstrap`）与 agent 回合内主动 `memory_search` **各落一份文件**，文件名只有时间戳、同 session 可有多份——按时间戳对 `pi-trace.jsonl` 的 kind/query 与 session jsonl 的 toolCall 定位该文件属于哪次检索、谁发起的。注入大段逐字重复的已确认根因（2026-10-28 maindev `144823Z` 案）：渲染层只按结论指纹去重、**不按来源 session 折叠**——同一源 session 的多个不可变版本各自蒸出独立 memory_id（v1/v3/v4 摘要 + dream_lesson），可在同一次召回全部注入（该案 4 条来源同属 session `01a12eda`，3264 字符大半重复）；结论指纹去重和 v40 `exclude_memory_ids`（只排同 memory_id）都管不到这一层。另：检索 scope 按 project 不按 source agent——「跟着我最近的 claude session」这类零锚点指代 query 可命中**其他 agent 的续接会话摘要**（摘要自带「继续刚刚 session」字样会自我强化，二次检索再顺线索词放大）；续接任务在 prompt 带主题词或 session UUID（服务端支持按 ID 直查）锚定更稳。
+</memory>
+
 <memory category="common-patterns">
 recall 审计文件名双 id 丢失的根因（skills `123d280`，2026-10-26）：`memory_hook.py
 write_recall_result_file()` 为修「同秒并发 recall 互相覆盖」改用 O_EXCL 原子占位（冲突追加
@@ -141,6 +145,10 @@ min_rating（默认 2）→ 确定性后处理 → Stage B 只接收 kept 源 �
 可检索文档 41% 仍是三段式原文（distilled 1989 + original 224），存储层卡片化需关卡 2 批量重抽。
 schema v30（`0b2e0b0`）：auto-review 有 ≥2 条事实边时强制 curated；每次批准写 `extraction_reviews.curation_version`，
 全量重抽前先跑 `scripts/curation_candidates.py`（只读，记忆级 + session 级取最小版本），只处理版本缺失/较低者。
+</memory>
+
+<memory category="common-patterns">
+重提开启 `RETRIEVAL_CARD_SELECT` 先对齐历史结论：它不是「写好但没测过」——`68229f2` 当日（2026-10-14）已做 31 条回放 A/B 并否决（judge 输入 token 9.9K→10.2K 未降、h02/h09 裁卡后判分 3→0），只是线上从未常驻。验证方法有结构性配对：该开关的实际失败模式在 **judge 判分层**（候选裁短丢上下文），而 `scripts/probe_candidates.py` 无 LLM、只比候选池，对正是要防的回退天然失明——重验必须走带 judge 判分的回放（同 10-14 口径、含 held-out 用例），probe 的候选池对比不能当放行门禁。
 </memory>
 
 ## 运行命令

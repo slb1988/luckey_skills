@@ -79,6 +79,10 @@ Dashboard 抽取审核在手机竖屏上以信息完整性优先：实体、边�
 
 用户在 Memory Hub 语境提到 `eval`、记忆评估或检索效果验证时，立即按 [retrieval-eval.md](references/retrieval-eval.md) 执行；先做只读 baseline 和"存错还是取错"分层，不把非空结果等同于有效召回。
 
+<memory category="common-patterns">
+重提任何默认关闭的 retrieval 开关或候选池/判分输入侧的去重机制前，必须先查 [retrieval-eval.md](references/retrieval-eval.md) 的历史 A/B 结论，不得凭代码读感推断「写好没开过」。`RETRIEVAL_CARD_SELECT` 已于 2026-10-14 被 31 条回放 A/B 否决（judge token 9.9K→10.2K 未降、held-out h02/h09 判分 3→0）。这类机制的失败模式在 judge 判分层（裁短丢上下文），`scripts/probe_candidates.py` 无 LLM 判分、对该回退天然失明，不能当放行门禁；重验必须走带 judge 的回放。同 session 多版本摘要重复注入（2026-10-28 实例：一轮注入同事实 ×3、4 条来源全属同一 session）属已知现状，定版决策：不做 session 折叠、不开卡片开关；若仍需消重复，只许在 Stage B 渲染后的注入文本做行级近似去重（不碰 judge 池与判分输入）。
+</memory>
+
 ## 身份、Scope 与检索
 
 除健康检查外，请求需三个身份头 `X-Agent-Id` / `X-Project-Id` / `X-User-Id`（生产另需 `Authorization: Bearer <MEMORY_HUB_API_KEY>`）；group_id 由服务端按身份计算（`global` / `user:{uid}` / `project:{pid}` / `agent:{aid}`），搜索自动覆盖可读的四个 group，客户端不传 `group_ids`。写 global 需 `X-Role: trusted_service/admin`，普通 agent 不要设。
