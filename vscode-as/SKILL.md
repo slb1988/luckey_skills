@@ -60,6 +60,11 @@ description: >-
 
 明确区分：模块测试、esbuild 构建、宿主启动、TCP 建连、GUI 目视效果、AS 断点执行、跨平台验收。只报告实际完成的层；esbuild 不是完整 `tsc` 类型检查。
 
+<memory category="common-patterns">
+LSP 消息流不是严格的“一问一答”：等待 `textDocument/hover` 等请求响应时仍可能先收到诊断通知；接收循环须分发通知，不能把下一条消息直接当成当前请求的响应。
+推送诊断模式下，`textDocument/publishDiagnostics` 的 `diagnostics: []` 表示清除该 URI 的旧诊断；不发送诊断通知并不等于清空。
+</memory>
+
 ## 安全默认值
 
 - 使用独立开发宿主或隔离试安装目录，不关闭用户现有 VSCode/UE，不全局卸载已装扩展。
