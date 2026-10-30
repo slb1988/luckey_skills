@@ -50,6 +50,14 @@ c.execute("""SELECT key_name, COUNT(*), SUM(input_tokens)/1e6, SUM(output_tokens
 
 2026-10-20 曾误判 wanghao/liuxu/murphy/majiacheng 等 8 个 key「有 token 记录但无会话文件 = 失败请求/探活」——实际 8 个 key 全部有正文（wanghao 单 key 请求体 122MB），是提取跑批漏抽（OOM 后产出不完整）。**下「无正文可蒸」结论前必须在 DB 侧验证**：`SELECT COUNT(*), SUM(LENGTH(request_body)) FROM request_history WHERE ts LIKE '<DAY>%' AND key_name=?`——body_bytes 很大就不是探活。token 有无与正文有无是两回事。
 
+### ⚠️ 已知坑：UTC 日界 × 全量快照 = 跨天重复蒸馏
+
+2026-10-24 实测：`ts` 是 UTC（`...Z`），`ts LIKE '<DAY>%'` 的实际覆盖是北京时间 08:00→次日 08:00；而提取按「会话全量最长快照」导出，**跨天活跃的长会话会在相邻两天各被完整导出一遍**（10-24 的 738 个文件与 10-23 的 737 个成员构成几乎相同），读 tail 拿到的是整个跨天会话的结论，导致层1/层2 与前一天大面积重复。对策：蒸 day N 写产物前，先 `grep` 前一天层1 条目关键词与层2 工作项标题去重；层1 只收增量条目，层2 文件头部标注跨天快照重叠。长期修法（未做）：提取侧按「会话最后请求 ts 落在 day N」过滤尾活在前一天的会话。
+
+### ⚠️ 已知坑：宿主机 /tmp/distill 复用会混入旧日期文件
+
+2026-10-23 实测：`docker cp build-api-proxy:/tmp/distill /tmp/distill` 在宿主机目标目录已存在时会套成 `/tmp/distill/distill`，且旧日期的残留文件会污染话题索引（把前一天的人物当成当天）。**宿主机侧也要先 `rm -rf /tmp/distill` 再 docker cp**，cp 后 `ls /tmp/distill | grep -c txt` 与提取报告的会话数对账。
+
 ## session 去重原理
 
 `request_body.metadata.user_id` 是 JSON 字符串，内含 `session_id`（Claude Code / Codex / Pi 的会话 ID）：
