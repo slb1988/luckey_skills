@@ -31,3 +31,23 @@ Dashboard 抽取审核的拒绝入口统一弹框填原因，textarea **可选**
 ## 上游 prompt 草稿内化
 
 可内化案例 = 有理由 / 有人工纠正的决策样本；据此生成上游抽取审核 prompt 的**待激活草稿**——不逐次调用模型、不自动激活、不自动改动正在生效的 prompt，人工确认后才生效。
+
+## auto-review 停摆判读（reviewer 侧）
+
+「该消费却不消费」要与 fail-closed 积压分开判读：mode=auto 且 `status=review`、novelty admission ∈
+(novel, evolution) 的条目持续变老、长期没有任何 `llm:auto-review` 决策落账 → auto-review 消费循环
+疑似未运行（2026-10-30 实证：mode=auto 下最老 53.7h 的可 claim 条目从未被消费；worker 侧排查走
+@nas，看 review worker 存活与 worker.log）。
+
+- **scan packet 的 `auto_review_attempts` 恒为 null，不是「未 claim」证据**：API 不序列化每条
+  review 的 attempts 字段（`api/schemas.py` 只暴露 mode 设置），scan 按「未返回留空」落 null。
+  权威核对在服务端 DB：`auto_review_attempts` / `auto_review_state` / `auto_review_lease_until` 列。
+- **消费循环形态**：review worker 单循环四队列轮转（preview → auto-review → approval-drain →
+  intake triage），每 tick 最多执行一个慢 job、轮转起点防饿死（`workers/review.py`）；auto-review
+  仅在 `extraction_auto_review_active()`（mode=auto）时参与轮转——worker 活着但 mode 被切回 off
+  同样表现为「不消费」，先核对 mode 再判停摆。
+- **claim 前置条件**（`service.py auto_review_extraction` 的 claim SQL，任一不满足即永不 claim）：
+  memory 仍 `pending_extraction`；review 不在 `extraction_approval_queue`；未挂同组新实体门禁
+  （decision_rationale ≠ 门禁原因）；attempts < max；`auto_review_state='pending'`；lease 空闲；
+  novelty 分析 completed 且 admission ∈ (novel, evolution)——**duplicate/failed 条目 auto 永不 claim**，
+  与人工红线一致。claim 成功即 attempts +1（claim 就计数，进程崩溃也不能重复烧 token）。
