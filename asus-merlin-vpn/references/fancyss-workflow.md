@@ -87,6 +87,18 @@ Consequences:
 - The old armv7 `rss-local`'s support for `2022-blake3-*` ciphers is unverified — refreshed nodes are not guaranteed to start.
 - Node ports rotate over time (81xx → 121xx observed). The local Clash profile is the source of truth for current live ports; compare before assuming a node or the plugin is broken.
 
+## Node Storage And Manual Sync From Clash
+
+Subscription import resolves each node's domain to an IP at import time and stores the **IP**. Airport server-IP rotations then silently break every imported node (symptom: overseas DNS dead in whitelist mode; IoT devices phoning home to overseas domains loop DHCP release/retry). The local Clash profile YAML is the source of truth for current server/port/password/obfs host.
+
+Compatibility filter before syncing: only Clash `type: ss` with classical ciphers (`chacha20-ietf` etc.) and `plugin: obfs` map to fancyss `type=1` with `rss_obfs=http_simple`. AnyTLS nodes are unsupported; `2022-blake3-*` ciphers are unverified on the armv7 rss-local — exclude both.
+
+Manual write: build per-node schema-2 JSON (keys in order: `group,method,mode,name,password,port,rss_obfs,rss_obfs_param,rss_protocol,server,type` + `_source,_profile_id,_airport_identity,_source_scope,_source_url_hash` + `_id,_created_at,_schema,_rev,_b64_mode="raw",_updated_at`), base64 it, `dbus set fss_node_<id>=<b64>`. Reuse existing slot ids for name matches and preserve the **current** node's `_identity*` fields so `fss_node_current_identity` keeps resolving. Store the **domain** (not a resolved IP) in `server` so startup resolution follows future airport rotations.
+
+Transport pitfall: piping long multi-line scripts through the expect-based `router_ssh.sh` randomly truncates or drops individual lines (pty burst). After every bulk `dbus set`, verify every slot with `dbus get fss_node_<id> | tr -d "\n" | wc -c` against locally computed b64 lengths and resend mismatches individually until all lengths match.
+
+UI visibility: the web UI enumerates nodes from the **`fss_node_order`** dbus key (comma-separated id whitelist), not by scanning `fss_node_*` keys. Hand-added nodes must be appended to `fss_node_order` and `fss_node_next_id` bumped past the highest used id, or they stay invisible. Node cards' red `failed!` badges are cached web-latency-test results, not live health — retest per node (clock icon) after the plugin is running.
+
 ## Start And Switch Nodes
 
 Use `stop` then `start`; `restart` may not regenerate all temporary config files in this build.
