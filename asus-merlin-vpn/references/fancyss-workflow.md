@@ -99,7 +99,19 @@ Store the **resolved IP** (not the domain) in `server`: this build's dynamic-res
 
 Transport pitfall: piping long multi-line scripts through the expect-based `router_ssh.sh` randomly truncates or drops individual lines (pty burst). After every bulk `dbus set`, verify every slot with `dbus get fss_node_<id> | tr -d "\n" | wc -c` against locally computed b64 lengths and resend mismatches individually until all lengths match.
 
-UI visibility: the web UI enumerates nodes from the **`fss_node_order`** dbus key (comma-separated id whitelist), not by scanning `fss_node_*` keys. Hand-added nodes must be appended to `fss_node_order` and `fss_node_next_id` bumped past the highest used id, or they stay invisible. Node cards' red `failed!` badges are cached web-latency-test results, not live health — retest per node (clock icon) after the plugin is running.
+UI visibility: the web UI enumerates nodes from the **`fss_node_order`** dbus key (comma-separated id whitelist), not by scanning `fss_node_*` keys. Hand-added nodes must be appended to `fss_node_order` and `fss_node_next_id` bumped past the highest used id, or they stay invisible.
+
+## Status / Latency Test Toolchain Broken On AC5300 (kernel 2.6.36)
+
+fancyss 3.5.30's Zig helper binaries cannot probe on this router: `status-tool` runs but every probe fails with `TimerUnsupported` (32-bit Zig uses the `clock_gettime64` syscall, absent on 2.6.36), and `webtest-tool` cannot even start (`UPX-5.0 wants memfd_create()`). Symptoms: 首页「国外/国内连接」永远 X 或 Waiting、节点卡片全 `failed!`，而实际代理完全正常。`statusctl` 和 `node-tool` 不受影响。
+
+Fix: shell shims replace the two binaries ( originals backed up as `/koolshare/bin/*.zig.bak`):
+
+- `/koolshare/bin/status-tool`: `fancyss` subcommand probes china-url direct + foreign-url via `socks5://127.0.0.1:23456` with curl-fancyss and prints the `国外链接 【ts】 ✓&nbsp;&nbsp;N ms@@国内连接 ...` payload; `serve`/`daemon` loop-write the legacy + state JSON files (no unix socket); `client get_cache|probe_once|ping` file-backed; `--version` prints `0.1.3-shim`.
+- `/koolshare/bin/webtest-tool`: `run --config <job.json>` — per target runs `start_script`, waits for `wait_port`, probes through `socks5h://127.0.0.1:<test_port>` (warmup discarded, first success of `attempts` wins), appends `id>testing|ms|failed|timeout` to `legacy_stream_file`, ends with `{"results":[{"id,state,latency_ms}]}` in `output_json` (states ok/timeout/failed).
+- `dbus set ss_basic_status_mode=once` so the UI path calls the shim directly instead of the socket-based serve daemon (failover is off; in serve mode the missing socket causes restart churn on every poll).
+
+Plugin upgrades overwrite `/koolshare/bin/*` — re-apply the shims after upgrading.
 
 ## Start And Switch Nodes
 
