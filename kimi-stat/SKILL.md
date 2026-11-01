@@ -9,15 +9,15 @@ tags: [Kimi, Quota, Report, Personal-Tool]
 
 > Tier 3 — 个人私有 workflow skill（`sunlaibing`）
 
-一条命令跑完「批量探测 → 生成报告 → 打开浏览器」全流程，脚本与 key 清单在 `.claude\scripts\`。
+一条命令跑完「批量探测 → 生成报告 → 打开浏览器」全流程。脚本在 skill 目录 `scripts/`，key 清单、历史快照、HTML 报告等私有数据在 `assets/`（已 gitignore 不入库）。
 
 ## 执行流程
 
 ```bash
-cd ".claude/scripts" && py kimi_quota.py -f keys.txt --html --open
+cd ".claude/skills/kimi-stat/scripts" && py kimi_quota.py -f ../assets/keys.txt --html --open
 ```
 
-- `--html`：在 scripts 目录生成 `kimi_quota_report_YYYYMMDD-HHMMSS.html`（文件名自动追加时间戳）
+- `--html`：在 `assets/reports/` 生成 `kimi_quota_report_YYYYMMDD-HHMMSS.html`（文件名自动追加时间戳）
 - `--open`：生成后自动用默认浏览器打开（`os.startfile`）
 - 控制台同步打印每个 key 的用量进度条，末尾输出 `HTML 报告: <绝对路径>` 一行
 
@@ -42,7 +42,7 @@ cd ".claude/scripts" && py kimi_quota.py -f keys.txt --html --open
 
 ## 对比与预测机制
 
-- **历史快照独立存放** `.claude/scripts/kimi_quota_history.jsonl`（与 HTML 报告分离，一次探测一行 JSON：`{ts, keys{mask:{nickname,h5,d7,d7_reset}}}`），方便直接差分；每次探测自动追加
+- **历史快照独立存放** `assets/kimi_quota_history.jsonl`（与 HTML 报告分离，一次探测一行 JSON：`{ts, keys{mask:{nickname,h5,d7,d7_reset}}}`），方便直接差分；每次探测自动追加
 - **基线选择**：最近一次 ≥2h 前的快照（短间隔噪声太大，不用于外推），基线时间显示在控制台摘要和 HTML 头部面板
 - **预测方法**：7 天窗口按两次探测间净消耗速率（pp/天）线性外推耗尽 ETA，与 reset_time 比较得出「撑不到重置 / 可撑到重置」；Δ≤0 判「回落/持平」（滚动窗口吐出旧用量）；间隔 <30 分钟只显示 Δ 不预测。7 天是滚动窗口，外推仅供参考
 - HTML 报告头部固定放「对比与预测」面板，每张卡片 7 天进度条下带一行对比明细
@@ -68,4 +68,4 @@ cd ".claude/scripts" && py kimi_quota.py -f keys.txt --html --open
 
 - keys.txt 与报告含 masked key，报告 HTML 不外发
 - 8 线程并发探测，50+ key 约 10 秒返回；个别 key 失败会在报告中标 ✗，属网络波动，重跑一次即可
-- 换电脑或路径变动时，先确认 `.claude\scripts\kimi_quota.py` 与 `keys.txt` 存在；历史快照 `kimi_quota_history.jsonl` 丢失时用 `--import-html` 从存量 HTML 报告重建
+- 换电脑或路径变动时，先确认 `scripts/kimi_quota.py` 与 `assets/keys.txt` 存在；历史快照 `assets/kimi_quota_history.jsonl` 丢失时用 `--import-html` 从 `assets/reports/` 存量 HTML 报告重建

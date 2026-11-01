@@ -1,0 +1,4 @@
+# 私有数据与生成物不入库
+assets/keys.txt
+assets/kimi_quota_history.jsonl
+assets/reports/
