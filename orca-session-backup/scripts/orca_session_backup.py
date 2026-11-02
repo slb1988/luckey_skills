@@ -5,6 +5,7 @@
   python orca_session_backup.py backup [--worktree SEL | --all] [--out DIR]
   python orca_session_backup.py restore FILE.md [--only 1,3] [--dry-run] [--force]
 
+backup 默认保存所有工作区；只有显式指定 --worktree 时才限定范围。
 backup 只读：调用 `orca terminal list`，读取 Orca terminal-history 与各 agent 的本地会话文件
 （Pi: ~/.pi/agent/sessions，Claude: ~/.claude/projects），不关闭、不修改任何东西。
 """
@@ -511,10 +512,10 @@ def render(tabs: list[Tab], leftovers: dict, scope: str, out_file: Path) -> str:
 # ---------------------------------------------------------------- commands
 
 def cmd_backup(args):
-    if args.all:
+    if args.all or not args.worktree:
         worktree, scope = None, "all"
     else:
-        worktree = resolve_worktree(args.worktree or "active")
+        worktree = resolve_worktree(args.worktree)
         scope = None
     tabs, leftovers = collect(worktree)
     if not tabs:
@@ -562,10 +563,10 @@ def main():
         sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    b = sub.add_parser("backup", help="备份终端里的 agent 会话为 .md")
+    b = sub.add_parser("backup", help="备份所有工作区的 agent 会话为 .md（可用 --worktree 限定）")
     g = b.add_mutually_exclusive_group()
-    g.add_argument("--worktree", help="Orca worktree selector，如 name:angelscript-merge / path:E:/x（默认 active）")
-    g.add_argument("--all", action="store_true", help="备份所有工作区")
+    g.add_argument("--worktree", help="只备份指定工作区：裸目录名、绝对路径或 Orca selector；active 表示当前工作区")
+    g.add_argument("--all", action="store_true", help="显式备份所有工作区（默认行为）")
     b.add_argument("--out", help=f"输出目录（默认 {DEFAULT_OUT}）")
     b.set_defaults(func=cmd_backup)
     r = sub.add_parser("restore", help="从备份 .md 恢复会话到 Orca 新标签")

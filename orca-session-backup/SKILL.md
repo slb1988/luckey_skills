@@ -1,6 +1,6 @@
 ---
 name: orca-session-backup
-description: "把 Orca 里打开的 agent 终端会话（Pi / Claude Code）备份成一份可读的 .md「待 Review 清单」，每条带首问/末问/最后回复/产出文件和可复制的恢复命令，之后可放心关闭终端，按需单条或一键全部恢复到 Orca 新标签。当用户提到备份 Orca 会话、收藏/存档 agent 终端、终端太多想关又怕丢、会话书签、恢复之前关掉的 Orca 会话、orca session backup/restore 时触发。即使用户只说「把 angelscript-merge 的会话存一下」「这些 agent 我还没看完先收起来」「把上次备份的会话恢复回来」也应触发。"
+description: "默认把本机 Orca 所有 workspace 中打开的 agent 终端会话（Pi / Claude Code）一起备份成一份可读的 .md「待 Review 清单」，每条带首问/末问/最后回复/产出文件和可复制的恢复命令，之后可放心关闭终端，按需单条或一键全部恢复到 Orca 新标签。当用户提到备份 Orca 会话、收藏/存档 agent 终端、终端太多想关又怕丢、会话书签、恢复之前关掉的 Orca 会话、orca session backup/restore 时触发。即使用户只说「把 angelscript-merge 的会话存一下」「这些 agent 我还没看完先收起来」「把上次备份的会话恢复回来」也应触发。"
 ---
 
 # Orca 会话备份 / 恢复
@@ -12,12 +12,16 @@ description: "把 Orca 里打开的 agent 终端会话（Pi / Claude Code）备�
 
 ## 备份
 
+**默认保存本机 Orca 所有工作区的会话（包括 MainDev），不按当前 cwd 或活动工作区缩小范围。** 即使从 ObsidianVault 调用，也要全量保存；只有用户明确指定单个工作区时才传 `--worktree`。
+
 ```bash
-python .claude/skills/orca-session-backup/scripts/orca_session_backup.py backup --worktree angelscript-merge
+python .claude/skills/orca-session-backup/scripts/orca_session_backup.py backup
 python .claude/skills/orca-session-backup/scripts/orca_session_backup.py backup --all
+python .claude/skills/orca-session-backup/scripts/orca_session_backup.py backup --worktree angelscript-merge
 ```
 
-- `--worktree` 接受裸目录名（`angelscript-merge`）、绝对路径或 Orca selector；不传 = 当前 active 工作区。
+- 不传范围参数 = 所有工作区；`--all` 保留为显式全量写法。
+- `--worktree` 接受裸目录名（`angelscript-merge`）、绝对路径或 Orca selector；只备份当前工作区须显式传 `--worktree active`。
   不要用 `name:<目录名>`——Orca 的 `name:` 匹配 displayName，git 仓库通常是分支名。
 - `--out DIR` 输出目录，默认 `~/.orca/session-backups/`，文件名 `orca-sessions-<scope>-<YYYYMMDD-HHMM>.md`。
 - 备份是**只读**的：不关闭、不修改任何终端和会话文件。
