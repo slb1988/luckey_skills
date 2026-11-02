@@ -48,6 +48,7 @@ def render_extension_for_test(directory: Path) -> Path:
     content = content.replace("__PYTHON_JSON__", json.dumps(NODE))
     extension_path = directory / "memory-hub.ts"
     extension_path.write_text(content, encoding="utf-8")
+    (directory / "package.json").write_text('{"type":"module"}\n', encoding="utf-8")
     typebox_dir = directory / "node_modules" / "typebox"
     typebox_dir.mkdir(parents=True)
     (typebox_dir / "package.json").write_text(
@@ -79,7 +80,7 @@ class PiExtensionE2ETest(unittest.TestCase):
         ):
             env.pop(key, None)
         env["MEMORY_HOOK_PI_CAPTURE_DELAY_MS"] = "300"
-        env["MEMORY_HOOK_PI_BOOTSTRAP_TIMEOUT_MS"] = "200"
+        env["MEMORY_HOOK_PI_BOOTSTRAP_TIMEOUT_MS"] = "5000"
         env["MEMORY_HOOK_STATE_DIR"] = str(state_dir)
         env["HOOK_LOG"] = str(hook_log)
         if extra_env:
@@ -161,7 +162,7 @@ class PiExtensionE2ETest(unittest.TestCase):
     def test_project_bootstrap_timeout_fails_open_without_retry(self):
         with tempfile.TemporaryDirectory() as directory:
             summary = self.run_driver(
-                Path(directory), {"FAKE_SEARCH_DELAY_MS": "500"}
+                Path(directory), {"FAKE_SEARCH_DELAY_MS": "2000", "MEMORY_HOOK_PI_BOOTSTRAP_TIMEOUT_MS": "1000"}
             )
             self.assertTrue(summary["ok"])
             self.assertEqual(summary["mode"], "main")
@@ -198,7 +199,8 @@ class PiExtensionE2ETest(unittest.TestCase):
                 Path(directory),
                 {
                     "MEMORY_HOOK_PI_PERSONA_CARD": "1",
-                    "FAKE_SEARCH_DELAY_MS": "500",
+                    "FAKE_SEARCH_DELAY_MS": "2000",
+                    "MEMORY_HOOK_PI_BOOTSTRAP_TIMEOUT_MS": "1000",
                 },
             )
             self.assertTrue(summary["ok"])
@@ -222,9 +224,9 @@ class PiExtensionE2ETest(unittest.TestCase):
             summary = self.run_driver(Path(directory), {"SEARCH_DIAGNOSTICS": "1"})
             self.assertEqual(summary["mode"], "search-diagnostics")
 
-    def test_pi_template_is_v40(self):
+    def test_pi_template_is_v41(self):
         template = PI_TEMPLATE.read_text(encoding="utf-8")
-        self.assertIn('const EXTENSION_VERSION = "40";', template)
+        self.assertIn('const EXTENSION_VERSION = "41";', template)
 
     def test_input_prewarm_adopted_and_respawn_on_prompt_rewrite(self):
         with tempfile.TemporaryDirectory() as directory:

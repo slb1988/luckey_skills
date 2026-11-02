@@ -181,11 +181,23 @@ v4 是纯 AFK 防抖（agent_end 只排程计时器，到期才 capture）——
 （v4→v5 的设计定版依据与丢失窗口分析见 [troubleshooting.md](troubleshooting.md)）。
 行为有 Node e2e 值守（`scripts/tests/test_pi_extension_e2e.py`，需 node，无 node 机器跳过）。
 
+### Pi 首轮召回的持久交付（v41+）
+
+首轮已放行的 `context` 以 `before_agent_start` 返回的 `message` 交付，不再返回整段 `systemPrompt` 覆盖。Pi 将其写为 `custom_message`，`customType=memory-hub-recall-v1`，provider 收到 user-role 的历史背景消息。`display:false` 只隐藏 TUI，正文仍进入上下文并保留在原始 JSONL/导出中。来源、scope、hash、结果文件引用保存在 `details`，不发给模型；候选池、打分理由和完整审计文件不进入消息正文。
+
+- 同分支后续请求、reload、resume 复用已存消息，不重检索、不重复追加。opt-in persona card 与已缓存的 project 目录摘要一并采用持久消息，不再留下另一条临时 system 覆盖路径。
+- 原文被压缩出可见范围时，`session_compact` / 下次 `before_agent_start` 只补回同一份正文；原始 JSONL 会多一条交付记录，但有效上下文仅保留一份。显式 `context_edit` 删除或修改的原文不补回。
+- 恢复只使用当前分支，cwd、用户与 Chat Hub 说话人绑定必须一致；请求级 `context` 过滤防止已存消息在身份或 workspace 变化后被继续带入。
+- `pi-bootstrap-done` 只表示检索已尝试。新 marker 同时保存已批准交付的恢复副本，供“检索完成但 Pi 尚未落盘”的窗口恢复；原始 JSONL 里的持久消息优先，不能从 marker 恢复已被放弃的分支。Pi 仍按原生时机落盘，`recall_delivery outcome=prepared` 不等于磁盘确认。
+- v40 及以前的旧会话恢复：只在本机 trace 与召回审计的 session、原 session 文件、cwd、project、用户、说话人及 completed 状态严格匹配时，提取最终 `context` 追加为消息；不改写旧 JSONL、不访问远端、不回放审计全文。不足以验证或已失败/取消的结果不回填。旧 persona/project 摘要不凭空重建。
+
+验证命令：常规 `test_pi_extension_e2e.py` 覆盖原检索/取消/归档语义；设置 `PI_CODING_AGENT_PACKAGE_DIR` 为已安装 Pi 包目录后运行 `test_pi_recall_persistence_sdk.py`，使用真实 SDK、临时磁盘会话及假 hook/provider 验证持久化边界，不调用真实模型。
+
 **v18 起首轮与手工 `memory_search` 都由 Hub 做同步 LLM 质量门禁**：客户端请求
 `search-v2 quality_mode=llm`，服务端也是该默认值；Hub 先检索候选，再用一次批量 LLM 调用逐条判
 0-3 分，只返回 2/3 分。审核不可用、超时或响应不完整时返回 503，客户端不得回退 v1 绕过。
-Pi 的 `before_agent_start` 会等待该在线请求，但不再弹出玩家逐条评分 UI；只把服务端放行结果注入
-system prompt。被拒候选、理由、证据、冲突和错误只写服务端 `retrieval_judgments`，不会污染玩家或
+Pi 的 `before_agent_start` 会等待该在线请求，但不再弹出玩家逐条评分 UI；只把服务端放行结果交付给
+主模型（Pi v41+ 使用上节的持久 custom message）。被拒候选、理由、证据、冲突和错误只写服务端 `retrieval_judgments`，不会污染玩家或
 agent 上下文。单次候选上限 10，首轮仍取 6 条/最多 4000 字符，客户端等待预算 120 秒，服务端
 审核调用预算 110 秒。
 

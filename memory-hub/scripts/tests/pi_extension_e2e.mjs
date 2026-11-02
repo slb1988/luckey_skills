@@ -47,12 +47,26 @@ const personaFailureMode = process.env.FAKE_PERSONA_CARD_FAIL === "1";
 
 writeFileSync(transcriptPath, JSON.stringify({ type: "message", role: "user", text: "hello" }) + "\n");
 
+const entriesBySession = new Map();
+function savedEntries(id) {
+	if (!entriesBySession.has(id)) entriesBySession.set(id, []);
+	return entriesBySession.get(id);
+}
 const handlers = new Map();
 const tools = new Map();
 const commands = new Map();
 const pi = {
 	on(event, fn) {
-		handlers.set(event, fn);
+		handlers.set(event, async (...args) => {
+			const result = await fn(...args);
+			if (event === "before_agent_start" && result?.message) {
+				const entries = savedEntries(args[1].sessionManager.getSessionId());
+				entries.push({ type: "custom_message", id: `entry-${entries.length}`, ...result.message });
+				assert.equal(result.systemPrompt, undefined, "recall must not override the system prompt");
+				assert.equal(result.message.customType, "memory-hub-recall-v1");
+			}
+			return result;
+		});
 	},
 	registerTool(tool) {
 		tools.set(tool.name, tool);
@@ -95,6 +109,9 @@ const ctx = {
 	sessionManager: {
 		getSessionId: () => "sess-e2e",
 		getSessionFile: () => transcriptPath,
+		getBranch: () => savedEntries("sess-e2e"),
+		getEntries: () => savedEntries("sess-e2e"),
+		buildSessionProjection: () => ({ messages: savedEntries("sess-e2e").map(entry => ({ ...entry, role: "custom" })) }),
 	},
 };
 
@@ -184,7 +201,7 @@ try {
 			{ prompt: "manual persona test", systemPrompt: "base-system" },
 			ctx,
 		);
-		assert.match(firstStart.systemPrompt, /严格测试驱动/);
+		assert.match(firstStart.message.content, /严格测试驱动/);
 		assert.equal(hookCalls("persona-card").length, 0, "default-off bootstrap must not request a card");
 		const toolResult = await tools.get("memory_persona_card").execute(
 			"persona-tool",
@@ -211,7 +228,7 @@ try {
 			{ prompt: "oversized persona test", systemPrompt: "base-system" },
 			ctx,
 		);
-		const personaPrefix = firstStart.systemPrompt.split("# Memory Hub：")[0];
+		const personaPrefix = firstStart.message.content.split("# Memory Hub：")[0];
 		assert.equal((personaPrefix.match(/P/g) || []).length, 2500, "bootstrap card must be capped at 2500");
 		const toolResult = await tools.get("memory_persona_card").execute(
 			"persona-tool",
@@ -231,7 +248,7 @@ try {
 			{ prompt: "investigate suppressed memory", systemPrompt: "base-system" },
 			ctx,
 		);
-		assert.equal(result, undefined, "suppressed Stage B must not inject a system prompt");
+		assert.equal(result, undefined, "suppressed Stage B must not inject a message");
 		assert.equal(traceEntries("project_bootstrap")[0].outcome, "suppressed");
 		assert.equal(traceEntries("project_bootstrap")[0].injected_count, 0);
 		assert.ok(
@@ -259,7 +276,7 @@ try {
 			{ prompt: "修复", systemPrompt: "base-system" },
 			ctx,
 		);
-		assert.match(shortTask.systemPrompt, /严格测试驱动/);
+		assert.match(shortTask.message.content, /严格测试驱动/);
 		assert.equal(hookCalls("search").length, 1, "the next meaningful prompt must search");
 		assert.match(hookCalls("search")[0].argv[1], /任务: 修复$/);
 		assert.doesNotMatch(hookCalls("search")[0].argv[1], /项目概况|核心架构/);
@@ -280,7 +297,7 @@ try {
 			{ prompt: taskPrompt, systemPrompt: "base-system" },
 			ctx,
 		);
-		assert.match(adopted.systemPrompt, /严格测试驱动/);
+		assert.match(adopted.message.content, /严格测试驱动/);
 		assert.equal(hookCalls("search").length, 1, "adoption must not spawn a second search");
 		assert.equal(traceEntries("recall_prewarm").at(-1).outcome, "reused");
 		assert.equal(traceEntries("project_bootstrap")[0].outcome, "injected");
@@ -300,7 +317,7 @@ try {
 			{ prompt: "改写后任务乙", systemPrompt: "base-system" },
 			rewriteCtx,
 		);
-		assert.match(rewritten.systemPrompt, /严格测试驱动/);
+		assert.match(rewritten.message.content, /严格测试驱动/);
 		await waitFor(() => hookCalls("search").length === 3, "prompt rewrite must respawn search");
 		assert.equal(
 			traceEntries("recall_prewarm").filter((entry) => entry.outcome === "prompt_mismatch").length,
@@ -503,7 +520,7 @@ try {
 		const completedFlushes = () =>
 			traceEntries("flush_done").filter((entry) => entry.outcome === "completed").length;
 
-		// 首轮 prompt 阻塞一次 project bootstrap 并注入 system prompt；后续 prompt
+		// 首轮 prompt 阻塞一次 project bootstrap 并交付持久消息；后续 prompt
 		// 不重复检索。超时/失败时同样只尝试一次并 fail-open。
 		const firstPrompt = chatHubIdentityMode
 			? [
@@ -597,8 +614,8 @@ try {
 		const bootstrapTimedOut = process.env.FAKE_SEARCH_DELAY_MS !== undefined;
 		if (bootstrapTimedOut) {
 			if (personaAutoEnabled && !personaFailureMode) {
-				assert.match(firstStart.systemPrompt, /^base-system\n\n# 关于 测试用户/);
-				assert.doesNotMatch(firstStart.systemPrompt, /严格测试驱动/);
+				assert.match(firstStart.message.content, /^# 关于 测试用户/);
+				assert.doesNotMatch(firstStart.message.content, /严格测试驱动/);
 				assert.equal(hookCalls("persona-card").length, 1);
 			} else {
 				assert.equal(firstStart, undefined, "bootstrap timeout must continue without injection");
@@ -607,17 +624,17 @@ try {
 			assert.equal(hookCalls("search").length, 0, "timed-out child is killed before fake logs");
 		} else {
 			if (personaAutoEnabled && !personaFailureMode) {
-				assert.match(firstStart.systemPrompt, /^base-system\n\n# 关于 测试用户/);
-				assert.match(firstStart.systemPrompt, /canonical persona card/);
+				assert.match(firstStart.message.content, /^# 关于 测试用户/);
+				assert.match(firstStart.message.content, /canonical persona card/);
 				assert.ok(
-					firstStart.systemPrompt.indexOf("canonical persona card") < firstStart.systemPrompt.indexOf("# Memory Hub："),
+					firstStart.message.content.indexOf("canonical persona card") < firstStart.message.content.indexOf("# Memory Hub："),
 					"persona card must precede task-specific recall",
 				);
 				assert.equal(hookCalls("persona-card").length, 1);
 				assert.equal(traceEntries("memory_persona_card")[0].outcome, "injected");
 			} else {
-				assert.match(firstStart.systemPrompt, /^base-system\n\n# Memory Hub/);
-				assert.doesNotMatch(firstStart.systemPrompt, /canonical persona card/);
+				assert.match(firstStart.message.content, /^# Memory Hub/);
+				assert.doesNotMatch(firstStart.message.content, /canonical persona card/);
 				if (personaFailureMode) {
 					assert.equal(hookCalls("persona-card").length, 1);
 					assert.equal(traceEntries("memory_persona_card")[0].outcome, "error");
@@ -626,7 +643,7 @@ try {
 					assert.equal(hookCalls("persona-card").length, 0, "default bootstrap must not request a card");
 				}
 			}
-			assert.match(firstStart.systemPrompt, /严格测试驱动/);
+			assert.match(firstStart.message.content, /严格测试驱动/);
 			assert.equal(
 				traceEntries("project_bootstrap")[0].outcome,
 				"injected",
@@ -727,8 +744,8 @@ try {
 				assert.match(notifyCalls[0].message, /测试策略：项目使用严格测试驱动/);
 				assert.match(notifyCalls[0].message, /详情文件：.*recall-results/);
 				assert.ok(existsSync(join(stateDir, "recall-results", "pi", "fixture", "fixture-recall.md")));
-				assert.doesNotMatch(firstStart.systemPrompt, /recall-results|fixture-recall\.md/);
-				assert.doesNotMatch(firstStart.systemPrompt, /\[Memory|source=|project=|session=|judge_rank=|result=/);
+				assert.doesNotMatch(firstStart.message.content, /recall-results|fixture-recall\.md/);
+				assert.doesNotMatch(firstStart.message.content, /\[Memory|source=|project=|session=|judge_rank=|result=/);
 				assert.ok(
 					statusCalls.some((entry) =>
 						/候选 3 · 放行 2 · 线索 1 · 来源 1 · \d+字/.test(String(entry.value))
@@ -767,7 +784,7 @@ try {
 		assert.equal(resumedStart, undefined);
 		assert.equal(hookCalls("search").length, searchesBeforeResume);
 		assert.equal(selectCalls.length, selectsBeforeResume);
-		assert.ok(traceEntries("project_bootstrap_skip").some((entry) => entry.outcome === "already_completed"));
+		assert.equal(savedEntries("sess-e2e").length, firstStart?.message ? 1 : 0);
 
 		const searchTool = tools.get("memory_search");
 		assert.ok(searchTool, "memory_search tool must be registered");
