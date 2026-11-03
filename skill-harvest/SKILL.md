@@ -15,7 +15,7 @@ Before writing anything, ask: **"Does this describe how the system works?"**
 If yes → harvest it.
 If it describes what went wrong and how it was fixed → skip it.
 
-The fix that forced a discovery is not the knowledge. The system property that made the fix necessary is.
+The fix that forced a discovery is not the knowledge. The system property that made the fix necessary is. A verified root cause can qualify when expressed as a system property rather than a repair diary.
 
 | Harvest (knowledge) | Skip (experience) |
 |---|---|
@@ -89,10 +89,21 @@ dependency wiring is separate from module-level. Missing either causes a warning
 
 ## Workflow
 
-1. **Identify the session topic** and what structural knowledge it revealed
-2. **Draft in bullet form**, then compress into the right format above
-3. **Check out and update**: `p4 edit "<path>"`, append to the most relevant existing section (or add a new "Patterns" / "Architecture" section)
-4. **Include SKILL.md in the same P4 CL as the code changes** (CLAUDE.md Rule 5)
+1. **Identify the session topic** and the atomic structural knowledge it revealed; distinguish personal-only facts from team-reusable rules.
+2. **Draft in bullet form**, with applicability and real evidence. Search existing authoritative docs before creating another rule.
+3. **Automatic harvesting** uses the workspace's candidate policy: verified independent reuse is evidence; reading/searching is not. Where the v2 writer exists, accumulate candidates and queue human review at ≥3 independent sessions, never silently publish shared skills.
+4. **Explicitly authorized documentation maintenance** may update the narrow target directly; do not mechanically wait for three sessions when the user requested the edit.
+5. **Respect the actual VCS**: Git workspaces do not run p4. In P4, check out before writing and keep the skill with the related code CL. For Git submodules follow the repository's scoped commit/push policy; never sweep unrelated changes.
+
+## Consolidate candidate knowledge
+
+When asked to consolidate/promote a candidate pool, use [candidate-consolidation.md](references/candidate-consolidation.md).
+
+- First verify this workspace provides `.team/scripts/memory_hits.py` with preview/promote support. Do not assume an extension comment proves it is installed; never call a hardcoded Sora/member script or silently fall back to unverified counters.
+- Three independent verified sessions make a team rule **eligible for human review**, not permission to edit SKILL.md. Personal preferences/local paths do not become shared rules through popularity.
+- Preview the exact claim, scope, evidence and destination diff; wait for explicit confirmation bound to those versions. Changed candidates/targets need another preview.
+- Shared aggregation reads only declared team candidates; do not sweep other members' personal memories. Keep personal differences/history and replace only duplicate current rules with authority links.
+- An unavailable local pipeline is a visible limitation, not a reason to invent evidence IDs or report promotion success. Normal explicitly authorized documentation edits remain available.
 
 ## Worked example: RAGFlow retrieval tuning
 
