@@ -58,3 +58,31 @@ def test_metrics_row_counts_gates_and_omits_text(tmp_path) -> None:
     lines = (tmp_path / "recall-metrics.jsonl").read_text(encoding="utf-8").splitlines()
     assert [json.loads(line)["outcome"] for line in lines] == ["injected", "error"]
     assert json.loads(lines[1])["error_code"] == "RETRIEVAL_JUDGE_UNAVAILABLE"
+
+
+def test_metrics_row_links_failures_and_execution_without_secrets() -> None:
+    """失败行带 503 返回的 retrieval_id/request_id（可与服务端失败审计对账）；成功行带执行指纹/代码版本。"""
+    from memory_hook import HubError
+
+    error = HubError("HTTP 503: unavailable", status_code=503, error_code="RETRIEVAL_JUDGE_UNAVAILABLE",
+                     request_id="req-1", retrieval_id="01a1a785-e2d0-7226-855e-3478638137e0")
+    failed = recall_metrics_row(source="pi", project_id="maindev", cwd="D:\MainDev", outcome="error",
+                                duration_ms=1000, error_code=error.error_code, error=error)
+    assert failed["retrieval_id"] == "01a1a785-e2d0-7226-855e-3478638137e0"
+    assert failed["request_id"] == "req-1"
+    unsafe = HubError("x", retrieval_id="bad id with spaces", request_id="<script>")
+    row = recall_metrics_row(source="pi", project_id="maindev", cwd="D:\MainDev", outcome="error",
+                             duration_ms=1, error=unsafe)
+    assert row["retrieval_id"] is None and row["request_id"] is None
+
+    audit = {"execution": {"fingerprint": "f" * 64, "code_version": "abc123def456"},
+             "stage_a": {"format_retries": 1, "correction_rejudgments": 0, "llm_calls": [
+                 {"stage": "judge", "reason": "initial", "fallback_used": True, "latency_ms": 5,
+                  "outcome": "invalid_json"},
+                 {"stage": "judge", "reason": "format_retry", "fallback_used": False, "latency_ms": 5,
+                  "outcome": "parsed"}]}}
+    ok = recall_metrics_row(source="claude", project_id="obsidianvault", cwd="D:\Github\ObsidianVault",
+                            outcome="injected", duration_ms=1000, audit=audit, context="- x")
+    assert (ok["execution_fingerprint"], ok["code_version"]) == ("f" * 64, "abc123def456")
+    assert (ok["judge_format_retries"], ok["correction_rejudgments"], ok["fallback_calls"]) == (1, 0, 1)
+    assert ok["request_id"] is None

@@ -198,10 +198,15 @@ python scripts/recall_audit_stats.py --since 20261020 --export-cases cases.jsonl
 - 每次召回（含 503 失败）另追加一行 `~/.local/state/memory-hub-hook/recall-metrics.jsonl`，不含 query/正文。字段包括：
   - origin、outcome/error_code、duration；
   - judge 耗时与输出 token、resolver degraded、graph fallback；
-  - 注入行数、SUPERSEDES 有用清零原因、锚点降级。
+  - 注入行数、SUPERSEDES 有用清零原因、锚点降级；
+  - 失败行的 `retrieval_id` / `request_id`（服务端 503 返回，可与服务端 `retrieval_runs` 失败审计逐条对账）；
+  - 成功行的 `execution_fingerprint` / `code_version`（按配置与部署切分台账）、`judge_format_retries`、
+    `correction_rejudgments`、`fallback_calls`（备用模型实际参与的调用数）。
 
   `python scripts/recall_audit_stats.py --since 20261028 --metrics` 按 origin 汇总，**失败率只能从这里看**（md 审计只记成功的召回）。
 - 评测/批量回放 harness 应设置 `MEMORY_HUB_RECALL_ORIGIN=eval`（或 automation），不设时临时目录下的 cwd 自动记为 eval。
+  **定时自动化任务（如每日导表巡检）也必须设 `MEMORY_HUB_RECALL_ORIGIN=automation`**：cwd 不在临时目录时会被记成
+  interactive，同一 query 每天重复会放大台账（`bbe1fc8` 冻结回放 198 个新增答案原子中 96 个来自同一每日任务）。
 
 ## 指标与 answer-level 评级
 

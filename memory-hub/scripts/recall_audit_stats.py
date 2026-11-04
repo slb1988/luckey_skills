@@ -241,6 +241,12 @@ def metrics_report(path: Path, since: str) -> str:
             f"{sum(1 for r in group if r.get('graph_fallback'))}；注入行 p50 {_pct([r.get('context_lines') for r in done if r.get('context_chars')], .5)}",
             f"- SUPERSEDES 有用清零 {sum(reasons.values())} {dict(reasons)}，部分保留 {sum(r.get('supersede_partial') or 0 for r in group)}；"
             f"锚点降级 {sum(r.get('anchor_kills') or 0 for r in group)}",
+            # 失败请求也让用户等待：全请求口径单列，不能只看成功延迟。
+            f"- 全请求 p50/p90 {_pct([r.get('duration_ms') for r in group], .5)}/{_pct([r.get('duration_ms') for r in group], .9)} ms；"
+            f"失败行可与服务端对账（带 retrieval_id）{sum(1 for r in group if r.get('outcome') == 'error' and r.get('retrieval_id'))}/{sum(errors.values())}",
+            f"- 代码版本 {dict(Counter(r.get('code_version') or 'unknown' for r in done))}；judge 格式重试 "
+            f"{sum(r.get('judge_format_retries') or 0 for r in done)}、纠错重判 {sum(r.get('correction_rejudgments') or 0 for r in done)}、"
+            f"备用模型参与调用 {sum(r.get('fallback_calls') or 0 for r in done)}",
             "",
         ]
     return "\n".join(lines)

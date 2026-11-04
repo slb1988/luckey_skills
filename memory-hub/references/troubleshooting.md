@@ -167,7 +167,13 @@ Spool job 在 capture 时固化 `user_id`（这是设计，防止补传到错误
 
 ### 上传 401 积压与 spool FIFO 队头阻塞
 
-spool 的 flush 是 **FIFO 队头阻塞**：队头 job 持续失败重试会饿死后面 attempts=0 的 job（401、网络错误同理）。
+2026-11-05 起 flush 不再被单个坏 job 卡住：失败 job 按 30s 起、封顶 30 分钟指数退避（`next_attempt_at`，
+退避期内不认领）；只与该 job 有关的错误（403/404/409/422/500、本地数据问题）继续上传后面的会话；
+Hub 整体不可用（网络/超时、401、429、502/503/504）才中断本轮并归还认领；本地快照对象丢失直接进
+`failed` 终态；失败时同会话已有更新的 job，旧快照直接 superseded（防止旧快照排到新快照之后成为最新版本）。
+`status` 的 `queue_health.backoff_count` / `next_retry_in_seconds` 看退避中的 job。下文是此前 FIFO 阶段的案例。
+
+旧行为：spool 的 flush 是 **FIFO 队头阻塞**：队头 job 持续失败重试会饿死后面 attempts=0 的 job（401、网络错误同理）。
 2026-08-22 实例：key 持久化进注册表**之前**被 Orca/终端拉起的 agent 进程环境里没有 `MEMORY_HUB_API_KEY`，
 capture/flush 全部 401 落 spool 堆积，而当时只有 check 有注册表回退（报 `token_accepted: true`）——两层结果
 不一致曾造成误判。2026-08-25 起 `memory_hook.py` 的 `read_persisted_env_var` 会在进程环境缺失时回退读

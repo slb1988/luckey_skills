@@ -2906,7 +2906,8 @@ class MemoryHookTest(unittest.TestCase):
 
             def boom(_client, job):
                 attempts.append(job["job_id"])
-                raise RuntimeError("hub still down")
+                # Hub 整体不可达（全局错误）才中断本轮；job 级错误见下方退避用例。
+                raise HubError("hub still down", error_code="NETWORK_ERROR")
 
             with patch.object(memory_hook.HubClient, "upload_job", boom):
                 result = flush_pending(store, config, 10)
@@ -2941,12 +2942,109 @@ class MemoryHookTest(unittest.TestCase):
             store.enqueue(self.profile(), "pi", "s-2", str(root), transcript)
 
             def boom(_client, _job):
-                raise RuntimeError("hub down")
+                raise HubError("hub down", error_code="NETWORK_ERROR")
 
             with patch.object(memory_hook.HubClient, "upload_job", boom):
                 result = flush_pending(store, config, 10)
             self.assertEqual(result["failed"], 1)
             self.assertEqual(store.status()["counts"], {"queued": 2})
+
+    def _spool_sessions(self, root, sessions):
+        config = Config(
+            hub_url="http://127.0.0.1:1",
+            default_user_id="user-a",
+            agent_id="test-agent",
+            archive_project_id="agent-history",
+            api_key=None,
+            timeout_seconds=0.1,
+            state_dir=root / "state",
+        )
+        store = StateStore(config)
+        for session in sessions:
+            transcript = root / f"{session}.jsonl"
+            transcript.write_text(
+                json.dumps({"type": "user", "message": {"content": f"turn {session}"}}) + "\n",
+                encoding="utf-8",
+            )
+            store.enqueue(self.profile(), "pi", session, str(root), transcript)
+        return config, store
+
+    def test_job_specific_upload_failure_backs_off_without_blocking_queue(self):
+        # 队头阻塞修复：403 这类只与该 job 有关的错误只让它自己退避，后面的会话照常上传；
+        # 退避期内后续 flush 不再认领它，到期后才重试。
+        import memory_hook
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            config, store = self._spool_sessions(Path(directory), ["s-1", "s-2"])
+            attempts = []
+
+            def upload(_client, job):
+                attempts.append(job["source_session_id"])
+                if job["source_session_id"] == "s-1":
+                    raise HubError("HTTP 403: owned by another scope", status_code=403,
+                                   error_code="FORBIDDEN")
+                return {"status": "captured", "version": 1}
+
+            with patch.object(memory_hook.HubClient, "upload_job", upload):
+                first = flush_pending(store, config, 10)
+                second = flush_pending(store, config, 10)
+                self.assertEqual(attempts, ["s-1", "s-2"])
+                self.assertEqual((first["completed"], first["failed"]), (1, 1))
+                self.assertEqual((second["completed"], second["failed"]), (0, 0))
+                status = store.status()
+                self.assertEqual(status["counts"], {"queued": 1, "completed": 1})
+                self.assertEqual(status["queue_health"]["backoff_count"], 1)
+                self.assertGreater(status["queue_health"]["next_retry_in_seconds"], 0)
+                with store.connect() as connection:
+                    connection.execute("UPDATE jobs SET next_attempt_at = 1 WHERE state = 'queued'")
+                flush_pending(store, config, 10)
+            self.assertEqual(attempts, ["s-1", "s-2", "s-1"])
+            self.assertEqual(store.queued(10)[0]["attempts"], 2)
+
+    def test_missing_snapshot_object_goes_terminal_instead_of_retrying(self):
+        import memory_hook
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            config, store = self._spool_sessions(Path(directory), ["s-1", "s-2"])
+            attempts = []
+
+            def upload(_client, job):
+                attempts.append(job["source_session_id"])
+                if job["source_session_id"] == "s-1":
+                    raise memory_hook.SpoolObjectMissing("queued snapshot file is missing")
+                return {"status": "captured", "version": 1}
+
+            with patch.object(memory_hook.HubClient, "upload_job", upload):
+                flush_pending(store, config, 10)
+                flush_pending(store, config, 10)
+            self.assertEqual(attempts, ["s-1", "s-2"])
+            status = store.status()
+            self.assertEqual(status["counts"], {"failed": 1, "completed": 1})
+            self.assertEqual(status["terminal_failed"]["count"], 1)
+            self.assertIn("snapshot file is missing", status["terminal_failed"]["latest_error"])
+
+    def test_failed_old_snapshot_is_superseded_by_newer_job_of_same_session(self):
+        # 旧快照上传失败时同会话已有更新的 job：旧 job 直接 superseded，
+        # 否则退避后它会排在新快照之后上传、把会话最新版本回退成旧内容。
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
+            root = Path(directory)
+            config, store = self._spool_sessions(root, ["s-1"])
+            old = store.claim_for_upload(10)[0]
+            (root / "s-1.jsonl").write_text(
+                json.dumps({"type": "user", "message": {"content": "turn s-1"}}) + "\n"
+                + json.dumps({"type": "user", "message": {"content": "turn s-1 again"}}) + "\n",
+                encoding="utf-8",
+            )
+            store.enqueue(self.profile(), "pi", "s-1", str(root), root / "s-1.jsonl")
+            store.fail(old["job_id"], HubError("HTTP 422", status_code=422), retry_after=30)
+            self.assertEqual(store.status()["counts"], {"superseded": 1, "queued": 1})
+            with store.connect() as connection:
+                row = connection.execute(
+                    "SELECT state, snapshot_path, next_attempt_at FROM jobs WHERE job_id = ?",
+                    (old["job_id"],),
+                ).fetchone()
+            self.assertEqual(tuple(row), ("superseded", None, None))
+            self.assertFalse(Path(old["snapshot_path"]).exists())
 
     def _chat_hub_capture(self, speaker_block: str, env_disable: bool = False):
         """chat-hub 会话 capture：返回 (job row, cwd project 应保留的标记)。"""

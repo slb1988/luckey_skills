@@ -855,6 +855,32 @@ def transcript_is_headless_sdk_session(transcript_path: Path) -> bool:
 ENQUEUE_LOCK_TIMEOUT_SECONDS = 60.0
 # flush 认领租约（秒）：uploading 超过租约未 complete/fail 视为进程崩溃，回收为 queued。
 UPLOAD_CLAIM_LEASE_SECONDS = 600.0
+# 上传失败按 job 指数退避（30s 起、封顶 30 分钟）：坏 job 不再每次 flush 占住队头。
+UPLOAD_RETRY_BASE_SECONDS = 30.0
+UPLOAD_RETRY_MAX_SECONDS = 1800.0
+# 这些错误说明 Hub 整体不可达/限流/鉴权失效：本轮停止，其余认领归还，不逐个试探。
+GLOBAL_UPLOAD_ERROR_CODES = {"NETWORK_ERROR", "REQUEST_TIMEOUT", "HUB_UNAVAILABLE"}
+GLOBAL_UPLOAD_HTTP_STATUSES = {401, 407, 408, 429, 502, 503, 504}
+
+
+class SpoolObjectMissing(RuntimeError):
+    """队列 job 的本地快照对象已不存在：重试不可能成功，直接进 failed 终态。"""
+
+
+def upload_retry_delay(attempts: int) -> float:
+    return min(UPLOAD_RETRY_BASE_SECONDS * 2 ** max(0, attempts - 1), UPLOAD_RETRY_MAX_SECONDS)
+
+
+def upload_failure_scope(error: Exception) -> str:
+    """global：Hub 整体不可用，本轮 flush 停止；job：只与该 job 有关，跳过继续；terminal：不可恢复。"""
+    if isinstance(error, (SpoolObjectMissing, FileNotFoundError)):
+        return "terminal"
+    if isinstance(error, HubError):
+        if error.transport or error.error_code in GLOBAL_UPLOAD_ERROR_CODES:
+            return "global"
+        if error.status_code in GLOBAL_UPLOAD_HTTP_STATUSES:
+            return "global"
+    return "job"
 
 
 def acquire_enqueue_lock(
@@ -1467,6 +1493,9 @@ class StateStore:
                 connection.execute("ALTER TABLE jobs ADD COLUMN full_path TEXT")
                 connection.execute("ALTER TABLE jobs ADD COLUMN full_sha256 TEXT")
                 connection.execute("ALTER TABLE jobs ADD COLUMN full_size_bytes INTEGER")
+            if "next_attempt_at" not in columns:
+                # 失败退避：NULL = 立即可认领（老 job 与新 job 都如此）
+                connection.execute("ALTER TABLE jobs ADD COLUMN next_attempt_at REAL")
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_jobs_user_state "
                 "ON jobs(user_id, state, created_at)"
@@ -1633,10 +1662,12 @@ class StateStore:
                 "WHERE state='uploading' AND updated_at < ?",
                 (now, now - lease_seconds),
             )
+            # 退避中的 job 不认领：队头坏 job 不再挡住后面的会话。
             rows = connection.execute(
                 "SELECT job_id FROM jobs WHERE state='queued' AND user_id <> ? "
+                "AND (next_attempt_at IS NULL OR next_attempt_at <= ?) "
                 "ORDER BY created_at LIMIT ?",
-                (UNCONFIGURED_USER_ID, limit),
+                (UNCONFIGURED_USER_ID, now, limit),
             ).fetchall()
             job_ids = [row["job_id"] for row in rows]
             if not job_ids:
@@ -1752,20 +1783,46 @@ class StateStore:
         for path in paths:
             Path(path).unlink(missing_ok=True)
 
-    def fail(self, job_id: int, error: Exception) -> None:
-        # 上传失败即归还 queued（等下次 flush 重试），而不是留在 uploading 等租约。
+    def fail(
+        self, job_id: int, error: Exception, *, retry_after: float = 0.0, terminal: bool = False,
+    ) -> None:
+        # 上传失败即归还 queued（退避到期后再认领），而不是留在 uploading 等租约；
+        # terminal（本地对象已丢失等不可恢复错误）进 failed 终态，status 的 terminal_failed 可见。
+        # 同会话已有更新的 job 时，这份旧快照直接 superseded：后续 flush 不再按 FIFO 卡住，
+        # 也不能让旧快照在新快照之后上传成更新的版本。
+        now = time.time()
+        paths: List[str] = []
         with self.connect() as connection:
-            connection.execute(
+            row = connection.execute(
+                "SELECT user_id, source, source_session_id, snapshot_path, full_path "
+                "FROM jobs WHERE job_id = ? AND state = 'uploading'",
+                (job_id,),
+            ).fetchone()
+            newer = row is not None and not terminal and connection.execute(
+                "SELECT 1 FROM jobs WHERE user_id = ? AND source = ? AND source_session_id = ? "
+                "AND job_id > ? AND state IN ('queued', 'uploading', 'completed') LIMIT 1",
+                (row["user_id"], row["source"], row["source_session_id"], job_id),
+            ).fetchone() is not None
+            state = "failed" if terminal else "superseded" if newer else "queued"
+            cursor = connection.execute(
                 """
                 UPDATE jobs
-                SET state = 'queued', attempts = attempts + 1,
-                    last_error = ?, updated_at = ?
+                SET state = ?, attempts = attempts + 1, last_error = ?,
+                    next_attempt_at = ?, updated_at = ?,
+                    snapshot_path = CASE WHEN ? THEN NULL ELSE snapshot_path END,
+                    full_path = CASE WHEN ? THEN NULL ELSE full_path END
                 WHERE job_id = ? AND state = 'uploading'
                 """,
-                (json.dumps(search_error_diagnostics(error), ensure_ascii=False)
+                (state,
+                 json.dumps(search_error_diagnostics(error), ensure_ascii=False)
                  if isinstance(error, HubError) else compact_text(str(error), 2000),
-                 time.time(), job_id),
+                 None if state != "queued" or retry_after <= 0 else now + retry_after,
+                 now, newer, newer, job_id),
             )
+            if newer and cursor.rowcount == 1:
+                paths = [row[column] for column in ("snapshot_path", "full_path") if row[column]]
+        for path in paths:
+            Path(path).unlink(missing_ok=True)
 
     def status(self) -> Dict[str, Any]:
         connection = self.connect()
@@ -1794,8 +1851,12 @@ class StateStore:
                 """SELECT COUNT(*) AS pending_count, MIN(created_at) AS oldest,
                           COALESCE(MAX(attempts), 0) AS max_pending_attempts,
                           COALESCE(SUM(created_at <= ?), 0) AS aged_pending_count,
-                          COALESCE(SUM(attempts >= 10), 0) AS retry_warning_count
-                   FROM jobs WHERE state IN ('queued', 'uploading')""", (now - 3600,),
+                          COALESCE(SUM(attempts >= 10), 0) AS retry_warning_count,
+                          COALESCE(SUM(next_attempt_at > ?), 0) AS backoff_count,
+                          MIN(CASE WHEN next_attempt_at > ? THEN next_attempt_at END)
+                            AS next_retry_at
+                   FROM jobs WHERE state IN ('queued', 'uploading')""",
+                (now - 3600, now, now),
             ).fetchone()
             recovered = connection.execute(
                 """SELECT COUNT(*) AS completed_high_retry_7d,
@@ -1807,6 +1868,10 @@ class StateStore:
             oldest_pending = queue_health.pop("oldest")
             queue_health["oldest_pending_age_seconds"] = (
                 max(0, int(now - oldest_pending)) if oldest_pending is not None else None
+            )
+            next_retry_at = queue_health.pop("next_retry_at")
+            queue_health["next_retry_in_seconds"] = (
+                max(0, int(next_retry_at - now)) if next_retry_at is not None else None
             )
             oldest_created_at = oldest["created_at"] if oldest else None
             oldest_error = oldest["last_error"] if oldest else None
@@ -2178,9 +2243,9 @@ class HubClient:
                         print("memory hook full upload degraded: %s" % error, file=sys.stderr)
                     full_file_id = None
 
-        snapshot_path = Path(job["snapshot_path"])
-        if not snapshot_path.is_file():
-            raise HubError("queued snapshot file is missing")
+        snapshot_path = Path(job["snapshot_path"]) if job["snapshot_path"] else None
+        if snapshot_path is None or not snapshot_path.is_file():
+            raise SpoolObjectMissing("queued snapshot file is missing")
         file_id = self._upload_file(
             project_id,
             user_id,
@@ -2637,11 +2702,18 @@ def flush_pending(store: StateStore, config: Config, limit: int) -> Dict[str, An
                 store.complete(job["job_id"], result)
                 completed += 1
             except Exception as error:
-                store.fail(job["job_id"], error)
+                scope = upload_failure_scope(error)
+                store.fail(
+                    job["job_id"], error,
+                    retry_after=upload_retry_delay(int(job["attempts"]) + 1),
+                    terminal=scope == "terminal",
+                )
                 failed += 1
-                # 未处理的认领归还 queued，不得留在 uploading 吃满整个租约
-                store.release_claims(job["job_id"] for job in claimed[index + 1 :])
-                break
+                if scope == "global":
+                    # Hub 整体不可用：本轮停止；未处理的认领归还 queued，不得留在 uploading 吃满租约
+                    store.release_claims(job["job_id"] for job in claimed[index + 1 :])
+                    break
+                # 只与该 job 有关的错误（403/422/本地数据）：它自己退避，后面的会话照常上传。
         return {
             "busy": False,
             "completed": completed,
@@ -2801,15 +2873,24 @@ def recall_metrics_row(
     audit: Optional[Dict[str, Any]] = None,
     context: str = "",
     error_code: Optional[str] = None,
+    error: Optional[BaseException] = None,
 ) -> Dict[str, Any]:
-    """每次召回一行可聚合指标：不含 query、正文或模型输出。"""
+    """每次召回一行可聚合指标：不含 query、正文或模型输出。
+
+    失败行带服务端 503 返回的 retrieval_id / request_id，可与服务端 retrieval_runs 的
+    失败审计逐条对账；成功行带执行指纹与代码版本，台账可按部署和配置切分。
+    """
     response = response if isinstance(response, dict) else {}
     raw = response.get("raw_response") if isinstance(response.get("raw_response"), dict) else {}
     audit = audit if isinstance(audit, dict) else (raw.get("audit") if isinstance(raw.get("audit"), dict) else {})
     stage_a = audit.get("stage_a") if isinstance(audit.get("stage_a"), dict) else {}
+    execution = audit.get("execution") if isinstance(audit.get("execution"), dict) else {}
     judgments = [row for row in stage_a.get("judgments") or [] if isinstance(row, dict)]
-    judge_calls = [call for call in stage_a.get("llm_calls") or []
-                   if isinstance(call, dict) and call.get("stage") == "judge"]
+    stage_a_calls = [call for call in stage_a.get("llm_calls") or [] if isinstance(call, dict)]
+    judge_calls = [call for call in stage_a_calls if call.get("stage") == "judge"]
+    error_ids = {key: getattr(error, key, None) for key in ("retrieval_id", "request_id")}
+    error_ids = {key: value for key, value in error_ids.items() if isinstance(value, str)
+                 and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", value)}
     quality = response.get("quality") if isinstance(response.get("quality"), dict) else {}
     retrieval = response.get("retrieval") if isinstance(response.get("retrieval"), dict) else {}
     fusion = raw.get("fusion") if isinstance(raw.get("fusion"), dict) else {}
@@ -2828,13 +2909,20 @@ def recall_metrics_row(
         "outcome": outcome,
         "error_code": error_code,
         "duration_ms": duration_ms,
-        "retrieval_id": retrieval.get("retrieval_id") or raw.get("retrieval_id"),
+        "retrieval_id": (retrieval.get("retrieval_id") or raw.get("retrieval_id")
+                         or error_ids.get("retrieval_id")),
+        "request_id": error_ids.get("request_id"),
         "policy_version": retrieval.get("policy_version") or raw.get("policy_version"),
+        "execution_fingerprint": execution.get("fingerprint"),
+        "code_version": execution.get("code_version"),
         "candidates": quality.get("candidates"),
         "kept": quality.get("kept"),
         "judge_calls": len(judge_calls),
         "judge_ms": sum(int(call.get("latency_ms") or 0) for call in judge_calls),
         "judge_out_tokens": sum(int((call.get("usage") or {}).get("output_tokens") or 0) for call in judge_calls),
+        "judge_format_retries": stage_a.get("format_retries"),
+        "correction_rejudgments": stage_a.get("correction_rejudgments"),
+        "fallback_calls": sum(1 for call in stage_a_calls if call.get("fallback_used") is True),
         "resolver_degraded": resolution.get("degraded"),
         "graph_fallback": fusion.get("fallback"),
         "context_chars": len(context),
@@ -3986,7 +4074,7 @@ def command_search(args: argparse.Namespace, config: Config) -> int:
         record_recall_metrics(config, recall_metrics_row(
             source=getattr(args, "source", None), project_id=args.project or "", cwd=os.getcwd(),
             outcome=outcome, duration_ms=int((time.monotonic() - started) * 1000),
-            error_code=diagnostics.get("code"),
+            error_code=diagnostics.get("code"), error=error,
         ))
         return exit_code
 
@@ -4023,6 +4111,7 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
     hook: Dict[str, Any] = {}
     outcome = "error"
     recall_error_code: Optional[str] = None
+    recall_error: Optional[BaseException] = None
     output = ""
     query = ""
     project_id = ""
@@ -4160,6 +4249,7 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
         return 0
     except Exception as error:
         recall_error_code = getattr(error, "error_code", None) or type(error).__name__
+        recall_error = error
         print("memory hook recall: %s" % error, file=sys.stderr)
         return 0
     finally:
@@ -4174,6 +4264,7 @@ def command_recall(args: argparse.Namespace, config: Config) -> int:
                 audit=audit if "audit" in locals() else None,
                 context=recalled if "recalled" in locals() else "",
                 error_code=recall_error_code,
+                error=recall_error,
             ))
         trace_event(
             config,
