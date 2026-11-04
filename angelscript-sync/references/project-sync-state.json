@@ -1,0 +1,519 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "project-sync-20261104-070453Z-21deed5fbb30",
+  "verified_at": "2026-11-04T07:04:53.741044+00:00",
+  "verification_kind": "read_only_version_and_content_audit_no_sync_no_build_no_tests",
+  "manifest": "project-sync-manifest.json",
+  "engine_baseline": "sync-state.json is a separate Engine snapshot and was not modified; no project directory maximum CL replaces it.",
+  "workspaces": {
+    "source": {
+      "id": "maindev",
+      "resolved_host": "Sun",
+      "execution": "local",
+      "root_at_observation": "D:/MainDev",
+      "vcs": "Perforce",
+      "p4_user": "sunlaibing",
+      "p4_client": "SunLaibing_MainDev_9897",
+      "p4_client_stream": "//CyanCookOfficialDepot/MainDev_Wwise",
+      "actual_depot_root": "//CyanCookOfficialDepot/MainDev",
+      "p4_charset": "none",
+      "connection_evidence": "Read-only p4 info/where and version/content queries executed in the resolved source workspace with command-level P4CHARSET=none.",
+      "read_only": true
+    },
+    "target": {
+      "id": "unrealengine-angelscript",
+      "resolved_host": "Sun",
+      "execution": "local",
+      "root_at_observation": "D:/UnrealEngine-Angelscript",
+      "vcs": "Git",
+      "project": "ProjectM/ProjectM.uproject",
+      "head": "21deed5fbb30a49454e978c9d45156be0ce01e22",
+      "head_subject": "add add-ttask-typed-async-result spec",
+      "head_committed_at": "2026-11-04T14:33:10+08:00",
+      "project_files_read_only": true
+    },
+    "routing": "Sun/local workspace_resolve results supplied by coordinator for this dispatch; resolve both IDs again next time."
+  },
+  "migration_scope": {
+    "direction": "maindev_to_unrealengine_angelscript",
+    "plugin_maps": [
+      {
+        "source": "Main/Plugins/PLAutomationFramework/",
+        "target": "ProjectM/Plugins/PLAutomationFramework/",
+        "mode": "generic_framework_subset_with_gameplay_exclusions"
+      },
+      {
+        "source": "Main/Plugins/PLASTestFeature/",
+        "target": "ProjectM/Plugins/PLASTestFeature/",
+        "mode": "source_fixtures_and_reference_material_preserved_host_retargeted"
+      },
+      {
+        "source": "Main/Plugins/PLScriptAsync/",
+        "target": "ProjectM/Plugins/PLScriptAsync/",
+        "mode": "generic_async_runtime"
+      }
+    ],
+    "extracted_core": {
+      "target": "ProjectM/Plugins/PLGameCore/",
+      "status": "independent_target_plugin_not_a_full_copy_of_ProjectLungfishCore",
+      "logging_source": "Main/Plugins/LogCore/Source/LogCore/",
+      "logging_files": [
+        "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Private/LogUtils.cpp",
+        "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Public/LogScopeStepInterface.h",
+        "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Public/LogUtils.h"
+      ],
+      "ui_source": "Main/Plugins/ProjectLungfishCore/Source/PLCoreGame/",
+      "ui_files": [
+        "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Private/Tests/PLWidgetQueryTest.cpp",
+        "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Private/UI/PLCursorLibrary.cpp",
+        "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Private/UI/PLWidgetQuery.cpp",
+        "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Private/UI/PLWidgetTree.cpp",
+        "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Public/UI/PLCursorLibrary.h",
+        "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Public/UI/PLWidgetNode.h",
+        "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Public/UI/PLWidgetQuery.h",
+        "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Public/UI/PLWidgetTree.h"
+      ],
+      "provenance": "ProjectM/Plugins/PLGameCore/README.md; exact per-file mapping in manifest."
+    },
+    "script_map": {
+      "source": "Main/Script/Tests/",
+      "target": "ProjectM/Script/Tests/",
+      "selection": "Only the following migrated files, not the whole source Tests tree.",
+      "scriptasync_files": [
+        "ProjectM/Script/Tests/UnitTests/ScriptAsync/AsyncDebugProtocolFixture.as",
+        "ProjectM/Script/Tests/UnitTests/ScriptAsync/AsyncSyntaxLoweringProbe.zip",
+        "ProjectM/Script/Tests/UnitTests/ScriptAsync/ScriptAsyncM1Compiler_Test.as",
+        "ProjectM/Script/Tests/UnitTests/ScriptAsync/ScriptAsyncReview_Test.zip",
+        "ProjectM/Script/Tests/UnitTests/ScriptAsync/ScriptAsyncSafetyFixture.as",
+        "ProjectM/Script/Tests/UnitTests/ScriptAsync/ScriptTaskHandle_Test.as"
+      ],
+      "ui_files": [
+        "ProjectM/Script/Tests/UnitTests/UI/UITaskCallback_Test.as"
+      ],
+      "function_tests": [
+        "ProjectM/Script/Tests/0100_FunctionTest/TestCase_25_TimerWait_AS.as",
+        "ProjectM/Script/Tests/0100_FunctionTest/TestCase_35_MathSanity_AS.as",
+        "ProjectM/Script/Tests/0100_FunctionTest/TestCase_9800_DirectAsyncControlFlow.as",
+        "ProjectM/Script/Tests/0100_FunctionTest/TestCase_9810_AsyncLoopControlFlow.as"
+      ],
+      "core_support_files": [
+        "ProjectM/Script/Tests/Core/Actions/Input/InputKeyDispatch.as",
+        "ProjectM/Script/Tests/Core/Actions/UI/PLAutoUIHelpers.as",
+        "ProjectM/Script/Tests/Core/Async/ScriptAsyncSourceVMProbe.as",
+        "ProjectM/Script/Tests/Core/Async/ScriptAsyncStateMachinePrototype.as",
+        "ProjectM/Script/Tests/Core/PLAutoCategoryTypes.as",
+        "ProjectM/Script/Tests/Core/PLAutomationAsyncCaseBase_AS.as",
+        "ProjectM/Script/Tests/Core/PLAutomationCaseBase_AS.as",
+        "ProjectM/Script/Tests/Core/PLAutomationSequenceBuilder_AS.as",
+        "ProjectM/Script/Tests/Core/Tasks/DebugTask.as",
+        "ProjectM/Script/Tests/Core/Tasks/FlowTask.as",
+        "ProjectM/Script/Tests/Core/Tasks/InputTask.as",
+        "ProjectM/Script/Tests/Core/Tasks/Internal/UITaskInternal.as",
+        "ProjectM/Script/Tests/Core/Tasks/Internal/UIWidgetPredicate.as",
+        "ProjectM/Script/Tests/Core/Tasks/LevelTask.as",
+        "ProjectM/Script/Tests/Core/Tasks/PerfTask.as",
+        "ProjectM/Script/Tests/Core/Tasks/UITask.as"
+      ]
+    },
+    "target_only_wiring": [
+      "ProjectM/Plugins/PLGameCore/PLGameCore.uplugin",
+      "ProjectM/Plugins/PLGameCore/README.md",
+      "ProjectM/Plugins/PLGameCore/Source/PLGameCore/PLGameCore.Build.cs",
+      "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Private/PLGameCoreModule.cpp",
+      "ProjectM/Script/Tests/UnitTests/ScriptAsync/.gitignore",
+      "ProjectM/Config/DefaultEngine.ini",
+      "ProjectM/ProjectM.uproject",
+      "ProjectM/Plugins/README.md"
+    ],
+    "inventory_basis": "Actual files in current Git HEAD within the three imported plugins, extracted PLGameCore, selected Tests, plus DefaultEngine.ini, ProjectM.uproject and Plugins/README.md. Five concurrent untracked typed-result files are recorded separately, not claimed as migrated."
+  },
+  "source_version_observations": {
+    "groups": {
+      "PLAutomationFramework": {
+        "manifest_files": 120,
+        "source_observed_submitted_max_cl": 144854,
+        "have_equals_head_files": 114,
+        "source_version_unknown": 6,
+        "committed_clean": 120,
+        "pending_tracked": 0
+      },
+      "PLASTestFeature": {
+        "manifest_files": 397,
+        "source_observed_submitted_max_cl": 136147,
+        "have_equals_head_files": 397,
+        "source_version_unknown": 0,
+        "committed_clean": 397,
+        "pending_tracked": 0
+      },
+      "PLScriptAsync": {
+        "manifest_files": 48,
+        "source_observed_submitted_max_cl": 143452,
+        "have_equals_head_files": 48,
+        "source_version_unknown": 0,
+        "committed_clean": 44,
+        "pending_tracked": 4
+      },
+      "target_wiring": {
+        "manifest_files": 8,
+        "source_observed_submitted_max_cl": null,
+        "have_equals_head_files": 0,
+        "source_version_unknown": 0,
+        "committed_clean": 8,
+        "pending_tracked": 0
+      },
+      "LogCore_extract": {
+        "manifest_files": 3,
+        "source_observed_submitted_max_cl": 141824,
+        "have_equals_head_files": 3,
+        "source_version_unknown": 0,
+        "committed_clean": 3,
+        "pending_tracked": 0
+      },
+      "PLCoreGame_extract": {
+        "manifest_files": 8,
+        "source_observed_submitted_max_cl": 144326,
+        "have_equals_head_files": 8,
+        "source_version_unknown": 0,
+        "committed_clean": 8,
+        "pending_tracked": 0
+      },
+      "AS_FunctionTests": {
+        "manifest_files": 4,
+        "source_observed_submitted_max_cl": 144848,
+        "have_equals_head_files": 4,
+        "source_version_unknown": 0,
+        "committed_clean": 4,
+        "pending_tracked": 0
+      },
+      "AS_Core": {
+        "manifest_files": 16,
+        "source_observed_submitted_max_cl": 143937,
+        "have_equals_head_files": 16,
+        "source_version_unknown": 0,
+        "committed_clean": 16,
+        "pending_tracked": 0
+      },
+      "AS_ScriptAsync": {
+        "manifest_files": 6,
+        "source_observed_submitted_max_cl": 143452,
+        "have_equals_head_files": 4,
+        "source_version_unknown": 2,
+        "committed_clean": 6,
+        "pending_tracked": 0
+      },
+      "AS_UI": {
+        "manifest_files": 1,
+        "source_observed_submitted_max_cl": 143937,
+        "have_equals_head_files": 1,
+        "source_version_unknown": 0,
+        "committed_clean": 1,
+        "pending_tracked": 0
+      }
+    },
+    "interpretation": "Group maxima refer only to current submitted revisions of the exact mapped manifest file set, except the three whole-plugin directory maxima which independently match those observations. They are observation limits, not proof that every source change was migrated.",
+    "directory_observations": [
+      {
+        "path": "Main/Plugins/PLAutomationFramework/...",
+        "latest_submitted_cl": 144854,
+        "active_p4_files": 123,
+        "mapped_manifest_p4_files": 114,
+        "excluded_gameplay_files": 8,
+        "additional_unmigrated_source_files": 1
+      },
+      {
+        "path": "Main/Plugins/PLASTestFeature/...",
+        "latest_submitted_cl": 136147,
+        "active_p4_files": 397
+      },
+      {
+        "path": "Main/Plugins/PLScriptAsync/...",
+        "latest_submitted_cl": 143452,
+        "active_p4_files": 48
+      },
+      {
+        "path": "Main/Plugins/LogCore/...",
+        "latest_submitted_cl": 141824,
+        "selected_file_max_cl": 141824
+      },
+      {
+        "path": "Main/Plugins/ProjectLungfishCore/Source/PLCoreGame/...",
+        "latest_submitted_cl": 144854,
+        "selected_file_max_cl": 144326,
+        "note": "Parent directory CL includes unrelated ability-system gameplay files; do not use it as the extraction baseline."
+      },
+      {
+        "path": "Main/Script/Tests/...",
+        "latest_submitted_cl": 144955,
+        "selected_file_max_cl": 144848,
+        "note": "Directory maximum includes unrelated game tests, not a full Tests migration cursor."
+      }
+    ],
+    "have_status": {
+      "tracked_files": 595,
+      "have_equals_head": 595,
+      "opened_files": 0,
+      "local_content_changes": 0,
+      "verified_by": "p4 files #have + pinned numeric-revision p4 print; raw SHA256 recorded separately",
+      "byte_identical_to_print": 8,
+      "crlf_only_vs_print": 541,
+      "utf8_bom_and_crlf_only_vs_print": 46
+    },
+    "no_p4_version_files": [
+      "Main/Plugins/PLAutomationFramework/Docs/Plan_InheritanceBuilder_Redesign.md",
+      "Main/Plugins/PLAutomationFramework/Docs/Plan_SelfContainedActions.md",
+      "Main/Plugins/PLAutomationFramework/Docs/Refactor_ActionObjectModel.md",
+      "Main/Plugins/PLAutomationFramework/Docs/Refactor_Progress_P1-P7.md",
+      "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Libraries/UI/PLAutoUIBlueprintLibrary_HoverFix.md",
+      "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Libraries/UI/hover-fix-prompt.md",
+      "Main/Script/Tests/UnitTests/ScriptAsync/AsyncSyntaxLoweringProbe.zip",
+      "Main/Script/Tests/UnitTests/ScriptAsync/ScriptAsyncReview_Test.zip"
+    ],
+    "no_p4_version_policy": "Six retained upstream-context Markdown files and two archived ZIP fixtures exist locally and match target bytes but p4 reports no record/have; their local hashes are known, submitted CL and original import revision remain unknown."
+  },
+  "target_version_observations": {
+    "migration_commit": "1653b27ad91ad9aea64066775c928f3b87a6284d",
+    "migration_commit_subject": "add PLAutomation framework support",
+    "later_project_cleanup_commit": "4d2a8ea9d65653ed484530243eb629bb3bc826ad",
+    "later_project_cleanup": "Removed the OptionUIPilotEntry business-script dependency from framework native tests and updated related docs.",
+    "current_head": "21deed5fbb30a49454e978c9d45156be0ce01e22",
+    "migration_in_head": true,
+    "status": "migration_committed_with_subsequent_pending_worktree_changes",
+    "files_in_head": 611,
+    "clean_manifest_files": 607,
+    "pending_tracked_manifest_files": 4,
+    "pending_observed_at": "2026-11-04T07:04:53.741044+00:00",
+    "pending": [
+      {
+        "path": "ProjectM/Plugins/PLScriptAsync/SKILL.md",
+        "status": " M",
+        "sha256": "52dd336e066cedd8cfeb2b651343a9d3c3c6beeca4aed5cf3f40fccb98060636",
+        "source_vs_HEAD": "line_endings_only"
+      },
+      {
+        "path": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/Bind_PLScriptTask.cpp",
+        "status": " M",
+        "sha256": "b3c324aaf792f7728fd30ee08ee1b7d938f6b59e1a9bc879698bb78d26b83820",
+        "source_vs_HEAD": "line_endings_only"
+      },
+      {
+        "path": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/PLScriptTask.cpp",
+        "status": " M",
+        "sha256": "fbe5460ff05b396fd26634dba5ac8d8f40ab0df7c551b8f2c42e11ccd94e7d63",
+        "source_vs_HEAD": "content_differs"
+      },
+      {
+        "path": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Public/PLScriptTask.h",
+        "status": " M",
+        "sha256": "e3b64316fe661a2074741a3e335abcf4b93e681c13ce8790911ec1ddea34b732",
+        "source_vs_HEAD": "line_endings_only"
+      },
+      {
+        "path": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/Tests/PLScriptAsyncTypedResultTests.cpp",
+        "status": "??",
+        "sha256": "456fcfbda8b87a664d0aff53b5f7fc3ae42d8055dd2dc84ebb8bd193df7a8cda"
+      },
+      {
+        "path": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/Tests/PLScriptAsyncTypedStabilityTests.cpp",
+        "status": "??",
+        "sha256": "d1dd88b2fe0ba923bbe948f6c1d8830c761e5de6e519a0bd55ceb3dcf5f8183f"
+      },
+      {
+        "path": "ProjectM/Script/Tests/UnitTests/ScriptAsync/ScriptAsyncTypedResult_Test.as",
+        "status": "??",
+        "sha256": "3ee601234eaad285151a72ee4841b675eaaea7467818784044618660c77a8107"
+      },
+      {
+        "path": "ProjectM/Script/Tests/UnitTests/ScriptAsync/ScriptAsyncTypedSpike_Test.as",
+        "status": "??",
+        "sha256": "72a78b9fc02ea9289d2f12dd2bc20ab5241b7d5d50f57046751dc03dfda6eee9"
+      },
+      {
+        "path": "ProjectM/Script/Tests/UnitTests/ScriptAsync/ScriptAsyncTypedStabilityFixture.as",
+        "status": "??",
+        "sha256": "b6551300fdfd41ef13c6c43471470af9aa07378b4baa64cbdd9f2921b09c51e6"
+      }
+    ],
+    "concurrent_change_warning": "The target is actively changing in a separate typed-result task: the audit first saw 3 modified/3 untracked paths and later 4 modified/5 untracked. These are observation snapshots, not an atomic workspace lock; re-query before an update and never reset them.",
+    "newly_untracked_files_have_migration_head_blob": false
+  },
+  "directions": {
+    "maindev_to_unrealengine_angelscript": {
+      "historical_migration_status": "committed_in_target",
+      "current_source_alignment_status": "partial_correspondence_with_pending_upstream_changes",
+      "successful_p4_cursor": null,
+      "successful_p4_cursor_status": "unknown_original_import_snapshot",
+      "successful_git_cursor": null,
+      "observed_target_head": "21deed5fbb30a49454e978c9d45156be0ce01e22",
+      "committed_migration_anchor": "1653b27ad91ad9aea64066775c928f3b87a6284d",
+      "per_file_cursor": "Only manifest baseline_use=verified_current_content_correspondence_not_historical_success_cursor establishes a present content correspondence; adapted/unversioned/pending paths require prior-source reconstruction or an explicit three-way review.",
+      "advancement": "No successful sync cursor advanced: this round changed no project code and reran no validation. Current source CL 144854/144848 must not be backfilled as the source versions used by earlier successful tests."
+    },
+    "unrealengine_angelscript_to_maindev": {
+      "status": "not_run",
+      "source_git_commit": null,
+      "target_pending_cl": null,
+      "target_submitted_cl": null,
+      "policy": "Reverse work must explicitly select compatible per-file changes and preserve source gameplay implementations. Do not copy the reduced ProjectM files over full MainDev files or back-propagate target-only wiring/exclusions wholesale."
+    }
+  },
+  "preserve_adaptations_and_exclusions": {
+    "authoritative_boundary": "Generic framework and async support only; do not reintroduce removed ProjectLungfish gameplay logic.",
+    "excluded_source_files": [
+      "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Libraries/PLBuildingStreamTestBlueprintLibrary.cpp",
+      "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Libraries/PLBuildingStreamTestBlueprintLibrary.h",
+      "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Libraries/PLPendingDestructionTestLibrary.cpp",
+      "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Libraries/PLPendingDestructionTestLibrary.h",
+      "Main/Plugins/PLAutomationFramework/Source/PLAutomationFrameworkEditor/Private/PLBuildingDormancyEditorLibrary.cpp",
+      "Main/Plugins/PLAutomationFramework/Source/PLAutomationFrameworkEditor/Private/PLBuildingDormancyEditorSubsystem.cpp",
+      "Main/Plugins/PLAutomationFramework/Source/PLAutomationFrameworkEditor/Public/PLBuildingDormancyEditorLibrary.h",
+      "Main/Plugins/PLAutomationFramework/Source/PLAutomationFrameworkEditor/Public/PLBuildingDormancyEditorSubsystem.h"
+    ],
+    "removed_interfaces": [
+      "SetContainerOpen",
+      "SetAcceptUnpickableItems",
+      "SetActorGodMode"
+    ],
+    "additional_target_exclusion": "SingleStep.OptionUIPilotEntry and its UOptionUITestCase business-script dependency were removed in target cleanup commit 4d2a8ea9d65653ed484530243eb629bb3bc826ad.",
+    "excluded_as_task_families": [
+      "Attr",
+      "Eqp",
+      "Gas",
+      "Inv",
+      "InvUI",
+      "Player",
+      "Time",
+      "World"
+    ],
+    "input_debug_adaptations": "Use generic runtime subsystem/controller/object-loading APIs; remove game montage ActorKey helpers and hardcoded HUD default; do not replace with game-specific PLIntTest/PLGameplay/PLSubsystem dependencies.",
+    "plgamecore_adaptations": "Retain only LogUtils/LogScopeStepInterface, Slate virtual cursor, WidgetNode/Tree/Query and query tests; PLGAMECORE_API exports and generic UE/CommonUI dependencies.",
+    "project_host_adaptations": "Preserve ProjectM plugin enablement and AngelScript language/async profile, standalone PLGameCore module initialization, and PLASTestFeature runner/TestHost/report path retargeting.",
+    "archive_policy": "Keep both ZIPs under UnitTests/ScriptAsync as archives; do not unpack or reactivate as source tests.",
+    "excluded_generated_content": [
+      "Binaries",
+      "Intermediate",
+      "Saved",
+      "DerivedDataCache",
+      "Python caches",
+      "VCS metadata",
+      "old SKILL.zip archives"
+    ],
+    "documentation_warning": "Retained upstream SKILL/reference documents may describe excluded MainDev gameplay; they do not authorize restoration."
+  },
+  "pending_updates_and_uncertainties": {
+    "source_background_input": {
+      "submitted_cl": 144847,
+      "status": "pending_update_review_not_synced",
+      "description": "Current source enables injected Slate input while inactive; matching target implementation/docs have not acquired this behavior.",
+      "missing_file": {
+        "source": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationBackgroundClickTests.cpp",
+        "target_exists": false,
+        "depotFile": "//CyanCookOfficialDepot/MainDev/Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationBackgroundClickTests.cpp",
+        "haveRev": "1",
+        "headAction": "add",
+        "headChange": "144847",
+        "headRev": "1"
+      },
+      "mapped_paths": [
+        "ProjectM/Plugins/PLAutomationFramework/SKILL.md",
+        "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutoAutomatedInput.cpp",
+        "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutoAutomatedInput.h",
+        "ProjectM/Plugins/PLAutomationFramework/references/mouse-isolation.md",
+        "ProjectM/Plugins/PLAutomationFramework/references/pitfalls.md",
+        "ProjectM/Plugins/PLAutomationFramework/references/ui-interaction.md"
+      ],
+      "related_fixture_review": "PLAutomationCasePhaseTests.cpp uses Trace in current source and Order in target; exact original import revision unconfirmed."
+    },
+    "source_function_cases": {
+      "submitted_cl": 144848,
+      "status": "pending_update_review_not_synced",
+      "files": [
+        "ProjectM/Script/Tests/0100_FunctionTest/TestCase_25_TimerWait_AS.as",
+        "ProjectM/Script/Tests/0100_FunctionTest/TestCase_35_MathSanity_AS.as",
+        "ProjectM/Script/Tests/0100_FunctionTest/TestCase_9800_DirectAsyncControlFlow.as",
+        "ProjectM/Script/Tests/0100_FunctionTest/TestCase_9810_AsyncLoopControlFlow.as"
+      ],
+      "description": "Current source switches TimerWait/MathSanity to async PLStep cases and adds PLStep to DirectAsyncControlFlow/AsyncLoopControlFlow; committed target differs. Do not label the current source CL as already synchronized."
+    },
+    "original_import_revisions": "Not recovered for adapted paths; the manifest records current source have versions honestly, not a reconstructed historical success claim.",
+    "byte_differences": "Current source-target comparison is 560 identical, 43 content-different/adapted (including pending target work and pending upstream differences), 8 target-only. This is not a mirror claim.",
+    "no_new_sync_performed": true
+  },
+  "prior_validation_evidence": {
+    "provenance": {
+      "cpp_dispatch": "ctx_c30c7e6c43de",
+      "as_dispatch": "ctx_3c0a1f381139",
+      "current_audit_dispatch": "ctx_8bffc28f57c1"
+    },
+    "rerun_this_round": false,
+    "historical_results": {
+      "build": {
+        "target": "ProjectMEditor",
+        "result": "Succeeded",
+        "actions": "132/132",
+        "log": "ProjectM/Saved/Logs/PLMigration-Build-01.log"
+      },
+      "as_unit": {
+        "passed": 45,
+        "total": 45,
+        "breakdown": "ScriptAsync 7 + UI 7 + existing AS233 31",
+        "log": "ProjectM/Saved/Logs/ASMigration-Unit-02.log"
+      },
+      "function_pie": {
+        "passed": 4,
+        "total": 4,
+        "log": "ProjectM/Saved/Logs/ASMigration-PIE-03.log",
+        "terminal_state": "ProjectM/Saved/Automation/ASMigration-PIE-03/plauto-terminal-state.txt"
+      },
+      "native_fixtures": {
+        "passed": 41,
+        "total": 41,
+        "log": "ProjectM/Saved/Logs/ASMigration-Fixtures-01.log"
+      }
+    },
+    "log_presence_only_checked": [
+      {
+        "path": "ProjectM/Saved/Logs/PLMigration-Build-01.log",
+        "exists": true,
+        "size": 20525
+      },
+      {
+        "path": "ProjectM/Saved/Logs/ASMigration-Unit-02.log",
+        "exists": true,
+        "size": 272478
+      },
+      {
+        "path": "ProjectM/Saved/Logs/ASMigration-PIE-03.log",
+        "exists": true,
+        "size": 420165
+      },
+      {
+        "path": "ProjectM/Saved/Logs/ASMigration-Fixtures-01.log",
+        "exists": true,
+        "size": 523971
+      },
+      {
+        "path": "ProjectM/Saved/Automation/ASMigration-PIE-03/plauto-terminal-state.txt",
+        "exists": true,
+        "size": 163
+      }
+    ],
+    "applicability": "Results are prior-dispatch evidence supplied by coordinator, not re-executed or re-certified against current HEAD, newer source CLs, subsequent OptionUI cleanup or concurrent typed-result changes."
+  },
+  "summary": {
+    "manifest_files": 611,
+    "mapped_source_files": 603,
+    "p4_have_content_verified": 595,
+    "source_version_unknown": 8,
+    "source_opened": 0,
+    "source_have_behind_head": 0,
+    "source_local_content_modifications": 0,
+    "identical": 560,
+    "adapted": 43,
+    "target_only": 8,
+    "target_in_HEAD": 611,
+    "target_clean": 607,
+    "target_pending_tracked": 4,
+    "additional_pending_untracked_outside_migration": 5
+  },
+  "update_policy": "Next update must use this explicit allowlist, compare per-file source have/committed contents and target HEAD/working hashes, resolve unknown/pending correspondences, preserve all de-gameplay adaptations, and validate the selected result before advancing either direction's successful cursor."
+}
