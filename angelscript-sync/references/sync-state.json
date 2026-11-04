@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-11-04T09:49:54+08:00",
+  "direction_policy": "每轮由用户明确指定源与目标；本文件的上次方向不是默认方向。",
+  "workspaces": {
+    "p4": "maindev",
+    "git": "unrealengine-angelscript",
+    "routing": "每次通过 workspace_resolve 重新解析，不使用历史机器路径。"
+  },
+  "scope": {
+    "primary_root": "Engine/Plugins/Angelscript/",
+    "p4_primary_depot": "//CyanCookOfficialDepot/MainDev/Engine/Plugins/Angelscript/...",
+    "companion_policy": "以下仅为上次实际迁移的4个文件，不授权每轮覆盖整个GAS插件。",
+    "companion_files": [
+      {
+        "path": "Engine/Plugins/AngelscriptGAS/Source/Private/AngelscriptGASModule.cpp",
+        "p4_last_submitted_cl": 29091,
+        "p4_revision": 4
+      },
+      {
+        "path": "Engine/Plugins/AngelscriptGAS/Source/Private/Binds/Bind_FGameplayAttribute.cpp",
+        "p4_last_submitted_cl": 50904,
+        "p4_revision": 2
+      },
+      {
+        "path": "Engine/Plugins/AngelscriptGAS/Source/Public/AngelscriptAbilitySystemComponent.h",
+        "p4_last_submitted_cl": 50377,
+        "p4_revision": 3
+      },
+      {
+        "path": "Engine/Plugins/AngelscriptGAS/Source/Public/Mixin/AbilitySystemComponentMixinLibrary.h",
+        "p4_last_submitted_cl": 116628,
+        "p4_revision": 5
+      }
+    ],
+    "preserved_git_only_files": [
+      "Engine/Plugins/Angelscript/references/plugin-overview.md",
+      "Engine/Plugins/Angelscript/Source/AngelscriptCode/SKILL.md",
+      "Engine/Plugins/Angelscript/Source/AngelscriptEditor/SKILL.md",
+      "Engine/Plugins/Angelscript/Source/AngelscriptLoader/SKILL.md"
+    ],
+    "git_only_delivery_rules": [
+      "Engine/Plugins/Angelscript/references/ue-integration/diagrams/.gitignore"
+    ],
+    "exclusions": "实际构建产物、缓存和VCS元数据；ThirdParty内有效源码/必要构建输入不按目录整体排除。"
+  },
+  "comparison_baseline": {
+    "p4_primary_submitted_cl": 144419,
+    "p4_primary_latest_sunlaibing_cl": 144419,
+    "p4_primary_author": "SunLaibing",
+    "p4_primary_submitted_at": "2026-11-03T12:34:49+08:00",
+    "p4_primary_summary": "AngelScript: add bWarningsAsErrors setting; treat AS compiler warnings as errors via asEP_COMPILER_WARNINGS=2 (CYANCOOK)",
+    "p4_companion_max_submitted_cl": 116628,
+    "p4_command_charset_at_verification": "none",
+    "p4_have_status": {
+      "active_primary_files": 390,
+      "active_companion_files": 4,
+      "have_equals_head_files": 394,
+      "deleted_files_without_have": 48,
+      "opened_files": 0
+    },
+    "git_migration_commit_abbrev": "e879aa73c767",
+    "git_committed_checkpoint": "16878397b67eadbdf99690e4dd077c28f7862dca",
+    "git_checkpoint_subject": "update doc",
+    "git_checkpoint_committed_at": "2026-11-04T09:44:21+08:00",
+    "git_scoped_worktree_clean": true,
+    "content_evidence": "上一阶段逐文件SHA256确认390个主插件文件及4个GAS文件与源相同；本次只读核对have/head及已提交状态，未重新迁移或编译。",
+    "supplemental_delivery": {
+      "status": "committed",
+      "commit": "16878397b67eadbdf99690e4dd077c28f7862dca",
+      "directory": "Engine/Plugins/Angelscript/references/ue-integration/diagrams/",
+      "files": [
+        ".gitignore",
+        "gc-reference-paths.mmd",
+        "gc-reference-paths.svg",
+        "reflection-pipeline.mmd",
+        "reflection-pipeline.svg",
+        "ue-to-script-call.mmd",
+        "ue-to-script-call.svg"
+      ],
+      "evidence": "git status范围为空；git log -1 --name-status与git ls-tree HEAD确认7个文件均在当前提交。"
+    },
+    "reverse_use": "可作为首次Git→P4增量比较的对应点；先核对其后两边变化及本文件列出的目标专属例外，不整目录回灌，也不视作已执行反向同步。"
+  },
+  "directions": {
+    "maindev_to_unrealengine_angelscript": {
+      "status": "completed",
+      "source_primary_submitted_cl": 144419,
+      "target_git_commit": "16878397b67eadbdf99690e4dd077c28f7862dca"
+    },
+    "unrealengine_angelscript_to_maindev": {
+      "status": "not_run",
+      "source_git_commit": null,
+      "target_pending_cl": null,
+      "target_submitted_cl": null
+    }
+  },
+  "last_successful_build": {
+    "target_workspace": "unrealengine-angelscript",
+    "command": "Engine\\Build\\BatchFiles\\Build.bat UnrealEditor Win64 Development -WaitMutex -NoHotReload",
+    "exit_code": 0,
+    "result": "Succeeded",
+    "total_seconds": 11.75,
+    "kind": "incremental_metadata_2_actions",
+    "log_relative_path": "Engine/Programs/UnrealBuildTool/Log.txt",
+    "provenance": "本会话上一阶段真实构建；此前迁移阶段亦已实际编译/链接成功。此次只读基线核查没有重新构建。",
+    "relation_to_checkpoint": "构建发生在16878397b67e文档提交之前；该提交补入diagrams/.gitignore及6张图，不能据此声称对该新HEAD重新编译过。",
+    "log_retention": "UBT日志可能被后续构建覆盖；下一次同步必须使用本轮真实日志。"
+  },
+  "evidence": {
+    "content_and_build_dispatch": "ctx_49c5fc761d1a",
+    "baseline_readonly_dispatch": "ctx_99acd060edb3"
+  },
+  "update_policy": "完成清单与目标构建验收后更新成功游标；pending/失败不冒充已提交或已成功；新的提交点需重新核对内容。"
+}
