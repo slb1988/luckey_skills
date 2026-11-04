@@ -349,11 +349,202 @@
       "advancement": "No successful sync cursor advanced: this round changed no project code and reran no validation. Current source CL 144854/144848 must not be backfilled as the source versions used by earlier successful tests."
     },
     "unrealengine_angelscript_to_maindev": {
-      "status": "not_run",
-      "source_git_commit": null,
-      "target_pending_cl": null,
+      "snapshot_id": "reverse-sync-20261104-202426-6e22d2cd8e2e",
+      "verified_at": "2026-11-04T12:47:03.076025+00:00",
+      "direction": "unrealengine_angelscript_to_maindev",
+      "status": "validated_pending",
+      "source_git_commit": "6e22d2cd8e2e01dd8e6d90435a1fdcd289f8bd4a",
+      "successful_git_cursor": "6e22d2cd8e2e01dd8e6d90435a1fdcd289f8bd4a",
+      "cursor_scope": "Only the classified incremental file set below; preserve/exclude entries are intentional exceptions, not a directory mirror",
+      "target_pending_cl": 145213,
       "target_submitted_cl": null,
-      "policy": "Reverse work must explicitly select compatible per-file changes and preserve source gameplay implementations. Do not copy the reduced ProjectM files over full MainDev files or back-propagate target-only wiring/exclusions wholesale."
+      "workspaces": {
+        "source": "unrealengine-angelscript",
+        "target": "maindev",
+        "resolved_host": "Sun",
+        "execution": "local",
+        "p4_client": "SunLaibing_MainDev_9897",
+        "p4_charset": "none"
+      },
+      "manifest_path": "Main/Saved/AngelScriptSync/20261104-202426/manifest.json",
+      "validation": {
+        "native-core": {
+          "exit_code": 0,
+          "passed": 70,
+          "total": 70,
+          "wall_seconds": 51.469,
+          "command": [
+            "D:\\MainDev\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe",
+            "D:\\MainDev\\Main\\ProjectLungfish.uproject",
+            "-NullRHI",
+            "-NoSound",
+            "-NoSplash",
+            "-unattended",
+            "-nopause",
+            "-stdout",
+            "-FullStdOutLogOutput",
+            "-LiveCoding=false",
+            "-asdebugport=0",
+            "-as-exit-on-error",
+            "-as-enable-async-await",
+            "-as-ignore-precompiled-data",
+            "-as-force-preprocess-editor-code",
+            "-ExecCmds=Automation Now;RunTests Angelscript.UnitTests.Tests.UnitTests.ScriptAsync.+ProjectLungfish.ScriptAsync.TypedTaskBinding+ProjectLungfish.PLAutomation.SingleStep.+ProjectLungfish.PLAutomation.AsyncSafety.;Quit",
+            "-ReportExportPath=D:\\MainDev\\Main\\Saved\\AngelScriptSync\\20261104-202426\\native-core-report",
+            "-abslog=D:\\MainDev\\Main\\Saved\\AngelScriptSync\\20261104-202426\\native-core-editor.log"
+          ],
+          "report_path": "Main/Saved/AngelScriptSync/20261104-202426/native-core-report/index.json",
+          "log_path": "Main/Saved/AngelScriptSync/20261104-202426/native-core.log"
+        },
+        "native-typed": {
+          "exit_code": 0,
+          "passed": 10,
+          "total": 10,
+          "wall_seconds": 58.047,
+          "command": [
+            "D:\\MainDev\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe",
+            "D:\\MainDev\\Main\\ProjectLungfish.uproject",
+            "-NullRHI",
+            "-NoSound",
+            "-NoSplash",
+            "-unattended",
+            "-nopause",
+            "-stdout",
+            "-FullStdOutLogOutput",
+            "-LiveCoding=false",
+            "-asdebugport=0",
+            "-as-exit-on-error",
+            "-as-enable-async-await",
+            "-as-ignore-precompiled-data",
+            "-as-force-preprocess-editor-code",
+            "-ExecCmds=Automation Now;RunTests ProjectLungfish.ScriptAsyncSafety.TypedResult.;Quit",
+            "-ReportExportPath=D:\\MainDev\\Main\\Saved\\AngelScriptSync\\20261104-202426\\native-typed-report",
+            "-abslog=D:\\MainDev\\Main\\Saved\\AngelScriptSync\\20261104-202426\\native-typed-editor.log"
+          ],
+          "report_path": "Main/Saved/AngelScriptSync/20261104-202426/native-typed-report/index.json",
+          "log_path": "Main/Saved/AngelScriptSync/20261104-202426/native-typed.log"
+        },
+        "behavior": {
+          "exit_code": 0,
+          "passed": 2,
+          "total": 2,
+          "wall_seconds": 142.765,
+          "command": [
+            "D:\\MainDev\\Tools\\ue-cli\\bin\\ue-cli.exe",
+            "automation",
+            "run-plauto",
+            "--filter",
+            "TypedAsyncResult",
+            "--skip-compile",
+            "--map",
+            "/Game/012_Levels/EmptyMap",
+            "--max-duration",
+            "180",
+            "--report-output",
+            "D:\\MainDev\\Main\\Saved\\AngelScriptSync\\20261104-202426\\behavior-report",
+            "--no-analyze"
+          ],
+          "report_path": "Main/Saved/AngelScriptSync/20261104-202426/behavior-report/index.json",
+          "log_path": "Main/Saved/AngelScriptSync/20261104-202426/behavior.log",
+          "editor_log_path": "Main/Saved/AngelScriptSync/20261104-202426/behavior-editor.log"
+        },
+        "build": {
+          "exit_code": 0,
+          "result": "Succeeded",
+          "target": "ProjectLungfishEditor Win64 Development",
+          "command": [
+            "D:\\MainDev\\Engine\\Binaries\\DotNET\\UnrealBuildTool\\UnrealBuildTool.exe",
+            "ProjectLungfishEditor",
+            "Win64",
+            "Development",
+            "-Project=D:\\MainDev\\Main\\ProjectLungfish.uproject",
+            "-WaitMutex"
+          ],
+          "kind": "task_owned_incremental_noop_0_actions_after_concurrent_IDE_build",
+          "wall_seconds": 347.016,
+          "log_path": "Main/Saved/AngelScriptSync/20261104-202426/build.log",
+          "concurrent_compile_evidence": {
+            "attribution": "Separate pre-existing IDE build of the same workspace and target; not launched by this task",
+            "actions": 615,
+            "result": "Succeeded",
+            "log_path": "Main/Saved/AngelScriptSync/20261104-202426/concurrent-ide-build.log",
+            "evidence": "Includes AngelscriptAsyncLowering.cpp, PLAutomationAsyncCase.cpp, new typed/golden test TUs, and actual AngelscriptCode/PLScriptAsync/PLAutomationFramework DLL links"
+          }
+        },
+        "initial_combined_native_attempt": {
+          "exit_code": 255,
+          "passed": 78,
+          "total": 80,
+          "failed": [
+            "ProjectLungfish.ScriptAsyncSafety.TypedResult.Diagnostics",
+            "ProjectLungfish.ScriptAsyncSafety.TypedResult.ResultTypeChangedByReload"
+          ],
+          "reason": "Existing SingleStep.Negative fixtures remained in the in-memory compile descriptor set and polluted subsequent hot reload validation; repeated errors name those old UPLSingleStep classes",
+          "resolution": "No code suppression or scope expansion: separate fresh hosts for the 70 core tests and 10 typed reload/lifecycle/golden tests; both passed with exit 0",
+          "report_path": "Main/Saved/AngelScriptSync/20261104-202426/native-report/index.json",
+          "log_path": "Main/Saved/AngelScriptSync/20261104-202426/native-editor.log"
+        }
+      },
+      "source_comparison_commit": "21deed5fbb30a49454e978c9d45156be0ce01e22",
+      "migration_anchor": "1653b27ad91ad9aea64066775c928f3b87a6284d",
+      "comparison_evidence": "Rebuilt committed per-file baseline; 21deed5 observation is not used as a historical successful sync cursor. Target #have bytes were printed and normalized against the copy-before files; three-way merges preserve MainDev adaptations.",
+      "counts": {
+        "modify": 11,
+        "add": 10,
+        "delete": 0,
+        "preserve": 9,
+        "exclude": 2
+      },
+      "manifest_section": "reverse_sync.files",
+      "unchanged_mapped_groups": [
+        "PLASTestFeature",
+        "PLGameCore LogCore extraction",
+        "PLGameCore PLCoreGame extraction"
+      ],
+      "preserved_main_features": [
+        "OptionUIPilotEntry and its metadata include",
+        "MainDev gameplay module dependencies and game-specific Input/Debug tasks",
+        "Background injected-input support and existing PLStep annotations",
+        "Eight unversioned historical reference/archive files were not imported again"
+      ],
+      "uncommitted_source_excluded": [
+        {
+          "path": "ProjectM/Plugins/PLASTestFeature/SKILL.md",
+          "status": " M",
+          "workspace_sha256": "73cb442a4584cb0a992da7fda825a1b50869c65941be740e164b23d8ed833eb4",
+          "reason": "Only fixed committed Git snapshot is authorized"
+        },
+        {
+          "path": "ProjectM/Plugins/PLAutomationFramework/SKILL.md",
+          "status": " M",
+          "workspace_sha256": "5f92733f9e03aec295d99c350e4cb1098a07123c5aa1e4739f0d12215b2780d9",
+          "reason": "Only fixed committed Git snapshot is authorized"
+        },
+        {
+          "path": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFrameworkEditor/SKILL.md",
+          "status": " M",
+          "workspace_sha256": "f8bc7557beac6e59a2f8c621798cbf851aceb9346e5906b6b9ade788c2f70b27",
+          "reason": "Only fixed committed Git snapshot is authorized"
+        },
+        {
+          "path": "ProjectM/Plugins/PLScriptAsync/SKILL.md",
+          "status": " M",
+          "workspace_sha256": "1df06fb49b825a38881b669f4dda0933609a1cdfd0fe02483f1ea1797005269a",
+          "reason": "Only fixed committed Git snapshot is authorized"
+        },
+        {
+          "path": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/Tests/PLScriptAsyncSourceVMTests.cpp",
+          "status": " M",
+          "workspace_sha256": "a42175ddb389d3729d6336a98e3bab818d8b12a4da93a4a6d536de347966d9d0",
+          "reason": "Only fixed committed Git snapshot is authorized"
+        },
+        {
+          "path": "ProjectM/Script/Tests/Core/Async/ScriptAsyncSourceVMProbe.as",
+          "status": " M",
+          "workspace_sha256": "df29e2412c55fa5a2d16cd492bd22fe6d8eeec6a0e6e9438b9c7eff42998958c",
+          "reason": "Only fixed committed Git snapshot is authorized"
+        }
+      ]
     }
   },
   "preserve_adaptations_and_exclusions": {
