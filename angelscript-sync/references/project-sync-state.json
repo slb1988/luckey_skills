@@ -349,202 +349,165 @@
       "advancement": "No successful sync cursor advanced: this round changed no project code and reran no validation. Current source CL 144854/144848 must not be backfilled as the source versions used by earlier successful tests."
     },
     "unrealengine_angelscript_to_maindev": {
-      "snapshot_id": "reverse-sync-20261104-202426-6e22d2cd8e2e",
-      "verified_at": "2026-11-04T12:47:03.076025+00:00",
+      "snapshot_id": "reverse-sync-20261105-144400-3800c4d38a91",
+      "verified_at": "2026-11-05T07:06:47.859025+00:00",
       "direction": "unrealengine_angelscript_to_maindev",
       "status": "validated_pending",
-      "source_git_commit": "6e22d2cd8e2e01dd8e6d90435a1fdcd289f8bd4a",
-      "successful_git_cursor": "6e22d2cd8e2e01dd8e6d90435a1fdcd289f8bd4a",
-      "cursor_scope": "Only the classified incremental file set below; preserve/exclude entries are intentional exceptions, not a directory mirror",
-      "target_pending_cl": 145213,
+      "source_git_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+      "source_git_tree": "426e5aee9d826d85abea1046336c6cb0cbdcfe16",
+      "successful_git_cursor": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+      "source_comparison_commit": "6e22d2cd8e2e01dd8e6d90435a1fdcd289f8bd4a",
+      "cursor_scope": "Classified incremental file set only; recorded MainDev compatibility preservation and exclusions are intentional exceptions, not a directory mirror.",
+      "target_pending_cl": 145509,
       "target_submitted_cl": null,
       "workspaces": {
         "source": "unrealengine-angelscript",
         "target": "maindev",
         "resolved_host": "Sun",
-        "execution": "local",
-        "p4_client": "SunLaibing_MainDev_9897",
-        "p4_charset": "none"
+        "execution": "local"
       },
-      "manifest_path": "Main/Saved/AngelScriptSync/20261104-202426/manifest.json",
+      "manifest_path": "Main/Saved/AngelScriptSync/20261105-144400/manifest.json",
+      "previous_verified_sync": {
+        "snapshot_id": "reverse-sync-20261104-202426-6e22d2cd8e2e",
+        "source_git_commit": "6e22d2cd8e2e01dd8e6d90435a1fdcd289f8bd4a",
+        "target_submitted_cl": 145468,
+        "historical_pending_cl": 145213,
+        "historical_pending_status": "not_found",
+        "verified_at": "2026-11-05T07:06:47.859025+00:00",
+        "verified_files": 28,
+        "exact": 18,
+        "eol_only": 10,
+        "manifest_path": "Main/Saved/AngelScriptSync/20261104-202426/manifest.json",
+        "shared_baseline_git_commit": "4630989990a22dd2fb2778fe9496c37dfa0037d3",
+        "current_verification_evidence": "Main/Saved/AngelScriptSync/20261105-144400/manifest.json#/previous_baseline_verification"
+      },
       "validation": {
-        "native-core": {
-          "exit_code": 0,
-          "passed": 70,
-          "total": 70,
-          "wall_seconds": 51.469,
-          "command": [
-            "D:\\MainDev\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe",
-            "D:\\MainDev\\Main\\ProjectLungfish.uproject",
-            "-NullRHI",
-            "-NoSound",
-            "-NoSplash",
-            "-unattended",
-            "-nopause",
-            "-stdout",
-            "-FullStdOutLogOutput",
-            "-LiveCoding=false",
-            "-asdebugport=0",
-            "-as-exit-on-error",
-            "-as-enable-async-await",
-            "-as-ignore-precompiled-data",
-            "-as-force-preprocess-editor-code",
-            "-ExecCmds=Automation Now;RunTests Angelscript.UnitTests.Tests.UnitTests.ScriptAsync.+ProjectLungfish.ScriptAsync.TypedTaskBinding+ProjectLungfish.PLAutomation.SingleStep.+ProjectLungfish.PLAutomation.AsyncSafety.;Quit",
-            "-ReportExportPath=D:\\MainDev\\Main\\Saved\\AngelScriptSync\\20261104-202426\\native-core-report",
-            "-abslog=D:\\MainDev\\Main\\Saved\\AngelScriptSync\\20261104-202426\\native-core-editor.log"
-          ],
-          "report_path": "Main/Saved/AngelScriptSync/20261104-202426/native-core-report/index.json",
-          "log_path": "Main/Saved/AngelScriptSync/20261104-202426/native-core.log"
-        },
-        "native-typed": {
-          "exit_code": 0,
-          "passed": 10,
-          "total": 10,
-          "wall_seconds": 58.047,
-          "command": [
-            "D:\\MainDev\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe",
-            "D:\\MainDev\\Main\\ProjectLungfish.uproject",
-            "-NullRHI",
-            "-NoSound",
-            "-NoSplash",
-            "-unattended",
-            "-nopause",
-            "-stdout",
-            "-FullStdOutLogOutput",
-            "-LiveCoding=false",
-            "-asdebugport=0",
-            "-as-exit-on-error",
-            "-as-enable-async-await",
-            "-as-ignore-precompiled-data",
-            "-as-force-preprocess-editor-code",
-            "-ExecCmds=Automation Now;RunTests ProjectLungfish.ScriptAsyncSafety.TypedResult.;Quit",
-            "-ReportExportPath=D:\\MainDev\\Main\\Saved\\AngelScriptSync\\20261104-202426\\native-typed-report",
-            "-abslog=D:\\MainDev\\Main\\Saved\\AngelScriptSync\\20261104-202426\\native-typed-editor.log"
-          ],
-          "report_path": "Main/Saved/AngelScriptSync/20261104-202426/native-typed-report/index.json",
-          "log_path": "Main/Saved/AngelScriptSync/20261104-202426/native-typed.log"
-        },
-        "behavior": {
-          "exit_code": 0,
-          "passed": 2,
-          "total": 2,
-          "wall_seconds": 142.765,
-          "command": [
-            "D:\\MainDev\\Tools\\ue-cli\\bin\\ue-cli.exe",
-            "automation",
-            "run-plauto",
-            "--filter",
-            "TypedAsyncResult",
-            "--skip-compile",
-            "--map",
-            "/Game/012_Levels/EmptyMap",
-            "--max-duration",
-            "180",
-            "--report-output",
-            "D:\\MainDev\\Main\\Saved\\AngelScriptSync\\20261104-202426\\behavior-report",
-            "--no-analyze"
-          ],
-          "report_path": "Main/Saved/AngelScriptSync/20261104-202426/behavior-report/index.json",
-          "log_path": "Main/Saved/AngelScriptSync/20261104-202426/behavior.log",
-          "editor_log_path": "Main/Saved/AngelScriptSync/20261104-202426/behavior-editor.log"
-        },
         "build": {
-          "exit_code": 0,
-          "result": "Succeeded",
           "target": "ProjectLungfishEditor Win64 Development",
-          "command": [
-            "D:\\MainDev\\Engine\\Binaries\\DotNET\\UnrealBuildTool\\UnrealBuildTool.exe",
-            "ProjectLungfishEditor",
-            "Win64",
-            "Development",
-            "-Project=D:\\MainDev\\Main\\ProjectLungfish.uproject",
-            "-WaitMutex"
-          ],
-          "kind": "task_owned_incremental_noop_0_actions_after_concurrent_IDE_build",
-          "wall_seconds": 347.016,
-          "log_path": "Main/Saved/AngelScriptSync/20261104-202426/build.log",
-          "concurrent_compile_evidence": {
-            "attribution": "Separate pre-existing IDE build of the same workspace and target; not launched by this task",
-            "actions": 615,
-            "result": "Succeeded",
-            "log_path": "Main/Saved/AngelScriptSync/20261104-202426/concurrent-ide-build.log",
-            "evidence": "Includes AngelscriptAsyncLowering.cpp, PLAutomationAsyncCase.cpp, new typed/golden test TUs, and actual AngelscriptCode/PLScriptAsync/PLAutomationFramework DLL links"
-          }
+          "kind": "actual_incremental_compile_and_link",
+          "result": "Succeeded",
+          "exit_code": 0,
+          "actions": 42,
+          "compile_actions": 30,
+          "link_actions": 10,
+          "wall_seconds": 56.968,
+          "log_path": "Main/Saved/AngelScriptSync/20261105-144400/build.log"
         },
-        "initial_combined_native_attempt": {
-          "exit_code": 255,
-          "passed": 78,
-          "total": 80,
-          "failed": [
-            "ProjectLungfish.ScriptAsyncSafety.TypedResult.Diagnostics",
-            "ProjectLungfish.ScriptAsyncSafety.TypedResult.ResultTypeChangedByReload"
-          ],
-          "reason": "Existing SingleStep.Negative fixtures remained in the in-memory compile descriptor set and polluted subsequent hot reload validation; repeated errors name those old UPLSingleStep classes",
-          "resolution": "No code suppression or scope expansion: separate fresh hosts for the 70 core tests and 10 typed reload/lifecycle/golden tests; both passed with exit 0",
-          "report_path": "Main/Saved/AngelScriptSync/20261104-202426/native-report/index.json",
-          "log_path": "Main/Saved/AngelScriptSync/20261104-202426/native-editor.log"
+        "native": {
+          "mode": "native",
+          "exit_code": 0,
+          "selected": 89,
+          "executed": 89,
+          "passed": 89,
+          "failed": 0,
+          "not_run": 0,
+          "report_path": "Main/Saved/AngelScriptSync/20261105-144400/native-report/index.json",
+          "log": "Main/Saved/AngelScriptSync/20261105-144400/native.log"
+        },
+        "behavior-timer": {
+          "mode": "behavior-timer",
+          "exit_code": 0,
+          "selected": 2,
+          "executed": 2,
+          "passed": 2,
+          "failed": 0,
+          "not_run": 0,
+          "report_path": "Main/Saved/AngelScriptSync/20261105-144400/behavior-timer-report/index.json",
+          "terminal_state_path": "Main/Saved/AngelScriptSync/20261105-144400/behavior-timer-report/plauto-terminal-state.txt",
+          "terminal_state": "Filter: TimerWait_AS\nTerminalReason: Passed\nExitCode: 0\nReportExported: true\nElapsedSeconds: 8.47\nSelectedTests: 2\nDetails: Selected tests completed successfully.\n",
+          "editor_log_path": "Main/Saved/AngelScriptSync/20261105-144400/behavior-timer-editor.log",
+          "log": "Main/Saved/AngelScriptSync/20261105-144400/behavior-timer.log"
+        },
+        "behavior-math": {
+          "mode": "behavior-math",
+          "exit_code": 0,
+          "selected": 2,
+          "executed": 2,
+          "passed": 2,
+          "failed": 0,
+          "not_run": 0,
+          "report_path": "Main/Saved/AngelScriptSync/20261105-144400/behavior-math-report/index.json",
+          "terminal_state_path": "Main/Saved/AngelScriptSync/20261105-144400/behavior-math-report/plauto-terminal-state.txt",
+          "terminal_state": "Filter: MathSanity_AS\nTerminalReason: Passed\nExitCode: 0\nReportExported: true\nElapsedSeconds: 8.16\nSelectedTests: 2\nDetails: Selected tests completed successfully.\n",
+          "editor_log_path": "Main/Saved/AngelScriptSync/20261105-144400/behavior-math-editor.log",
+          "log": "Main/Saved/AngelScriptSync/20261105-144400/behavior-math.log"
+        },
+        "behavior-typed": {
+          "mode": "behavior-typed",
+          "exit_code": 0,
+          "selected": 2,
+          "executed": 2,
+          "passed": 2,
+          "failed": 0,
+          "not_run": 0,
+          "report_path": "Main/Saved/AngelScriptSync/20261105-144400/behavior-typed-report/index.json",
+          "terminal_state_path": "Main/Saved/AngelScriptSync/20261105-144400/behavior-typed-report/plauto-terminal-state.txt",
+          "terminal_state": "Filter: TypedAsyncResultJit\nTerminalReason: Passed\nExitCode: 0\nReportExported: true\nElapsedSeconds: 13.53\nSelectedTests: 2\nDetails: Selected tests completed successfully.\n",
+          "editor_log_path": "Main/Saved/AngelScriptSync/20261105-144400/behavior-typed-editor.log",
+          "log": "Main/Saved/AngelScriptSync/20261105-144400/behavior-typed.log"
         }
       },
-      "source_comparison_commit": "21deed5fbb30a49454e978c9d45156be0ce01e22",
-      "migration_anchor": "1653b27ad91ad9aea64066775c928f3b87a6284d",
-      "comparison_evidence": "Rebuilt committed per-file baseline; 21deed5 observation is not used as a historical successful sync cursor. Target #have bytes were printed and normalized against the copy-before files; three-way merges preserve MainDev adaptations.",
+      "validation_scope_notes": [
+        "89 selected native tests including retained 14 Kernel tests and source-VM shorthand coverage; six selected PLStep entries across three real PIE cases",
+        "Unchanged MainDev untyped golden validated against actual emitted output; source-only fixture-format golden update intentionally preserved",
+        "Editor source-VM verification only; no packaged/StaticJIT runtime claim; opt-in PIEReload/debugger matrix not run"
+      ],
+      "adjacent_issues": [
+        {
+          "mode": "behavior-timer",
+          "error_lines": 142,
+          "after_terminal": 139,
+          "evidence": "Main/Saved/AngelScriptSync/20261105-144400/behavior-timer-host-errors.log",
+          "status": "Reported only; no suppression or adjacent-system investigation; assertion report and process exit recorded independently"
+        },
+        {
+          "mode": "behavior-math",
+          "error_lines": 143,
+          "after_terminal": 139,
+          "evidence": "Main/Saved/AngelScriptSync/20261105-144400/behavior-math-host-errors.log",
+          "status": "Reported only; no suppression or adjacent-system investigation; assertion report and process exit recorded independently"
+        },
+        {
+          "mode": "behavior-typed",
+          "error_lines": 143,
+          "after_terminal": 140,
+          "evidence": "Main/Saved/AngelScriptSync/20261105-144400/behavior-typed-host-errors.log",
+          "status": "Reported only; no suppression or adjacent-system investigation; assertion report and process exit recorded independently"
+        }
+      ],
+      "uncommitted_source_excluded": [],
+      "other_opened_preserved_count": 52,
       "counts": {
-        "modify": 11,
-        "add": 10,
-        "delete": 0,
-        "preserve": 9,
-        "exclude": 2
+        "preserve": 59,
+        "delete": 4,
+        "modify": 32,
+        "add": 6,
+        "exclude": 1
       },
       "manifest_section": "reverse_sync.files",
-      "unchanged_mapped_groups": [
-        "PLASTestFeature",
-        "PLGameCore LogCore extraction",
-        "PLGameCore PLCoreGame extraction"
-      ],
-      "preserved_main_features": [
-        "OptionUIPilotEntry and its metadata include",
-        "MainDev gameplay module dependencies and game-specific Input/Debug tasks",
-        "Background injected-input support and existing PLStep annotations",
-        "Eight unversioned historical reference/archive files were not imported again"
-      ],
-      "uncommitted_source_excluded": [
-        {
-          "path": "ProjectM/Plugins/PLASTestFeature/SKILL.md",
-          "status": " M",
-          "workspace_sha256": "73cb442a4584cb0a992da7fda825a1b50869c65941be740e164b23d8ed833eb4",
-          "reason": "Only fixed committed Git snapshot is authorized"
-        },
-        {
-          "path": "ProjectM/Plugins/PLAutomationFramework/SKILL.md",
-          "status": " M",
-          "workspace_sha256": "5f92733f9e03aec295d99c350e4cb1098a07123c5aa1e4739f0d12215b2780d9",
-          "reason": "Only fixed committed Git snapshot is authorized"
-        },
-        {
-          "path": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFrameworkEditor/SKILL.md",
-          "status": " M",
-          "workspace_sha256": "f8bc7557beac6e59a2f8c621798cbf851aceb9346e5906b6b9ade788c2f70b27",
-          "reason": "Only fixed committed Git snapshot is authorized"
-        },
-        {
-          "path": "ProjectM/Plugins/PLScriptAsync/SKILL.md",
-          "status": " M",
-          "workspace_sha256": "1df06fb49b825a38881b669f4dda0933609a1cdfd0fe02483f1ea1797005269a",
-          "reason": "Only fixed committed Git snapshot is authorized"
-        },
-        {
-          "path": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/Tests/PLScriptAsyncSourceVMTests.cpp",
-          "status": " M",
-          "workspace_sha256": "a42175ddb389d3729d6336a98e3bab818d8b12a4da93a4a6d536de347966d9d0",
-          "reason": "Only fixed committed Git snapshot is authorized"
-        },
-        {
-          "path": "ProjectM/Script/Tests/Core/Async/ScriptAsyncSourceVMProbe.as",
-          "status": " M",
-          "workspace_sha256": "df29e2412c55fa5a2d16cd492bd22fe6d8eeec6a0e6e9438b9c7eff42998958c",
-          "reason": "Only fixed committed Git snapshot is authorized"
-        }
-      ]
+      "migration_anchor": "1653b27ad91ad9aea64066775c928f3b87a6284d",
+      "compatibility": {
+        "authorization": "用户确认：删除接口的行为有些在MainDev有依赖的，就继续保留，有问题单独处理。",
+        "preserved": [
+          "Action/Sequence/CLI dependency closure and native Kernel regression fixtures",
+          "OpenLevelAsync/LevelTask and live MainDev gameplay case discovery",
+          "Editor module, building fixtures, game dependencies and legacy run lifecycle callbacks"
+        ],
+        "applied_adaptations": [
+          "Assert extraction and modern Run API with legacy callback compatibility",
+          "Preservation-aware three-way merges, including MainDev helper methods and 60-second test timeout",
+          "Async shorthand signatures while retaining MainDev source-VM fixture layout"
+        ],
+        "detailed_exceptions": "project-sync-manifest.json#/reverse_sync/files",
+        "evidence": [
+          "Main/Script/Tests/Core/Domains/PLGameplayCaseBase_AS.as:17",
+          "Main/Script/Tests/1000_RuntimeTests/Building/TestCase_8293_HillEndPointActivation.as:19",
+          "Main/Script/Tests/1000_RuntimeTests/Landscape/TestCase_10_LandscapeCellStreamingLoad_AS.as:10,38,200",
+          "Main/Script/Tests/1000_RuntimeTests/Landscape/TestCase_20_LandscapeLayerBindingAudit_AS.as:15,49,243",
+          "Main/Build/PLAutomationCenter.xml:213",
+          "Main/Plugins/PLAutomationFramework/Source/PLAutomationFrameworkEditor/Private/PLBuildingDormancyEditorSubsystem.cpp"
+        ]
+      }
     }
   },
   "preserve_adaptations_and_exclusions": {
