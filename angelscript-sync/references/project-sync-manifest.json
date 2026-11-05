@@ -2,6 +2,148 @@
   "schema_version": 1,
   "reverse_sync": {
     "snapshot_id": "reverse-sync-20261105-144400-3800c4d38a91",
+    "snapshot_role": "last_validated_snapshot_not_current_worktree",
+    "current_worktree_status": "blocked_waiting_user_authorization",
+    "last_attempt": {
+      "snapshot_id": "force-sync-20261105-160000-3800c4d38a91",
+      "verified_at": "2026-11-05T08:28:10.214232+00:00",
+      "status": "blocked_waiting_user_authorization",
+      "outcome": "failed",
+      "strategy": "force_common_framework_to_fixed_source_business_interfaces_only",
+      "user_policy": "强制同步共有框架，源退役旧框架删除；只保留业务接口，有问题逐项解决，不保留旧Action/Sequence运行链。",
+      "source_git_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+      "source_comparison_commit": "6e22d2cd8e2e01dd8e6d90435a1fdcd289f8bd4a",
+      "target_pending_cl": 145509,
+      "target_submitted_cl": null,
+      "counts_scope": "Combined Engine and ProjectM attempt",
+      "counts": {
+        "preserve": 18,
+        "modify": 44,
+        "delete": 39,
+        "add": 7,
+        "exclude": 1
+      },
+      "p4_action_counts": {
+        "edit": 44,
+        "delete": 35,
+        "move/delete": 4,
+        "add": 3,
+        "move/add": 4
+      },
+      "common_code_alignment": {
+        "equal_after_eol_normalization": 40,
+        "scope": "Existing mapped increment",
+        "retired_generic_framework_applied": true,
+        "PLCallFunctionAction": "header_and_implementation_deleted"
+      },
+      "business_exceptions": [
+        {
+          "path": "Main/Plugins/PLAutomationFramework/PLAutomationFramework.uplugin",
+          "reason": "Source runtime wiring plus MainDev business-plugin mapping and building-fixture Editor host"
+        },
+        {
+          "path": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/PLAutomationFramework.Build.cs",
+          "reason": "Source module layout/dependencies plus mapped LogCore/PLCoreGame and real business interface dependencies"
+        },
+        {
+          "path": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFrameworkEditor/PLAutomationFrameworkEditor.Build.cs",
+          "reason": "Business-only Editor module for existing building/save-world fixtures; LevelEditor is required by CreateOpenWorldTestMap; generic CLI/registry implementation and its public interface deleted."
+        },
+        {
+          "path": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFrameworkEditor/Private/PLAutomationBusinessEditorModule.cpp",
+          "reason": "Minimal module entry for retained MainDev building/save-world Editor business interfaces; no generic automation runner or registry"
+        }
+      ],
+      "validation": {
+        "build": {
+          "target": "ProjectLungfishEditor Win64 Development",
+          "status": "succeeded_after_business_dependency_fix",
+          "final_exit_code": 0,
+          "attempts": [
+            {
+              "exit_code": 6,
+              "result": "Failed",
+              "actions": 29,
+              "compile_actions": 24,
+              "link_actions": 4,
+              "log_path": "Main/Saved/AngelScriptSync/20261105-160000/build.log"
+            },
+            {
+              "exit_code": 0,
+              "result": "Succeeded",
+              "actions": 2,
+              "compile_actions": 0,
+              "link_actions": 1,
+              "log_path": "Main/Saved/AngelScriptSync/20261105-160000/build-retry.log"
+            }
+          ]
+        },
+        "native": {
+          "status": "blocked_at_global_script_compilation",
+          "exit_code": 3,
+          "selected": 0,
+          "executed": 0,
+          "passed": 0,
+          "report_generated": false,
+          "log_path": "Main/Saved/AngelScriptSync/20261105-160000/native.log",
+          "editor_log_path": "Main/Saved/AngelScriptSync/20261105-160000/native-editor.log",
+          "script_errors_path": "Main/Saved/AngelScriptSync/20261105-160000/script-errors.log"
+        },
+        "behavior": {
+          "status": "not_run",
+          "reason": "AS startup compile blocked; old CLI retired and host adapter pending"
+        }
+      },
+      "remaining": [
+        {
+          "status": "awaiting_user_authorization",
+          "other_changelist": 127990,
+          "files": [
+            "Main/Script/Tests/1000_RuntimeTests/Landscape/TestCase_10_LandscapeCellStreamingLoad_AS.as",
+            "Main/Script/Tests/1000_RuntimeTests/Landscape/TestCase_20_LandscapeLayerBindingAudit_AS.as"
+          ],
+          "permission": "Not authorized to modify or reopen; coordinator awaiting user decision",
+          "effect": "Unknown old base UPLAutomationCaseBase_AS blocks whole-project AS startup compilation after approved framework retirement",
+          "no_framework_rollback": true
+        },
+        {
+          "status": "not_applied",
+          "scope": "100 MainDev AS Action adapters",
+          "prepared_business_thin_wrapper_files": 56,
+          "preserved_factory_names": 66,
+          "planned_unused_generic_adapter_deletions": 44,
+          "evidence": "Main/Saved/AngelScriptSync/20261105-160000/business-adapter-plan.json",
+          "note": "Candidates only; no business adapter source files modified or deleted in this pass."
+        },
+        {
+          "status": "not_applied",
+          "scope": "Business case migration",
+          "cases": [
+            "HillEndPointActivation",
+            "LandscapeCellStreamingLoad_AS",
+            "LandscapeLayerBindingAudit_AS",
+            "Int_ForgeOfflineSettleTimeSkip",
+            "Int_CarbonStackOfflineBurn",
+            "Int_WindmillOfflineSettleTimeSkip",
+            "Int_ForgeOfflineFuelGate"
+          ],
+          "note": "Startup diagnostics also exposed four additional legacy interaction cases; no case removed, assertions untouched. Gameplay domain base and affected business helpers still require direct Task adaptation."
+        },
+        {
+          "status": "not_applied",
+          "scope": "Main/Build/PLAutomationCenter.xml",
+          "note": "Old -PLAutoRunTests CLI host was deleted; pending adapter to the shared native Automation/RPC entry. No behavior test attempted with the removed CLI."
+        }
+      ],
+      "other_opened_preserved_count": 52,
+      "manifest_path": "Main/Saved/AngelScriptSync/20261105-144400/manifest.json",
+      "evidence_root": "Main/Saved/AngelScriptSync/20261105-160000",
+      "success_cursor_advanced": false,
+      "success_cursor_update_eligible": false,
+      "successful_snapshot_git_reference": "5885022:angelscript-sync/references/",
+      "historical_state_reference": "Main/Saved/AngelScriptSync/20261105-160000/previous-state/manifest.json",
+      "historical_validation_note": "Parent snapshot and successful cursor describe the earlier validated compatibility strategy, not this force-sync worktree. Current manifest_path is a latest-attempt alias; do not reuse its old contents or prior passing tests as proof of this attempt."
+    },
     "verified_at": "2026-11-05T07:06:47.859025+00:00",
     "direction": "unrealengine_angelscript_to_maindev",
     "status": "validated_pending",
