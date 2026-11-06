@@ -1,53 +1,351 @@
 [
  {
-  "memory_id": "01a166a6-b4dc-72c7-aa55-5935a3edc6eb",
-  "session_id": "claude:obsidianvault:7e6b91db-d59f-40e7-9ce3-f933705982fa",
+  "memory_id": "01a1a836-dfa7-7853-b2d5-12134123ab0a",
+  "session_id": "claude:obsidianvault:370f1e2d-651d-4493-88fb-adef2816fd58",
   "session_version": null,
   "scope_type": "project",
   "group_id": "project:obsidianvault",
-  "status": "preview_pending",
+  "status": "review",
   "memory_status": "pending_extraction",
   "preview_attempts": 0,
-  "updated_at": "2026-10-23T02:46:18.190178Z",
-  "snapshot_token": "rs1:e930abddc7b97d48030d7d1c2ac66f52b82a9c4a7a134531159b8526d45af151",
-  "review_id": "01a166a6-d9b2-7b7f-9e75-5cf792c06c5d",
+  "updated_at": "2026-11-04T20:35:03.634267Z",
+  "snapshot_token": "rs1:23a191c9a5afb5f12de32c2a0a944fbc5c357f4ed3c50eb3b35ee9bc0e47c618",
+  "review_id": "01a1a845-7479-7a18-afda-ab1dbc26d48f",
   "project_id": "obsidianvault",
-  "memory_type": "session_summary",
-  "summary": "memory-hub 修复与批量处理优化",
-  "created_at": "2026-10-23T02:46:13.154292Z",
-  "entity_count": 0,
-  "edge_count": 0,
+  "memory_type": "dream_experience",
+  "summary": "team-profile 测试依赖工作目录，必须从仓库根目录运行",
+  "created_at": "2026-11-04T20:34:46.503818Z",
+  "entity_count": 2,
+  "edge_count": 1,
   "novelty": {
-   "status": "processing",
-   "admission": null,
-   "rationale": "历史知识比对进行中"
+   "status": "completed",
+   "admission": "duplicate",
+   "rationale": "新记忆包含的唯一长期事实（team-profile 测试 CWD 相关、必须在仓库根目录运行、15 个单元测试 + 8 个真实 SDK 测试通过）已被候选 rank 3 完整覆盖：'需要在仓库根目录运行，在扩展目录里跑会因为找不到文件而失败'，且测试数量一致。新记忆未新增条件、边界、原因、步骤或纠正，仅是对旧结论的重复实测确认。其余候选涉及不同主体（memory-hub、git 提交、bare node 加载器问题等），与新记忆不构成同一可复用事实的版本关系。"
   },
-  "distilled_content": "首个用户目标：参考 D:/Github/ObsidianVault/.claude/plans/memory-hub-review-server-improvements.md 迭代优化。最近用户目标：已经发布了，你继续剩下的修改，默认关闭吧。会话结果：计划里剩下的两项都做完了，12 项全部处理完毕。memory-hub 新增两个本地提交：`6bd62b1` 和 `82cb13b`，**都还没 push，也没部署**。 **P2-10 original fallback（`6bd62b1`，默认关闭）** - 新增开关 `EXTRACTION_AUTO_ORIGINAL_FALLBACK`，默认 `false`，只在自动审核为 shadow 或 auto 时起作用。 - 打开后，auto-review 会额外处理\"预览自动重试全部用完仍失败\"的条目。还有重试机会的不碰，等它冷却后自己重试。 - LLM 看到的是空预览，按现有 prompt 决定：正文有长期价值就按原文批准，否则转人工。novelty 门禁、敏感信息检查、置信度门槛都不变，仍然永不自动拒绝。 - 这类批准的理由以 `auto-original:` 开头，事后能和普通的 `auto-review:` 区分开。 - 同组有入图任务在跑时不处理，也不消耗 LLM。如果领取后才碰上门禁，条目保持 `preview_failed` 等下一轮，不会被打回去重建预览。否则会陷入\"重建 → 失败 → 再 fallback\"的循环，一直烧 token。 - 要启用：在 NAS 的 `.env` 里加 `EXTRACTION_AUTO_ORIGINAL_FALLBACK=true` 后重启。建议先在 shadow 模式下看几轮审计记录，再切 auto。 **P3-12 duplicate 批量处置（`82cb13b`）** - 队列接口加了 `novelty=duplicate|failed` 过滤，可以和 status 一起用；protocol、BFF、前端三处一起改了。 - 队列页： - 新增\"历史比对\"下拉框； - 可以勾选本页的条目，批量拒绝，或批量按原文批准。按审核结果批准需要逐条看预览，所以批量里不提供。 - 点批量后，确认弹框会先把每条的摘要和比对理由拉出来展示。批准只用弹框里展示的那个版本，不会在提交前偷偷换成最新版本；期间被改过的条目会显示\"内容已变化\"并跳过。 - 只有选中的条目里有 duplicate 或 failed 时，才会一并确认 novelty 风险，弹框里会写明。 - 计划里的\"duplicate 超期自动拒绝\"没做，因为它违反\"永不自动拒绝\"的红线。 **验证**：Hub 测试 1307 个通过，失败的仍是那 6 个 Windows 上没有 `fcntl` 的用例（改动前就失败）。BFF 328 个通过。前端 220 个通过，typecheck 和 build 正常。新增测试覆盖了： - fallback 默认关闭； - 冷却期内或 novelty 不放行时不处理； - 同组入图时不调用 LLM，领取后才撞上门禁的竞态也不会被打回重建； - 批量批准只用弹框里展示的版本。 **你需要知道的：** - 批量勾选只在桌面表格里有，手机卡片列表没有；一次只能选当前页（最多 100 条）。 - 计划文件已标为全部完成，提交并 push 到 vault（`dd6eabd8`）。 发布时 Hub 和 BFF 都要重启，前端也要重新构建。这次没有 schema 迁移。",
-  "proposed": {},
+  "distilled_content": "team-profile 的测试是 CWD 相关的：在扩展目录里运行会因找不到文件而失败，必须 cd 到仓库根目录再跑。本次实测：在根目录运行时单元测试 15 个 + 真实 SDK 测试 8 个全部通过。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "team-profile",
+     "type": "Project",
+     "summary": "team-profile 的测试对当前工作目录（CWD）敏感：在扩展目录内运行会因找不到文件而失败，必须先 cd 到仓库根目录再执行测试。"
+    },
+    {
+     "name": "run-team-profile-tests-from-repo-root",
+     "type": "Convention",
+     "summary": "约定：运行 team-profile 测试前必须切换到仓库根目录，在扩展目录中运行会因路径解析失败而报错。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "run-team-profile-tests-from-repo-root",
+     "target": "team-profile",
+     "name": "APPLIES_TO",
+     "fact": "team-profile 的测试是 CWD 相关的：在扩展目录里运行会因找不到文件而失败，必须 cd 到仓库根目录再运行。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "team-profile",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "f6f58dfc-f00f-4665-861e-37ebb14210c6",
+        "canonical_name": "team-profile",
+        "match_basis": "exact",
+        "created_at": "2026-08-18T13:06:24.029838000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "team-profile 是 ObsidianVault 仓库 `.pi/extensions/team-profile` 下的 pi 记忆注入扩展，逻辑位于 `SKILL.md`，负责在会话中注入个人记忆（对应 `.team/sunlaibing/memory.md`）。2026-08-14 的提交 c61e3e96 将 `.pi/extensions`（含 a2a-mentions、dynam"
+       }
+      ]
+     },
+     {
+      "input_name": "run-team-profile-tests-from-repo-root",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
   "flags": [
    {
-    "check": "preview_pending",
+    "check": "novelty_duplicate",
     "severity": "escalate",
-    "detail": "审核状态 preview_pending，preview_attempts=0；需核对预览生命周期"
-   },
-   {
-    "check": "empty_preview",
-    "severity": "escalate",
-    "detail": "预览为空；curated 不可用，只能 original 或人工看正文"
-   },
-   {
-    "check": "novelty_not_completed",
-    "severity": "escalate",
-    "detail": "novelty 分析未完成：processing（批准会 fail-closed）"
+    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
    }
   ],
   "suggestion": {
    "action": "escalate",
    "auto": false,
    "reasons": [
-    "审核状态 preview_pending，preview_attempts=0；需核对预览生命周期",
-    "预览为空；curated 不可用，只能 original 或人工看正文",
-    "novelty 分析未完成：processing（批准会 fail-closed）"
+    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   ],
+   "removals": []
+  }
+ },
+ {
+  "memory_id": "01a19cfe-a246-7410-a67c-e5bdbc48d8c9",
+  "session_id": "pi:obsidianvault:01a19cc9-de29-704c-af4f-0565bcb05885",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:obsidianvault",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 1,
+  "updated_at": "2026-11-02T16:03:53.157465Z",
+  "snapshot_token": "rs1:14e748125ae02850489686a14d89dfff872950a45f7663e6446317f7b212e684",
+  "review_id": "01a19cff-2c23-7de2-800e-a688e5905902",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "本机 skill-gateway 为啥会失败，应该用当前的模型进行查询 Warning: skill-gateway: 匹配失败，本轮不注入（选择失败，不自动重",
+  "created_at": "2026-11-02T16:02:11.089109Z",
+  "entity_count": 2,
+  "edge_count": 1,
+  "novelty": {
+   "status": "failed",
+   "admission": null,
+   "rationale": "llm error: primary LLM unavailable; DeepSeek fallback failed: DeepSeek /chat/completions returned HTTP 402"
+  },
+  "distilled_content": "首个用户目标：本机 skill-gateway 为啥会失败，应该用当前的模型进行查询 Warning: skill-gateway: 匹配失败，本轮不注入（选择失败，不自动重试，10.5s） 排查下 上一个本目录的 pi session。最近用户目标：原先的那版 ，是必须要通过10.77.77.4:5000 的么？。会话结果：是的。**修改前那版 gateway 的自动筛选必须经过独立 HTTP 服务**，本机只负责整理索引和加载选中的正文。 本目录配置指向 `10.77.77.4:5000`，地址可改，但没有本地自动筛选兜底。服务不可达就失败、不注入、不自动重试。 手动 `/skill:技能名` 不受影响，不经过该服务。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "skill-gateway",
+     "type": "Service",
+     "summary": "技能网关组件，负责技能匹配与注入。修改前版本的自动筛选必须经过一个独立的 HTTP 筛选服务，本地只负责整理索引和加载被选中的技能正文，没有本地自动筛选作为兜底；本目录配置指向的筛选服务地址可以修改（正文举例为 10.77.77.4:5000）。手动执行 /skill:技能名 调用不经过该服务。"
+    },
+    {
+     "name": "skill-gateway-fail-fast",
+     "type": "Convention",
+     "summary": "skill-gateway 的失败处理约定：筛选服务不可达或匹配失败时，本轮判定选择失败、不注入技能、不自动重试，也不提供本地自动筛选兜底。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "skill-gateway-fail-fast",
+     "target": "skill-gateway",
+     "name": "APPLIES_TO",
+     "fact": "skill-gateway 在独立 HTTP 筛选服务不可达或匹配失败时判定本轮选择失败，不注入技能且不自动重试。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "skill-gateway",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "6e0398c6-9e86-44da-be9d-e7de018a7240",
+        "canonical_name": "skill-gateway",
+        "match_basis": "exact",
+        "created_at": "2026-08-18T13:06:24.029767000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "skill-gateway 是 Pi 的技能网关扩展（.pi/extensions/skill-gateway/），手动形式为 `/skill-gateway [任务]`，同一 session 内最多自动选择一次技能/执行端；续聊、恢复、`/reload` 和压缩复用该选择，仅手动命令重新选择。selector 从完整候选目录中筛选技能，选中技能的完整 SKILL.md 注入主会话上下文并在后续轮"
+       }
+      ]
+     },
+     {
+      "input_name": "skill-gateway-fail-fast",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [
+   {
+    "check": "novelty_not_completed",
+    "severity": "escalate",
+    "detail": "novelty 分析未完成：failed（批准会 fail-closed）"
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "novelty 分析未完成：failed（批准会 fail-closed）"
+   ],
+   "removals": []
+  }
+ },
+ {
+  "memory_id": "01a19cef-68a6-789c-845b-89a0aad283cf",
+  "session_id": "pi:nas:01a19cd3-6a8c-70f4-98dd-e4c64f5f68f0",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:nas",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 1,
+  "updated_at": "2026-11-02T15:47:00.894521Z",
+  "snapshot_token": "rs1:62b6f75e14d817ac7f6f418a32c4818ca5aba44b4d30080aa7fa8470baf382bd",
+  "review_id": "01a19cef-ad0a-7e0b-accf-53992adee1ff",
+  "project_id": "nas",
+  "memory_type": "session_summary",
+  "summary": "现在 cpu 占用 90%+ 的原因是什么？",
+  "created_at": "2026-11-02T15:45:15.511056Z",
+  "entity_count": 3,
+  "edge_count": 2,
+  "novelty": {
+   "status": "failed",
+   "admission": null,
+   "rationale": "llm error: primary LLM unavailable; DeepSeek fallback failed: DeepSeek /chat/completions returned HTTP 402"
+  },
+  "distilled_content": "首个用户目标：现在 cpu 占用 90%+ 的原因是什么？。最近用户目标：现在 cpu 占用 90%+ 的原因是什么？。会话结果：## 结论：CPU 90%+ 并非单一进程占用所致，主要由两部分叠加：**QTS 管理界面的 CGI 进程被高频调用**（约占 40% 的 CPU）和**单盘 sdc 被打满导致的 iowait**（约占 48%） ### 实测数据（刚才采样） | 指标 | 数值 | |---|---| | `/proc/stat` 10s 平均 | usr 30% + sys 19% + **iowait 48%** + idle 仅 2% | | load average | 20.6 / 18.0 / 15.2（4 核） | | sdc 磁盘利用率 | **98%**，但吞吐只有 ~7 MB/s（纯随机 IO 排队，没有实际数据量） | | Swap | 8 GB 内存用了 7.5 GB，**swap 已用 1.9 GB**，kswapd0 持续工作 | | CGI 进程创建速率 | **10 秒内新建 242 个 CGI 进程**（utilRequest.cgi 215 个，约 21 次/秒） | ### 1. 主要 CPU 消耗：QTS Web 管理后台的 CGI 进程频繁启动 HTTP 请求路径是 `apache_proxy → _thttpd_(127.0.0.1:58080) → 每个请求 fork 一个 CGI`。10 秒内产生了 242 个进程，CPU 占用排在前列： `utilRequest.cgi` 是 QTS「资源监控／系统状态」使用的接口，正常浏览器轮询约 1 次/秒，现在 **21 次/秒**，明显处于失控的轮询循环中。 请求来源（已确认）：这些请求来自局域网客户端的 QTS Web 会话，并非 NAS 内部进程： 也就是说，你（或某台设备）开着 QTS 管理页面——很可能是「资源监控 / 存储与快照总管 / 总览仪表盘」——页面卡在快速重试的循环里。 ### 2. 另一半 CPU 占用：iowait 48%，因为一块单盘承担了全部压力 `/proc/mdstat` + `/proc/diskstats`： - `/share/CACHEDEV1_DATA`（814 G，65% 使用）= **md1 = sdc3，单盘、无冗余** - 所有容器数据（Container Station data-root）、neo4j、dawarich、memory-hub、alist、adguard 都在这块盘 - **swap 也在这块盘上**：`/dev/md321`（sdc5）+ `/share/CACHEDEV1_DATA/.swap/qnap_swap` - sdc 的 util = 98~99%，io_ticks 统计下队列一直是满的 于是形成这样的链条：内存只有 8 G，却运行着 neo4j（1.3 G）、dawarich（puma+sidekiq+db+redis）、graph_service、memory-hub、songloft、alist、adguard 等容器，导致 swap 频繁换页 → 换页读写落在 sdc 上 → sdc 已接近饱和 → iowait 飙升 → QTS 的「CPU 占用」（它把 iowait 也算作忙碌）显示到 90%+。 容器侧 CPU 排名：`memory-center-cypher-ro 30%`、`",
+  "proposed": {
+   "entities": [
+    {
+     "name": "qts-nas",
+     "type": "Service",
+     "summary": "运行 QTS 的 QNAP NAS，8 GB 内存、4 核；承载 neo4j、dawarich、memory-hub、alist、adguard、songloft、graph_service 等容器；容器数据和 swap 都存放在 CACHEDEV1_DATA 存储卷上；QTS 会把 iowait 计入 CPU 占用。"
+    },
+    {
+     "name": "utilRequest.cgi",
+     "type": "Tool",
+     "summary": "QTS 的「资源监控／系统状态」功能使用的 CGI 接口；QTS Web 请求路径为 apache_proxy → _thttpd(127.0.0.1:58080) → 每个请求 fork 一个 CGI 进程；正常情况下，浏览器约每秒轮询 1 次。"
+    },
+    {
+     "name": "CACHEDEV1_DATA",
+     "type": "Storage",
+     "summary": "814 G 存储卷，对应 md1 = sdc3 单盘、无冗余；存放全部容器数据（Container Station data-root）以及 neo4j、dawarich、memory-hub、alist、adguard 的容器数据；swap 也位于该盘，包括 md321/sdc5 和卷内 .swap/qnap_swap。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "qts-nas",
+     "target": "CACHEDEV1_DATA",
+     "name": "USES",
+     "fact": "QTS NAS 把容器数据和 swap 全部存放在 CACHEDEV1_DATA 存储卷上，该卷对应 md1 = sdc3 单盘、无冗余。"
+    },
+    {
+     "source": "qts-nas",
+     "target": "utilRequest.cgi",
+     "name": "EXPOSES",
+     "fact": "QTS Web 管理后台通过 apache_proxy → _thttpd(127.0.0.1:58080) → 每个请求 fork 一个 CGI 的路径处理请求；utilRequest.cgi 是其中资源监控接口，正常轮询约每秒 1 次。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "qts-nas",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "utilRequest.cgi",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "CACHEDEV1_DATA",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [
+   {
+    "check": "novelty_not_completed",
+    "severity": "escalate",
+    "detail": "novelty 分析未完成：failed（批准会 fail-closed）"
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "novelty 分析未完成：failed（批准会 fail-closed）"
+   ],
+   "removals": []
+  }
+ },
+ {
+  "memory_id": "01a19cdd-af24-7084-86f8-65bd0fd7ddd1",
+  "session_id": "pi:obsidianvault:01a19cc9-de29-704c-af4f-0565bcb05885",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:obsidianvault",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-11-02T15:27:02.268008Z",
+  "snapshot_token": "rs1:96488a7bf7e582880e84169e25a7506f909456424c626a7d3921d197c540cd55",
+  "review_id": "01a19cde-51e5-7fc9-bf94-ce02d38bb258",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "本机 skill-gateway 为啥会失败，应该用当前的模型进行查询 Warning: skill-gateway: 匹配失败，本轮不注入（选择失败，不自动重",
+  "created_at": "2026-11-02T15:26:12.969054Z",
+  "entity_count": 2,
+  "edge_count": 1,
+  "novelty": {
+   "status": "failed",
+   "admission": null,
+   "rationale": "llm error: primary LLM unavailable; DeepSeek fallback failed: DeepSeek /chat/completions returned HTTP 402"
+  },
+  "distilled_content": "首个用户目标：本机 skill-gateway 为啥会失败，应该用当前的模型进行查询 Warning: skill-gateway: 匹配失败，本轮不注入（选择失败，不自动重试，10.5s） 排查下 上一个本目录的 pi session。最近用户目标：本机 skill-gateway 为啥会失败，应该用当前的模型进行查询 Warning: skill-gateway: 匹配失败，本轮不注入（选择失败，不自动重试，10.5s） 排查下 上一个本目录的 pi session。会话结果：查明了：上一会话 `01a19cc7…` 的失败发生在**索引检查阶段**：旧服务 `10.77.77.4:5000` 连接超时，约 10.5 秒，根本没调用当前模型。 已修改 `.pi/extensions/skill-gateway/`： - 使用当前 Pi 模型、认证和推理档位独立筛选。 - 候选索引仍不进入主会话，不自动重试。 - 21 项测试通过；实测 `gpt-6-astra / max` 成功，耗时 20.7 秒。 当前会话需先执行 `/reload`，再用 `/skill-gateway <任务>` 显式重选。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "skill-gateway",
+     "type": "Project",
+     "summary": "Pi 扩展，位于 .pi/extensions/skill-gateway/，在注入前筛选候选 skill。上一会话的失败发生在索引检查阶段：旧索引检查服务连接超时，未调用当前模型。现改为使用当前 Pi 模型、认证和推理档位独立筛选；候选索引不进入主会话；选择失败不自动重试。"
+    },
+    {
+     "name": "skill-gateway-use-current-model",
+     "type": "Decision",
+     "summary": "用户要求 skill-gateway 使用当前模型进行查询；含义是用当前 Pi 模型、认证和推理档位独立筛选候选，候选索引不进入主会话，选择失败不自动重试。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "skill-gateway",
+     "target": "skill-gateway-use-current-model",
+     "name": "FOLLOWS",
+     "fact": "skill-gateway 遵循使用当前 Pi 模型、认证和推理档位独立筛选的策略，候选索引不进入主会话，选择失败不自动重试；修改已落盘，需执行 /reload 后生效。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "skill-gateway",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "6e0398c6-9e86-44da-be9d-e7de018a7240",
+        "canonical_name": "skill-gateway",
+        "match_basis": "exact",
+        "created_at": "2026-08-18T13:06:24.029767000+00:00",
+        "group_id": "project:obsidianvault",
+        "summary": "skill-gateway 是 Pi 的技能网关扩展（.pi/extensions/skill-gateway/），手动形式为 `/skill-gateway [任务]`，同一 session 内最多自动选择一次技能/执行端；续聊、恢复、`/reload` 和压缩复用该选择，仅手动命令重新选择。selector 从完整候选目录中筛选技能，选中技能的完整 SKILL.md 注入主会话上下文并在后续轮"
+       }
+      ]
+     },
+     {
+      "input_name": "skill-gateway-use-current-model",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [
+   {
+    "check": "novelty_not_completed",
+    "severity": "escalate",
+    "detail": "novelty 分析未完成：failed（批准会 fail-closed）"
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "novelty 分析未完成：failed（批准会 fail-closed）"
    ],
    "removals": []
   }

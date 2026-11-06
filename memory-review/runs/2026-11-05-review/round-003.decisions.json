@@ -1,0 +1,12 @@
+{
+ "removals": [],
+ "rejections": [],
+ "approvals": [
+  {
+   "review_id": "01a1a187-b1a0-7824-b98a-b67aab6a8228",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:448cbe3cf37da474df4963157a439c04d0d609885738757cd6058adb2275138e",
+   "rationale": "auto-review: SimulateMouseClick同帧点击机制4边均有源码级正文支撑，正文如实标注结论未实测；novelty=evolution(CONTRADICTS已说明)"
+  }
+ ]
+}

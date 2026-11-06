@@ -1,0 +1,51 @@
+{
+  "expectations": [
+    {
+      "text": "按G0到G1增量回灌，不重复导入刚来自P4的变化或G0已有专属文档。",
+      "passed": true,
+      "evidence": "仅取G0→G1的插件范围增量"
+    },
+    {
+      "text": "对绑定文件的双方独立修改做三方比较或先阻塞确认，不直接覆盖。",
+      "passed": true,
+      "evidence": "三方比较，合并保留双方改动"
+    },
+    {
+      "text": "新增、修改、历史证明的删除都被列入本次清单。",
+      "passed": true,
+      "evidence": "VM新源记add；绑定文件记modify/conflict；旧源记delete"
+    },
+    {
+      "text": "为本轮创建独立numbered pending CL，不夹带或移动用户default opened。",
+      "passed": true,
+      "evidence": "建立独立编号pending CL"
+    },
+    {
+      "text": "目标MainDev实际构建后才能验收，pending CL不当作submitted CL，未授权不submit或shelf。",
+      "passed": true,
+      "evidence": "pending不等于submitted"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1
+  },
+  "timing": {
+    "total_duration_seconds": 201.569
+  },
+  "user_notes_summary": {
+    "uncertainties": [
+      "只评估隔离文字演练，不证明真实反向同步已执行或编译通过。",
+      "工具未返回token用量；时间是协调者观测到的工具耗时。"
+    ],
+    "needs_review": [
+      "需要用户查看输出并给出反馈。"
+    ],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "overall": "断言核对场景中的处理决策，基础安全要求较容易命中；没有可用的无技能对照，不能计算技能提升。"
+  }
+}

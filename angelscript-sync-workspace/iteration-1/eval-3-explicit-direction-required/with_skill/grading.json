@@ -1,0 +1,36 @@
+{
+  "expectations": [
+    {
+      "text": "明确询问本轮源和目标，不沿用状态文件的上次方向。",
+      "passed": true,
+      "evidence": "请确认本次同步方向"
+    },
+    {
+      "text": "不同时双向覆盖，不进行复制、VCS修改或基线推进。",
+      "passed": true,
+      "evidence": "方向明确前不复制、不 checkout、不修改同步基线"
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1
+  },
+  "timing": {
+    "total_duration_seconds": 107.102
+  },
+  "user_notes_summary": {
+    "uncertainties": [
+      "只评估隔离文字演练，不证明真实反向同步已执行或编译通过。",
+      "工具未返回token用量；时间是协调者观测到的工具耗时。"
+    ],
+    "needs_review": [
+      "需要用户查看输出并给出反馈。"
+    ],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "overall": "断言核对场景中的处理决策，基础安全要求较容易命中；没有可用的无技能对照，不能计算技能提升。"
+  }
+}

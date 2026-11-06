@@ -1,0 +1,44 @@
+{
+ "approvals": [
+  {
+   "review_id": "01a1a83b-2956-7b85-b36a-f73af31c2de4",
+   "memory_id": "01a1a833-f993-74df-a23d-ea3eb86cb793",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:d5878d4f626f6cadf650ed4976cb20d05c7e065b2ae7561846228d83a25f3bcb",
+   "rationale": "auto-review: 预览2边均有正文支撑（FParse::Token切分/多播委托逆序），3实体全新；novelty=evolution(REFINES)"
+  },
+  {
+   "review_id": "01a1a82c-6d8e-7312-b609-5bc8c5f8538c",
+   "memory_id": "01a1a828-2cbb-7a93-9fa9-15be1be11097",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:a427bed0adf1d0d76eaf519f01854d72f00370d00382da96356bc9a858928023",
+   "rationale": "auto-review: 2边fact与正文一致，明确不存储凭证值，无敏感信息；novelty=evolution"
+  },
+  {
+   "review_id": "01a1a5ee-8b98-7d0b-b888-a5763c0731b1",
+   "memory_id": "01a1a5ee-4a5e-7771-ae71-6ba59947cb96",
+   "group_id": "project:nas",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:526881d56c18adb35751d24f9effa5ab1f2d38d009cbc9e0e015ec4af43d2ae0",
+   "rationale": "auto-review: models.json配置事实准确，apiKey已在关卡1脱敏(REDACTED)，预览注明不记录key；novelty=evolution"
+  },
+  {
+   "review_id": "01a1a575-d412-73d0-aa78-227cfb990866",
+   "memory_id": "01a1a464-f71e-77e9-88f9-bcd0d7c1e8fe",
+   "group_id": "project:obsidianvault",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:0b5046cbc4278768a3bdb1e3f0740ebac9b6107d70bd8a4a67b9ca3007ee29a0",
+   "rationale": "auto-review: auto-skill落盘根因与修复链完整，2边均有正文支撑；auto-skill为已有实体的合法新事实端点；novelty=evolution"
+  },
+  {
+   "review_id": "01a1a187-b1a0-7824-b98a-b67aab6a8228",
+   "memory_id": "01a1a186-73d0-7106-949a-e0f88b19fd00",
+   "group_id": "project:maindev",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:448cbe3cf37da474df4963157a439c04d0d609885738757cd6058adb2275138e",
+   "rationale": "auto-review: SimulateMouseClick同帧点击机制4边均有源码级正文支撑，正文如实标注结论未实测；novelty=evolution(CONTRADICTS已说明)"
+  }
+ ]
+}

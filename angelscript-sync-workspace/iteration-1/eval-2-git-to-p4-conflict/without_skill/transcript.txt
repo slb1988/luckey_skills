@@ -1,0 +1,3 @@
+输出：`D:/Github/ObsidianVault/.claude/skills/angelscript-sync-workspace/iteration-1/eval-2-git-to-p4-conflict/without_skill/outputs/response.md`
+
+技能：已接触自动注入的正文，未读取技能文件；非纯净 without_skill 基线。

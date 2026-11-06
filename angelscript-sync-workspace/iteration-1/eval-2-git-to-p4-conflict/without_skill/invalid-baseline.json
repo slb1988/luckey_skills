@@ -1,0 +1,4 @@
+{
+  "status": "excluded_from_benchmark",
+  "reason": "执行器明确报告上下文自动注入了angelscript-sync正文，非纯净without_skill；保留输出供查看，不计分、不比较。"
+}

@@ -1,0 +1,51 @@
+{
+  "expectations": [
+    {
+      "text": "识别have落后和同名目标独立修改为复制前阻塞，不能直接覆盖。",
+      "passed": true,
+      "evidence": "have=144419阻塞复制"
+    },
+    {
+      "text": "范围包含另一作者的CL150010，而不是停在sunlaibing的150005。",
+      "passed": true,
+      "evidence": "另一作者150010修改的依赖头必须纳入"
+    },
+    {
+      "text": "保留目标专属文档，并检查有效.svg因Git忽略而漏交付的问题。",
+      "passed": true,
+      "evidence": "专属文档列为preserve"
+    },
+    {
+      "text": "快照与冲突解决后，冻结逐文件清单并批量复制，再在目标构建。",
+      "passed": true,
+      "evidence": "每个选定文件仅复制一次"
+    },
+    {
+      "text": "未完成复制与本轮目标构建前，不推进成功CL基线。",
+      "passed": true,
+      "evidence": "现在尚未编译，成功基线保持144419"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1
+  },
+  "timing": {
+    "total_duration_seconds": 175.566
+  },
+  "user_notes_summary": {
+    "uncertainties": [
+      "只评估隔离文字演练，不证明真实反向同步已执行或编译通过。",
+      "工具未返回token用量；时间是协调者观测到的工具耗时。"
+    ],
+    "needs_review": [
+      "需要用户查看输出并给出反馈。"
+    ],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "overall": "断言核对场景中的处理决策，基础安全要求较容易命中；没有可用的无技能对照，不能计算技能提升。"
+  }
+}

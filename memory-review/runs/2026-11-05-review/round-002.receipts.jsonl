@@ -1,0 +1,2 @@
+{"kind": "intent", "action": "approve", "content_mode": "curated", "rationale": "auto-review: 2边fact与正文一致，明确不存储凭证值，无敏感信息；novelty=evolution", "review_ids": ["01a1a82c-6d8e-7312-b609-5bc8c5f8538c"], "expected_snapshot_tokens": {"01a1a82c-6d8e-7312-b609-5bc8c5f8538c": "rs1:a427bed0adf1d0d76eaf519f01854d72f00370d00382da96356bc9a858928023"}, "ts": "2026-11-05T13:30:32"}
+{"kind": "receipt", "action": "approve", "http_status": 200, "results": [{"error": null, "review_id": "01a1a82c-6d8e-7312-b609-5bc8c5f8538c", "status": "approved"}], "ts": "2026-11-05T13:30:36"}

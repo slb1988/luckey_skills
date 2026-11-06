@@ -1,0 +1,173 @@
+{
+  "metadata": {
+    "skill_name": "angelscript-sync",
+    "skill_path": ".claude/skills/angelscript-sync",
+    "executor_model": "current default via SkillWriter",
+    "analyzer_model": "coordinator",
+    "timestamp": "2026-11-04",
+    "evals_run": [
+      1,
+      2,
+      3
+    ],
+    "runs_per_configuration": 1,
+    "baseline_status": "contaminated_excluded",
+    "manual_aggregation_reason": "现有聚合器将缺失对照当0计算delta，token缺失也退化为0；本次手工按schema保留N/A/null。"
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "eval_name": "p4-to-git-stale-source",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "total": 5,
+        "failed": 0,
+        "time_seconds": 175.566,
+        "tokens": null
+      },
+      "expectations": [
+        {
+          "text": "识别have落后和同名目标独立修改为复制前阻塞，不能直接覆盖。",
+          "passed": true,
+          "evidence": "have=144419阻塞复制"
+        },
+        {
+          "text": "范围包含另一作者的CL150010，而不是停在sunlaibing的150005。",
+          "passed": true,
+          "evidence": "另一作者150010修改的依赖头必须纳入"
+        },
+        {
+          "text": "保留目标专属文档，并检查有效.svg因Git忽略而漏交付的问题。",
+          "passed": true,
+          "evidence": "专属文档列为preserve"
+        },
+        {
+          "text": "快照与冲突解决后，冻结逐文件清单并批量复制，再在目标构建。",
+          "passed": true,
+          "evidence": "每个选定文件仅复制一次"
+        },
+        {
+          "text": "未完成复制与本轮目标构建前，不推进成功CL基线。",
+          "passed": true,
+          "evidence": "现在尚未编译，成功基线保持144419"
+        }
+      ],
+      "notes": [
+        "只评估隔离文字演练，不证明真实反向同步已执行或编译通过。",
+        "工具未返回token用量；时间是协调者观测到的工具耗时。"
+      ]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "git-to-p4-conflict",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 5,
+        "total": 5,
+        "failed": 0,
+        "time_seconds": 201.569,
+        "tokens": null
+      },
+      "expectations": [
+        {
+          "text": "按G0到G1增量回灌，不重复导入刚来自P4的变化或G0已有专属文档。",
+          "passed": true,
+          "evidence": "仅取G0→G1的插件范围增量"
+        },
+        {
+          "text": "对绑定文件的双方独立修改做三方比较或先阻塞确认，不直接覆盖。",
+          "passed": true,
+          "evidence": "三方比较，合并保留双方改动"
+        },
+        {
+          "text": "新增、修改、历史证明的删除都被列入本次清单。",
+          "passed": true,
+          "evidence": "VM新源记add；绑定文件记modify/conflict；旧源记delete"
+        },
+        {
+          "text": "为本轮创建独立numbered pending CL，不夹带或移动用户default opened。",
+          "passed": true,
+          "evidence": "建立独立编号pending CL"
+        },
+        {
+          "text": "目标MainDev实际构建后才能验收，pending CL不当作submitted CL，未授权不submit或shelf。",
+          "passed": true,
+          "evidence": "pending不等于submitted"
+        }
+      ],
+      "notes": [
+        "只评估隔离文字演练，不证明真实反向同步已执行或编译通过。",
+        "工具未返回token用量；时间是协调者观测到的工具耗时。"
+      ]
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "explicit-direction-required",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1,
+        "passed": 2,
+        "total": 2,
+        "failed": 0,
+        "time_seconds": 107.102,
+        "tokens": null
+      },
+      "expectations": [
+        {
+          "text": "明确询问本轮源和目标，不沿用状态文件的上次方向。",
+          "passed": true,
+          "evidence": "请确认本次同步方向"
+        },
+        {
+          "text": "不同时双向覆盖，不进行复制、VCS修改或基线推进。",
+          "passed": true,
+          "evidence": "方向明确前不复制、不 checkout、不修改同步基线"
+        }
+      ],
+      "notes": [
+        "只评估隔离文字演练，不证明真实反向同步已执行或编译通过。",
+        "工具未返回token用量；时间是协调者观测到的工具耗时。"
+      ]
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1,
+        "stddev": 0,
+        "min": 1,
+        "max": 1
+      },
+      "time_seconds": {
+        "mean": 161.41233333333332,
+        "stddev": 48.798035127793135,
+        "min": 107.102,
+        "max": 201.569
+      },
+      "tokens": {
+        "mean": null,
+        "stddev": null,
+        "min": null,
+        "max": null
+      }
+    },
+    "delta": {
+      "pass_rate": "N/A",
+      "time_seconds": "N/A",
+      "tokens": "N/A"
+    }
+  },
+  "notes": [
+    "3个with_skill文字演练合计12条检查；未执行生产仓库反向同步。",
+    "三个without_skill代理明确报告被自动注入技能正文，全部剔除，不能宣称技能相对基线有提升。",
+    "初始General代理模型不可用，6次未启动；改用现有SkillWriter跟随默认模型，未修改agent配置。",
+    "token统计未提供，保留null而非伪造0；时间为协调者观测工具耗时，不等同纯推理时长。",
+    "每例仅1次，没有重复实验，不能估计单例稳定性；等待用户查看演练输出。"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "agent": "General",
+  "status": "not_started",
+  "reason": "Model \"gateway-kimi/kimi-k3\" not found",
+  "attempts": 6,
+  "fallback_agent": "SkillWriter",
+  "configuration_changed": false
+}

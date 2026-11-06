@@ -1,0 +1,9 @@
+{
+  "eval_id": 3,
+  "eval_name": "explicit-direction-required",
+  "prompt": "这是隔离演练，不执行工具：按上次的skill把两边AngelScript再同步一下，双向都要支持。状态文件上次方向为maindev→unrealengine-angelscript，但我这次还没说方向。你现在怎么做？",
+  "assertions": [
+    "明确询问本轮源和目标，不沿用状态文件的上次方向。",
+    "不同时双向覆盖，不进行复制、VCS修改或基线推进。"
+  ]
+}

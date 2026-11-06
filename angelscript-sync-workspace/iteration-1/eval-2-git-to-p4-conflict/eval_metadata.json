@@ -1,0 +1,12 @@
+{
+  "eval_id": 2,
+  "eval_name": "git-to-p4-conflict",
+  "prompt": "这是隔离桌面演练，只用模拟信息回答，不执行工具：这次方向由我定，unrealengine-angelscript → maindev。Git G0 是上次从P4导入时已验证的对应点，G1新增一个VM源文件、修改一个绑定文件、删除一个旧源文件；G0已有目标专属说明文档。MainDev绑定文件又有独立提交，其工作区另有用户的default opened。请给出回灌清单原则、冲突处理、P4操作边界、编译验收与pending状态如何记，勿替我提交。",
+  "assertions": [
+    "按G0到G1增量回灌，不重复导入刚来自P4的变化或G0已有专属文档。",
+    "对绑定文件的双方独立修改做三方比较或先阻塞确认，不直接覆盖。",
+    "新增、修改、历史证明的删除都被列入本次清单。",
+    "为本轮创建独立numbered pending CL，不夹带或移动用户default opened。",
+    "目标MainDev实际构建后才能验收，pending CL不当作submitted CL，未授权不submit或shelf。"
+  ]
+}

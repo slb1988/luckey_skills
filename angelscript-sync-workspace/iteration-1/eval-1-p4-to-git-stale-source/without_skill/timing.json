@@ -1,0 +1,6 @@
+{
+  "total_tokens": null,
+  "duration_ms": 189903,
+  "total_duration_seconds": 189.903,
+  "measurement": "coordinator measured tool elapsed time; subagent result did not expose token accounting"
+}

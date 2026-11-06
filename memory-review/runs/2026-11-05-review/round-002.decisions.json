@@ -1,0 +1,12 @@
+{
+ "removals": [],
+ "rejections": [],
+ "approvals": [
+  {
+   "review_id": "01a1a82c-6d8e-7312-b609-5bc8c5f8538c",
+   "content_mode": "curated",
+   "snapshot_token": "rs1:a427bed0adf1d0d76eaf519f01854d72f00370d00382da96356bc9a858928023",
+   "rationale": "auto-review: 2边fact与正文一致，明确不存储凭证值，无敏感信息；novelty=evolution"
+  }
+ ]
+}
