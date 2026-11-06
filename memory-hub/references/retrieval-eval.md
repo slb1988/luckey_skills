@@ -115,6 +115,11 @@ min_rating（默认 2）→ 确定性后处理 → Stage B 只接收 kept 源 �
   edge 向量+BM25，单次约 2–3s）。**等权 RRF 会把 ID/URL 精确命中挤出 10 槽送审池**，故用
   `RETRIEVAL_V2_GRAPH_SLOTS`（默认 3）保留名额融合；图种子的版本邻接救回必须排在字面命中之后
   （否则同样挤出）。图通道 query 截 1000 字符（Graphiti 上限 1024，超长 422 丢全部语义候选）。
+- 生产开关全量实测（2026-11-06，NAS 部署目录点env + 进程 environ，配置链：environ > home 点env > 项目点env > 代码默认）：
+  另开 `RETRIEVAL_NAVIGATION_FLOOR_ENABLED=true`、`RETRIEVAL_STAGE_A_COMPACT_REJECTS=true`（默认均 false）；
+  `RETRIEVAL_CARD_SELECT` 保持关闭；入库侧 `ENABLE_MEMORY_EVOLUTION_ANALYSIS=false`（进程 environ，演进分析生产关）。
+  后台 `INSIGHT_WORKER_ENABLED`/`GRAPH_DREAM_ENABLED` 均开（默认关）；auto-review ENABLED=true 但 DRY_RUN=true（只预览不批准）。
+  代码/文档默认值不代表生产，问开关状态必须实测。Graphiti 容器跑 0.30.2 overlay（embedding=qwen3.7-text-embedding 走 DashScope 代理，LLM=kimi-k3）。
 - 离线候选池探针（无 LLM、只读）：服务仓库 `scripts/probe_candidates.py`，用例/silver 标签
   `tests/eval/injection-recall.obsidianvault.{cases,labels}.json`；需在 NAS 上对线上 DB 只读运行。
   silver 标签来自历史 Stage A 判分，偏向已有通道，只能做回归，不能单独否决新通道。
