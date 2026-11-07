@@ -16,6 +16,9 @@ video-downloader/config/*_cookies.txt
 __pycache__/
 *.pyc
 
+# Log files
+*.log
+
 # Local credentials
 .env
 .env.*
