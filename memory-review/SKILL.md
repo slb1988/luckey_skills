@@ -44,6 +44,17 @@ memory_id/group_id、snapshot_token 绑定不重取、同组等 indexed、未知
 回执/状态/日志落独立 run 目录可中断恢复）→ [批量批准驱动](references/batch-approval-driver.md)。
 Windows 上 scan/drive 静默卡死（进程活着、0 TCP、无日志）的已实锤根因与 `no_proxy='*'` 绕行见该文「停滞根因」节。
 
+**默认执行策略（2026-11-08 用户授权：触发即执行，不再逐次确认）**：用户要求「审核/消化记忆队列」
+时按上述流程一口气跑到队列清空，中途不问「是否继续」：
+
+- 干净条目（novel/evolution、确定性检查全过、边 fact 有正文支撑）直接带 rationale 批准；
+- `duplicate` 先 memory_search 只读验证覆盖声明：属实则 reject（rationale 写明验证依据），
+  不属实/拿不准留队列升级；`failed` 与敏感命中仍升级人工（安全红线不变）；
+- apply 带 `--receipt-file`；单条 queued/失败截断批次时拆分决策文件续跑剩余项；
+  `queued` 是 v27 设计行为，不重复批准，收尾 rescan 核对 drain 即可；
+- 处理期间新入队的可判条目按同一套标准一并消化，不另行请示；
+  仅剩 preview_pending / 排队 drain 中的条目时报告即止。
+
 **判断层（agent 的活，脚本不替代）**：脚本的确定性检查只做机械筛查（自环边、预览厚度、
 敏感模式、novelty 状态），以下必须逐条用判断力核对：
 
