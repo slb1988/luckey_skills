@@ -53,7 +53,7 @@ a2a-mentions 扩展的平台 token 存在全局文件 `~/.pi/agent/a2a-mentions.
 </memory>
 
 <memory category="debug-commands">
-a2a 平台存活探测（无需 token）：未认证 GET `<baseUrl>/agent_platform/a2a/agents/mentions`，返回 HTTP 401 且 body `code=101 missing_token` 即平台活着；TCP 建连不上 = 服务未起。端口消歧：a2a agent platform 固定 **5000**（192.168.2.13 LAN / 10.77.77.4 WireGuard，同机两入口）；**9287 是 memory-hub 的端口**（memory-hub 在 10.77.77.6，.13 上 9287 无服务），DEFAULT_BASE_URL 配成 :9287 会导致全部调用超时。
+a2a 平台存活探测（无需 token）：未认证 GET `<baseUrl>/agent_platform/a2a/agents/mentions`，返回 HTTP 401 且 body `code=101 missing_token` 即平台活着；TCP 建连不上 = 服务未起。端口消歧：a2a agent platform 固定 **5000**（192.168.2.13 LAN / 10.77.77.4 WireGuard，同机两入口）；**9287 是 memory-hub 的端口**：权威实例在 10.77.77.6:9287，auto-server 另有 LAN 转发 192.168.2.13:9287→10.77.77.6:9287（2026-11-10 实测 /v1/projects 匿名 401 UNAUTHENTICATED 即转发活着；无 /health 路由，勿拿 404 当死信）。a2a 的 DEFAULT_BASE_URL 仍不能配 :9287。
 </memory>
 
 <memory category="code-locations">
