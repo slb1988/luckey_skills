@@ -76,7 +76,7 @@ dynamic-workflows（显式 .ts 导入启动优化仅本仓库有，见其 SKILL.
 </memory>
 
 <memory category="common-patterns">
-把 npm 发布的 pi 扩展（或 narumiruna/pi-extensions monorepo 里的包）vendor 进项目 `.pi/extensions/`：构建后只需拷 `dist/ + package.json`——pi loader 靠子目录 package.json 里的 `pi.extensions` 字段（如 `["./dist/index.ts"]`）自动发现并加载。在扩展目录内装依赖必须 `npm install --omit=dev --legacy-peer-deps`：`@earendil-works/pi-ai|pi-tui|pi-coding-agent|pi-agent-core` 由 pi 运行时 virtualModules/jiti alias 提供，**不能落进扩展自己的 node_modules**（不加 --legacy-peer-deps 时 npm 会把 peerDeps 自动装进扩展目录，多余且可能冲突）。加载失败信号是 `Failed to load extension "<path>"` diagnostic；冒烟：`pi -p "reply with just: ok" --no-session` 无该错误即成功（TUI-only 命令如 /btw 需进 TUI 实测）。完整迁移 runbook 见 `.team/sunlaibing/reference_pi-extensions-migration.md`。
+把 npm 发布的 pi 扩展（或 narumiruna/pi-extensions monorepo 里的包）vendor 进项目 `.pi/extensions/`：构建后只需拷 `dist/ + package.json`——pi loader 靠子目录 package.json 里的 `pi.extensions` 字段（如 `["./dist/index.ts"]`）自动发现并加载。在扩展目录内装依赖必须 `npm install --omit=dev --legacy-peer-deps`：`@earendil-works/pi-ai|pi-tui|pi-coding-agent|pi-agent-core` 由 pi 运行时 virtualModules/jiti alias 提供，**不能落进扩展自己的 node_modules**（不加 --legacy-peer-deps 时 npm 会把 peerDeps 自动装进扩展目录，多余且可能冲突）。加载失败信号是 `Failed to load extension "<path>"` diagnostic；冒烟：`pi -p "reply with just: ok" --no-session` 无该错误即成功（TUI-only 命令如 /btw 需进 TUI 实测）。完整迁移 runbook 见 `.team/sunlaibing/mods/pi-agent/pi-agent-extensions-migration.md`。
 </memory>
 
 <memory category="common-patterns">
@@ -141,7 +141,7 @@ REA↔Pi 注册形态：setup 只写 user scope——`~/.pi/agent/mcp.json` 的 
 </memory>
 
 <memory category="troubleshooting">
-Windows 侧 REA↔Pi 注册（npm 发布版 6.3.0，2026-11 实测；与 Mac main 构建行为不同，勿套用上面两条）：(1) `rea mcp add --agent pi` 必败 `MCP_ADD_FAILED: spawn npx ENOENT`——根因是 rea 安装器 spawn 不带 shell，Windows 解析不到 `npx.cmd` shim；改用 pi 自己的 CLI：`pi mcp add rea -- cmd.exe /d /c npx -y rea-agents@6.3.0 mcp`（版本锁 6.3.0 与 Mac 对齐）。(2) npm 版 `rea setup` 默认写 `~/.omp/agent/mcp.json`（pi 是 `.pi`），须先 `PI_CONFIG_DIR=.pi` 再跑；且它会把注册改写成 `node.exe + npm 缓存内 rea.mjs` 直路径——npm 缓存一清 MCP 即断，setup 跑完须用 `pi mcp remove/add` 恢复 npx 锁定形式（setup 自动备份为 `mcp.json.rea.backup`）。个人运维细节见 `.team/sunlaibing/reference_rea-hopper-macos.md`「Windows 安装注册要点」。
+Windows 侧 REA↔Pi 注册（npm 发布版 6.3.0，2026-11 实测；与 Mac main 构建行为不同，勿套用上面两条）：(1) `rea mcp add --agent pi` 必败 `MCP_ADD_FAILED: spawn npx ENOENT`——根因是 rea 安装器 spawn 不带 shell，Windows 解析不到 `npx.cmd` shim；改用 pi 自己的 CLI：`pi mcp add rea -- cmd.exe /d /c npx -y rea-agents@6.3.0 mcp`（版本锁 6.3.0 与 Mac 对齐）。(2) npm 版 `rea setup` 默认写 `~/.omp/agent/mcp.json`（pi 是 `.pi`），须先 `PI_CONFIG_DIR=.pi` 再跑；且它会把注册改写成 `node.exe + npm 缓存内 rea.mjs` 直路径——npm 缓存一清 MCP 即断，setup 跑完须用 `pi mcp remove/add` 恢复 npx 锁定形式（setup 自动备份为 `mcp.json.rea.backup`）。个人运维细节见 `.team/sunlaibing/mods/reverse-eng/reverse-eng-rea-hopper-macos.md`「Windows 安装注册要点」。
 </memory>
 
 <memory category="troubleshooting">
