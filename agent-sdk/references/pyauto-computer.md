@@ -54,6 +54,14 @@
   重载需 `echo <admin密码> | sudo -S -u admin /usr/bin/crontab /etc/config/crontab`
   （`crontab` 命令要 suid；`/etc/init.d/crond.sh restart` 非 admin 执行会 daemon_mgr
   segfault，别走那条路）。
+  **QNAP 同款 PATH 坑（2026-11-13 实测）**：pi 装在 `~/.local/npm/bin`（npm 全局前缀），
+  不在 cron 行内联 PATH 里——host 启动报 "runtime 'pi' 当前不可用（不在 PATH？）"，
+  之后每次派发都直接返回 "[error] pi CLI 不在 PATH"。修法同 Mac 思路：cron 行 PATH
+  追加 `~/.local/npm/bin` 并显式内联 `PI_BIN=<绝对路径>`（改 `/etc/config/crontab` 需
+  admin 密码，重载同上，且只影响下次启动的 supervisor）；**免权限止血**：
+  `ln -sf ~/.local/npm/bin/pi ~/.local/bin/pi`——`~/.local/bin` 已在 cron PATH 内，
+  host 每次派发都现跑 `shutil.which("pi")`，不用重启 supervisor 即刻生效（当日已用
+  cron 同款最小环境验证 `resolve_pi_invocation()` 解析通过）。
   **macOS 的坑：launchd 环境 PATH 极简**（无 `/opt/homebrew/bin`），supervisor 拉起的
   host 找不到 pi 而反复起不来——且 `setup` 的 runtime 探测跑在用户 shell 里，**探测通过 ≠
   launchd 下能拉起**。修法：给 supervisor 的 LaunchAgent plist 加 `EnvironmentVariables`

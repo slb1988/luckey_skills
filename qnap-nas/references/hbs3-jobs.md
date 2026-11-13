@@ -200,7 +200,7 @@ echo "<admin密码>" | sudo -S -u admin \
 cd /share/CACHEDEV1_DATA/.qpkg/HybridBackup/CloudConnector3
 cp /share/CACHEDEV1_DATA/.qpkg/HybridBackup/CloudConnector3/config.db /tmp/cc3_config_sync.db
 
-echo "MTs451Hi966jzN" | sudo -S -u admin \
+echo "<admin密码>" | sudo -S -u admin \
   env PYTHONPATH=/share/CACHEDEV1_DATA/.qpkg/HybridBackup/CloudConnector3/python/lib/python3.11/site-packages \
   PATH=/share/CACHEDEV1_DATA/.qpkg/HybridBackup/CloudConnector3/python/bin:$PATH \
   QPKG_HOME=/share/CACHEDEV1_DATA/.qpkg/HybridBackup \
