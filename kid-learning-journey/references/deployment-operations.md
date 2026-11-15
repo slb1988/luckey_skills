@@ -84,6 +84,13 @@ Backend runs via `uv run` from `backend/.venv`; frontend serves the prebuilt `fr
 
 Access: `http://192.168.50.2:8088` (LAN), `COOKIE_SECURE=false` because it is plain LAN HTTP. Both services bind `0.0.0.0`, so every NAS interface works without extra config — verified LAN `192.168.50.2` and WireGuard `wg0` `10.77.77.6`. Remote devices (phone/Pad over WireGuard) use `http://10.77.77.6:8088` directly; the same-origin `/api` proxy means `FRONTEND_ORIGIN` does not need to match the accessed host.
 
+### NAS 本地更新发布流程（标准路径，照此执行不要另找）
+
+1. **拉代码**：`cd /share/Container/ObsidianVault/kid-learning-journey && git pull --ff-only`。GitHub 在 NAS 上必须走本机 mihomo 代理（`~/.ssh/config` 的 ProxyCommand → `~/.ssh/proxy_connect.py` → `127.0.0.1:7890`）。pull 报 `ConnectionRefusedError ... proxy_connect.py` = mihomo 没跑，用 `/share/CACHEDEV1_DATA/.qpkg/Entware/mihomo/S99mihomo start` 拉起（Entware 安装，二进制/配置/日志都在 `/opt/mihomo/`）。若节点全体 `i/o timeout`、订阅刷新也超时，是线路问题，停止在仓库权限/密钥方向排查；可临时在 `/opt/mihomo/config.yaml` 加 `external-controller: 127.0.0.1:9090` 后用 REST API 测速换节点。
+2. **判断前端是否要重建**：`find frontend/src -newer frontend/dist/index.html` 无非 `.@__thumb`（QNAP 缩略图垃圾目录，恒忽略）文件才重建；重建命令 `CI=true PATH=/share/homes/slb1988/.local/opt/node/bin:$PATH pnpm install --frozen-lockfile && pnpm build`（在 `frontend/` 下）。
+3. **重启服务**：`/share/Container/kid-learning/bin/stop-all.sh && /share/Container/kid-learning/bin/start-all.sh`。start-backend.sh 启动前自动 `flask db upgrade`，无需手动迁移。
+4. **验证**：`netstat -tln | grep -E ':5100|:8088'` 两个端口都 LISTEN；`curl http://127.0.0.1:5100/api/v1/health` 返回 `status: ok`；LAN `http://192.168.50.2:8088` 返回 200。start-all.sh 会自行输出这两项健康结果。
+
 ## Operational commands
 
 - `flask db upgrade`: apply schema migrations.
