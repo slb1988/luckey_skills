@@ -97,8 +97,22 @@ Deleted the 127 dead nodes, keeping only the 18 working ones. Node bookkeeping k
 ### If it breaks again
 
 1. Compare router node ports with the local Clash profile SS nodes (`cn*.somethingstranges.com:121xx`); ports rotate.
-2. Re-resolve the node domain (`nslookup cn01.somethingstranges.com 223.5.5.5`) — the pinned IP `147.90.24.250` superseded the older `206.109.71.215`, so it does rotate; update `server` in the affected `fss_node_<id>` accordingly.
-3. `fss_node_current=4` keeps pointing at node id 4 after in-place JSON edits; `_identity` fields only matter for subscription reconciliation, not startup.
+2. Re-resolve the node domain (`nslookup cn01.somethingstranges.com 223.5.5.5`) — pinned-IP rotation history: `206.109.71.215` → `147.90.24.250` → `77.81.80.250` → `79.182.42.250`; update `server` in the affected `fss_node_<id>` accordingly.
+3. In-place JSON edits keep `fss_node_current` pointing at the same id; `_identity` fields only matter for subscription reconciliation, not startup.
+4. Before blaming nodes, confirm router WAN health (ping 223.5.5.5, curl baidu) — 100% probe failure across all nodes usually means stale shared IP, not 46 simultaneous node deaths.
+
+## 2026-11-13 Session Findings
+
+### Same failure mode: server IP rotated again
+
+- All 46 nodes failed TCP probes while router WAN was healthy (WAN 180.165.62.246, baidu 200). `cn01.somethingstranges.com` resolved to `79.182.42.250`; all 17 mainland-usable ports (12101-12506) probed OK on the new IP.
+- Fix: in-place rewrite `server`→`79.182.42.250` for ids 4,5,6,33,34,35,36,37,57,58,59,156,157,158,159,160,161 (router-side decode→sed→encode→`dbus set`, each re-verified), then stop→start. Verified: socks google 204, exit 188.253.121.23 SG (current node 36 新加坡04), LAN client google 204 / baidu 200 / country SG, admin UI 200, SSH stable throughout.
+
+### A subscription import had run after the 10-17 cleanup
+
+- Nodes carry `_created_at`≈2026-10-31, `_source":"subscribe"`, group `IPLC.APP_44da`: the import rewrote the 17 mainland nodes' `server` to the then-current `77.81.80.250` (ports unchanged) and added 27 new nodes ids 201-227 (`fss_node_order` grew to 46 ids). New nodes are all `仅海外用户*` (mainland-unusable by design) plus id 227 「官网」iplc.app ad node.
+- Auto-update was documented as disabled, so this was likely a manual 更新订阅 click. The import itself didn't break things immediately (it had the then-current IP), but it re-pinned IPs that later went stale — same warning stands: don't click 更新订阅.
+- Current selected node was 36 (新加坡04), not 4 — user had switched nodes in the web UI; `fss_node_current_identity` was empty yet startup still worked.
 
 ## 2026-08-01 Session Findings
 

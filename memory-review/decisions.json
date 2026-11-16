@@ -1,26 +1,60 @@
 {
-  "removals": [],
-  "approvals": [],
+  "approvals": [
+    {
+      "review_id": "01a1dfdd-c8b3-7c38-a248-1e9ef7155001",
+      "content_mode": "curated",
+      "snapshot_token": "rs1:d3cf831b618294c0a5e88392f363c5c20fa899819ff1b1fb89cbc9b72dd35437",
+      "rationale": "agent-review: 预览准确（skill 落成+通道策略+校验四件套+网络约束），3 条 IMPLEMENTS/APPLIES_TO 边均有正文支撑；novelty=evolution（死通道清单、archive.org 回退为新增事实）"
+    },
+    {
+      "review_id": "01a1da76-cd4a-7258-9e07-ea57ede5c4b7",
+      "content_mode": "original",
+      "snapshot_token": "rs1:3e9251dab1dd9eded96e279bb8ab27127924cf54270011e8da0b12e56422d161",
+      "rationale": "agent-review: 空预览但正文有实质增量（commit d127372/17b6649 已推 origin/master、SKILL.md 本地 dist 流程文档事实），novelty=evolution，按原蒸馏文批准"
+    },
+    {
+      "review_id": "01a1d930-c611-7226-99dc-0c2ae78ca29b",
+      "content_mode": "original",
+      "snapshot_token": "rs1:9c61fce7710595406b3f8eb47499ed5aec08cfe1e2d33b85600c989e84fbff54",
+      "rationale": "agent-review: thin preview（1 实体 0 边），正文为构建 47837 FAILURE 完整归因（32 实体 3 类问题+关联 CL+飞书文档+本地产物），novelty=novel，按原蒸馏文批准"
+    },
+    {
+      "review_id": "01a1d842-faf9-7d12-9948-bbe350823512",
+      "content_mode": "curated",
+      "snapshot_token": "rs1:c588b298a936b90d8259c5dbd93768f0d435963e46e1cabf8caa47385b00cc70",
+      "rationale": "agent-review: 预览准确（codemode 注入保留名不可 const 重声明），APPLIES_TO 边 fact 与正文一致；novelty=novel（保留名清单+无通用 web 搜索工具均为新事实）"
+    },
+    {
+      "review_id": "01a1d7e3-711b-7ddf-aa09-65316114a927",
+      "content_mode": "curated",
+      "snapshot_token": "rs1:48152bf40fa059800005c3ae8913c18b61fd847f009ee5f7f3f7871f04823b18",
+      "rationale": "agent-review: 预览准确（删整体 executionTimeoutMin、单任务 running 计时+REST 取消、final settle gate/NOT_FINISHED），两条 APPLIES_TO 边有正文支撑；novelty=evolution（对较早记录 SUPERSEDES）"
+    },
+    {
+      "review_id": "01a1d78a-ae52-7206-8ef2-43f2d0d1dcc5",
+      "content_mode": "curated",
+      "snapshot_token": "rs1:28ef3ad5f4d8129fa8863bef6723f3c88713ee75b7f1ba7e3bfbb0486874af1f",
+      "rationale": "agent-review: 预览准确（CL 2144 交付、四项运行策略、READS_CONFIG_FROM 带 token 读端点 403 待灰度警示），3 边均有正文支撑；novelty=evolution；与同组 7e3/779 为演进链多版本，互不重复"
+    },
+    {
+      "review_id": "01a1d779-1a92-7ed1-b114-21d082341d94",
+      "content_mode": "curated",
+      "snapshot_token": "rs1:b349e413f5a7d286ba6074f348be921e6fb70e190a73fd6f0ec6dabf192ce502",
+      "rationale": "agent-review: 预览准确（方案稿性质已如实标注 PLANS_TO_USE/待 review），2 边有正文支撑；novelty=evolution（方案设计细节为新增）"
+    }
+  ],
   "rejections": [
     {
-      "review_id": "01a1653a-5c0d-7e7d-b749-676a42d81887",
-      "rationale": "agent-review: novelty=duplicate 经独立图谱检索核实——rpdt 归属链（Tag→PLEntityTagMapping Soft*→BP→content_manager）与两类「未注册」根因（日志 Asset 优先/映射表滞后）均已在图谱 indexed，正文无新增事实，拒。"
+      "review_id": "01a1d770-4e98-7515-a8b5-73ba89c1d224",
+      "rationale": "agent-review: novelty=duplicate 经 memory_search 只读验证属实——handoff 三突破口（71% 空摘要+确定性检索摘要建议、128/359 字面匹配缺口、FTS 60% 集中长记忆）、−4 负面结果、HANDOFF.md 路径均已 indexed 覆盖；本记忆唯一增量是 W1/W2 例行状态播报，无长期价值"
     },
     {
-      "review_id": "01a16538-e68a-7785-96cf-3e00fda29217",
-      "rationale": "agent-review: novelty=duplicate 经独立图谱检索核实——auto-skill 提取子会话 DefaultResourceLoader noExtensions:true 修复（f3adedc9、零扩展加载、新会话生效）已在图谱 indexed，无新增事实，拒。"
+      "review_id": "01a1d759-6821-747e-a0b2-212a01888f63",
+      "rationale": "agent-review: 同上批验证——长期事实逐字已在图谱（多条 11-13/11-14 已确认记忆），本记忆仅差一句 W2 状态 ping 噪音，拒"
     },
     {
-      "review_id": "01a15ccb-bc9e-7665-bc5c-de79aa228216",
-      "rationale": "agent-review: novelty=duplicate 经独立图谱检索核实——RPC 轮询宽超时/socket_send_failure 假 Fail 教训与 CharacterMovementRuntime_AS 跑通结果均已在图谱 indexed，收割落点为文档元信息，无新增事实，拒。"
-    },
-    {
-      "review_id": "01a15c93-8b13-7cdb-8c01-7c3f11ada38b",
-      "rationale": "agent-review: novelty=duplicate 经独立图谱检索核实——EngineModuleReflectedUninitializedPropertyVerbosity Fatal→Warning 决策（零引擎代码改动）与 pending CL 状态均已在图谱 indexed，无新增事实，拒。"
-    },
-    {
-      "review_id": "01a15c55-8436-76c4-a481-d51b04de0900",
-      "rationale": "agent-review: novelty=duplicate 经独立图谱检索核实——FDateTime 概率性误报机制（0xAA/0x55 两次构造比较、15.6ms tick）、IgnoreForMemberInitializationTest 修法与 Concert 先例均已在图谱 indexed；唯一文本差异「尽量减少引擎修改」为用户意向，已由图谱中对应决策记忆覆盖，拒。"
+      "review_id": "01a1d753-e8b3-7550-af04-0a5c75491336",
+      "rationale": "agent-review: 同上批验证——与 d770/d759 同批同 scope 重复，长期事实图谱已覆盖，增量仅例行编排状态，拒"
     }
   ]
 }

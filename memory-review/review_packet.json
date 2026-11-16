@@ -1,28 +1,28 @@
 [
  {
-  "memory_id": "01a1aa27-3d03-71ea-9f6b-aa4b5f47216c",
-  "session_id": "pi:obsidianvault:01a1a991-ba39-74d6-b932-570ad920da10",
+  "memory_id": "01a1dcc6-d9f5-7358-9a60-b51c6ae80335",
+  "session_id": "pi:obsidianvault:01a1dcaf-fb20-76d7-995b-3862cc78f6b6",
   "session_version": null,
   "scope_type": "project",
   "group_id": "project:obsidianvault",
   "status": "preview_pending",
   "memory_status": "pending_extraction",
   "preview_attempts": 0,
-  "updated_at": "2026-11-05T05:21:40.125307Z",
-  "snapshot_token": "rs1:c5f0d29b3c1df670b77a0d1fd9e9c7a2b0239f5544014190dd3867996740b9bc",
-  "review_id": "01a1aa27-c37e-7ed0-93cd-0f4e42ca8de7",
+  "updated_at": "2026-11-15T15:51:44.218560Z",
+  "snapshot_token": "rs1:cc4bb0b4903f55d9b0152676d6a280d430ef97695e11c04e0771181c68155d42",
+  "review_id": "01a1dfe7-a815-7fae-b486-977895f7b8e1",
   "project_id": "obsidianvault",
   "memory_type": "session_summary",
-  "summary": "Clash多跳代理故障排查",
-  "created_at": "2026-11-05T05:21:35.066731Z",
+  "summary": "iphone 手机能同时支持多个 vpn么？ shadowrocket + wireguard，特定ip段走后者，现在的问题是单个都能用，但开启一个另外一个就会",
+  "created_at": "2026-11-15T15:51:03.426478Z",
   "entity_count": 0,
   "edge_count": 0,
   "novelty": {
-   "status": "processing",
-   "admission": null,
-   "rationale": "历史知识比对进行中"
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "候选 1/2 已覆盖 iOS 双 VPN 互斥结论与 Shadowrocket WG 节点配置步骤，但新记忆增加了历史未覆盖的长期事实：WG 节点测速超时不等于故障、把 WG 节点误选为全局路由会导致全网断、订阅配置与本地配置是两份文件易改错、服务端 sudo wg show 看 handshake/transfer 是决定性判据、密钥 44 字符以 = 结尾可被粘贴截断。这些是对同一方案的新增排障边界，构成 REFINES 型演进。"
   },
-  "distilled_content": "用户先要求新增 socks5 接口 <REDACTED>，随后询问能否本地翻墙后将流量转发到 SS-韩国-41213 作为出口实现多跳。会话结果：已切到 AWS首尔单跳，网络恢复（google 200，出口 AWS 韩国）。配置本身已就绪（存在 8k534me5umxx0.yaml，订阅页显示 ss-kr-41213.yaml），PROXY 组四个选项可随时切换：AWS转SS-韩国（多跳链，等上游 SS 恢复可用）、AWS首尔（当前选中）、SS-韩国-41213（SS 直连单跳）、DIRECT。多跳当前不可用的原因不在配置：从 AWS 韩国机房内部连接该 SS 服务器 <REDACTED> 也失败，说明其 SS 服务进程挂了或端口被封，和 GFW 无关；多跳只能解决链路被墙，不能解决服务器本身不可用。版本坑已记入配置注释：mihomo v1.19 移除了 relay 分组，链式代理要用 dialer-proxy 写法。",
+  "distilled_content": "首个用户目标：iphone 手机能同时支持多个 vpn么？ shadowrocket + wireguard，特定ip段走后者，现在的问题是单个都能用，但开启一个另外一个就会自动失效关闭，但mac上是可以的。最近用户目标：[Interface] PrivateKey = SDQDHExaY7+NhveL7e87pWmDXeqCq13mwYWrw8diOnw= Address = 10.77.77.2/24 DNS = 223.5.5.5 [Peer] PublicKey = y5CRahlF+49ne0/fb+hLZMr7Xj1MswerLYf+F9AI+mI= Endpoint = 81.68.211.31:51820 AllowedIPs = 10.77.77.0/24 PersistentKeepalive = 25 配置是这样，你帮我整理个可以照抄的配置。会话结果：Mac 上没装 wireguard-tools，没法帮你算派生公钥，跳过。基于截图和现有信息，结论如下： ## 节点页本身填得没问题 私钥/公钥前缀和你 WG App 的配置一致，无 PSK 也一致，MTU 1420、心跳 30 都行。DNS 那栏建议清空（分流场景用不上，不影响握手，纯粹是少一个变量）。 所以问题大概率不在这一页，而在**\"怎么判断连不上\"和\"规则有没有生效\"**。按可能性从高到低查： ## 1. 先排除两种\"假连不上\" - **节点测速超时 ≠ 坏了**：WG 是 UDP 无连接协议，没有流量经过就不会握手，Shadowrocket 首页的延迟测试对 WG 节点不可靠。**以实际访问 `10.77.77.x` 为准，别看测速。** - **不要把 WG 节点选成当前代理节点**：首页「全局路由」保持**配置**，节点选择保持你原来的机场节点。如果把 WG-腾讯云 点成了全局节点，所有流量都被塞进只认 `10.77.77.0/24` 的隧道 → 直接全网断，看起来就是\"连不上\"。 ## 2. 确认规则落在正在用的配置上 - 配置页看**当前生效的是哪个配置文件**，规则必须加在那一份里（订阅远程配置和本地 default 配置是两份，改错文件是最常见的坑）。 - 确认有 `IP-CIDR,10.77.77.0/24 → WG` 这条规则，且排在 FINAL 类兜底规则之前；WG 组里确实有 WG-腾讯云 节点。 - 改完后把 Shadowrocket 总开关**关掉重开**一次。 ## 3. 正确的验证方式 Safari 直接访问 NAS 管理页 `http://10.77.77.6`（带上你平时用的端口），同时看 Shadowrocket「数据」页里 WG-腾讯云 节点有没有字节数增长。有流量 = 握手成功。 ## 4. 决定性证据：服务端一条命令 腾讯云控制台 → 服务器 → 网页登录（VNC/Workbench），跑： ```bash sudo wg show ``` 看 `10.77.77.2` 这个 peer： - **`latest handshake` 是近期时间、`transfer` 双向非零** → WG 层已通，问题纯在 Shadowrocket 分流规则，回第 2 步查。 - **没有 handshake** → 握手没建立。WG App 用同一把私钥能连，说明密钥对本身没问题，那最可能是**粘贴时被截断或带了空格/换行**——把私钥、公钥两栏清空，重新完整粘贴（都是 44 字符、以 `=` 结尾）。 最后确认一下你说的\"连不上\"具体是哪种：Shadowrocket 一开**整个网都断了**？还是**只有 10.77.77.x 不通**、其它正常？还是只是节点列表里**测速显示超时**？三种现象指向完全不同，按上面的分支走基本能定位。",
   "proposed": {},
   "flags": [
    {
@@ -34,7 +34,89 @@
     "check": "empty_preview",
     "severity": "escalate",
     "detail": "预览为空；curated 不可用，只能 original 或人工看正文"
-   },
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "审核状态 preview_pending，preview_attempts=0；需核对预览生命周期",
+    "预览为空；curated 不可用，只能 original 或人工看正文"
+   ],
+   "removals": []
+  }
+ },
+ {
+  "memory_id": "01a1dd78-fbb0-7d83-8dce-5596ee98445b",
+  "session_id": "claude:matcha:87593c64-19ff-4437-a669-a32ba66f5661",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:matcha",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-11-15T15:51:39.039346Z",
+  "snapshot_token": "rs1:ffd162d4dc2ab411754197a9fdcce722c2531c038be2c5327d5e9646918d08d8",
+  "review_id": "01a1dfe7-a7eb-7ca3-9688-4e1b30529c2f",
+  "project_id": "matcha",
+  "memory_type": "session_summary",
+  "summary": "[Image #1] 表格或csv对比，下面红色箭头的部分，也要支持鼠标操作，可以左右扩大缩小单元格，方便查看，另外也要支持选中单元格切换当前的焦点，和上面的要",
+  "created_at": "2026-11-15T15:51:03.383188Z",
+  "entity_count": 2,
+  "edge_count": 1,
+  "novelty": {
+   "status": "processing",
+   "admission": null,
+   "rationale": "历史知识比对进行中"
+  },
+  "distilled_content": "首个用户目标：[Image #1] 表格或csv对比，下面红色箭头的部分，也要支持鼠标操作，可以左右扩大缩小单元格，方便查看，另外也要支持选中单元格切换当前的焦点，和上面的要联动，还有其他的一些常用特性，要都满足，执行 spec 修改方案，我来review。最近用户目标：Base directory for this skill: D:\\Github\\Matcha\\.claude\\skills\\openspec-propose Propose a new change - create the change and generate all artifacts in one step. **Planning boundary**: This workflow creates planning artifacts only. The user request that selected or triggered this workflow authorizes planning only, even if it asks to build or fix something. Do not edit project code. After the planning artifacts are complete, stop. Do not start implementation in the same response, even if the initial request asks for it. Wait for a new user request after the artifacts are presented; then start the apply workflow. I'll create a change with the artifacts your schema defines. With the default spec。会话结果：我写好了 spec 修改方案 `openspec/changes/table-details-interaction/`，`openspec validate --strict` 通过。这次只写了规划文档，代码没动，等你 review。 **现状：** 底部对照条（`crates/bc-gui/src/table/details.rs`）现在只负责画，没有任何鼠标交互。列宽和水平滚动直接用上方网格的，最底下那条 16px 的带子只是个占位符。 **方案内容**（在 `table-compare-view` 里新增 5 条需求）： 1. **调列宽**：拖列头边界调宽窄（最小 20px，鼠标悬停时变成左右调整光标）。双击边界会按当前行左右两格的内容自动适配宽度。 2. **独立水平滚动**：占位带改成真的横向滚动条，鼠标在对照条上滚滚轮只滚对照条。当前列一变（不管是哪种操作导致的），对照条自动滚到能看见这一列；你手动拖开之后不会被拽回去。 3. **点选单元格，和上面联动**： - 单击某一侧的格子，就切到那一侧、选中这一格，键盘焦点交给上方网格，上方网格也滚到这一格。之后方向键可以接着用。 - Shift+单击：在当前行里扩展选区。 - 单击列头：在当前这一侧选中这一列。 - 上方网格的选区在对照条里也用选中色显示。 - \"Align With\" 正在选对侧行的时候，点对照条也算数。 4. **双击编辑、右键菜单**：双击一格等于在上方网格里编辑这一格；右键弹出的菜单和该侧网格的右键菜单一样。 5. **悬停看全文**：格子里的字被截断或者有换行时，鼠标悬停弹出完整内容，保留换行，最多显示 4000 字符。 **这次不做：** 对照条里按字符高亮差异、拖动调整对照条高度或自动换行、选中格子里的一部分文字、把列宽存进会话文件。 **需要你拍板的一点**（`design.md` D1）：我选的是对照条的列宽**单独记**。在对照条里拉宽某一列不会影响上方网格；没在对照条里调过的列还是跟着上方网格走。`Resize Columns to Fit`、切换 sheet、重新加载都会让对照条的列宽恢复跟随。这样选的理由是：拉宽对照条通常就是为了看清这一格，跟着把上方网格也撑宽反而碍事。如果你更希望上下两边始终一起变，实现会更简单，只需要改 spec 里两个场景，告诉我就行。 **文件：** - `proposal.md`：为什么做、做哪些、影响范围 - `specs/table-compare-view/spec.md`：5 条需求，共 14 个场景 - `design.md`：怎么实现。上下列宽怎么分开记、加一个按像素滚动的横向滚动条、对照条的点击和右键全部复用上方网格现有的处理逻辑、自动适配和悬停提示怎么做 - `tasks.md`：6 组共 13 项任务，每项都写明怎么验证 `CHANGELOGS.md` 和 feature 文档放在实现阶段一起更新（tasks 1.1 / 6.2）。review 没问题的话，跑 `/opsx:apply` 或者直接让我开始实现就行。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "bc-gui",
+     "type": "Project",
+     "summary": "Matcha 仓库中的 Rust GUI crate（crates/bc-gui），提供表格对比视图。底部对照条模块位于 crates/bc-gui/src/table/details.rs，现状仅负责绘制，列宽与水平滚动直接复用上方网格，最底部 16px 带子只是占位符，无任何鼠标交互。"
+    },
+    {
+     "name": "table-details-interaction",
+     "type": "Concept",
+     "summary": "openspec 规划变更（openspec/changes/table-details-interaction/），为 bc-gui 表格对比底部对照条规划鼠标交互能力：拖列头边界调宽（最小 20px、双击按内容自适应）、占位带改为独立横向滚动条并在当前列变化时自动滚动可见、单击/Shift+单击/列头点选并与上方网格选区和键盘焦点联动、双击编辑与右键菜单复用上方网格逻辑、截断或含换行的文本悬停显示全文（最多 4000 字符）。已通过 openspec validate --strict；仅产出规划文档、未改代码，截至会话结束等待用户 review。明确范围外：对照条字符级差异高亮、高度调整与自动换行、部分文字选中、列宽持久化到会话文件。design.md D1 中助手建议对照条列宽独立于上方网格记录（未手动调过的列跟随上方网格，Resize Columns to Fit/切 sheet/重载后恢复跟随），该选择尚无用户拍板，属助手提案而非已定决策。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "table-details-interaction",
+     "target": "bc-gui",
+     "name": "APPLIES_TO",
+     "fact": "table-details-interaction 是针对 bc-gui 表格对比视图底部对照条（crates/bc-gui/src/table/details.rs）的 openspec 规划变更，含 5 条需求共 14 个场景，已通过 openspec validate --strict，仅产出规划文档未实现代码，截至会话结束等待用户 review 后才进入实现阶段。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "bc-gui",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "d19a7328-cc35-4c5e-b7f6-e5941bafab67",
+        "canonical_name": "bc-gui",
+        "match_basis": "exact",
+        "created_at": "2026-11-06T17:20:26.339142000+00:00",
+        "group_id": "project:matcha",
+        "summary": "bc-gui 是 matcha 的 Rust GUI crate（包名 bc-gui，二进制 matcha.exe / Hex Compare），位于 crates/bc-gui，基于 egui/eframe 实现 Beyond Compare 风格对比，包含文本/表格/Hex 比较、文件夹比较与同步、文本/表格合并、Home 等 8 个视图。path bar 位于 crates/bc-gui/s"
+       }
+      ]
+     },
+     {
+      "input_name": "table-details-interaction",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [
    {
     "check": "novelty_not_completed",
     "severity": "escalate",
@@ -45,1441 +127,806 @@
    "action": "escalate",
    "auto": false,
    "reasons": [
-    "审核状态 preview_pending，preview_attempts=0；需核对预览生命周期",
-    "预览为空；curated 不可用，只能 original 或人工看正文",
     "novelty 分析未完成：processing（批准会 fail-closed）"
    ],
    "removals": []
   }
  },
  {
-  "memory_id": "01a1a83b-1e56-7f82-9b16-6d200bf2892f",
-  "session_id": "pi:admin_sun_depot_7184:01a1a461-7d13-71b7-91a8-d24835c9c866",
+  "memory_id": "01a1dfdd-8fab-7606-973a-b82ed12d735d",
+  "session_id": "pi:obsidianvault:01a1df57-68ae-7710-9f04-143e7364db58",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:obsidianvault",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-11-15T15:41:24.305985Z",
+  "snapshot_token": "rs1:d3cf831b618294c0a5e88392f363c5c20fa899819ff1b1fb89cbc9b72dd35437",
+  "review_id": "01a1dfdd-c8b3-7c38-a248-1e9ef7155001",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "download [pdf] the 5 types of wealth",
+  "created_at": "2026-11-15T15:40:16.415831Z",
+  "entity_count": 4,
+  "edge_count": 3,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆包含明确演进：将 libgen.la 列入死通道（替代 rank1 旧结论）、宣布爬书 skill 已建成（替代 rank3『没有现成 skill』的旧状态），且新增了历史候选未覆盖的 archive.org API 回退、死通道清单、校验四件套等新事实。"
+  },
+  "distilled_content": "首个用户目标：download [pdf] the 5 types of wealth。最近用户目标：创建一个 book-downloader skill，用来记录之前的上下文精华提炼，确保下次能快速上手 --- [workflows mode armed. Decide first: if this message is。会话结果：✅ **book-downloader skill 已创建并推送完成** ## 产出 ``` .claude/skills/book-downloader/ ├── SKILL.md # 主流程：libgen 搜索 → 快速判生死 → archive.org 回退 → 校验 └── references/ └── channel-playbook.md # 2026-11-15 完整排障记录（按需查阅） ``` **核心精华**（下次 30 秒上手）： - **通道优先级**：libgen.com.de 搜索（curl 友好）→ 下载只做 5 秒 HEAD 探测判生死 → 故障立刻转 **archive.org API 回退**（本次唯一活路，已验证） - **网络事实**：shell 恒走代理（`--noproxy '*'` 才真直连）、DNS 污染（198.10.x 假地址 → DoH+`--resolve`）、机场 SNI 黑名单（AA/library.lol 全节点断连，换节点无用） - **死通道清单**：libgen.la/.li/.gs/.is/.ee、z-lib、oceanofpdf、Bing 等全部记录在案，附「一个月后须重新探测」的过期提醒 - **校验四件套**：`file -b` / 对 metadata size / `unzip -l` / `qlmanage` 缩略图目视确认 ## 已做检查与提交 - ✅ `quick_validate.py` 通过（修掉了 description 里的尖括号） - ✅ 敏感信息扫描干净（Clash secret 只写\"从 config.yaml 读\"，未硬编码） - ✅ skills submodule commit `7a966eb` + 主仓库指针 `3ae098f1`，均已推送 origin/main **过程中一个插曲**：主仓库 rebase 时 autostash 弹出与远端 .team 迁移重构冲突，经查 stash 里的本地改动是迁移前的过期状态（引用文件已不存在），已按远端版本解决；原 stash 内容备份在 `/tmp/team-stash-backup/autostash.patch`，stash 条目保留未删，你确认无用后可自行 `git stash drop`。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "book-downloader",
+     "type": "Tool",
+     "summary": "Claude skill，位于 .claude/skills/book-downloader/，应用户要求创建以沉淀书籍下载排障经验、确保下次快速上手；含主流程 SKILL.md（libgen 搜索 → 快速判生死 → archive.org 回退 → 校验）与 references/channel-playbook.md（2026-11-15 完整排障记录）；已创建并推送 origin/main；敏感信息未硬编码，Clash secret 只写明从 config.yaml 读取。"
+    },
+    {
+     "name": "book-download-channel-strategy",
+     "type": "Convention",
+     "summary": "书籍下载通道优先级策略：libgen.com.de 搜索（curl 友好）优先，下载前只做 5 秒 HEAD 探测判生死，故障立刻回退 archive.org API（2026-11-15 会话中验证为当时唯一活路）；死通道清单记录在案：libgen.la/.li/.gs/.is/.ee、z-lib、oceanofpdf、Bing，并附「一个月后须重新探测」的过期提醒。"
+    },
+    {
+     "name": "book-download-validation-checklist",
+     "type": "Convention",
+     "summary": "下载文件校验四件套：file -b 识别真实文件类型、对比 metadata size、unzip -l 检查内容结构、qlmanage 生成缩略图目视确认。"
+    },
+    {
+     "name": "download-network-constraints",
+     "type": "Concept",
+     "summary": "用户网络环境对下载工具的诊断事实（2026-11-15 排障记录）：shell 流量恒走代理，加 --noproxy '*' 才是真直连；存在 DNS 污染返回 198.10.x 假地址，须用 DoH 加 --resolve 绕过；机场 SNI 黑名单导致 AA、library.lol 全节点断连，换节点无用。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "book-downloader",
+     "target": "book-download-channel-strategy",
+     "name": "IMPLEMENTS",
+     "fact": "book-downloader 的下载流程实现通道优先级策略：先用 libgen.com.de 搜索，下载前仅做 5 秒 HEAD 探测判生死，故障立即回退 archive.org API，该回退在 2026-11-15 会话中验证为当时唯一可用通道。"
+    },
+    {
+     "source": "book-downloader",
+     "target": "book-download-validation-checklist",
+     "name": "IMPLEMENTS",
+     "fact": "book-downloader 在下载完成后执行校验四件套：file -b 识别类型、对比 metadata size、unzip -l 检查结构、qlmanage 缩略图目视确认。"
+    },
+    {
+     "source": "download-network-constraints",
+     "target": "book-downloader",
+     "name": "APPLIES_TO",
+     "fact": "book-downloader 的快速判生死与 archive.org 回退设计基于用户网络环境约束：shell 恒走代理需 --noproxy '*' 才真直连、DNS 污染返回 198.10.x 假地址需 DoH 加 --resolve、机场 SNI 黑名单致 AA 与 library.lol 全节点断连。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "book-downloader",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "book-download-channel-strategy",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "book-download-validation-checklist",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "download-network-constraints",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "memory_id": "01a1dba7-b326-7029-ae0b-3a4ff88ee0f0",
+  "session_id": "pi:matcha:01a1da14-cbdf-7247-823e-ff5ea625a3d4",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:matcha",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-11-14T20:06:50.873550Z",
+  "snapshot_token": "rs1:2fe838d871f4d88a3a427d5d1b9ff1dd13e652b95ce139c5b9dcd511619fe5d3",
+  "review_id": "01a1dbaa-b56b-7d10-b629-473d9a58a461",
+  "project_id": "matcha",
+  "memory_type": "dream_lesson",
+  "summary": "表格三方合并视图真实文件驱动修复链：键推断、横向滚动与选中格可见、长单元格查看",
+  "created_at": "2026-11-14T20:06:00.278278Z",
+  "entity_count": 4,
+  "edge_count": 3,
+  "novelty": {
+   "status": "completed",
+   "admission": "duplicate",
+   "rationale": "新记忆三个层面的根因与修复（空白键退化为整行作键及容忍全空键推断；手绘共享滚动模型缺横向滚动条及逐窗格独立横向滚动+ensure_visible；tooltip 4000 字截断+底部详情条与焦点保护）均已被候选 rank1、rank2、rank3 的会话摘要完整覆盖，未增加新条件、边界、原因或决策，故判定 duplicate。"
+  },
+  "distilled_content": "同一 EquipmentDefinitionTable.xlsx 暴露的三层问题与修复：1) 差异不显示/对比不对：第 1 列 Name 含 545 个空白分隔行导致键唯一性<100%，键推断退化为整行作键，单元格改动被显示成删行+增行；修复为容忍全空键的单列推断（非空键三方各自唯一且与 center 重合过半即取），空白键行按序配对。2) 列多看不到：滚动是手绘共享模型、只有竖向滚动条且 ensure_visible 只管纵向；新增横向滚动条组件 show_horizontal，后升级为逐窗格独立横向滚动（滚轮只滚指针下窗格），纵向仍四窗格共用保证行对齐；方向键/导航/打开落点按各窗格宽度 ensure_visible，落点精确到区段第一个改动格（如 R964 C11），手动滚轮不被吸回（有测试锁定）。3) 单元格太长看不全：悬停 tooltip（自动换行、4000 字截断）+ 底部详情条完整显示可复制；详情条持焦时方向键/Delete 留给文本操作不误删输出格。每步均真实文件截图验证+新增测试+文档同步。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "table-diff-tool",
+     "type": "Project",
+     "summary": "表格/Excel 差异对比工具，支持三方（left/center/right）文件对比与多窗格 diff 视图。曾因 EquipmentDefinitionTable.xlsx 暴露三层问题并完成修复：空白分隔行导致键推断退化、缺少横向滚动、长单元格内容看不全。修复均经真实文件截图验证、新增测试并同步文档。"
+    },
+    {
+     "name": "blank-key-tolerant-key-inference",
+     "type": "Concept",
+     "summary": "table-diff-tool 中容忍全空键的单列键推断机制：当某列非空键在三方各自唯一且与 center 重合过半即取该列为键，空白键行按序配对，避免键唯一性不足时退化为整行作键。"
+    },
+    {
+     "name": "per-pane-horizontal-scrolling",
+     "type": "Concept",
+     "summary": "table-diff-tool 的滚动机制：在原手绘共享滚动模型上先新增横向滚动条组件 show_horizontal，后升级为逐窗格独立横向滚动（滚轮只滚指针下窗格），纵向滚动四窗格共用以保证行对齐；ensure_visible 按各窗格宽度计算横纵落点，且手动滚轮位置不被导航吸回。"
+    },
+    {
+     "name": "cell-content-tooltip-detail-bar",
+     "type": "Concept",
+     "summary": "table-diff-tool 的长单元格查看机制：悬停 tooltip 自动换行、4000 字截断，底部详情条完整显示内容且可复制；详情条持焦时方向键/Delete 留给文本操作，不误删输出格。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "table-diff-tool",
+     "target": "blank-key-tolerant-key-inference",
+     "name": "IMPLEMENTS",
+     "fact": "键推断容忍全空键：EquipmentDefinitionTable.xlsx 第 1 列 Name 含 545 个空白分隔行使键唯一性低于 100%，原实现退化为整行作键导致单元格改动显示成删行+增行；修复后非空键在 left/center/right 三方各自唯一且与 center 重合过半即取该列为键，空白键行按序配对。"
+    },
+    {
+     "source": "table-diff-tool",
+     "target": "per-pane-horizontal-scrolling",
+     "name": "IMPLEMENTS",
+     "fact": "滚动机制升级：原滚动为手绘共享模型、只有竖向滚动条且 ensure_visible 只管纵向；先新增横向滚动条组件 show_horizontal，后改为逐窗格独立横向滚动（滚轮只滚指针下窗格），纵向仍四窗格共用保证行对齐；方向键/导航/打开落点按各窗格宽度 ensure_visible，落点精确到区段第一个改动格（如 R964 C11），手动滚轮不被吸回并有测试锁定。"
+    },
+    {
+     "source": "table-diff-tool",
+     "target": "cell-content-tooltip-detail-bar",
+     "name": "IMPLEMENTS",
+     "fact": "长单元格查看方案：悬停 tooltip 自动换行并以 4000 字截断，底部详情条完整显示内容且支持复制；详情条持焦时方向键/Delete 按键留给文本操作，不误删输出格。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "table-diff-tool",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "blank-key-tolerant-key-inference",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "55a15ad2-382c-474b-9311-acd346398bd5",
+        "canonical_name": "blank-key-tolerant-key-inference",
+        "match_basis": "exact",
+        "created_at": "2026-11-14T14:31:51.579157000+00:00",
+        "group_id": "project:matcha",
+        "summary": "bc-merge-tool 的表格合并引擎（bc-engine-table/merge.rs）采用 blank-key-tolerant-key-inference 规则：非空键在三方各自唯一且与 center 重合过半即取该单列作键，空白键行（分隔行）按序配对；该规则修复了因第 1 列 Name 含 545 个空白分隔行导致唯一性不足、推断退化为整行作键，从而一处单元格改动被误显示为删行+增行的"
+       }
+      ]
+     },
+     {
+      "input_name": "per-pane-horizontal-scrolling",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "cell-content-tooltip-detail-bar",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [
+   {
+    "check": "novelty_duplicate",
+    "severity": "escalate",
+    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   ],
+   "removals": []
+  }
+ },
+ {
+  "memory_id": "01a1da76-adc1-7d71-9b52-e21a6497ab45",
+  "session_id": "pi:matcha:01a1da3d-2a26-740c-9ae6-5cbb46915297",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:matcha",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-11-14T14:29:52.855402Z",
+  "snapshot_token": "rs1:3e9251dab1dd9eded96e279bb8ab27127924cf54270011e8da0b12e56422d161",
+  "review_id": "01a1da76-cd4a-7258-9e07-ea57ede5c4b7",
+  "project_id": "matcha",
+  "memory_type": "session_summary",
+  "summary": "本地发布",
+  "created_at": "2026-11-14T14:29:41.303543Z",
+  "entity_count": 0,
+  "edge_count": 0,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆中的合并路径框功能与候选6描述的实现一致（属演进/确认），同时新增了候选未覆盖的事实：具体提交哈希 d127372/17b6649 已推送至 origin/master，以及 SKILL.md 本地 dist 快速流程文档这一新文档事实。"
+  },
+  "distilled_content": "首个用户目标：本地发布。最近用户目标：commit & push。会话结果：完成 ✅ 两个 commit 已推送到 `origin/master`： - `d127372` **feat(merge)**: selectable read-only path bars with right-click copy in merge headers（代码 + feature 文档 + CHANGELOG） - `17b6649` **docs(skill)**: matcha-publish local dist quick flow（SKILL.md） 工作区已干净，本地与远程同步。",
+  "proposed": {
+   "entities": [],
+   "edges": [],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": []
+   }
+  },
+  "flags": [
+   {
+    "check": "empty_preview",
+    "severity": "escalate",
+    "detail": "预览为空；curated 不可用，只能 original 或人工看正文"
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "预览为空；curated 不可用，只能 original 或人工看正文"
+   ],
+   "removals": []
+  }
+ },
+ {
+  "memory_id": "01a1d930-8c10-736a-9c27-b209f8fb8cf3",
+  "session_id": "pi:maindev:01a1d8a4-e077-742f-8209-2e7995be0fad",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:maindev",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-11-14T08:33:58.505117Z",
+  "snapshot_token": "rs1:9c61fce7710595406b3f8eb47499ed5aec08cfe1e2d33b85600c989e84fbff54",
+  "review_id": "01a1d930-c611-7226-99dc-0c2ae78ca29b",
+  "project_id": "maindev",
+  "memory_type": "session_summary",
+  "summary": "执行导表每日巡检：运行 bash .team/sunlaibing/skills/excel-export/scripts/rpdt_daily.sh。退出码 ",
+  "created_at": "2026-11-14T08:33:34.718411Z",
+  "entity_count": 1,
+  "edge_count": 0,
+  "novelty": {
+   "status": "completed",
+   "admission": "novel",
+   "rationale": "新记忆报告了此前候选均未覆盖的新事实：构建 47837（MainDev CL 149283→149298）的 FAILURE 归因结果，包括 32 实体 3 类问题、Token 系列关联 binghao.zhao CL148964、StickyBall 关联 XuRuoji CL148861、B 类关联 YuQiRong CL148325，以及新的飞书文档与本地产物路径；这些均为历史候选未出现的当日巡检产出。其执行流程与结果均与历史记录相容，不构成对任何旧结论的纠正、细化或矛盾，也未发现可直接确认的同一可复用事实（各候选的构建号、CL、实体统计均不同，属不同实例而非同一事实的版本）。"
+  },
+  "distilled_content": "首个用户目标：执行导表每日巡检：运行 bash .team/sunlaibing/skills/excel-export/scripts/rpdt_daily.sh。退出码 0 即完成（最新构建非失败、或该 build 当天已通知过，都属正常跳过，不要重发）。退出码非 0 时按脚本输出定位原因（参考 .team/sunlaibing/skills/excel-export/references/rpdt-daily-notify.md），修不好就在会话末尾报告失败原因，不要反复重试发送通知。。最近用户目标：执行导表每日巡检：运行 bash .team/sunlaibing/skills/excel-export/scripts/rpdt_daily.sh。退出码 0 即完成（最新构建非失败、或该 build 当天已通知过，都属正常跳过，不要重发）。退出码非 0 时按脚本输出定位原因（参考 .team/sunlaibing/skills/excel-export/references/rpdt-daily-notify.md），修不好就在会话末尾报告失败原因，不要反复重试发送通知。。会话结果：巡检完成，退出码 0。 **结果**：最新构建 `47837`（MainDev CL 149283→149298）状态 FAILURE，已走完整管线并发送通知（今日首次，非重复）： - **Error 归因**：51 条 Error 去重后 32 个实体、3 类问题 - **A. VFXProxyMesh 目标组件缺失** — 19 实体，全归 YuQiRong（Token 系列多关联 binghao.zhao CL148964，StickyBall 关联 XuRuoji CL148861） - **B. 组件属性与配表不一致**（StaticMesh 期望为空但挂了 SM_PM_Rock_S_01）— 11 实体，全部归 YuQiRong（CL148325） - **C. 其他 Error** — Deer/Wolf 蓝图 InheritedGameplayTags 缺失，归 WuQilong / KanSa（FuTianle CL145264） - **飞书文档**：https://cyancook.feishu.cn/docx/TLKtdzv1AofKOexw8J2cRb8Tnfh（群通知一次 200 成功） - **本地产物**：`Tools/reports/20261114-140133-rpdt-daily/`（rpdt_report.md、rpdt_assets.md） Warning 侧另有 regen 类 28 行（E_STATIC_TAGS 2、W_BODY_INSTANCE 32 等）已写入报告，供后续处理。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "rpdt-daily",
+     "type": "Tool",
+     "summary": "导表（excel-export）每日巡检脚本，位于项目相对路径 .team/sunlaibing/skills/excel-export/scripts/rpdt_daily.sh，诊断参考同目录 references/rpdt-daily-notify.md。机制：检查最新 MainDev 构建状态；退出码 0 即视为完成，最新构建非失败或该 build 当天已通知过均属正常跳过、不重发通知；退出码非 0 时按脚本输出定位原因，修不好在会话末尾报告失败原因而不反复重试发送。构建 FAILURE 时走完整管线：Error 去重归因（按实体与责任人归类），生成飞书文档并群通知（同一 build 当天仅通知一次），同时输出本地产物报告到 Tools/reports/<时间戳>-rpdt-daily/（rpdt_report.md、rpdt_assets.md），Warning 类问题（如 regen 相关 E_STATIC_TAGS、W_BODY_INSTANCE）写入报告供后续处理。"
+    }
+   ],
+   "edges": [],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "rpdt-daily",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "950847a5-4dac-4bcc-a09f-8d633e699a65",
+        "canonical_name": "rpdt-daily",
+        "match_basis": "exact",
+        "created_at": "2026-10-22T06:16:01.115032000+00:00",
+        "group_id": "project:maindev",
+        "summary": "rpdt-daily 通过 scripts/rpdt_daily.sh 每日巡检 PL_RunProcessorsOnDT 最新构建：构建失败时归因错误、按负责人派单并发飞书群通知；最新构建非失败或该 build 当天已通知过时正常跳过（退出码 0，状态文件记录已通知 build id，不重复发送）。\nrpdt-daily 每日巡检导表校验构建流水线 PL_RunProcessorsOnDT 的最"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "flags": [
+   {
+    "check": "thin_preview",
+    "severity": "suggest_original",
+    "detail": "预览 1 实体 0 边；curated 渲染会很薄，建议 original"
+   }
+  ],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "original",
+   "removals": [],
+   "reasons": [
+    "预览过薄，按原蒸馏文批准"
+   ]
+  }
+ },
+ {
+  "memory_id": "01a1d842-cda9-76fa-8c12-f91e4fb00032",
+  "session_id": "pi:obsidianvault:01a1d83d-715a-714e-87b9-355c32d15cfd",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:obsidianvault",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-11-14T04:14:11.559401Z",
+  "snapshot_token": "rs1:c588b298a936b90d8259c5dbd93768f0d435963e46e1cabf8caa47385b00cc70",
+  "review_id": "01a1d842-faf9-7d12-9948-bbe350823512",
+  "project_id": "obsidianvault",
+  "memory_type": "session_summary",
+  "summary": "我先看看有没有可用的网络搜索工具,再给你查最新的 Switch 1 新作。 codemode const tools = await searchTools(\"",
+  "created_at": "2026-11-14T04:13:50.694531Z",
+  "entity_count": 2,
+  "edge_count": 1,
+  "novelty": {
+   "status": "completed",
+   "admission": "novel",
+   "rationale": "新记忆包含两个未被任何历史候选覆盖的长期事实：(1) codemode 注入的保留参数名（tools/text/image/console/store/load/models/searchTools）不能用 const 重新声明，否则报 SyntaxError；(2) 当前环境没有通用网络搜索/抓取工具，只有 mcp__rea__*、mcp__blender__*、memory_search 等专用 MCP，联网需走 bash+curl 或额外配置搜索 MCP。候选均围绕 memory-hub 检索机制、ESP32 配置、Hopper 安装等主题，无同一事实的版本关系。"
+  },
+  "distilled_content": "首个用户目标：我先看看有没有可用的网络搜索工具,再给你查最新的 Switch 1 新作。 codemode const tools = await searchTools(\"web search\", { limit: 10 }); console.log(JSON.stringify(tools, null, 2)); const tools2 = await searchTools(\"fetch url\", { limit: 10 }); console.log(JSON.stringify(tools2, null, 2)); Script error: SyntaxError: invalid redefinition of parameter name at codemode.js:1:41 No tool calls were made. Took 0.2s 语法问题,tools 是保留名。换个变量名。 codemode const found = await searchTools(\"web search internet\", { limit: 10 }); console.log(JSON.stringify(found, null, 2)); const found2 = await searchTools(\"fetch url webpage\", { limit: 10 }); console.log(JSON.stringify(found2, null, 2)); Warning: truncated output (original token count: 3291。最近用户目标：我先看看有没有可用的网络搜索工具,再给你查最新的 Switch 1 新作。 codemode const tools = await searchTools(\"web search\", { limit: 10 }); console.log(JSON.stringify(tools, null, 2)); const tools2 = await searchTools(\"fetch url\", { limit: 10 }); console.log(JSON.stringify(tools2, null, 2)); Script error: SyntaxError: invalid redefinition of parameter name at codemode.js:1:41 No tool calls were made. Took 0.2s 语法问题,tools 是保留名。换个变量名。 codemode const found = await searchTools(\"web search internet\", { limit: 10 }); console.log(JSON.stringify(found, null, 2)); const found2 = await searchTools(\"fetch url webpage\", { limit: 10 }); console.log(JSON.stringify(found2, null, 2)); Warning: truncated output (original token count: 3291。会话结果：## 结论 1. **报错修复**：`tools` 是 codemode 注入的保留参数名，不能 `const tools = ...` 重新声明。换成任意其他名字（如 `found`、`res`）即可，你第二次的写法就是对的。同理要避免 `text`/`image`/`console`/`store`/`load`/`models`/`searchTools` 等这些注入名。 2. **网络搜索工具**：当前环境**没有通用的 web search / fetch 工具**。能搜到的都是专用 MCP： - `mcp__rea__*`（逆向分析，虽有 browser capture 能力但面向调试场景） - `mcp__blender__*` - `memory_search`（本地记忆，不是互联网） 如果你确实要查「最新的 Switch 1 新作」，可行的替代路径： - 直接用 `bash` + `curl` 抓网页（比如任天堂官网、维基或搜索引擎结果页），我再帮你解析内容； - 或者你有其他带搜索能力的 MCP 服务（如 Brave/Tavily）的话，需要先配置进 MCP 才会出现在工具列表里。 要我直接用 curl 帮你查吗？",
+  "proposed": {
+   "entities": [
+    {
+     "name": "codemode",
+     "type": "Tool",
+     "summary": "代码模式脚本执行环境，会向脚本注入一组保留参数名（tools、text、image、console、store、load、models、searchTools 等），脚本内不可用 const 重新声明这些名字。"
+    },
+    {
+     "name": "codemode-reserved-names",
+     "type": "Convention",
+     "summary": "codemode 脚本的变量命名约定：注入的保留参数名（tools、text、image、console、store、load、models、searchTools）不能被 const 重新声明，否则报 SyntaxError: invalid redefinition of parameter name，需换用其他变量名（如 found、res）。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "codemode-reserved-names",
+     "target": "codemode",
+     "name": "APPLIES_TO",
+     "fact": "codemode 脚本中 tools、text、image、console、store、load、models、searchTools 为环境注入的保留参数名，用 const tools = ... 重新声明会报 SyntaxError: invalid redefinition of parameter name 且不会执行任何工具调用，需改用其他变量名（如 found、res）。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "codemode",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "codemode-reserved-names",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "memory_id": "01a1d7e3-58aa-7078-8f9d-8d507222d7dc",
+  "session_id": "pi:admin_sun_depot_7184:01a1d770-2ede-77c4-bbdf-0effbb3e662b",
   "session_version": null,
   "scope_type": "project",
   "group_id": "project:admin_sun_depot_7184",
   "status": "review",
   "memory_status": "pending_extraction",
   "preview_attempts": 0,
-  "updated_at": "2026-11-04T20:40:15.861054Z",
-  "snapshot_token": "rs1:76b3bc3ebee2d2832e8bb62b2ecaae374cd3ea62d68d49f521a8e599ae91c6dd",
-  "review_id": "01a1a84a-1271-7c5c-8735-149c2b77cb0e",
+  "updated_at": "2026-11-14T02:30:02.028711Z",
+  "snapshot_token": "rs1:48152bf40fa059800005c3ae8913c18b61fd847f009ee5f7f3f7871f04823b18",
+  "review_id": "01a1d7e3-711b-7ddf-aa09-65316114a927",
   "project_id": "admin_sun_depot_7184",
-  "memory_type": "dream_lesson",
-  "summary": "AIReview2554漏报与AI错误上报修复链",
-  "created_at": "2026-11-04T20:39:49.084747Z",
-  "entity_count": 4,
-  "edge_count": 3,
-  "novelty": {
-   "status": "completed",
-   "admission": "duplicate",
-   "rationale": "新记忆的全部事实——首轮链 Flow 42114→42113→42112、C2039 等格式被旧解析规则漏掉并由 CL2079 修复待部署、pi 上游 api_error 中断经 CL2080 在摘要脱敏展示且与编译分析分开、失败报告默认展开并尊重手动收起、143 项测试通过且未提交未部署不回填——已被候选1（CL2080）与候选2（CL2079）分别完整覆盖，没有新增条件、边界、原因、步骤或纠正。"
-  },
-  "distilled_content": "AI Review 2554 要分两层：首轮链 Flow 42114→AI 42113→Build 42112；编译失败但 0 Error 是日志解析规则漏掉 C2039 等新格式，修复 rules/agent 与回归（CL2079）但需部署才生效；AI 自身 pi 上游中断（exit_code=1/api_error）不能再静默到 stderr，CL2080 在摘要显示“AI 分析运行错误…”并脱敏，与编译分析分开；有编译失败/错误数>0/链失败时报告默认展开且尊重手动收起。143 项测试通过，未提交未部署，旧结果不回填。",
-  "proposed": {
-   "entities": [
-    {
-     "name": "ai-review",
-     "type": "Project",
-     "summary": "AI Review 系统（任务 2554），分两层：首轮链 Flow→AI→Build；包含编译分析（rules/agent 日志解析）与 AI 分析两部分。本轮完成了日志解析修复、AI 错误摘要展示和报告默认展开逻辑，均已实现并回归验证，但截至会话结束未提交、未部署，旧结果不回填。"
-    },
-    {
-     "name": "build-log-parsing-rules",
-     "type": "Convention",
-     "summary": "AI Review 的 rules/agent 编译日志解析规则。根因定位：编译失败但显示 0 Error 是因为解析规则漏掉 C2039 等新错误格式；修复需部署后才生效。"
-    },
-    {
-     "name": "ai-error-summary-reporting",
-     "type": "Concept",
-     "summary": "AI 分析自身上游中断（exit_code=1/api_error）的摘要展示机制：不再静默到 stderr，而是在摘要中显示“AI 分析运行错误…”并脱敏，与编译分析分开。"
-    },
-    {
-     "name": "review-report-expansion",
-     "type": "Convention",
-     "summary": "AI Review 报告展示规则：存在编译失败、错误数>0 或链失败时报告默认展开，且尊重用户手动收起。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "build-log-parsing-rules",
-     "target": "ai-review",
-     "name": "APPLIES_TO",
-     "fact": "AI Review 中编译失败但显示 0 Error 的根因是 rules/agent 日志解析规则漏掉 C2039 等新错误格式；修复与回归已完成，但截至会话结束未提交未部署，需部署后才生效。"
-    },
-    {
-     "source": "ai-review",
-     "target": "ai-error-summary-reporting",
-     "name": "IMPLEMENTS",
-     "fact": "AI Review 的 AI 分析自身 pi 上游中断（exit_code=1/api_error）不再静默到 stderr，改为在摘要显示“AI 分析运行错误…”并脱敏，与编译分析分开；已实现但截至会话结束未提交未部署。"
-    },
-    {
-     "source": "review-report-expansion",
-     "target": "ai-review",
-     "name": "APPLIES_TO",
-     "fact": "AI Review 报告在有编译失败、错误数>0 或链失败时默认展开，并尊重用户手动收起；已实现但截至会话结束未提交未部署，旧结果不回填。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "ai-review",
-      "status": "exact",
-      "candidates": [
-       {
-        "uuid": "2a8a8afb-f53a-4227-b3e4-ad91464c68cb",
-        "canonical_name": "ai-review",
-        "match_basis": "exact",
-        "created_at": "2026-09-02T08:28:38.318880000+00:00",
-        "group_id": "project:admin_sun_depot_7184",
-        "summary": "ai-review 是 pyAutomation 后端 AI Review 自动代提交应用，位于 backend/server/applications/ai_review/（相对路径 pyAutomation/backend/server/applications/ai_review），负责代码评审决策与自动代提交，覆盖 DevOps/AiReview/、Teamcity_PLN/，为 T0 平"
-       }
-      ]
-     },
-     {
-      "input_name": "build-log-parsing-rules",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "ai-error-summary-reporting",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "review-report-expansion",
-      "status": "new",
-      "candidates": []
-     }
-    ]
-   }
-  },
-  "flags": [
-   {
-    "check": "novelty_duplicate",
-    "severity": "escalate",
-    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   }
-  ],
-  "suggestion": {
-   "action": "escalate",
-   "auto": false,
-   "reasons": [
-    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   ],
-   "removals": []
-  }
- },
- {
-  "memory_id": "01a1a839-25b9-7d58-81fb-c0bd98aca025",
-  "session_id": "pi:nas:01a19cd3-6a8c-70f4-98dd-e4c64f5f68f0",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:nas",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 0,
-  "updated_at": "2026-11-04T20:38:46.137734Z",
-  "snapshot_token": "rs1:1fb46af33a09371e3133d4a532e61380b6111b68d3f6e39c62ad56a84e470f4a",
-  "review_id": "01a1a848-a617-7554-830d-caa63898051c",
-  "project_id": "nas",
-  "memory_type": "dream_lesson",
-  "summary": "QNAP CPU 90%：CGI 轮询叠加单盘 sdc iowait 与内存换页恶性循环",
-  "created_at": "2026-11-04T20:38:15.812344Z",
-  "entity_count": 4,
-  "edge_count": 3,
-  "novelty": {
-   "status": "completed",
-   "admission": "duplicate",
-   "rationale": "新记忆包含的两个有长期价值的事实——(1) CPU 90%+ 由 QTS 管理页 CGI 高频轮询约 40% 叠加 sdc iowait 约 48% 及处理建议、memory-center-cypher-ro 30% 待查——已由 rank 3 完整覆盖；(2) 容器数据与 swap 同在单盘 sdc 导致的内存不足→换页→sdc 饱和→iowait 恶性循环已由 rank 2 完整覆盖。新记忆未增加任何条件、边界、原因、步骤或纠正，属于同一事实的整合重复。"
-  },
-  "distilled_content": "该 4 核/8GB QNAP 的 CPU 90%+ 不是单一进程：QTS 管理页 CGI 高频轮询约 40%（utilRequest.cgi 21 次/秒，正常约1次/秒，源自开着资源监控/存储/总览页的客户端），叠加 iowait 约48%（sdc util 98~99% 但吞吐仅~7MB/s）。结构性约束：所有容器数据与 swap 同在单盘 sdc，8GB 用7.5GB、swap1.9GB，内存不足→换页IO落sdc→sdc饱和→iowait被QTS计入CPU。处理：关相关管理页/无痕重试，第三方轮询≥10s；memory-center-cypher-ro 常驻30%原因待查。",
-  "proposed": {
-   "entities": [
-    {
-     "name": "qnap-nas",
-     "type": "Service",
-     "summary": "4核/8GB QNAP NAS，运行 QTS。结构性约束：所有容器数据与 swap 同在单盘 sdc；内存 8GB 已用约 7.5GB、swap 约 1.9GB，内存不足时换页 IO 落到 sdc，导致 sdc 饱和（util 98~99% 但吞吐仅约 7MB/s），iowait（当时约 48%）被 QTS 计入 CPU 使用率，使总 CPU 超 90% 而非单一进程所致。",
-     "suggested_canonical": "qnap nas"
-    },
-    {
-     "name": "utilRequest.cgi",
-     "type": "Tool",
-     "summary": "QTS 管理页（资源监控/存储/总览）使用的 CGI 轮询接口；客户端开着相关管理页时轮询可达约 21 次/秒（正常约 1 次/秒），是当时 QNAP 约 40% CPU 的来源。"
-    },
-    {
-     "name": "memory-center-cypher-ro",
-     "type": "Service",
-     "summary": "QNAP 上常驻约 30% CPU 的容器/进程，高占用原因截至会话结束尚未查明。"
-    },
-    {
-     "name": "qnap-polling-min-interval",
-     "type": "Convention",
-     "summary": "针对该 QNAP 的 CPU 高占用处理约定：关闭资源监控/存储/总览等管理页或用无痕窗口重试；第三方轮询间隔不低于 10 秒。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "utilRequest.cgi",
-     "target": "qnap-nas",
-     "name": "CAUSES_HIGH_CPU_ON",
-     "fact": "当客户端开着 QTS 资源监控/存储/总览管理页时，utilRequest.cgi 高频轮询约 21 次/秒（正常约 1 次/秒），当时贡献了 QNAP 约 40% 的 CPU 占用。"
-    },
-    {
-     "source": "memory-center-cypher-ro",
-     "target": "qnap-nas",
-     "name": "RUNS_ON",
-     "fact": "memory-center-cypher-ro 在 QNAP 上常驻约 30% CPU，其原因截至会话结束尚未查明。"
-    },
-    {
-     "source": "qnap-polling-min-interval",
-     "target": "qnap-nas",
-     "name": "APPLIES_TO",
-     "fact": "针对该 QNAP 的 QTS 管理页轮询导致的 CPU 高占用，处理约定为关闭相关管理页或用无痕窗口重试，且第三方轮询间隔不低于 10 秒。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "qnap-nas",
-      "status": "suspected",
-      "candidates": [
-       {
-        "uuid": "61a44999-6441-4b46-87c4-8d36d09754e5",
-        "canonical_name": "qnap nas",
-        "match_basis": "suspected",
-        "created_at": "2026-08-22T10:03:25.418449000+00:00",
-        "group_id": "project:nas",
-        "summary": "用户的 QNAP NAS（qnap-nas）：4 盘位，Intel Celeron J4125（4 核）+ 8GB 内存，2 × DDR4-2400 SO-DIMM（官方上限 8GB）；社区实测 2×8GB=16GB 稳定可用，2×16GB 不保证点亮，超规格内存不在保修范围。\n\n运行 QTS 及 container-station、Qsirch、memory-hub、dashboard_back"
-       }
-      ]
-     },
-     {
-      "input_name": "utilRequest.cgi",
-      "status": "exact",
-      "candidates": [
-       {
-        "uuid": "355c0ebd-8e97-497e-92ee-a09744c1268d",
-        "canonical_name": "utilRequest.cgi",
-        "match_basis": "exact",
-        "created_at": "2026-11-03T22:08:15.680731000+00:00",
-        "group_id": "project:nas",
-        "summary": "qts-cgi-dispatch 链路包含 utilRequest.cgi（QTS 资源监控/系统状态接口），其正常调用约 1 次/秒，异常时实测达 21 次/秒，来源为局域网客户端上卡在快速重试循环的 QTS 管理页面。"
-       }
-      ]
-     },
-     {
-      "input_name": "memory-center-cypher-ro",
-      "status": "exact",
-      "candidates": [
-       {
-        "uuid": "796ce212-6acd-4712-bfcb-11aaf52797da",
-        "canonical_name": "memory-center-cypher-ro",
-        "match_basis": "exact",
-        "created_at": "2026-11-03T22:08:15.680772000+00:00",
-        "group_id": "project:nas",
-        "summary": "memory-center-cypher-ro 容器常驻在 qnap-nas 上，观测到约 30% CPU 占用，具体原因尚待排查。"
-       }
-      ]
-     },
-     {
-      "input_name": "qnap-polling-min-interval",
-      "status": "new",
-      "candidates": []
-     }
-    ]
-   }
-  },
-  "flags": [
-   {
-    "check": "novelty_duplicate",
-    "severity": "escalate",
-    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   }
-  ],
-  "suggestion": {
-   "action": "escalate",
-   "auto": false,
-   "reasons": [
-    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   ],
-   "removals": []
-  }
- },
- {
-  "memory_id": "01a1a836-dfa7-7853-b2d5-12134123ab0a",
-  "session_id": "claude:obsidianvault:370f1e2d-651d-4493-88fb-adef2816fd58",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:obsidianvault",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 0,
-  "updated_at": "2026-11-04T20:35:03.634267Z",
-  "snapshot_token": "rs1:23a191c9a5afb5f12de32c2a0a944fbc5c357f4ed3c50eb3b35ee9bc0e47c618",
-  "review_id": "01a1a845-7479-7a18-afda-ab1dbc26d48f",
-  "project_id": "obsidianvault",
-  "memory_type": "dream_experience",
-  "summary": "team-profile 测试依赖工作目录，必须从仓库根目录运行",
-  "created_at": "2026-11-04T20:34:46.503818Z",
-  "entity_count": 2,
-  "edge_count": 1,
-  "novelty": {
-   "status": "completed",
-   "admission": "duplicate",
-   "rationale": "新记忆包含的唯一长期事实（team-profile 测试 CWD 相关、必须在仓库根目录运行、15 个单元测试 + 8 个真实 SDK 测试通过）已被候选 rank 3 完整覆盖：'需要在仓库根目录运行，在扩展目录里跑会因为找不到文件而失败'，且测试数量一致。新记忆未新增条件、边界、原因、步骤或纠正，仅是对旧结论的重复实测确认。其余候选涉及不同主体（memory-hub、git 提交、bare node 加载器问题等），与新记忆不构成同一可复用事实的版本关系。"
-  },
-  "distilled_content": "team-profile 的测试是 CWD 相关的：在扩展目录里运行会因找不到文件而失败，必须 cd 到仓库根目录再跑。本次实测：在根目录运行时单元测试 15 个 + 真实 SDK 测试 8 个全部通过。",
-  "proposed": {
-   "entities": [
-    {
-     "name": "team-profile",
-     "type": "Project",
-     "summary": "team-profile 的测试对当前工作目录（CWD）敏感：在扩展目录内运行会因找不到文件而失败，必须先 cd 到仓库根目录再执行测试。"
-    },
-    {
-     "name": "run-team-profile-tests-from-repo-root",
-     "type": "Convention",
-     "summary": "约定：运行 team-profile 测试前必须切换到仓库根目录，在扩展目录中运行会因路径解析失败而报错。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "run-team-profile-tests-from-repo-root",
-     "target": "team-profile",
-     "name": "APPLIES_TO",
-     "fact": "team-profile 的测试是 CWD 相关的：在扩展目录里运行会因找不到文件而失败，必须 cd 到仓库根目录再运行。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "team-profile",
-      "status": "exact",
-      "candidates": [
-       {
-        "uuid": "f6f58dfc-f00f-4665-861e-37ebb14210c6",
-        "canonical_name": "team-profile",
-        "match_basis": "exact",
-        "created_at": "2026-08-18T13:06:24.029838000+00:00",
-        "group_id": "project:obsidianvault",
-        "summary": "team-profile 是 ObsidianVault 仓库 `.pi/extensions/team-profile` 下的 pi 记忆注入扩展，逻辑位于 `SKILL.md`，负责在会话中注入个人记忆（对应 `.team/sunlaibing/memory.md`）。2026-08-14 的提交 c61e3e96 将 `.pi/extensions`（含 a2a-mentions、dynam"
-       }
-      ]
-     },
-     {
-      "input_name": "run-team-profile-tests-from-repo-root",
-      "status": "new",
-      "candidates": []
-     }
-    ]
-   }
-  },
-  "flags": [
-   {
-    "check": "novelty_duplicate",
-    "severity": "escalate",
-    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   }
-  ],
-  "suggestion": {
-   "action": "escalate",
-   "auto": false,
-   "reasons": [
-    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   ],
-   "removals": []
-  }
- },
- {
-  "memory_id": "01a1a835-30c4-7462-87aa-efecb186f578",
-  "session_id": "pi:maindev:01a1a0b4-5823-741c-b5a5-34f5222b202f",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:maindev",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 0,
-  "updated_at": "2026-11-04T20:25:45.747559Z",
-  "snapshot_token": "rs1:3d772faab120d573d6d54316136157810f540b1e1ac237826eec793c06c918d4",
-  "review_id": "01a1a83c-4431-7fbb-98ce-8cac1d4361f3",
-  "project_id": "maindev",
-  "memory_type": "dream_experience",
-  "summary": "UE 自动化虚拟光标未初始化导致鼠标注入静默失败的根因与修复",
-  "created_at": "2026-11-04T20:24:44.315291Z",
-  "entity_count": 4,
-  "edge_count": 3,
-  "novelty": {
-   "status": "completed",
-   "admission": "duplicate",
-   "rationale": "根因（用例切换重建 FFauxSlateCursor 坐标为 INT32_MIN、HeavyAttack 不继承位置导致注入丢失）与 rank 1 一致；修复方案（切入初始化到视口中心、非法/NaN/越界落点回退居中、C++ 统一日志）与 rank 2、rank 6 一致；验证结果（边界单测 1/1、5 轮 10/10）与 rank 6 完全一致。无新增条件、边界、纠正或决策。"
-  },
-  "distilled_content": "PLAutomation 每条用例切换光标时通过 UsePlatformCursorForCursorUser(false) 重建 FFauxSlateCursor，新实例初始坐标为 INT32_MIN 哨兵值且不会继承旧位置；HeavyAttack 等用例不传坐标直接读当前光标，导致中键注入到非法落点，输入在到达玩法层之前丢失（无 InputTag/Detector 日志），最终等待蒙太奇超时。已验证的修复（CL 144627）：切入虚拟光标时初始化到视口中心；玩法点击落点未初始化/NaN/越界时回退视口中心（正常 UI 点击保留指定坐标）；C++ 输入层统一记录原始/最终坐标、回退原因、命中目标、捕获者与焦点，不加高频移动日志。验证：边界单测 1/1，AimSlowFall+HeavyAttack 连续 5 轮 10/10 通过。",
-  "proposed": {
-   "entities": [
-    {
-     "name": "plautomation",
-     "type": "Project",
-     "summary": "UE 自动化测试插件。每条用例切换光标时通过 UsePlatformCursorForCursorUser(false) 切入虚拟光标（重建 FFauxSlateCursor）。已修复：切入虚拟光标时初始化到视口中心；玩法点击落点未初始化/NaN/越界时回退视口中心，正常 UI 点击保留指定坐标；C++ 输入层统一记录原始/最终坐标、回退原因、命中目标、捕获者与焦点，不加高频移动日志。修复已实施并验证。",
-     "suggested_canonical": "PLAutomation"
-    },
-    {
-     "name": "FFauxSlateCursor",
-     "type": "Tool",
-     "summary": "Slate 虚拟光标类。UsePlatformCursorForCursorUser(false) 会重建其实例，新实例初始坐标为 INT32_MIN 哨兵值且不继承旧位置；若用例不传坐标直接读当前光标，会导致注入落点非法。"
-    },
-    {
-     "name": "UsePlatformCursorForCursorUser",
-     "type": "Tool",
-     "summary": "引擎光标切换 API。传 false 切入虚拟光标并重建 FFauxSlateCursor；重建后坐标为 INT32_MIN 哨兵值，需显式初始化。"
-    },
-    {
-     "name": "viewport-center-cursor-fallback",
-     "type": "Convention",
-     "summary": "PLAutomation 的光标落点保护机制：切入虚拟光标时初始化到视口中心；玩法点击落点未初始化、NaN 或越界时回退到视口中心，正常 UI 点击保留指定坐标；配套输入层统一日志记录原始/最终坐标与回退原因。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "plautomation",
-     "target": "UsePlatformCursorForCursorUser",
-     "name": "USES",
-     "fact": "PLAutomation 每条用例切换光标时调用 UsePlatformCursorForCursorUser(false) 切入虚拟光标。"
-    },
-    {
-     "source": "UsePlatformCursorForCursorUser",
-     "target": "FFauxSlateCursor",
-     "name": "RECREATES",
-     "fact": "调用 UsePlatformCursorForCursorUser(false) 会重建 FFauxSlateCursor，新实例初始坐标为 INT32_MIN 哨兵值且不继承旧光标位置。"
-    },
-    {
-     "source": "plautomation",
-     "target": "viewport-center-cursor-fallback",
-     "name": "IMPLEMENTS",
-     "fact": "PLAutomation 已实现视口中心回退机制：切入虚拟光标时初始化到视口中心，玩法点击落点未初始化、NaN 或越界时回退到视口中心（正常 UI 点击保留指定坐标），修复了 HeavyAttack 等不传坐标用例中键注入到非法落点、输入在到达玩法层之前丢失导致等待蒙太奇超时的问题；修复已实施并验证。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "plautomation",
-      "status": "casefold",
-      "candidates": [
-       {
-        "uuid": "5a0c874e-3413-4721-a155-f41996a54e2f",
-        "canonical_name": "PLAutomation",
-        "match_basis": "casefold",
-        "created_at": "2026-08-18T13:59:44.815152000+00:00",
-        "group_id": "project:maindev",
-        "summary": "PLAutomation 是 ProjectLungfish 的自动化测试插件，遵循方案 5 决策：自动化测试环境中游戏光标与系统光标独立，真实环境仍用真实系统光标。评审文档为 docs/PLAutoCursorIsolation_Review_20261030.md。\n\n输入隔离已完成并简化：PLAutoAutomatedInput 从约561行精简至约100行，移除 WITH_EDITOR 门"
-       }
-      ]
-     },
-     {
-      "input_name": "FFauxSlateCursor",
-      "status": "exact",
-      "candidates": [
-       {
-        "uuid": "40cb5624-2bce-4af6-96b4-cbcd9d5a7fed",
-        "canonical_name": "FFauxSlateCursor",
-        "match_basis": "exact",
-        "created_at": "2026-10-30T23:22:01.931511000+00:00",
-        "group_id": "project:maindev",
-        "summary": "pl-automation 的 v3 光标隔离方案通过 UsePlatformCursorForCursorUser(false) 将光标用户绑定到引擎自带的 FFauxSlateCursor，使 GetMousePositionOnPlatform、PointerMapPosition 等轮询路径读到的均为内存假位置。\nFFauxSlateCursor 是引擎自带的 faux Slate 光标，"
-       }
-      ]
-     },
-     {
-      "input_name": "UsePlatformCursorForCursorUser",
-      "status": "exact",
-      "candidates": [
-       {
-        "uuid": "0f0f7371-d750-449a-82a5-f604e9db0bc6",
-        "canonical_name": "UsePlatformCursorForCursorUser",
-        "match_basis": "exact",
-        "created_at": "2026-10-30T10:24:14.043086000+00:00",
-        "group_id": "project:maindev",
-        "summary": "PLAutoAutomatedInput 的整个实现被 #if WITH_EDITOR 包裹（PLAutoAutomatedInput.cpp:3-561），#else 分支全是空 stub；在 Editor（WITH_EDITOR=1）下它调用 UsePlatformCursorForCursorUser(false) 绑定内存态 faux cursor 使 SetCursorPos 只动假光标"
-       }
-      ]
-     },
-     {
-      "input_name": "viewport-center-cursor-fallback",
-      "status": "new",
-      "candidates": []
-     }
-    ]
-   }
-  },
-  "flags": [
-   {
-    "check": "novelty_duplicate",
-    "severity": "escalate",
-    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   }
-  ],
-  "suggestion": {
-   "action": "escalate",
-   "auto": false,
-   "reasons": [
-    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   ],
-   "removals": []
-  }
- },
- {
-  "memory_id": "01a1a833-f993-74df-a23d-ea3eb86cb793",
-  "session_id": "claude:maindev:2c7914c8-eaf9-48bd-bbef-aa2e682d7480",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:maindev",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 0,
-  "updated_at": "2026-11-04T20:24:12.188016Z",
-  "snapshot_token": "rs1:d5878d4f626f6cadf650ed4976cb20d05c7e065b2ae7561846228d83a25f3bcb",
-  "review_id": "01a1a83b-2956-7b85-b36a-f73af31c2de4",
-  "project_id": "maindev",
-  "memory_type": "dream_experience",
-  "summary": "PLAuto.Run 的 filter 参数可加引号；红测试复现依赖多播委托逆序调用",
-  "created_at": "2026-11-04T20:23:31.909950Z",
+  "memory_type": "session_summary",
+  "summary": "创建一个新的 BuildType，调用 Teamcity\\.teamcity\\patches\\buildTypes\\WpBuildPCG.kts 使用 Cust",
+  "created_at": "2026-11-14T02:29:29.480665Z",
   "entity_count": 3,
   "edge_count": 2,
   "novelty": {
    "status": "completed",
    "admission": "evolution",
-   "rationale": "候选5已记录『filter 加了引号、参数解析会去掉引号』和『红测试依赖多播委托逆序调用、已在引擎源码核对』两条事实；新记忆在此基础上补充了参数解析的具体机制（FParse::Token 切分）这一历史候选未覆盖的细节，构成 REFINES，另一事实仅重复确认，故非 novel 也非 duplicate。"
+   "rationale": "新记忆包含两处对历史候选（同 CL 2144 较早实现记录）的明确纠正：整体 executionTimeoutMin=2400 被删除、超时后果由'记 TIMEOUT 不取消继续'改为 REST 取消子构建，构成 SUPERSEDES；另新增 final settle gate 与 NOT_FINISHED/results.Count≠total 的批红条件，为历史候选未覆盖的新事实。"
   },
-  "distilled_content": "两个已核实的测试夹具事实：1) PLAuto.Run 的参数用 FParse::Token 切分，带引号的参数会被正确识别并去掉引号，所以给 filter 加引号是安全的（修复了夹具里 filter 未加引号的问题）；2) 红测试能复现重发现零派发，依赖多播委托按逆序调用（后注册的 Controller 监听者先执行），此前提已在引擎源码核对并写入注释。",
+  "distilled_content": "首个用户目标：创建一个新的 BuildType，调用 Teamcity\\.teamcity\\patches\\buildTypes\\WpBuildPCG.kts 使用 Custom，一个actor id 一个个的执行调用 WpBuildPCG，将其他几个 草原 苍木源 等 actorids 都提取出来，然后在逻辑里for 循环遍历调用执行，顺序的来，给出方案我来review。最近用户目标：这个超时不应该针对所有的整体时间吧，应该针对单个 任务 加个超时的上限，否则构建过程中，被其他任务插队，很容易导致整体超时的，另外所有的子任务完成，本任务才算成功。会话结果：全部落地完成。两处语义修正 + 验证结果： ## 本轮修改（CL 2144，未提交） **① 超时只挂单个任务，去掉整体上限** - 删除 `failureConditions executionTimeoutMin=2400` → 本任务**无整体时长上限**，被插队不会引发整体误超时（生成 XML 已确认无 `executionTimeoutMin`） - 单个任务超时改为只计 **running 时长**（默认 120min）：子构建在队列里排队、被其他任务插队均不计时，进入 running 才起表 - 超时后果：REST `buildCancelRequest` **取消该子构建**（XML 已确认落盘），记 `TIMEOUT_CANCELED`，按 continue_on_failure 语义继续下一个 **② 批成功 ⟺ 所有子任务完成** - 轮询循环只在 `state=finished` 或超时取消后才推进；取消后再等 10 分钟 settle 确保到达终态 - 新增 **final settle gate**：出汇总前对全部已触发 buildId 复核，必须全部 finished（15 分钟 grace，仍未完成记 `NOT_FINISHED` 批红） - 汇总判定加严：`failed>0` **或** `results.Count ≠ total`（提前 break 导致有未触发）均批红 **验证**：mvn generate BUILD SUCCESS → validate_step_scripts.py PARSE_OK → CHANGELOG 条目同步修正（无双 CR/孤 LF）。 **灰度时注意点**（已记 CHANGELOG）：`env.TEAMCITY_TOKEN` 的「读 buildType 参数」和「取消构建」两个权限此前只有触发先例，首跑若 403 给 token 补 view/cancel 权限即可。 CL 2144 等你 review 提交 → UI Load settings from VCS → 灰度 2 个 id 验证。",
   "proposed": {
    "entities": [
     {
-     "name": "PLAuto.Run",
-     "type": "Tool",
-     "summary": "测试夹具命令。其参数用引擎 FParse::Token 切分，带引号的参数会被正确识别并去掉引号，因此给 filter 参数加引号是安全的（此前夹具 filter 未加引号的问题已修复）。其红测试可复现重发现零派发，该复现依赖多播委托按注册逆序调用监听者（后注册的 Controller 监听者先执行），此前提已在引擎源码核对并写入注释。"
-    },
-    {
-     "name": "FParse::Token",
-     "type": "Tool",
-     "summary": "引擎参数切分函数，能正确识别带引号的参数并去掉引号，被 PLAuto.Run 用于解析命令参数。"
-    },
-    {
-     "name": "multicast-delegate-reverse-order",
-     "type": "Concept",
-     "summary": "多播委托按注册逆序调用监听者的引擎行为：后注册的监听者先执行。该前提已在引擎源码中核对确认，是 PLAuto.Run 红测试复现重发现零派发的依赖条件。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "PLAuto.Run",
-     "target": "FParse::Token",
-     "name": "USES",
-     "fact": "PLAuto.Run 用 FParse::Token 切分命令参数，带引号的参数会被正确识别并去掉引号，因此给 filter 加引号是安全的，夹具中 filter 未加引号的问题已修复。"
-    },
-    {
-     "source": "PLAuto.Run",
-     "target": "multicast-delegate-reverse-order",
-     "name": "DEPENDS_ON",
-     "fact": "PLAuto.Run 的红测试能复现重发现零派发，复现前提是引擎多播委托按注册逆序调用监听者（后注册的 Controller 监听者先执行），此前提已在引擎源码核对并写入注释。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "PLAuto.Run",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "FParse::Token",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "multicast-delegate-reverse-order",
-      "status": "new",
-      "candidates": []
-     }
-    ]
-   }
-  },
-  "flags": [],
-  "suggestion": {
-   "action": "approve",
-   "auto": true,
-   "content_mode": "curated",
-   "removals": [],
-   "reasons": [
-    "确定性检查全过"
-   ]
-  }
- },
- {
-  "memory_id": "01a1a828-2cbb-7a93-9fa9-15be1be11097",
-  "session_id": "claude:maindev:a572cbeb-f157-4ecf-9310-b37b8ec50281",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:maindev",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 0,
-  "updated_at": "2026-11-04T20:08:50.639414Z",
-  "snapshot_token": "rs1:a427bed0adf1d0d76eaf519f01854d72f00370d00382da96356bc9a858928023",
-  "review_id": "01a1a82c-6d8e-7312-b609-5bc8c5f8538c",
-  "project_id": "maindev",
-  "memory_type": "dream_experience",
-  "summary": "团队 skill 选取日志服务端不接受 API token 的约束与恢复方式",
-  "created_at": "2026-11-04T20:07:26.331224Z",
-  "entity_count": 3,
-  "edge_count": 2,
-  "novelty": {
-   "status": "completed",
-   "admission": "evolution",
-   "rationale": "核心事实（日志接口不接受 API token、跳过服务端数据、两条恢复途径）已被候选1完整覆盖，仅构成确认；但新记忆新增“只有两条”的穷尽边界，与候选2/7记载的 routing-collect.js --login 拉取方法是否等价未被原文澄清，构成适用条件不明的矛盾，故非纯重复。"
-  },
-  "distilled_content": "routing 审计时团队服务端日志(skills-select.jsonl 的 server 数据)被跳过：日志接口不接受 API token。恢复途径只有两条：让服务端放开该限制，或在 .env 中配置 PYAUTO_USER 和 PYAUTO_PASSWORD。本次审计只用了本机 Claude 和 Pi 的数据。",
-  "proposed": {
-   "entities": [
-    {
-     "name": "routing-audit",
+     "name": "WpBuildPCG",
      "type": "Project",
-     "summary": "routing 审计工作。因服务端日志接口不接受 API token，本次审计跳过了团队服务端日志（skills-select.jsonl 的 server 数据），仅使用本机 Claude 和 Pi 的数据。"
+     "summary": "TeamCity Custom BuildType 编排脚本（仓库相对路径 .teamcity/patches/buildTypes/WpBuildPCG.kts）：提取草原、苍木源等多个 PCG 世界 actor id，for 循环逐个顺序触发子构建，轮询至 state=finished 或超时取消后才推进下一个；取消后再等 10 分钟 settle。本轮两处语义修正已实现、验证通过，尚未提交，等用户 review 后走 UI Load settings from VCS 灰度验证。"
     },
     {
-     "name": "skills-select-server-logs",
-     "type": "Service",
-     "summary": "团队服务端日志来源（skills-select.jsonl 的 server 数据）。其日志接口不接受 API token，导致 routing 审计无法直接拉取。"
-    },
-    {
-     "name": "pyauto-env-credentials",
-     "type": "Convention",
-     "summary": "在 .env 中配置 PYAUTO_USER 和 PYAUTO_PASSWORD，作为访问服务端日志的替代认证方式（不存储具体值）。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "routing-audit",
-     "target": "skills-select-server-logs",
-     "name": "SKIPPED_DUE_TO_AUTH",
-     "fact": "routing 审计时团队服务端日志（skills-select.jsonl 的 server 数据）被跳过，原因是日志接口不接受 API token；本次审计只用了本机 Claude 和 Pi 的数据。"
-    },
-    {
-     "source": "pyauto-env-credentials",
-     "target": "skills-select-server-logs",
-     "name": "UNBLOCKS_ACCESS_TO",
-     "fact": "恢复访问 skills-select 服务端日志的途径只有两条：让服务端放开 API token 限制，或在 .env 中配置 PYAUTO_USER 和 PYAUTO_PASSWORD。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "routing-audit",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "skills-select-server-logs",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "pyauto-env-credentials",
-      "status": "new",
-      "candidates": []
-     }
-    ]
-   }
-  },
-  "flags": [],
-  "suggestion": {
-   "action": "approve",
-   "auto": true,
-   "content_mode": "curated",
-   "removals": [],
-   "reasons": [
-    "确定性检查全过"
-   ]
-  }
- },
- {
-  "memory_id": "01a1a5ee-4a5e-7771-ae71-6ba59947cb96",
-  "session_id": "pi:nas:01a1a5ec-556f-74d4-9015-391852ee7170",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:nas",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 0,
-  "updated_at": "2026-11-04T09:41:36.694309Z",
-  "snapshot_token": "rs1:526881d56c18adb35751d24f9effa5ab1f2d38d009cbc9e0e015ec4af43d2ae0",
-  "review_id": "01a1a5ee-8b98-7d0b-b888-a5763c0731b1",
-  "project_id": "nas",
-  "memory_type": "session_summary",
-  "summary": "将 ~/.pi/agent/models.json 内容替换为 { \"providers\": { \"pl-anthropic\": { \"baseUrl\": \"h",
-  "created_at": "2026-11-04T09:40:36.308501Z",
-  "entity_count": 2,
-  "edge_count": 1,
-  "novelty": {
-   "status": "completed",
-   "admission": "evolution",
-   "rationale": "新记忆包含历史候选未覆盖的事实：provider 命名为 pl-anthropic 且模型列表扩展为 kimi-k3、k3.1-pro、k3.1-pro-highspeed、deepseek-v4-flash 四个，并对候选1的旧配置构成替代/冲突关系。"
-  },
-  "distilled_content": "首个用户目标：将 ~/.pi/agent/models.json 内容替换为 { \"providers\": { \"pl-anthropic\": { \"baseUrl\": \"http://10.77.77.4:8600\", \"api\": \"anthropic-messages\", \"apiKey\": \"<REDACTED>\", \"models\": [ { \"id\": \"kimi-k3\", \"name\": \"Kimi K3 (as Claude, Local 1M)\", \"reasoning\": true, \"input\": [ \"text\", \"image\" ], \"contextWindow\": 1048576, \"maxTokens\": 131072, \"cost\": { \"input\": 20, \"output\": 100, \"cacheRead\": 2, \"cacheWrite\": 0 }, \"compat\": { \"allowEmptySignature\": true, \"forceAdaptiveThinking\": true }, \"thinkingLevelMap\": { \"off\": null, \"minimal\": null, \"low\": \"low\", \"medium\": null, \"high\": \"high\", \"xhigh\": null, \"max\": \"max\" } }, { \"id\": \"k3.1-pro\", \"name\": \"Kimi 3.1 Pro (as Claude, Local 1M)\" …（另有 k3.1-pro-highspeed、deepseek-v4-flash）。最近用户目标相同。会话结果：已替换 `~/.pi/agent/models.json`，包含 `pl-anthropic` provider 的 4 个模型：kimi-k3、k3.1-pro、k3.1-pro-highspeed、deepseek-v4-flash。",
-  "proposed": {
-   "entities": [
-    {
-     "name": "pi-agent",
-     "type": "Tool",
-     "summary": "用户级 agent 工具；其模型提供方配置写在用户配置目录的 models.json 中，本轮已替换为单一 pl-anthropic provider 配置。"
-    },
-    {
-     "name": "pl-anthropic",
-     "type": "Service",
-     "summary": "anthropic-messages 兼容的本地模型 provider，baseUrl 为 http://10.77.77.4:8600；配置 4 个模型：kimi-k3、k3.1-pro、k3.1-pro-highspeed、deepseek-v4-flash。kimi-k3 标记 reasoning=true，支持 text/image 输入，contextWindow=1048576，maxTokens=131072，并带 allowEmptySignature、forceAdaptiveThinking 与 thinkingLevelMap 兼容参数；API key 不记录。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "pi-agent",
-     "target": "pl-anthropic",
-     "name": "USES",
-     "fact": "pi-agent 的用户级 models.json 已替换为使用 pl-anthropic provider，并通过其 anthropic-messages 接口提供 kimi-k3、k3.1-pro、k3.1-pro-highspeed、deepseek-v4-flash 四个模型。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "pi-agent",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "pl-anthropic",
-      "status": "new",
-      "candidates": []
-     }
-    ]
-   }
-  },
-  "flags": [],
-  "suggestion": {
-   "action": "approve",
-   "auto": true,
-   "content_mode": "curated",
-   "removals": [],
-   "reasons": [
-    "确定性检查全过"
-   ]
-  }
- },
- {
-  "memory_id": "01a1a464-f71e-77e9-88f9-bcd0d7c1e8fe",
-  "session_id": "claude:obsidianvault:8f10c4eb-ccdc-4879-bcaf-324dca5ddc29",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:obsidianvault",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 0,
-  "updated_at": "2026-11-04T07:38:50.083303Z",
-  "snapshot_token": "rs1:0b5046cbc4278768a3bdb1e3f0740ebac9b6107d70bd8a4a67b9ca3007ee29a0",
-  "review_id": "01a1a575-d412-73d0-aa78-227cfb990866",
-  "project_id": "obsidianvault",
-  "memory_type": "session_summary",
-  "summary": "知识采集落盘失败排查",
-  "created_at": "2026-11-04T07:28:45.056822Z",
-  "entity_count": 2,
-  "edge_count": 2,
-  "novelty": {
-   "status": "completed",
-   "admission": "evolution",
-   "rationale": "新记忆包含历史候选未覆盖的长期事实：auto-skill 因 session.prompt 失败仅标记 stopReason=error 且内容为空、extract 未检查导致 JSON.parse(\"\")，以及对应修复、重试上限、重启生效和会话重试恢复步骤；它与旧候选仅在提取模型配置/审计与 Pi error 语义上有确认或细化关系。"
-  },
-  "distilled_content": "首个用户目标：Warning: 知识采集未落盘，保留增量待重试：SyntaxError: Unexpected end of JSON input To resume this session: pi --session 01a1a450-f113-764c-8849-b2e4b0a422f6 这个pi session 落盘报错了，排查分析解决。最近用户目标：Warning: 知识采集未落盘，保留增量待重试：SyntaxError: Unexpected end of JSON input To resume this session: pi --session 01a1a450-f113-764c-8849-b2e4b0a422f6 这个pi session 落盘报错了，排查分析解决。会话结果：已修好。根因是 auto-skill 扩展的一个 bug，不是数据损坏。 **发生了什么** - 审计日志 `.pi/extensions/auto-skill/.audit/auto-skill.jsonl` 显示：这个 session 在 02:13:39 (UTC) 开始用 `pl-anthropic/deepseek-v4-flash` 提取知识，87 秒后失败。这个模型平时 2–24 秒就跑完，所以应该是请求出错了，pi 自动重试了几次之后放弃。 - pi 的 `session.prompt()` 在模型请求失败时不会抛异常，只会把最后一条回复标记为 `stopReason: \"error\"`，内容为空。 - `extract()`（`index.ts`）没检查这个状态，直接返回空字符串，`parseExtraction(\"\")` 再执行 `JSON.parse(\"\")`，就成了 `Unexpected end of JSON input`。真正的错误原因被吞掉了。 - 日志里这类错误只出现过这一次，之后的提取都正常，所以是偶发的上游失败。网关 `192.168.2.13` 我没有 SSH 权限，没查到那次请求的具体错误码。 **改动** - `.pi/extensions/auto-skill/index.ts`：`extract()` 现在会检查最后一条回复。请求出错或中断时，直接报出模型返回的错误信息；输出达到最大 token 被截断时，也会明确说明。这些仍按可重试处理，最多 3 次。 - `.pi/extensions/auto-skill/lib/extractPrompt.ts`：模型输出为空、不是 JSON 或 JSON 残缺时，报错会说明是哪种情况，并附上输出的前 120 个字符。 - 测试：补了 3 个单元断言和 1 个模拟请求失败的运行时用例。两组测试都通过了（16/16、4/4）。 **你需要做的** - 改动要重启 pi 或重新加载扩展后才生效。 - 这个 session 失败的那段对话还没被提取，没有丢。执行 `pi --session 01a1a450-f113-764c-8849-b2e4b0a422f6` 后随便再发一轮，静置 45 秒左右就会重试。以后再失败，提示里会显示网关返回的真实错误。如果还是同一个模型的偶发失败，再去网关的 `request_history` 里按这个时间点查。 改动还没提交，需要的话我可以帮你提交。",
-  "proposed": {
-   "entities": [
-    {
-     "name": "auto-skill",
-     "type": "Tool",
-     "summary": "pi 的知识提取扩展，位于 .pi/extensions/auto-skill，负责会话知识的模型提取与落盘（index.ts 的 extract()、lib/extractPrompt.ts）。已修复一个 bug：extract() 此前不检查最后一条模型回复的状态，请求失败时直接返回空字符串，导致 JSON.parse(\"\") 报 Unexpected end of JSON input 并吞掉真实错误；修复后 extract() 会检查回复，请求出错/中断时报出模型返回的错误信息，输出因最大 token 被截断时也明确说明，均按可重试处理、最多 3 次；extractPrompt.ts 在输出为空、非 JSON 或 JSON 残缺时报错会区分情况并附输出前 120 个字符。修复已补单元与运行时测试并通过，会话结束时改动尚未提交。"
-    },
-    {
-     "name": "pi-session-prompt",
-     "type": "Concept",
-     "summary": "pi 的 session.prompt() 的故障语义：模型请求失败时不抛异常，只把最后一条回复标记为 stopReason:\"error\" 且内容为空，调用方必须主动检查该状态，否则会把空内容当作正常输出处理。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "auto-skill",
-     "target": "pi-session-prompt",
-     "name": "HANDLES",
-     "fact": "auto-skill 的 extract() 现在检查 session.prompt() 最后一条回复：请求出错或中断（stopReason 为 error）时直接报出模型返回的错误信息，输出达到最大 token 被截断时也明确说明，这两类仍按可重试处理、最多重试 3 次。"
-    },
-    {
-     "source": "auto-skill",
-     "target": "pi-session-prompt",
-     "name": "DEPENDS_ON",
-     "fact": "auto-skill 知识落盘报 Unexpected end of JSON input 的根因是 pi 的 session.prompt() 在模型请求失败时不抛异常、只将最后一条回复标记 stopReason:\"error\" 且内容为空，extract() 未检查该状态而对空字符串执行 JSON.parse；该次失败为偶发上游请求失败，非数据损坏。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "auto-skill",
-      "status": "exact",
-      "candidates": [
-       {
-        "uuid": "8aa377e0-bebc-4366-a4a7-cb1d36b9861e",
-        "canonical_name": "auto-skill",
-        "match_basis": "exact",
-        "created_at": "2026-08-19T19:11:51.896674000+00:00",
-        "group_id": "project:obsidianvault",
-        "summary": "auto-skill 是 pi 扩展，位于 .pi/extensions/auto-skill/index.ts。在主会话首个 agent_end（≥4 条消息）后用 createAgentSession 以 SessionManager.inMemory 拉起技能提取子会话。已修复：子会话的 DefaultResourceLoader 改为 noExtensions: true，子会话零扩展加载"
-       }
-      ]
-     },
-     {
-      "input_name": "pi-session-prompt",
-      "status": "new",
-      "candidates": []
-     }
-    ]
-   }
-  },
-  "flags": [],
-  "suggestion": {
-   "action": "approve",
-   "auto": true,
-   "content_mode": "curated",
-   "removals": [],
-   "reasons": [
-    "确定性检查全过"
-   ]
-  }
- },
- {
-  "memory_id": "01a1a4dc-a8c0-7938-be6d-66909ba85e36",
-  "session_id": "pi:auto-server:01a1a48e-98d5-7205-a104-e724667c2df8",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:auto-server",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 0,
-  "updated_at": "2026-11-04T11:41:41.748476Z",
-  "snapshot_token": "rs1:8aa2d52e2ee339b57d909f2d05852e620c60dcd56931fe725a34aa8cf28186d7",
-  "review_id": "01a1a575-d2da-7698-9673-a966d0e0be2c",
-  "project_id": "auto-server",
-  "memory_type": "session_summary",
-  "summary": "更新发布前后端",
-  "created_at": "2026-11-04T07:28:44.745328Z",
-  "entity_count": 0,
-  "edge_count": 0,
-  "novelty": {
-   "status": "completed",
-   "admission": "novel",
-   "rationale": "新记忆只记录了用户目标，会话结果为'未提取到助手最终文本'，没有任何部署结果、参数、排障或决策等长期事实可供历史候选覆盖或确认，因此不构成 duplicate；同时也无证据支持与任何候选建立 SUPERSEDES/CONTRADICTS/REFINES/CONFIRMS 关系。"
-  },
-  "distilled_content": "首个用户目标：更新发布前后端。最近用户目标：更新发布前后端。会话结果：未提取到助手最终文本",
-  "proposed": {
-   "entities": [],
-   "edges": [],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": []
-   }
-  },
-  "flags": [
-   {
-    "check": "empty_preview",
-    "severity": "escalate",
-    "detail": "预览为空；curated 不可用，只能 original 或人工看正文"
-   },
-   {
-    "check": "trivial_content",
-    "severity": "escalate",
-    "detail": "正文仅 45 字符，信息量存疑"
-   }
-  ],
-  "suggestion": {
-   "action": "escalate",
-   "auto": false,
-   "reasons": [
-    "预览为空；curated 不可用，只能 original 或人工看正文",
-    "正文仅 45 字符，信息量存疑"
-   ],
-   "removals": []
-  }
- },
- {
-  "memory_id": "01a1a3d4-63b4-7d24-b43f-885e6cb0fbb5",
-  "session_id": "pi:obsidianvault:01a1a39b-69dc-7617-bf64-b2c9500acae5",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:obsidianvault",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 0,
-  "updated_at": "2026-11-04T00:43:06.811577Z",
-  "snapshot_token": "rs1:12aad59462bb51ff07c105be290d49bed9c3da0b4153a3530cc5ee3330f246bf",
-  "review_id": "01a1a3d8-b7e5-74a2-97fd-a22019132968",
-  "project_id": "obsidianvault",
-  "memory_type": "session_summary",
-  "summary": "Angelscript插件迁移与编译适配",
-  "created_at": "2026-11-03T23:57:31.475151Z",
-  "entity_count": 5,
-  "edge_count": 4,
-  "novelty": {
-   "status": "completed",
-   "admission": "duplicate",
-   "rationale": "新记忆中的全部有长期价值的事实（70 项变动清单、只读属性与 cp -p 时间戳两个问题的处理、AngelscriptGAS 适配追加 4 文件、编译成功结果）均被 rank 8 的同一文本完整覆盖；唯一差异「最近用户目标：缺的也迁移 或 fix」是会话目标措辞而非新增事实、条件或纠正。其余候选分属 upload-sessions、磁盘清理、代码签名、saldo、skill 冲突等不同主题，无事实关系。"
-  },
-  "distilled_content": "首个用户目标：𫮬 ws:maindev 上的 Engine 目录下 AngelScript 脚本的所有变动文件 Engine\\Plugins\\Angelscript\\ （可以看 sunlaibing 在特定目录的p4 commit)，迁移到 ws:unrealengine-angelscript 仓库中 ，统一收集变化文件一次copy过去，然后确保 目标目录编译成功。最近用户目标：缺的也迁移 或 fix。会话结果：迁移完成，目标目录编译通过。 ## 变更收集（以 sunlaibing 的 49 个 P4 CL 为线索，目录全量 diff 为准） `Engine\\Plugins\\Angelscript\\` 共收集 **70 项变动**（排除 Binaries/Intermediate 构建产物）： - **47 个内容差异文件**：AngelscriptManager/CodeModule/Type、Binds、ClassGenerator、DebugServer、Preprocessor、StaticJIT、Testing 及 ThirdParty angelscript 源码（as_builder/parser/scriptengine 等） - **23 个仅 maindev 存在的新文件/目录**：`Private/Compiler/`、`AngelscriptAsyncDebug/Lowering`（async 语法与调试）、4 个新 Tests、`Public/Testing/`、`ThirdParty/include/as_async_feature.h`、`ThirdParty/projects`、`references/` 下 9 个新文档与 `ue-integration/` **保留未动的目标侧独有文件**：`Source/Angelscript{Code,Editor,Loader}/SKILL.md` 和 `references/plugin-overview.md` —— 经 git 历史核实是目标仓库本地新增，maindev 从未存在，不属于要迁移的改动。 ## 过程中处理的两个问题 1. **目标文件只读**：目标仓库文件带 P4 同步留下的只读属性 → `attrib -R /S` 解除后复制 2. **首次编译失败（假错误）**：`cp -p` 保留了 maindev 旧时间戳，UBT 误判 11/3 生成的 `ASClass.generated.h` 比\"旧\"源文件新，跳过 UHT → 大量 C2143/C4430。对已复制文件 `touch` 刷新后正常 ## 编译适配（范围外但必需） 第三次构建卡在 **AngelscriptGAS** 插件：本次迁移把 `FAngelscriptCompilationDelegate` 从无参改为带 `ECompileType` 参数，GAS 插件 `AddLambda([](){})` 签名不再匹配。maindev 侧的 AngelscriptGAS 已有配套适配，追加复制了 4 个差异文件（GASModule.cpp、Bind_FGameplayAttribute.cpp、AngelscriptAbilitySystemComponent.h、AbilitySystemComponentMixinLibrary.h）。AngelscriptEnhancedInput / AngelscriptStructUtils 无代码差异，未动。 ## 结果 ``` Result: Succeeded Output binary: D:\\UnrealEngine-Angelscript\\Engine\\Binaries\\Win64\\UnrealEditor.exe ``` 目标仓库工作区现有 *",
-  "proposed": {
-   "entities": [
-    {
-     "name": "angelscript-plugin",
-     "type": "Project",
-     "summary": "Unreal 的 Angelscript 脚本插件，位于仓库相对路径 Engine/Plugins/Angelscript，包含 AngelscriptManager、CodeModule/Type、Binds、ClassGenerator、DebugServer、Preprocessor、StaticJIT、Testing 及 ThirdParty angelscript 源码；maindev 侧新增了 Private/Compiler/、AngelscriptAsyncDebug/Lowering（async 语法与调试）、Public/Testing/、ThirdParty include 的 as_async_feature.h 等目录与新测试。"
-    },
-    {
-     "name": "unrealengine-angelscript",
-     "type": "Project",
-     "summary": "maindev 上 Angelscript 插件改动的目标迁移仓库；maindev 侧 Engine/Plugins/Angelscript 的全部变动文件已统一收集迁移进来并编译通过；目标侧本地独有的 Source/Angelscript*/SKILL.md 与 references/plugin-overview.md 经 git 历史核实为本地新增，保留未动。",
-     "suggested_canonical": "UnrealEngine-Angelscript"
-    },
-    {
-     "name": "angelscript-gas",
-     "type": "Project",
-     "summary": "AngelscriptGAS 插件（GAS 与 Angelscript 集成），包含 GASModule.cpp、Bind_FGameplayAttribute.cpp、AngelscriptAbilitySystemComponent.h、AbilitySystemComponentMixinLibrary.h 等文件。"
-    },
-    {
-     "name": "FAngelscriptCompilationDelegate",
-     "type": "Tool",
-     "summary": "Angelscript 编译委托，签名已从无参改为带 ECompileType 参数；使用该委托的插件（如 AngelscriptGAS）需同步适配 lambda 签名。"
-    },
-    {
-     "name": "ubt-copy-timestamp-refresh",
-     "type": "Convention",
-     "summary": "跨仓库复制 UE 源文件时，cp -p 会保留源侧旧时间戳，导致 UBT 误判生成头比源文件新而跳过 UHT；对已复制文件 touch 刷新时间戳后再构建。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "angelscript-plugin",
-     "target": "FAngelscriptCompilationDelegate",
-     "name": "IMPLEMENTS",
-     "fact": "Engine/Plugins/Angelscript 中的 FAngelscriptCompilationDelegate 签名已从无参改为带 ECompileType 参数，这是本次 maindev 改动的一部分。"
-    },
-    {
-     "source": "angelscript-gas",
-     "target": "FAngelscriptCompilationDelegate",
-     "name": "ADAPTS_TO",
-     "fact": "AngelscriptGAS 插件原有的 AddLambda([](){}) 与带 ECompileType 参数的新 FAngelscriptCompilationDelegate 签名不匹配导致编译失败，已从 maindev 追加复制 GASModule.cpp、Bind_FGameplayAttribute.cpp、AngelscriptAbilitySystemComponent.h、AbilitySystemComponentMixinLibrary.h 共 4 个适配文件后编译通过。"
-    },
-    {
-     "source": "angelscript-plugin",
-     "target": "unrealengine-angelscript",
-     "name": "MIGRATED_TO",
-     "fact": "ws:maindev 上 Engine/Plugins/Angelscript 的全部变动文件（含 47 个内容差异文件与 23 个仅 maindev 存在的新文件/目录，排除 Binaries/Intermediate 构建产物）已统一收集并一次性迁移至 unrealengine-angelscript 仓库，目标目录编译通过。"
-    },
-    {
-     "source": "ubt-copy-timestamp-refresh",
-     "target": "unrealengine-angelscript",
-     "name": "APPLIES_TO",
-     "fact": "向 unrealengine-angelscript 复制文件时 cp -p 保留了 maindev 旧时间戳，UBT 误判 ASClass.generated.h 比源文件新而跳过 UHT 引发大量 C2143/C4430 假错误，对已复制文件 touch 刷新时间戳后编译正常。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "angelscript-plugin",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "unrealengine-angelscript",
-      "status": "casefold",
-      "candidates": [
-       {
-        "uuid": "96cef681-89a0-43d9-b6a6-fb3d6d16f630",
-        "canonical_name": "UnrealEngine-Angelscript",
-        "match_basis": "casefold",
-        "created_at": "2026-09-08T05:37:05.832615000+00:00",
-        "group_id": "project:obsidianvault",
-        "summary": "UnrealEngine-Angelscript 是 D 盘上的一个大型目录，占用约 355.8 GiB，占 D 盘总容量的相当大比例。该目录包含 .git 子目录下的 ue-gitdeps 文件夹，占用约 58.6 GiB，已核实为 UE 依赖下载缓存而非 Git 提交历史，确认没有 Setup/GitDependencies 运行后可清理，未来需要时重新下载。此外，该目录下的 Intermed"
-       }
-      ]
-     },
-     {
-      "input_name": "angelscript-gas",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "FAngelscriptCompilationDelegate",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "ubt-copy-timestamp-refresh",
-      "status": "new",
-      "candidates": []
-     }
-    ]
-   }
-  },
-  "flags": [
-   {
-    "check": "novelty_duplicate",
-    "severity": "escalate",
-    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   }
-  ],
-  "suggestion": {
-   "action": "escalate",
-   "auto": false,
-   "reasons": [
-    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   ],
-   "removals": []
-  }
- },
- {
-  "memory_id": "01a1a186-73d0-7106-949a-e0f88b19fd00",
-  "session_id": "claude:maindev:24be113c-5e89-48ce-8a1a-41a87b0439cf",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:maindev",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 1,
-  "updated_at": "2026-11-03T15:02:55.141245Z",
-  "snapshot_token": "rs1:448cbe3cf37da474df4963157a439c04d0d609885738757cd6058adb2275138e",
-  "review_id": "01a1a187-b1a0-7824-b98a-b67aab6a8228",
-  "project_id": "maindev",
-  "memory_type": "session_summary",
-  "summary": "UI按钮点击失效分析",
-  "created_at": "2026-11-03T13:09:47.022768Z",
-  "entity_count": 5,
-  "edge_count": 4,
-  "novelty": {
-   "status": "completed",
-   "admission": "evolution",
-   "rationale": "新记忆与候选2/3/8在同一事实（同帧按下抬起能否触发 SButton OnClicked）上互不相容，构成 CONTRADICTS；同时新增的“窗口未激活时捕获被忽略导致后台点击失效”（SlateApplication.cpp:3494 条件）是历史候选未覆盖的长期事实。旧结论有实测依据，新结论明确自述'来自读源码，还没有实际跑测试'，替代权证据不足，故不判 SUPERSEDES。"
-  },
-  "distilled_content": "首个用户目标：帮我分析 p4 changelist 144638 的 改动， teach me。最近用户目标：UPLAutoUIBlueprintLibrary::SimulateMouseClick 同一帧 点击 按钮有用么？。会话结果：**对普通 UI 按钮有用，前提是游戏窗口处于激活状态。对游戏内的 Enhanced Input 操作无效。** 返回 `true` 也不代表按钮真的被点了。 ## 为什么同一帧能点中 UI 按钮 Slate 处理事件是同步的：按下时状态立刻变化，抬起时立刻判断要不要触发点击，中间不需要隔一帧。 `SimulateMouseClick` 依次执行三步： 1. **移动**：`SimulateMouseMoveTo` 调用 `ProcessMouseMoveEvent`，按钮马上变成悬停状态（`IsHovered()=true`）。 2. **按下**：`SButton::OnMouseButtonDown` 记下\"已按下\"，并请求捕获鼠标（`SButton.cpp:378`）。捕获在 `ProcessReply` 里当场完成。 3. **抬起**：`SButton::OnMouseButtonUp` 要求以下三个条件同时满足，满足就直接触发 `OnClicked`（`SButton.cpp:429-438`）： - 按钮处于按下状态； - `IsHovered()`； - `HasMouseCapture()`（默认点击方式是\"按下再抬起\"）。 三个条件都在同一个调用栈里同步建立，所以按钮的 `OnClicked` 会触发。 ## 会失效的情况 | 情况 | 结果 | 原因 | |---|---|---| | **游戏在后台运行**（窗口没激活） | 抬起时不触发 `OnClicked` | 见下面说明 | | 按钮在当前帧才创建或显示，还没绘制过 | 点不中 | 命中检测用的是上一次绘制的数据 | | 游戏操作（Enhanced Input、技能） | 不触发 | Enhanced Input 每帧采样一次，同帧按下又抬起等于没按过（`ui-interaction.md:16` 已有说明） | | 需要长按的 CommonUI 按钮 | 不触发 | 需要持续按住多帧 | | 点击方式为\"按下即触发\"或\"抬起即触发\"的按钮 | 能触发 | 这两种方式不依赖捕获 | **后台失效是最需要注意的一点，和是不是同一帧无关**。`SlateApplication.cpp:3494` 的条件如下： ```cpp if (bHandleDeviceInputWhenApplicationNotActive || bAppIsActive || bIsVirtualInteraction) { ... SlateUser->SetPointerCaptor(...) // 只有满足这个条件，按下时请求的捕获才会生效 ``` 窗口没激活时，按钮请求的捕获会被直接忽略。抬起时 `HasMouseCapture()` 为 false，`OnClicked` 不会触发。 CL 144638 里的 `PrepareGameplayCapture` 只给游戏视口补上了捕获，没有覆盖 UI 按钮。项目里也没有任何地方调用 `SetHandleDeviceInputWhenApplicationNotActive(true)`。所以**在后台跑时，`SimulateMouseClick` 点 UI 按钮很可能只有按下/抬起事件，没有点击**。这个结论来自读源码，我还没有实际跑测试",
-  "proposed": {
-   "entities": [
-    {
-     "name": "UPLAutoUIBlueprintLibrary",
-     "type": "Tool",
-     "summary": "UI 自动化蓝图函数库，实现 SimulateMouseClick；该函数按移动、按下、抬起三步模拟鼠标点击，返回 true 不代表按钮真的被点击。"
-    },
-    {
-     "name": "SimulateMouseClick",
-     "type": "Tool",
-     "summary": "UPLAutoUIBlueprintLibrary 中的鼠标点击模拟函数，依次执行移动、按下、抬起；在游戏窗口激活时同一帧可触发普通 UI 按钮的 OnClicked，窗口未激活时不触发，也不会触发 Enhanced Input 操作。"
-    },
-    {
-     "name": "slate-ui-event-handling",
-     "type": "Concept",
-     "summary": "Slate 同步处理鼠标移动、按下和抬起；SButton 在抬起时要求按钮已按下、IsHovered() 且 HasMouseCapture() 才触发 OnClicked，窗口未激活时 SlateApplication 会忽略按钮的捕获请求。"
-    },
-    {
-     "name": "Enhanced Input",
-     "type": "Tool",
-     "summary": "UE 的增强输入系统，每帧采样一次输入；同一帧内按下并抬起相当于没有按过，不会触发游戏操作。"
-    },
-    {
-     "name": "PrepareGameplayCapture",
-     "type": "Concept",
-     "summary": "项目内为游戏视口补输入捕获的机制；只覆盖游戏视口，不覆盖 UI 按钮，项目也未调用 SetHandleDeviceInputWhenApplicationNotActive(true)。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "UPLAutoUIBlueprintLibrary",
-     "target": "SimulateMouseClick",
-     "name": "IMPLEMENTS",
-     "fact": "UPLAutoUIBlueprintLibrary 实现 SimulateMouseClick，按移动、按下、抬起三步模拟鼠标点击；返回 true 不代表按钮真的被点了。"
-    },
-    {
-     "source": "SimulateMouseClick",
-     "target": "slate-ui-event-handling",
-     "name": "USES",
-     "fact": "SimulateMouseClick 依赖 Slate 同步事件处理；在游戏窗口激活时，普通 UI 按钮的移动、按下、抬起可在同一调用栈完成并触发 OnClicked，窗口未激活时按钮捕获被忽略，OnClicked 不会触发。"
-    },
-    {
-     "source": "SimulateMouseClick",
-     "target": "Enhanced Input",
-     "name": "DOES_NOT_TRIGGER",
-     "fact": "SimulateMouseClick 同一帧内按下并抬起不会触发 Enhanced Input 操作，因为 Enhanced Input 每帧采样一次，等于没有按过。"
-    },
-    {
-     "source": "PrepareGameplayCapture",
-     "target": "SimulateMouseClick",
-     "name": "DOES_NOT_SUPPORT",
-     "fact": "据源码检查，PrepareGameplayCapture 只为游戏视口补上输入捕获，不覆盖 UI 按钮，项目也未调用 SetHandleDeviceInputWhenApplicationNotActive(true)；因此后台运行时 SimulateMouseClick 点击 UI 按钮很可能只有按下/抬起事件而没有 OnClicked，该结论尚未实测。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "UPLAutoUIBlueprintLibrary",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "SimulateMouseClick",
-      "status": "exact",
-      "candidates": [
-       {
-        "uuid": "94532587-9c2c-4b6f-9d8a-aa65eb64e44a",
-        "canonical_name": "SimulateMouseClick",
-        "match_basis": "exact",
-        "created_at": "2026-10-30T09:24:52.828194000+00:00",
-        "group_id": "project:maindev",
-        "summary": "ClickWidgetUntilWidgetActive 内部使用 SimulateMouseClick 同帧 down+up，会被 DownAndUp 类型按钮吞掉点击。"
-       }
-      ]
-     },
-     {
-      "input_name": "slate-ui-event-handling",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "Enhanced Input",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "PrepareGameplayCapture",
-      "status": "new",
-      "candidates": []
-     }
-    ]
-   }
-  },
-  "flags": [],
-  "suggestion": {
-   "action": "approve",
-   "auto": true,
-   "content_mode": "curated",
-   "removals": [],
-   "reasons": [
-    "确定性检查全过"
-   ]
-  }
- },
- {
-  "memory_id": "01a19ea1-7929-74a3-9a19-b87a2011a930",
-  "session_id": "pi:obsidianvault:01a196f5-6589-7480-bee3-f9454def5576",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:obsidianvault",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 1,
-  "updated_at": "2026-11-03T13:33:50.442917Z",
-  "snapshot_token": "rs1:68717ff63731bd74f6c86f78cf0dbe1f363fd57533faaec8db84e5d3d1cc0740",
-  "review_id": "01a1a181-a764-730b-8a24-c49c0014baa5",
-  "project_id": "obsidianvault",
-  "memory_type": "session_summary",
-  "summary": "分析 /Users/sun/Downloads/字幕_方便自行中配 下的字幕，按章节帮我整理下知识点，主要是关于ue性能分析的 ，放到 特定目录下",
-  "created_at": "2026-11-03T13:03:11.186297Z",
-  "entity_count": 0,
-  "edge_count": 0,
-  "novelty": {
-   "status": "completed",
-   "admission": "duplicate",
-   "rationale": "新记忆中的全部有长期价值的事实（24 个字幕 8 章已读完、产出文件 luckey/02_notes/unreal/ue-profiling-course.md、moc-ue.md 登记、各章知识点概要、第 3 章与第 2 章字幕重复已合并去重、按 vault 归位规则放置）均已被候选 1 的原文完整覆盖；唯一差异是最近用户目标变为「这是哪个付费视频的章节字幕来着」，但这只是用户提问/意向，会话结果中并未产生任何新增事实（未回答该视频来源），不构成新事实、条件、边界或纠正。"
-  },
-  "distilled_content": "首个用户目标：分析 /Users/sun/Downloads/字幕_方便自行中配 下的字幕，按章节帮我整理下知识点，主要是关于ue性能分析的 ，放到 特定目录下。最近用户目标：这是哪个付费视频的章节字幕来着。会话结果：整理完成。24 个字幕（8 章，源目录第 6 章缺失）已全部读完并按章节提炼，写入 vault： **产出** - 新建 `luckey/02_notes/unreal/ue-profiling-course.md`（kebab-case 命名，极简 YAML，已链接 ue-insights / ue-performance / ue-optimize / ue-stats / ue-thread / ue-rendering） - `moc-ue.md` 的「工具 / 调试 / 优化」分类下登记了新条目 **各章知识点概要** | 章节 | 核心内容 | |---|---| | 01 基础 | 只用 ms 不用 FPS；帧节奏与卡顿成因（PSO/GC/spawn/同步 trace/对象池）；帧预算「当钱花」（Significance Manager、动画预算、动态分辨率）；stat unit 初判瓶颈 + ScreenPercentage/pause 验证法、渲染线程落后一帧 | | 02 准备解析 | 编辑器里 profile 无效；Development（迭代）/Test（终验）配置选择；`-benchmark -deterministic -fps` 固定 dt、`-fixedseed` 种子随机、`-novsync -noverifiedgc` 等降噪启动参数 | | 03 Unreal Insights | Session/Frames/Timing/Timer/Bookmark 界面；`trace.bookmark`/`trace.screenshot`；C++ 自定义 cycle counter 与 counter（含 `_FString` 变体 30% 开销坑）；「搜 stat 名→读源码→找复选框」的方法论；Steam Deck 远程连接 + Session Frontend 发命令 | | 04 内容和场景 | Statistics Panel 找离群/只用一次的资产；Size Map 的两大限制（不显示软引用、动画等类型大小不准）与 Audit Assets/obj list 交叉验证；Reference Viewer 查意外硬引用 | | 05 GPU 和渲染 | ProfileGPU（Ctrl+Shift+,）与 ProfileGPUHitches；线框/Shader Complexity/碰撞/VSM 视图模式；`vis` 命令运行时看 buffer | | 07 杂项 | `abtest` 两值对比（含噪声置信度）；stat 命令体系；Console Variables 面板 | | 08 RenderDoc | 捕获方式（必须指 Binaries 真实 exe）、逐 draw call 走帧、遮挡/custom depth/阴影/灯光四类实战查法 | | 09 架构 | GT/RT/RHI/Worker 线程职责与一帧延迟；Task Graph 与 bRunOnAnyThread；Tick Groups；ContextSwitch 通道看核心调度（需管理员运行） | 两点说明：① 第 3 章第 1 节与第 2 章第 1 节字幕完全重复，笔记中已合并去重；② 你说「放到特定目录下」但没指明，我按 vault 归位规则放",
-  "proposed": {
-   "entities": [],
-   "edges": [],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": []
-   }
-  },
-  "flags": [
-   {
-    "check": "empty_preview",
-    "severity": "escalate",
-    "detail": "预览为空；curated 不可用，只能 original 或人工看正文"
-   },
-   {
-    "check": "novelty_duplicate",
-    "severity": "escalate",
-    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   }
-  ],
-  "suggestion": {
-   "action": "escalate",
-   "auto": false,
-   "reasons": [
-    "预览为空；curated 不可用，只能 original 或人工看正文",
-    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
-   ],
-   "removals": []
-  }
- },
- {
-  "memory_id": "01a19cfe-a246-7410-a67c-e5bdbc48d8c9",
-  "session_id": "pi:obsidianvault:01a19cc9-de29-704c-af4f-0565bcb05885",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:obsidianvault",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 1,
-  "updated_at": "2026-11-02T16:03:53.157465Z",
-  "snapshot_token": "rs1:14e748125ae02850489686a14d89dfff872950a45f7663e6446317f7b212e684",
-  "review_id": "01a19cff-2c23-7de2-800e-a688e5905902",
-  "project_id": "obsidianvault",
-  "memory_type": "session_summary",
-  "summary": "本机 skill-gateway 为啥会失败，应该用当前的模型进行查询 Warning: skill-gateway: 匹配失败，本轮不注入（选择失败，不自动重",
-  "created_at": "2026-11-02T16:02:11.089109Z",
-  "entity_count": 2,
-  "edge_count": 1,
-  "novelty": {
-   "status": "failed",
-   "admission": null,
-   "rationale": "llm error: primary LLM unavailable; DeepSeek fallback failed: DeepSeek /chat/completions returned HTTP 402"
-  },
-  "distilled_content": "首个用户目标：本机 skill-gateway 为啥会失败，应该用当前的模型进行查询 Warning: skill-gateway: 匹配失败，本轮不注入（选择失败，不自动重试，10.5s） 排查下 上一个本目录的 pi session。最近用户目标：原先的那版 ，是必须要通过10.77.77.4:5000 的么？。会话结果：是的。**修改前那版 gateway 的自动筛选必须经过独立 HTTP 服务**，本机只负责整理索引和加载选中的正文。 本目录配置指向 `10.77.77.4:5000`，地址可改，但没有本地自动筛选兜底。服务不可达就失败、不注入、不自动重试。 手动 `/skill:技能名` 不受影响，不经过该服务。",
-  "proposed": {
-   "entities": [
-    {
-     "name": "skill-gateway",
-     "type": "Service",
-     "summary": "技能网关组件，负责技能匹配与注入。修改前版本的自动筛选必须经过一个独立的 HTTP 筛选服务，本地只负责整理索引和加载被选中的技能正文，没有本地自动筛选作为兜底；本目录配置指向的筛选服务地址可以修改（正文举例为 10.77.77.4:5000）。手动执行 /skill:技能名 调用不经过该服务。"
-    },
-    {
-     "name": "skill-gateway-fail-fast",
-     "type": "Convention",
-     "summary": "skill-gateway 的失败处理约定：筛选服务不可达或匹配失败时，本轮判定选择失败、不注入技能、不自动重试，也不提供本地自动筛选兜底。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "skill-gateway-fail-fast",
-     "target": "skill-gateway",
-     "name": "APPLIES_TO",
-     "fact": "skill-gateway 在独立 HTTP 筛选服务不可达或匹配失败时判定本轮选择失败，不注入技能且不自动重试。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "skill-gateway",
-      "status": "exact",
-      "candidates": [
-       {
-        "uuid": "6e0398c6-9e86-44da-be9d-e7de018a7240",
-        "canonical_name": "skill-gateway",
-        "match_basis": "exact",
-        "created_at": "2026-08-18T13:06:24.029767000+00:00",
-        "group_id": "project:obsidianvault",
-        "summary": "skill-gateway 是 Pi 的技能网关扩展（.pi/extensions/skill-gateway/），手动形式为 `/skill-gateway [任务]`，同一 session 内最多自动选择一次技能/执行端；续聊、恢复、`/reload` 和压缩复用该选择，仅手动命令重新选择。selector 从完整候选目录中筛选技能，选中技能的完整 SKILL.md 注入主会话上下文并在后续轮"
-       }
-      ]
-     },
-     {
-      "input_name": "skill-gateway-fail-fast",
-      "status": "new",
-      "candidates": []
-     }
-    ]
-   }
-  },
-  "flags": [
-   {
-    "check": "novelty_not_completed",
-    "severity": "escalate",
-    "detail": "novelty 分析未完成：failed（批准会 fail-closed）"
-   }
-  ],
-  "suggestion": {
-   "action": "escalate",
-   "auto": false,
-   "reasons": [
-    "novelty 分析未完成：failed（批准会 fail-closed）"
-   ],
-   "removals": []
-  }
- },
- {
-  "memory_id": "01a19cef-68a6-789c-845b-89a0aad283cf",
-  "session_id": "pi:nas:01a19cd3-6a8c-70f4-98dd-e4c64f5f68f0",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:nas",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 1,
-  "updated_at": "2026-11-02T15:47:00.894521Z",
-  "snapshot_token": "rs1:62b6f75e14d817ac7f6f418a32c4818ca5aba44b4d30080aa7fa8470baf382bd",
-  "review_id": "01a19cef-ad0a-7e0b-accf-53992adee1ff",
-  "project_id": "nas",
-  "memory_type": "session_summary",
-  "summary": "现在 cpu 占用 90%+ 的原因是什么？",
-  "created_at": "2026-11-02T15:45:15.511056Z",
-  "entity_count": 3,
-  "edge_count": 2,
-  "novelty": {
-   "status": "failed",
-   "admission": null,
-   "rationale": "llm error: primary LLM unavailable; DeepSeek fallback failed: DeepSeek /chat/completions returned HTTP 402"
-  },
-  "distilled_content": "首个用户目标：现在 cpu 占用 90%+ 的原因是什么？。最近用户目标：现在 cpu 占用 90%+ 的原因是什么？。会话结果：## 结论：CPU 90%+ 并非单一进程占用所致，主要由两部分叠加：**QTS 管理界面的 CGI 进程被高频调用**（约占 40% 的 CPU）和**单盘 sdc 被打满导致的 iowait**（约占 48%） ### 实测数据（刚才采样） | 指标 | 数值 | |---|---| | `/proc/stat` 10s 平均 | usr 30% + sys 19% + **iowait 48%** + idle 仅 2% | | load average | 20.6 / 18.0 / 15.2（4 核） | | sdc 磁盘利用率 | **98%**，但吞吐只有 ~7 MB/s（纯随机 IO 排队，没有实际数据量） | | Swap | 8 GB 内存用了 7.5 GB，**swap 已用 1.9 GB**，kswapd0 持续工作 | | CGI 进程创建速率 | **10 秒内新建 242 个 CGI 进程**（utilRequest.cgi 215 个，约 21 次/秒） | ### 1. 主要 CPU 消耗：QTS Web 管理后台的 CGI 进程频繁启动 HTTP 请求路径是 `apache_proxy → _thttpd_(127.0.0.1:58080) → 每个请求 fork 一个 CGI`。10 秒内产生了 242 个进程，CPU 占用排在前列： `utilRequest.cgi` 是 QTS「资源监控／系统状态」使用的接口，正常浏览器轮询约 1 次/秒，现在 **21 次/秒**，明显处于失控的轮询循环中。 请求来源（已确认）：这些请求来自局域网客户端的 QTS Web 会话，并非 NAS 内部进程： 也就是说，你（或某台设备）开着 QTS 管理页面——很可能是「资源监控 / 存储与快照总管 / 总览仪表盘」——页面卡在快速重试的循环里。 ### 2. 另一半 CPU 占用：iowait 48%，因为一块单盘承担了全部压力 `/proc/mdstat` + `/proc/diskstats`： - `/share/CACHEDEV1_DATA`（814 G，65% 使用）= **md1 = sdc3，单盘、无冗余** - 所有容器数据（Container Station data-root）、neo4j、dawarich、memory-hub、alist、adguard 都在这块盘 - **swap 也在这块盘上**：`/dev/md321`（sdc5）+ `/share/CACHEDEV1_DATA/.swap/qnap_swap` - sdc 的 util = 98~99%，io_ticks 统计下队列一直是满的 于是形成这样的链条：内存只有 8 G，却运行着 neo4j（1.3 G）、dawarich（puma+sidekiq+db+redis）、graph_service、memory-hub、songloft、alist、adguard 等容器，导致 swap 频繁换页 → 换页读写落在 sdc 上 → sdc 已接近饱和 → iowait 飙升 → QTS 的「CPU 占用」（它把 iowait 也算作忙碌）显示到 90%+。 容器侧 CPU 排名：`memory-center-cypher-ro 30%`、`",
-  "proposed": {
-   "entities": [
-    {
-     "name": "qts-nas",
-     "type": "Service",
-     "summary": "运行 QTS 的 QNAP NAS，8 GB 内存、4 核；承载 neo4j、dawarich、memory-hub、alist、adguard、songloft、graph_service 等容器；容器数据和 swap 都存放在 CACHEDEV1_DATA 存储卷上；QTS 会把 iowait 计入 CPU 占用。"
-    },
-    {
-     "name": "utilRequest.cgi",
-     "type": "Tool",
-     "summary": "QTS 的「资源监控／系统状态」功能使用的 CGI 接口；QTS Web 请求路径为 apache_proxy → _thttpd(127.0.0.1:58080) → 每个请求 fork 一个 CGI 进程；正常情况下，浏览器约每秒轮询 1 次。"
-    },
-    {
-     "name": "CACHEDEV1_DATA",
-     "type": "Storage",
-     "summary": "814 G 存储卷，对应 md1 = sdc3 单盘、无冗余；存放全部容器数据（Container Station data-root）以及 neo4j、dawarich、memory-hub、alist、adguard 的容器数据；swap 也位于该盘，包括 md321/sdc5 和卷内 .swap/qnap_swap。"
-    }
-   ],
-   "edges": [
-    {
-     "source": "qts-nas",
-     "target": "CACHEDEV1_DATA",
-     "name": "USES",
-     "fact": "QTS NAS 把容器数据和 swap 全部存放在 CACHEDEV1_DATA 存储卷上，该卷对应 md1 = sdc3 单盘、无冗余。"
-    },
-    {
-     "source": "qts-nas",
-     "target": "utilRequest.cgi",
-     "name": "EXPOSES",
-     "fact": "QTS Web 管理后台通过 apache_proxy → _thttpd(127.0.0.1:58080) → 每个请求 fork 一个 CGI 的路径处理请求；utilRequest.cgi 是其中资源监控接口，正常轮询约每秒 1 次。"
-    }
-   ],
-   "entity_resolution": {
-    "resolution_status": "ok",
-    "results": [
-     {
-      "input_name": "qts-nas",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "utilRequest.cgi",
-      "status": "new",
-      "candidates": []
-     },
-     {
-      "input_name": "CACHEDEV1_DATA",
-      "status": "new",
-      "candidates": []
-     }
-    ]
-   }
-  },
-  "flags": [
-   {
-    "check": "novelty_not_completed",
-    "severity": "escalate",
-    "detail": "novelty 分析未完成：failed（批准会 fail-closed）"
-   }
-  ],
-  "suggestion": {
-   "action": "escalate",
-   "auto": false,
-   "reasons": [
-    "novelty 分析未完成：failed（批准会 fail-closed）"
-   ],
-   "removals": []
-  }
- },
- {
-  "memory_id": "01a19cdd-af24-7084-86f8-65bd0fd7ddd1",
-  "session_id": "pi:obsidianvault:01a19cc9-de29-704c-af4f-0565bcb05885",
-  "session_version": null,
-  "scope_type": "project",
-  "group_id": "project:obsidianvault",
-  "status": "review",
-  "memory_status": "pending_extraction",
-  "preview_attempts": 0,
-  "updated_at": "2026-11-02T15:27:02.268008Z",
-  "snapshot_token": "rs1:96488a7bf7e582880e84169e25a7506f909456424c626a7d3921d197c540cd55",
-  "review_id": "01a19cde-51e5-7fc9-bf94-ce02d38bb258",
-  "project_id": "obsidianvault",
-  "memory_type": "session_summary",
-  "summary": "本机 skill-gateway 为啥会失败，应该用当前的模型进行查询 Warning: skill-gateway: 匹配失败，本轮不注入（选择失败，不自动重",
-  "created_at": "2026-11-02T15:26:12.969054Z",
-  "entity_count": 2,
-  "edge_count": 1,
-  "novelty": {
-   "status": "failed",
-   "admission": null,
-   "rationale": "llm error: primary LLM unavailable; DeepSeek fallback failed: DeepSeek /chat/completions returned HTTP 402"
-  },
-  "distilled_content": "首个用户目标：本机 skill-gateway 为啥会失败，应该用当前的模型进行查询 Warning: skill-gateway: 匹配失败，本轮不注入（选择失败，不自动重试，10.5s） 排查下 上一个本目录的 pi session。最近用户目标：本机 skill-gateway 为啥会失败，应该用当前的模型进行查询 Warning: skill-gateway: 匹配失败，本轮不注入（选择失败，不自动重试，10.5s） 排查下 上一个本目录的 pi session。会话结果：查明了：上一会话 `01a19cc7…` 的失败发生在**索引检查阶段**：旧服务 `10.77.77.4:5000` 连接超时，约 10.5 秒，根本没调用当前模型。 已修改 `.pi/extensions/skill-gateway/`： - 使用当前 Pi 模型、认证和推理档位独立筛选。 - 候选索引仍不进入主会话，不自动重试。 - 21 项测试通过；实测 `gpt-6-astra / max` 成功，耗时 20.7 秒。 当前会话需先执行 `/reload`，再用 `/skill-gateway <任务>` 显式重选。",
-  "proposed": {
-   "entities": [
-    {
-     "name": "skill-gateway",
-     "type": "Project",
-     "summary": "Pi 扩展，位于 .pi/extensions/skill-gateway/，在注入前筛选候选 skill。上一会话的失败发生在索引检查阶段：旧索引检查服务连接超时，未调用当前模型。现改为使用当前 Pi 模型、认证和推理档位独立筛选；候选索引不进入主会话；选择失败不自动重试。"
-    },
-    {
-     "name": "skill-gateway-use-current-model",
+     "name": "wp-pcg-per-task-timeout",
      "type": "Decision",
-     "summary": "用户要求 skill-gateway 使用当前模型进行查询；含义是用当前 Pi 模型、认证和推理档位独立筛选候选，候选索引不进入主会话，选择失败不自动重试。"
+     "summary": "用户明确要求的超时语义：超时不针对整体时长，只针对单个任务，且只计 running 时长（默认 120min），排队和被插队不计时；超时后通过 REST buildCancelRequest 取消该子构建、记 TIMEOUT_CANCELED，按 continue_on_failure 语义继续下一个；已删除整体 executionTimeoutMin。已按此实现，灰度注意点：env.TEAMCITY_TOKEN 的读 buildType 参数与取消构建权限此前只有触发先例，首跑若 403 需补 view/cancel 权限。"
+    },
+    {
+     "name": "wp-pcg-batch-success-gate",
+     "type": "Decision",
+     "summary": "用户明确要求的批成功语义：所有子任务完成本任务才算成功。实现为出汇总前对全部已触发 buildId 复核，必须全部 finished（15 分钟 grace，未完成记 NOT_FINISHED 批红）；failed>0 或 results.Count ≠ total（提前 break 导致有未触发）均判批红。已按此实现，待用户 review 提交。"
     }
    ],
    "edges": [
     {
-     "source": "skill-gateway",
-     "target": "skill-gateway-use-current-model",
-     "name": "FOLLOWS",
-     "fact": "skill-gateway 遵循使用当前 Pi 模型、认证和推理档位独立筛选的策略，候选索引不进入主会话，选择失败不自动重试；修改已落盘，需执行 /reload 后生效。"
+     "source": "wp-pcg-per-task-timeout",
+     "target": "WpBuildPCG",
+     "name": "APPLIES_TO",
+     "fact": "WpBuildPCG 按用户要求去掉整体 executionTimeoutMin，超时只挂单个任务且只计 running 时长（默认 120min），超时后以 REST buildCancelRequest 取消该子构建并继续下一个；该修正已实现待 review，尚未提交灰度。"
+    },
+    {
+     "source": "wp-pcg-batch-success-gate",
+     "target": "WpBuildPCG",
+     "name": "APPLIES_TO",
+     "fact": "WpBuildPCG 按用户要求只在所有子任务完成时才判批成功：汇总前 final settle gate 复核全部已触发 buildId 必须 finished，failed>0 或 results.Count ≠ total 均批红；该修正已实现待 review，尚未提交灰度。"
     }
    ],
    "entity_resolution": {
     "resolution_status": "ok",
     "results": [
      {
-      "input_name": "skill-gateway",
+      "input_name": "WpBuildPCG",
       "status": "exact",
       "candidates": [
        {
-        "uuid": "6e0398c6-9e86-44da-be9d-e7de018a7240",
-        "canonical_name": "skill-gateway",
+        "uuid": "0b6e8962-9851-4235-b35c-b4ff09f10c51",
+        "canonical_name": "WpBuildPCG",
         "match_basis": "exact",
-        "created_at": "2026-08-18T13:06:24.029767000+00:00",
-        "group_id": "project:obsidianvault",
-        "summary": "skill-gateway 是 Pi 的技能网关扩展（.pi/extensions/skill-gateway/），手动形式为 `/skill-gateway [任务]`，同一 session 内最多自动选择一次技能/执行端；续聊、恢复、`/reload` 和压缩复用该选择，仅手动命令重新选择。selector 从完整候选目录中筛选技能，选中技能的完整 SKILL.md 注入主会话上下文并在后续轮"
+        "created_at": "2026-11-09T09:57:52.062774000+00:00",
+        "group_id": "project:admin_sun_depot_7184",
+        "summary": "WpBuildPCG 按用户决定合并为单一 buildType，由 env.pcg_biome_group 参数选择 biome 分组（Forest/CangMuYuan/Custom），Custom 档原样保留手动传入的 env.pcg_actor_ids；方案已实现并验证，截至会话结束尚未提交。\nWpBuildPCG 中各分组 actor id 映射 env.pcg_actor_ids_for"
        }
       ]
      },
      {
-      "input_name": "skill-gateway-use-current-model",
+      "input_name": "wp-pcg-per-task-timeout",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "wp-pcg-batch-success-gate",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "memory_id": "01a1d78a-976b-73cc-9e76-94a94d2e58b8",
+  "session_id": "pi:admin_sun_depot_7184:01a1d770-2ede-77c4-bbdf-0effbb3e662b",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:admin_sun_depot_7184",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-11-14T00:53:07.514500Z",
+  "snapshot_token": "rs1:28ef3ad5f4d8129fa8863bef6723f3c88713ee75b7f1ba7e3bfbb0486874af1f",
+  "review_id": "01a1d78a-ae52-7206-8ef2-43f2d0d1dcc5",
+  "project_id": "admin_sun_depot_7184",
+  "memory_type": "session_summary",
+  "summary": "创建一个新的 BuildType，调用 Teamcity\\.teamcity\\patches\\buildTypes\\WpBuildPCG.kts 使用 Cust",
+  "created_at": "2026-11-14T00:52:32.447124Z",
+  "entity_count": 3,
+  "edge_count": 3,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆对候选 10（同一任务的方案稿）存在 SUPERSEDES（参数默认值被最终决策替换），且包含历史候选未覆盖的新事实：CL 2144 交付、单构建 120min 超时、批级 2400min 兜底、排除 WinBuilder3、TEAMCITY_TOKEN 读取端点 403 风险待灰度验证等。"
+  },
+  "distilled_content": "首个用户目标：创建一个新的 BuildType，调用 Teamcity\\.teamcity\\patches\\buildTypes\\WpBuildPCG.kts 使用 Custom，一个actor id 一个个的执行调用 WpBuildPCG，将其他几个 草原 苍木源 等 actorids 都提取出来，然后在逻辑里for 循环遍历调用执行，顺序的来，给出方案我来review。最近用户目标：1 跑全量，单个错误不阻断 2 前者 3 手动 4 120分钟超时。会话结果：完成。CL 2144 就绪待你 review 提交。 ## 交付摘要 **CL 2144**（2 个文件，未提交）： - `Teamcity/.teamcity/patches/buildTypes/WpBuildPCGBatch.kts`（新增，CRLF） - `Teamcity/CHANGELOG.md`（prepend 2026-11-14 条目） **WP_BuildPCG_Batch 要点**（按你的 4 项决定落地）： - 纯手动无 trigger；单 PowerShell 步 `Run_PCG_Batch`：REST 从 `PL_WpBuildPCG` 拉 forest/cangmuyuan/grassland 三组清单（一处维护零漂移）→ 去重 → **for 循环逐 id 触发**（`group=Custom` + 单 id + 透传 `p4_stream`）→ 60s 轮询等 finished → 下一个，严格串行 - **跑全量不阻断**：`env.pcg_batch_continue_on_failure` 默认 true，批尾汇总，有非 SUCCESS 则批红 - **单构建等待 120min**，超时记 TIMEOUT 继续（不取消子构建）；批级 executionTimeoutMin=2400 兜底 - requirements：Windows + **排除 WinBuilder3**（防调度器占机死锁） - 全部 5 个参数 PROMPT；`env.pcg_batch_actor_ids` 非空可替代分组清单（灰度口） - 凭据复用项目级 `env.TEAMCITY_TOKEN`（P4CopyUpBranch 同款先例） **验证已过**：mvn generate BUILD SUCCESS（XML 参数/超时/RQ 落盘核对）→ validate_step_scripts.py PARSE_OK。 **上线步骤**：提交 CL → UI「ProjectLungfish → Versioned Settings」Load settings from VCS → 灰度：`env.pcg_batch_actor_ids` 塞 2 个 id 跑一轮确认触发/轮询/汇总 → 全量。 **一个待观察点**（已写进 CHANGELOG）：`env.TEAMCITY_TOKEN` 此前只有触发构建的实证，**读取** buildType 参数端点（`GET .../parameters/<name>`）若权限不足会 403——灰度首跑即见分晓，真缺权限给 token 补 view 即可，步骤里有明确报错。",
+  "proposed": {
+   "entities": [
+    {
+     "name": "wp-build-pcg-batch",
+     "type": "Project",
+     "summary": "Teamcity/.teamcity/patches/buildTypes/WpBuildPCGBatch.kts 新增的 TeamCity 批量构建类型 WP_BuildPCG_Batch（构建配置 id 同名）。纯手动触发无 trigger；单 PowerShell 步 Run_PCG_Batch：通过 REST 从 PL_WpBuildPCG 拉取 forest/cangmuyuan/grassland 三组 actor id 清单（单处维护）→ 去重 → for 循环逐 id 触发 WpBuildPCG（group=Custom + 单 id + 透传 p4_stream）→ 60s 轮询等 finished → 下一个，严格串行。跑全量不阻断：env.pcg_batch_continue_on_failure 默认 true，批尾汇总、有非 SUCCESS 则批红；单构建等待 120min，超时记 TIMEOUT 继续（不取消子构建），批级 executionTimeoutMin=2400 兜底。requirements 限定 Windows 且排除 WinBuilder3（防调度器占机死锁）。5 个参数均为 PROMPT，env.pcg_batch_actor_ids 非空可替代分组清单作灰度入口。凭据复用项目级 env.TEAMCITY_TOKEN（P4CopyUpBranch 同款先例）。已通过 mvn generate 与 validate_step_scripts.py 校验，截至会话结束 CL 就绪待用户 review 提交、尚未提交；上线需 Versioned Settings Load settings from VCS 后先灰度 2 个 id 再全量。"
+    },
+    {
+     "name": "wp-build-pcg",
+     "type": "Project",
+     "summary": "既有 TeamCity 构建类型（id PL_WpBuildPCG，Teamcity/.teamcity/patches/buildTypes/WpBuildPCG.kts），按单个 actor id 以 group=Custom 方式执行 PCG 构建；其参数中维护 forest、cangmuyuan、grassland 三组 actor id 清单，被 WP_BuildPCG_Batch 通过 REST 读取作为批量来源。"
+    },
+    {
+     "name": "pcg-batch-run-policy",
+     "type": "Decision",
+     "summary": "用户对 WP_BuildPCG_Batch 明确拍板的四项运行策略：1) 跑全量 actor id；2) 单个构建错误不阻断整批（continue_on_failure，批尾汇总、有非 SUCCESS 则批红）；3) 纯手动触发，不加 trigger；4) 单构建等待上限 120 分钟，超时记 TIMEOUT 继续。已在 CL 中落地实现并通过生成校验，截至会话结束待用户 review 提交。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "wp-build-pcg-batch",
+     "target": "wp-build-pcg",
+     "name": "TRIGGERS",
+     "fact": "WP_BuildPCG_Batch 通过 REST 从 PL_WpBuildPCG 拉取 forest/cangmuyuan/grassland 三组 actor id 清单并去重，for 循环逐个 id 以 group=Custom + 透传 p4_stream 触发 WpBuildPCG 构建，60s 轮询等 finished 后再触发下一个，严格串行执行。"
+    },
+    {
+     "source": "pcg-batch-run-policy",
+     "target": "wp-build-pcg-batch",
+     "name": "APPLIES_TO",
+     "fact": "用户决定的四项策略已落实到 WP_BuildPCG_Batch：跑全量、单构建失败不阻断（env.pcg_batch_continue_on_failure 默认 true，批尾汇总后非 SUCCESS 则批红）、纯手动无 trigger、单构建等待 120 分钟超时（记 TIMEOUT 继续，批级 executionTimeoutMin=2400 兜底）。"
+    },
+    {
+     "source": "wp-build-pcg-batch",
+     "target": "wp-build-pcg",
+     "name": "READS_CONFIG_FROM",
+     "fact": "WP_BuildPCG_Batch 复用项目级 env.TEAMCITY_TOKEN 调用 REST 读取 PL_WpBuildPCG 的 buildType 参数端点获取分组清单；该 token 此前只有触发构建的实证，读取 parameters 端点的权限尚未验证（权限不足会 403），待灰度首跑确认，步骤中已带明确报错。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "wp-build-pcg-batch",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "wp-build-pcg",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "pcg-batch-run-policy",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "memory_id": "01a1d778-9cac-74ad-82fa-c9afe856516e",
+  "session_id": "pi:admin_sun_depot_7184:01a1d770-2ede-77c4-bbdf-0effbb3e662b",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:admin_sun_depot_7184",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-11-14T00:34:33.981122Z",
+  "snapshot_token": "rs1:b349e413f5a7d286ba6074f348be921e6fb70e190a73fd6f0ec6dabf192ce502",
+  "review_id": "01a1d779-1a92-7ed1-b114-21d082341d94",
+  "project_id": "admin_sun_depot_7184",
+  "memory_type": "session_summary",
+  "summary": "创建一个新的 BuildType，调用 Teamcity\\.teamcity\\patches\\buildTypes\\WpBuildPCG.kts 使用 Cust",
+  "created_at": "2026-11-14T00:33:20.511298Z",
+  "entity_count": 3,
+  "edge_count": 2,
+  "novelty": {
+   "status": "completed",
+   "admission": "evolution",
+   "rationale": "新记忆在确认三条历史事实（Custom 档原样使用 env.pcg_actor_ids、Grassland 组 8 个 id、REST 触发复用 env.TEAMCITY_TOKEN）之外，新增了未被任何候选覆盖的长期事实：新建独立 BuildType WpBuildPCGBatch、不改 WpBuildPCG.kts、用 Invoke-RestMethod 逐 id 顺序触发 PL_WpBuildPCG 的完整方案及 pcg_batch_groups/pcg_batch_actor_ids 参数设计，故为 evolution。"
+  },
+  "distilled_content": "首个用户目标：创建一个新的 BuildType，调用 Teamcity\\.teamcity\\patches\\buildTypes\\WpBuildPCG.kts 使用 Custom，一个actor id 一个个的执行调用 WpBuildPCG，将其他几个 草原 苍木源 等 actorids 都提取出来，然后在逻辑里for 循环遍历调用执行，顺序的来，给出方案我来review。最近用户目标：创建一个新的 BuildType，调用 Teamcity\\.teamcity\\patches\\buildTypes\\WpBuildPCG.kts 使用 Custom，一个actor id 一个个的执行调用 WpBuildPCG，将其他几个 草原 苍木源 等 actorids 都提取出来，然后在逻辑里for 循环遍历调用执行，顺序的来，给出方案我来review。会话结果：方案已整理好。核心判断：**不需要改 WpBuildPCG.kts 本身**——它的 `Custom` 分支天然就是\"传入啥 id 跑啥 id\"，新 BuildType 只需逐个 id 触发它即可。 --- # 方案：WP_BuildPCG_Batch（按 actor id 逐个顺序调度 WpBuildPCG） ## 1. 现状盘点（已核实） - `WpBuildPCG.kts` 的 `Resolve_PCG_Actor_IDs` 步骤：`group=Custom` 时直接使用 `env.pcg_actor_ids` 原值 → **新任务每次触发传 `group=Custom` + 单个 id 即满足\"使用 Custom\"**。 - 三组 actor id 当前值（单一事实源在 WpBuildPCG 参数里）： - **Forest 9 个**（DeadForest、DenseForestNormal、HoneycomTree、OpenSpaceNormal、OpenSpaceSlope、River、SparseForestNormal、YellowWoods、Main_road） - **CangMuYuan 2 个**（Forest1、Forest_Riverbank） - **Grassland 8 个**（AGrass~HGrass） - 全量一批 = **19 次构建** - 可复用的实证先例： - `P4CopyUpBranch.kts` 的 `Trigger_BuildProjectWindows` 步：PowerShell + `Invoke-RestMethod` + `Bearer $env:TEAMCITY_TOKEN` POST `/app/rest/buildQueue` —— 触发写法直接照抄。 - `env.TEAMCITY_TOKEN` 是**项目级加密参数**（`patches/projects/_Self.kts`），新 BuildType 自动继承，不新增凭据。 - 服务器外部 ID 带前缀：REST 目标是 `PL_WpBuildPCG`。 ## 2. 新 BuildType 定义（推荐方案） **`patches/buildTypes/WpBuildPCGBatch.kts`**，id=`WpBuildPCGBatch`，name=`WP_BuildPCG_Batch`，**不挂 WpBuild 模板、不挂 VCS root**（纯 REST 调度，零 checkout、秒分配）。 ### 参数 | 参数 | 类型 | 默认 | 说明 | |---|---|---|---| | `env.pcg_batch_groups` | select (PROMPT) | `All` | `All / Forest / CangMuYuan / Grassland` —— 跑哪些分组 | | `env.pcg_batch_actor_ids` | text (PROMPT, allowEmpty) | 空 | 非空时**完全替代**分组解析，直接按此分号列表跑（临时自定义口） | | `env.pcg_batch_continue_on_failure` | checkbox | `false` | false=任一",
+  "proposed": {
+   "entities": [
+    {
+     "name": "wp-build-pcg",
+     "type": "Project",
+     "summary": "TeamCity BuildType，配置于 .teamcity/patches/buildTypes/WpBuildPCG.kts，服务器 REST 外部 ID 为 PL_WpBuildPCG（带 PL_ 前缀）。已核实现状：其 Resolve_PCG_Actor_IDs 步骤在 group=Custom 时直接使用 env.pcg_actor_ids 原值，即“传入啥 id 跑啥 id”，因此无需修改本文件即可被逐个 actor id 触发。当前参数中的 actor id 分三组（单一事实源在本 BuildType 参数内）：Forest 9 个（DeadForest、DenseForestNormal、HoneycomTree、OpenSpaceNormal、OpenSpaceSlope、River、SparseForestNormal、YellowWoods、Main_road）、CangMuYuan 2 个（Forest1、Forest_Riverbank）、Grassland 8 个（AGrass~HGrass），全量一批共 19 次构建。"
+    },
+    {
+     "name": "wp-build-pcg-batch",
+     "type": "Concept",
+     "summary": "助手整理的新 BuildType 方案（建议稿，截至会话结束仅完成整理、待用户 review，尚无用户批准或实施证据）：拟新增 .teamcity/patches/buildTypes/WpBuildPCGBatch.kts，id=WpBuildPCGBatch、name=WP_BuildPCG_Batch，不挂 WpBuild 模板、不挂 VCS root，纯 REST 调度。拟设参数 env.pcg_batch_groups（select，默认 All，可选 All/Forest/CangMuYuan/Grassland）、env.pcg_batch_actor_ids（text，可空，非空时完全替代分组解析）、env.pcg_batch_continue_on_failure（checkbox，默认 false；正文在此处截断）。核心思路：不改 WpBuildPCG 本身，利用其 Custom 分支按单个 actor id 顺序触发。"
+    },
+    {
+     "name": "p4-copy-up-branch",
+     "type": "Project",
+     "summary": "TeamCity BuildType，配置于 .teamcity/patches/buildTypes/P4CopyUpBranch.kts。其 Trigger_BuildProjectWindows 步骤提供已实证的构建触发先例：PowerShell + Invoke-RestMethod，使用 Bearer $env:TEAMCITY_TOKEN 向 /app/rest/buildQueue 发 POST。env.TEAMCITY_TOKEN 为项目级加密参数（定义于 .teamcity/patches/projects/_Self.kts），同项目新 BuildType 自动继承，无需新增凭据（不含任何 token 值）。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "wp-build-pcg-batch",
+     "target": "wp-build-pcg",
+     "name": "PLANS_TO_USE",
+     "fact": "助手建议由 WP_BuildPCG_Batch（WpBuildPCGBatch.kts）按 actor id 逐个、顺序地以 group=Custom 触发 WpBuildPCG（REST 目标外部 ID 为 PL_WpBuildPCG），依赖其 Custom 分支直接使用 env.pcg_actor_ids 原值的现状机制；该方案截至会话结束仅整理完成待用户 review，尚无批准或实施证据。"
+    },
+    {
+     "source": "wp-build-pcg-batch",
+     "target": "p4-copy-up-branch",
+     "name": "PLANS_TO_USE",
+     "fact": "助手建议 WP_BuildPCG_Batch 复用 P4CopyUpBranch.kts 中 Trigger_BuildProjectWindows 的触发写法：PowerShell + Invoke-RestMethod，Bearer $env:TEAMCITY_TOKEN POST /app/rest/buildQueue，其中 env.TEAMCITY_TOKEN 为项目级加密参数可自动继承（不涉值）；该复用为助手建议稿，截至会话结束尚无批准或实施证据。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "wp-build-pcg",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "wp-build-pcg-batch",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "p4-copy-up-branch",
+      "status": "new",
+      "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [],
+  "suggestion": {
+   "action": "approve",
+   "auto": true,
+   "content_mode": "curated",
+   "removals": [],
+   "reasons": [
+    "确定性检查全过"
+   ]
+  }
+ },
+ {
+  "memory_id": "01a1d76f-cd88-7448-b3c2-287e220f1ae8",
+  "session_id": "claude:mh-sidecar:2e79b6e4-4568-47e4-a6d4-80e57928bf2e",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:mh-sidecar",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-11-14T00:24:45.205835Z",
+  "snapshot_token": "rs1:2bff2fa81f6ffc30cbdf70ab44f35f49ad0278dadabcac2b24c2fcd720c07c03",
+  "review_id": "01a1d770-4e98-7515-a8b5-73ba89c1d224",
+  "project_id": "mh-sidecar",
+  "memory_type": "session_summary",
+  "summary": "文档在 D:/Github/memory-hub/data/retrieval-eval/content-handoff/HANDOFF.md，证据和复现脚本在",
+  "created_at": "2026-11-14T00:23:44.005633Z",
+  "entity_count": 3,
+  "edge_count": 6,
+  "novelty": {
+   "status": "completed",
+   "admission": "duplicate",
+   "rationale": "有长期价值的事实——handoff 文档与 evidence 目录位置、三个突破口（approved 摘要为空占 71%、别名漏召回、长记忆压缩）、模板前缀净效果 −4 的负面结果——均被候选 rank 1 等原文完整覆盖。新记忆唯一不同的部分是 W1/W2 的例行状态播报（checking its own report、still running query variants），属于临时执行噪声，不构成新的长期事实，也不包含任何新增条件、边界、纠正或决策。"
+  },
+  "distilled_content": "首个用户目标：文档在 D:/Github/memory-hub/data/retrieval-eval/content-handoff/HANDOFF.md，证据和复现脚本在同目录的 evidence/ 下（本机保存，不入库）。三个最主要的突破口： 1. approved 记忆的摘要是空的：8,964 篇可检索记忆里有 6,371 篇（71%）检索用的摘要为空。这是有意隔离未审核内容的设计，不能简单恢复原摘要。反事实测试里恢复原摘要净增 18 条，但会把未审核内容混进来。建议从 approved 正文确定性地提取一份检索专用摘要。 2. 提取时保留准确的对象名和别名：359 条图通道漏召回里，有 128 条在当前检索词里一个字面匹配都没有。 3. 压缩长记忆：FTS 漏召回中 60% 集中在两条 3,000 字以上的长记忆上。 还有一个负面结果：去掉“经人工审核确认的知识”这类模板前缀，净效果是 −4，没有用。文档里写好了第一步实验和验收门槛，也列出了要改的 prompt、文件和行号。 帮我调研 优化，指定方案，必要时 orca 派发 pi codex astra 去 D:/Github/memory-hub 执行。最近用户目标：You have 1 orchestration message. Run `orca orchestration check --run run_344c2a4b0a55`.。会话结果：W2, the label-check worker, is now checking its own report before finishing. That message was only its routine status ping, and I've cleared it. W1 is still running the query variants. Neither has finished yet.",
+  "proposed": {
+   "entities": [
+    {
+     "name": "memory-hub",
+     "type": "Project",
+     "summary": "记忆存储与检索系统。retrieval-eval 评估揭示三个主要检索漏召回来源：approved 记忆检索摘要大面积为空（有意隔离未审核内容的设计）、提取时对象名/别名丢失导致图通道无法字面匹配、超长记忆导致 FTS 漏召回集中。检索评估交接文档位于仓库相对路径 data/retrieval-eval/content-handoff/ 下。"
+    },
+    {
+     "name": "retrieval-eval-content-handoff",
+     "type": "Concept",
+     "summary": "memory-hub 检索评估交接文档（仓库相对路径 data/retrieval-eval/content-handoff/HANDOFF.md，证据与复现脚本在同目录 evidence/ 下，仅存本机不入库）。记录三条优化突破口（检索专用摘要、保留对象名与别名、压缩长记忆）、一项模板前缀负面结果，并写好了第一步实验、验收门槛及待改 prompt/文件/行号。"
+    },
+    {
+     "name": "deterministic-retrieval-summary",
+     "type": "Concept",
+     "summary": "从 approved 记忆正文确定性提取检索专用摘要的建议方案，用于在恢复检索能力的同时继续隔离未审核内容。截至会话结束仅为交接文档/助手的建议，尚无用户确认或实施证据。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "retrieval-eval-content-handoff",
+     "target": "memory-hub",
+     "name": "ANALYZES",
+     "fact": "检索评估交接文档（data/retrieval-eval/content-handoff/HANDOFF.md）分析 memory-hub：8,964 篇 approved 可检索记忆中有 6,371 篇（71%）检索用摘要为空，这是有意隔离未审核内容的设计，不能简单恢复原摘要；反事实测试恢复原摘要净增 18 条召回，但会把未审核内容混进来。"
+    },
+    {
+     "source": "retrieval-eval-content-handoff",
+     "target": "memory-hub",
+     "name": "IDENTIFIES_GAP_IN",
+     "fact": "文档指出 memory-hub 图通道 359 条漏召回中有 128 条在当前检索词里一个字面匹配都没有，对应优化方向是提取时保留准确的对象名和别名。"
+    },
+    {
+     "source": "retrieval-eval-content-handoff",
+     "target": "memory-hub",
+     "name": "REPORTS_FTS_BOTTLENECK_IN",
+     "fact": "文档记录 memory-hub 的 FTS 漏召回中 60% 集中在两条 3,000 字以上的长记忆上，对应优化方向是压缩长记忆。"
+    },
+    {
+     "source": "retrieval-eval-content-handoff",
+     "target": "memory-hub",
+     "name": "REPORTS_NEGATIVE_RESULT_ON",
+     "fact": "文档记录一项负面结果：去除“经人工审核确认的知识”这类模板前缀的反事实实验净效果为 −4 条，该方向没有用。"
+    },
+    {
+     "source": "retrieval-eval-content-handoff",
+     "target": "deterministic-retrieval-summary",
+     "name": "PROPOSES",
+     "fact": "文档建议从 approved 正文确定性地提取一份检索专用摘要，以在恢复检索能力的同时继续隔离未审核内容；截至会话结束为文档/助手建议，尚无用户确认或实施证据。"
+    },
+    {
+     "source": "retrieval-eval-content-handoff",
+     "target": "memory-hub",
+     "name": "PLANS_TO_OPTIMIZE",
+     "fact": "用户要求基于该文档调研、指定 memory-hub 检索优化方案，必要时派发执行；文档已写好第一步实验和验收门槛并列出要改的 prompt、文件和行号，截至会话结束为既定下一步，尚无实施确认。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "memory-hub",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "9d4aca07-9469-4674-9d8f-1dd087bf38c1",
+        "canonical_name": "memory-hub",
+        "match_basis": "exact",
+        "created_at": "2026-11-13T16:22:55.369464000+00:00",
+        "group_id": "project:mh-sidecar",
+        "summary": "memory-hub 是对 approved 记忆做图通道与 FTS 检索的项目（仓库根 memory-hub）。交接文档在仓库相对路径 data/retrieval-eval/content-handoff/HANDOFF.md，证据与复现脚本在同目录 evidence/（仅本机保存、不入库），文档写好了第一步实验、验收门槛及要改的 prompt、文件和行号。三个突破口：1) approved "
+       }
+      ]
+     },
+     {
+      "input_name": "retrieval-eval-content-handoff",
+      "status": "new",
+      "candidates": []
+     },
+     {
+      "input_name": "deterministic-retrieval-summary",
       "status": "new",
       "candidates": []
      }
@@ -1488,93 +935,181 @@
   },
   "flags": [
    {
-    "check": "novelty_not_completed",
+    "check": "novelty_duplicate",
     "severity": "escalate",
-    "detail": "novelty 分析未完成：failed（批准会 fail-closed）"
+    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
    }
   ],
   "suggestion": {
    "action": "escalate",
    "auto": false,
    "reasons": [
-    "novelty 分析未完成：failed（批准会 fail-closed）"
+    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
    ],
    "removals": []
   }
  },
  {
-  "memory_id": "01a19a3b-efb9-7382-8896-5df0478c77ee",
-  "session_id": "pi:maindev:01a19a0f-fbe2-7053-9072-966d67a78713",
+  "memory_id": "01a1d758-e0b8-7a9c-81b2-5ef61a57ae66",
+  "session_id": "claude:mh-sidecar:2e79b6e4-4568-47e4-a6d4-80e57928bf2e",
   "session_version": null,
   "scope_type": "project",
-  "group_id": "project:maindev",
+  "group_id": "project:mh-sidecar",
   "status": "review",
   "memory_status": "pending_extraction",
   "preview_attempts": 0,
-  "updated_at": "2026-11-02T03:10:55.829612Z",
-  "snapshot_token": "rs1:bfa88643c5ed05e250088a030e22875f992f5ef4be17bb08b4e6a64df5c00bd8",
-  "review_id": "01a19a3c-27c5-74f0-8746-a942261b3d0c",
-  "project_id": "maindev",
+  "updated_at": "2026-11-13T23:59:22.669933Z",
+  "snapshot_token": "rs1:a02f391395e6786c5a0137e360f2d658cbfe1809bf5a9ad042de9c9de059656a",
+  "review_id": "01a1d759-6821-747e-a0b2-212a01888f63",
+  "project_id": "mh-sidecar",
   "memory_type": "session_summary",
-  "summary": "PLAutomationMetadataTests 用例验证",
-  "created_at": "2026-11-02T03:09:56.020192Z",
-  "entity_count": 3,
-  "edge_count": 2,
+  "summary": "文档在 D:/Github/memory-hub/data/retrieval-eval/content-handoff/HANDOFF.md，证据和复现脚本在",
+  "created_at": "2026-11-13T23:58:43.215353Z",
+  "entity_count": 2,
+  "edge_count": 1,
   "novelty": {
    "status": "completed",
    "admission": "duplicate",
-   "rationale": "新记忆的全部长期价值事实（16/16 全绿、DLSS 启动期噪音归属、负样本诊断白名单触发、编译器/预处理器路径残留对照表及其结论）均已在候选 rank 3 中以相同原文完整存在；唯一差异是用户提问措辞（要求用表格解释印证了什么），不构成新增事实、条件或纠正。"
+   "rationale": "新记忆中有长期价值的事实（approved 摘要为空占 71% 及检索专用摘要建议、128 条图通道漏召回无字面匹配、FTS 漏召回 60% 集中于两条长记忆、去模板前缀净效果 −4 的负面结果、文档与证据位置）已逐字存在于各历史候选中；唯一差异是『W2 又一次例行状态 ping、W1 在重放基线』这类瞬时编排状态，无长期价值，不构成新增条件、纠正或决策。"
   },
-  "distilled_content": "首个用户目标：Main\\Plugins\\PLAutomationFramework\\Source\\PLAutomationFramework\\Private\\Tests\\PLAutomationMetadataTests.cpp line 323-340 的改动主要目的是什么，给我解释清楚。最近用户目标：主要印证了什么，给我用人类能描述的语言说出来，必要时整理个表格。会话结果：## 测试结果：16/16 全绿，EXIT CODE: 0 日志：`Main/Saved/Logs/MetadataNegative_20261102-104659.stdout.log`（约 13 秒跑完 16 个子用例） ### 错误日志分析 **真正的 Error 只有 3 条，全部与测试无关**： ``` LogDLSSBlueprint: Error: EnableDLSS should not be called before PostEngineInit (×2) LogDLSSBlueprint: Error: SetDLSSMode should not be called before PostEngineInit ``` 这三条发生在 `10:47:23`（引擎启动期），测试 10:47:28 才入队——是 DLSS 插件的启动期噪音，不是本用例产生的。 **负样本诊断全部按预期触发**（`Angelscript: Verbose` 级别，被 `AddExpectedErrorPlain` 白名单兜住，未计入失败）： - `PLStep Timeout must be a positive number of seconds, got 0`（BadTimeout） - `...got 9999...`（OverflowTimeout，400 位 9 的溢出值正确被拒） - `PLStep does not accept Meta key Skip (allowed: Timeout, Tags, DependsOn)`（RemovedSkip） - `PLStep does not accept Meta key Unsafe`、`Use only one of PLSetup, PLStep or PLTearDown per method`、`PLStep requires an instance method`、`Async methods cannot be UFUNCTIONs...` 等 ### 顺带验证了新清理链的实际效果 本轮生成了 16 个夹具目录（`Main/Saved/Automation/NativeMetadata/<GUID>/`），磁盘残留与代码路径精确吻合： | 路径 | 用例数 | 残留 | 说明 | |---|---|---|---| | 编译器路径（走到 335-339 清理链） | 8 | 仅 `.as.txt` 存证 | `.as` 已删 + 热重载跑完，**新代码生效** | | 预处理器路径（`if (!bCompiler)` 提前返回） | 8 | `.as` 仍在 | 提前 return 在清理代码之前 | 预处理器路径的 8 个 `.as` 残留是**无害**的：这些文件在 `Saved/` 临时目录、从未进入编译管线，不污染模块系统——但这确实是清理链没覆盖到的一个分支，如果在意可以后续把删除逻辑提到 `if (!bCompiler)` 之前。 其余 Warning（MetaSound 标签注册、LoadErrors 缺包、DT_PLReaction 非法 GameplayTag `Equipment.Entity.Hook`）均为引擎/资产存量噪音，与本测试无关。",
+  "distilled_content": "首个用户目标：文档在 D:/Github/memory-hub/data/retrieval-eval/content-handoff/HANDOFF.md，证据和复现脚本在同目录的 evidence/ 下（本机保存，不入库）。三个最主要的突破口： 1. approved 记忆的摘要是空的：8,964 篇可检索记忆里有 6,371 篇（71%）检索用的摘要为空。这是有意隔离未审核内容的设计，不能简单恢复原摘要。反事实测试里恢复原摘要净增 18 条，但会把未审核内容混进来。建议从 approved 正文确定性地提取一份检索专用摘要。 2. 提取时保留准确的对象名和别名：359 条图通道漏召回里，有 128 条在当前检索词里一个字面匹配都没有。 3. 压缩长记忆：FTS 漏召回中 60% 集中在两条 3,000 字以上的长记忆上。 还有一个负面结果：去掉“经人工审核确认的知识”这类模板前缀，净效果是 −4，没有用。文档里写好了第一步实验和验收门槛，也列出了要改的 prompt、文件和行号。 帮我调研 优化，指定方案，必要时 orca 派发 pi codex astra 去 D:/Github/memory-hub 执行。最近用户目标：You have 1 orchestration message. Run `orca orchestration check --run run_344c2a4b0a55`.。会话结果：That was another routine status ping from W2, the label-check worker, saying it's still investigating. I've cleared it. W1 is replaying the baseline. Neither has finished or asked anything new.",
   "proposed": {
    "entities": [
     {
-     "name": "pl-automation-framework",
+     "name": "memory-hub",
      "type": "Project",
-     "summary": "UE 自动化测试插件（仓库相对路径 Plugins/PLAutomationFramework），含元数据测试文件 Source/PLAutomationFramework/Private/Tests/PLAutomationMetadataTests.cpp。其测试清理链在编译器路径（约 335-339 行）于热重载完成后删除生成的 .as 脚本、仅留 .as.txt 存证；预处理器路径因 if (!bCompiler) 提前返回位于清理代码之前，会在 Saved/Automation 临时目录残留 .as 文件，但这些文件从未进入编译管线，属无害残留。"
+     "summary": "检索增强记忆库项目。其检索评估交接文档（仓库相对路径 data/retrieval-eval/content-handoff/HANDOFF.md，证据与复现脚本在同目录 evidence/ 下，仅本机保存不入库）给出三大优化突破口：1）8,964 篇可检索 approved 记忆中 6,371 篇（71%）检索用摘要为空（系有意设计，见 approved-summary-isolation）；2）359 条图通道漏召回中有 128 条与当前检索词无任何字面匹配，需提取时保留准确的对象名和别名；3）FTS 漏召回的 60% 集中在两条 3,000 字以上的长记忆上，需压缩长记忆。负面结果：去掉“经人工审核确认的知识”模板前缀净效果为 −4，无用。文档中已写好第一步实验与验收门槛及要改的 prompt、文件和行号，尚无实施确认。"
     },
     {
-     "name": "AddExpectedErrorPlain",
-     "type": "Tool",
-     "summary": "自动化测试期望错误白名单机制：把按预期触发的 Angelscript Verbose 级负样本诊断登记为预期错误，使其被兜住而不计入测试失败。"
-    },
-    {
-     "name": "plautomation-cleanup-before-bcompiler-check",
-     "type": "Concept",
-     "summary": "助手建议（尚无确认/实施证据）：把夹具 .as 删除逻辑提到 if (!bCompiler) 提前返回之前，使预处理器路径也被清理链覆盖；截至会话结束未实施、未经用户确认。"
+     "name": "approved-summary-isolation",
+     "type": "Decision",
+     "summary": "memory-hub 有意将 approved 记忆的检索用摘要置空以隔离未审核内容的设计决策；反事实测试恢复原摘要虽净增 18 条命中，但会把未审核内容混入，因此不简单恢复。"
     }
    ],
    "edges": [
     {
-     "source": "pl-automation-framework",
-     "target": "AddExpectedErrorPlain",
-     "name": "USES",
-     "fact": "PLAutomationFramework 的元数据负样本测试通过 AddExpectedErrorPlain 白名单兜住按预期触发的 Angelscript Verbose 诊断（如 BadTimeout 的非正 Timeout、OverflowTimeout 的溢出值、RemovedSkip 的非法 Meta key Skip），使其不计入测试失败。"
-    },
-    {
-     "source": "plautomation-cleanup-before-bcompiler-check",
-     "target": "pl-automation-framework",
+     "source": "approved-summary-isolation",
+     "target": "memory-hub",
      "name": "APPLIES_TO",
-     "fact": "助手建议将 PLAutomationMetadataTests 中的 .as 删除逻辑提到 if (!bCompiler) 提前返回之前，以覆盖预处理器路径在 Saved/Automation 临时目录的 .as 残留（残留本身无害、未进入编译管线）；截至会话结束仅为助手建议，未实施、未经用户确认。"
+     "fact": "memory-hub 有意将 approved 记忆的检索摘要置空以隔离未审核内容；反事实恢复原摘要净增 18 条但会混入未审核内容，故不简单恢复；评估文档建议改为从 approved 正文确定性地提取一份检索专用摘要（建议，尚无实施确认）。"
     }
    ],
    "entity_resolution": {
     "resolution_status": "ok",
     "results": [
      {
-      "input_name": "pl-automation-framework",
-      "status": "new",
-      "candidates": []
+      "input_name": "memory-hub",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "9d4aca07-9469-4674-9d8f-1dd087bf38c1",
+        "canonical_name": "memory-hub",
+        "match_basis": "exact",
+        "created_at": "2026-11-13T16:22:55.369464000+00:00",
+        "group_id": "project:mh-sidecar",
+        "summary": "memory-hub 是对 approved 记忆做图通道与 FTS 检索的项目（仓库根 memory-hub）。交接文档在仓库相对路径 data/retrieval-eval/content-handoff/HANDOFF.md，证据与复现脚本在同目录 evidence/（仅本机保存、不入库），文档写好了第一步实验、验收门槛及要改的 prompt、文件和行号。三个突破口：1) approved "
+       }
+      ]
      },
      {
-      "input_name": "AddExpectedErrorPlain",
+      "input_name": "approved-summary-isolation",
       "status": "new",
       "candidates": []
+     }
+    ]
+   }
+  },
+  "flags": [
+   {
+    "check": "novelty_duplicate",
+    "severity": "escalate",
+    "detail": "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   }
+  ],
+  "suggestion": {
+   "action": "escalate",
+   "auto": false,
+   "reasons": [
+    "演进分析判 duplicate，需人工确认（acknowledge_novelty_warning）"
+   ],
+   "removals": []
+  }
+ },
+ {
+  "memory_id": "01a1d753-8a5e-7cd6-839a-e1f9c732fd75",
+  "session_id": "claude:mh-sidecar:2e79b6e4-4568-47e4-a6d4-80e57928bf2e",
+  "session_version": null,
+  "scope_type": "project",
+  "group_id": "project:mh-sidecar",
+  "status": "review",
+  "memory_status": "pending_extraction",
+  "preview_attempts": 0,
+  "updated_at": "2026-11-13T23:53:23.187906Z",
+  "snapshot_token": "rs1:10619ddb1fee01cdc3d0d0d07253009db36171f7e28c19f1784ce78f05bd50f7",
+  "review_id": "01a1d753-e8b3-7550-af04-0a5c75491336",
+  "project_id": "mh-sidecar",
+  "memory_type": "session_summary",
+  "summary": "文档在 D:/Github/memory-hub/data/retrieval-eval/content-handoff/HANDOFF.md，证据和复现脚本在",
+  "created_at": "2026-11-13T23:52:42.911213Z",
+  "entity_count": 2,
+  "edge_count": 1,
+  "novelty": {
+   "status": "completed",
+   "admission": "duplicate",
+   "rationale": "三个检索突破口、负面结果、文档路径等全部长期事实与候选原文完全一致；新记忆唯一的差异是会话结果中『W2 仍在 label check、W1 正在准备 query variants、两者均未完成』这一例行状态，与候选 1 记录的同一编排 run 的进行中状态一致，未新增条件、纠正、决策或结果。"
+  },
+  "distilled_content": "首个用户目标：文档在 D:/Github/memory-hub/data/retrieval-eval/content-handoff/HANDOFF.md，证据和复现脚本在同目录的 evidence/ 下（本机保存，不入库）。三个最主要的突破口： 1. approved 记忆的摘要是空的：8,964 篇可检索记忆里有 6,371 篇（71%）检索用的摘要为空。这是有意隔离未审核内容的设计，不能简单恢复原摘要。反事实测试里恢复原摘要净增 18 条，但会把未审核内容混进来。建议从 approved 正文确定性地提取一份检索专用摘要。 2. 提取时保留准确的对象名和别名：359 条图通道漏召回里，有 128 条在当前检索词里一个字面匹配都没有。 3. 压缩长记忆：FTS 漏召回中 60% 集中在两条 3,000 字以上的长记忆上。 还有一个负面结果：去掉“经人工审核确认的知识”这类模板前缀，净效果是 −4，没有用。文档里写好了第一步实验和验收门槛，也列出了要改的 prompt、文件和行号。 帮我调研 优化，指定方案，必要时 orca 派发 pi codex astra 去 D:/Github/memory-hub 执行。最近用户目标：You have 1 orchestration message. Run `orca orchestration check --run run_344c2a4b0a55`.。会话结果：That was another routine status ping from W2, the label-check worker, which is still investigating. I've cleared it. W1 is preparing its query variants. Neither has finished or asked anything new.",
+  "proposed": {
+   "entities": [
+    {
+     "name": "memory-hub",
+     "type": "Project",
+     "summary": "记忆检索质量评估所在仓库。检索评估交接文档位于仓库相对路径 data/retrieval-eval/content-handoff/HANDOFF.md，证据与复现脚本在同目录 evidence/ 下（本机保存，不入库）；文档已写好第一步实验、验收门槛及待修改的 prompt、文件和行号。用户要求基于该文档调研优化检索并指定方案。"
+    },
+    {
+     "name": "memory-hub-retrieval-eval",
+     "type": "Concept",
+     "summary": "memory-hub 检索漏召回诊断（来自 content-handoff 交接文档）。三个主要突破口：1) 8,964 篇 approved 可检索记忆中 6,371 篇（71%）检索用摘要为空，系隔离未审核内容的有意设计，不能简单恢复；反事实测试恢复原摘要净增 18 条但会混入未审核内容，文档建议改为从 approved 正文确定性提取检索专用摘要。2) 359 条图通道漏召回中 128 条在当前检索词中无任何字面匹配，提示提取时需保留准确对象名和别名。3) FTS 漏召回 60% 集中在两条 3,000 字以上长记忆上，建议压缩长记忆。负面结果：去掉“经人工审核确认的知识”模板前缀净效果为 −4，无收益。以上改进方向均为文档建议，尚无实施确认。"
+    }
+   ],
+   "edges": [
+    {
+     "source": "memory-hub-retrieval-eval",
+     "target": "memory-hub",
+     "name": "APPLIES_TO",
+     "fact": "memory-hub 检索质量交接文档诊断出三个漏召回方向——approved 记忆检索摘要 71% 为空（有意隔离设计，建议确定性提取检索专用摘要而非恢复原摘要）、128/359 条图通道漏召回缺乏字面匹配（需保留对象名与别名）、FTS 漏召回 60% 集中于两条 3,000 字以上长记忆（需压缩）——并确认去除“经人工审核确认的知识”模板前缀为负面方案（净 −4）；改进方向均为文档建议，尚无实施确认。"
+    }
+   ],
+   "entity_resolution": {
+    "resolution_status": "ok",
+    "results": [
+     {
+      "input_name": "memory-hub",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "9d4aca07-9469-4674-9d8f-1dd087bf38c1",
+        "canonical_name": "memory-hub",
+        "match_basis": "exact",
+        "created_at": "2026-11-13T16:22:55.369464000+00:00",
+        "group_id": "project:mh-sidecar",
+        "summary": "memory-hub 是对 approved 记忆做图通道与 FTS 检索的项目（仓库根 memory-hub）。交接文档在仓库相对路径 data/retrieval-eval/content-handoff/HANDOFF.md，证据与复现脚本在同目录 evidence/（仅本机保存、不入库），文档写好了第一步实验、验收门槛及要改的 prompt、文件和行号。三个突破口：1) approved "
+       }
+      ]
      },
      {
-      "input_name": "plautomation-cleanup-before-bcompiler-check",
-      "status": "new",
-      "candidates": []
+      "input_name": "memory-hub-retrieval-eval",
+      "status": "exact",
+      "candidates": [
+       {
+        "uuid": "c1f13529-8335-4e37-951f-20ed7b63d6d0",
+        "canonical_name": "memory-hub-retrieval-eval",
+        "match_basis": "exact",
+        "created_at": "2026-11-13T16:22:55.369514000+00:00",
+        "group_id": "project:mh-sidecar",
+        "summary": "memory-hub-retrieval-eval 是 memory-hub 项目的检索质量评估，针对其 approved 记忆的图通道与 FTS 检索；交接文档位于仓库相对路径 data/retrieval-eval/content-handoff/HANDOFF.md，证据与复现脚本在同目录 evidence/ 下（本机保存、不入库）。\napproved-retrieval-summary-e"
+       }
+      ]
      }
     ]
    }
