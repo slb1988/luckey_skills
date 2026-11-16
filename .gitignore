@@ -28,3 +28,9 @@ __pycache__/
 
 # minio-gc dry-run artifacts (large local run data)
 minio-gc/scripts/runs/
+
+# memory-review 本地审核运行产物（临时中间文件，不入库）
+memory-review/.local/
+memory-review/.local_runs/
+memory-review/decisions_*.json
+memory-review/review_rescan.json
