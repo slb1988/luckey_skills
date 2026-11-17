@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "verified_at": "2026-11-04T09:49:54+08:00",
+  "verified_at": "2026-11-17T08:35:32Z",
   "direction_policy": "每轮由用户明确指定源与目标；本文件的上次方向不是默认方向。",
   "workspaces": {
     "p4": "maindev",
@@ -84,11 +84,116 @@
   },
   "directions": {
     "maindev_to_unrealengine_angelscript": {
+      "latest_documentation_sync": {
+        "direction": "maindev_to_unrealengine_angelscript",
+        "verified_at": "2026-11-17T08:35:32Z",
+        "status": "validated_pending",
+        "scope": "One generic troubleshooting paragraph only; no engine code migration or code-cursor advancement.",
+        "source_depot_file": "//CyanCookOfficialDepot/MainDev/Engine/Plugins/Angelscript/SKILL.md#23",
+        "source_submitted_cl": 149647,
+        "source_sha256": "49530f3eaaf4fb02e643e2148142132c338a3af42ae832d93f22794ed80b6cd0",
+        "target_git_head_before": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "target_git_commit": null,
+        "target_path": "Engine/Plugins/Angelscript/references/cyancook-troubleshooting.md",
+        "target_before_sha256": "07e2a65fe67c90977f7cbd3eee96867ff95c4e2929571b818a806d3bae10f17b",
+        "target_final_sha256": "7058ef0457597af6bedc39f3b14446b63ac680de4fab2cf2f5050304899a5109",
+        "adaptations": "Migrate only nondeterministic default-value diagnostic; omit game/CI incident details and retain warning that genuine uninitialized members must be fixed.",
+        "validation": {
+          "git_initial_clean": true,
+          "git_final_modified_files": 1,
+          "git_diff_check": "passed",
+          "existing_content_byte_preserved": true,
+          "patch_reconstruction": "passed",
+          "isolated_rollback_hash": "passed",
+          "build_and_tests": "not_run_documentation_only"
+        },
+        "evidence": {
+          "workspace": "unrealengine-angelscript",
+          "root": "Saved/AngelScriptSync/20261117-reverse-docs",
+          "dispatch": "ctx_ece8c2573780"
+        }
+      },
+      "status_scope": "Historical code migration below; latest documentation delivery is separately pending and does not advance the code baseline.",
       "status": "completed",
       "source_primary_submitted_cl": 144419,
       "target_git_commit": "16878397b67eadbdf99690e4dd077c28f7862dca"
     },
     "unrealengine_angelscript_to_maindev": {
+      "snapshot_id": "backend-sync-20261117-f2410a78",
+      "verified_at": "2026-11-17T08:27:05.318320+00:00",
+      "direction": "unrealengine_angelscript_to_maindev",
+      "status": "validated_pending",
+      "current_worktree_status": "validated_pending",
+      "source_git_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+      "successful_git_cursor": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+      "source_comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+      "cursor_scope": "Engine common code verified against this commit; preserved documentation and source-only exceptions remain explicit. ProjectM correspondence advances only for selected closure files, not its whole profile.",
+      "target_pending_cl": 150194,
+      "target_submitted_cl": null,
+      "workspaces": {
+        "source": "unrealengine-angelscript",
+        "target": "maindev",
+        "resolved_host": "Sun",
+        "execution": "local"
+      },
+      "manifest": "backend-sync-manifest.json",
+      "counts_scope": "Engine only; combined closure is 17 files in shared manifest.",
+      "counts": {
+        "modify": 5,
+        "add": 3
+      },
+      "alignment": {
+        "shared_engine_code_equal_after_eol": 355,
+        "thirdparty_code_included": 75,
+        "note": "Not a byte-identical documentation or whole-project mirror; intentional partial merges are recorded per file."
+      },
+      "previous_baseline_correction": {
+        "observed_submitted_cl": 145609,
+        "stale_pending_cl": 145509,
+        "note": "Prior pending identifier was not found; worker verified actual historical submitted change. Do not treat the old pending record as current workspace proof."
+      },
+      "validation": {
+        "build": {
+          "target": "ProjectLungfishEditor Win64 Development",
+          "result": "Succeeded",
+          "exit_code": 0,
+          "kind": "actual_incremental_compile_and_link",
+          "actions": 73,
+          "compile_actions": 39,
+          "link_actions": 32,
+          "time_seconds": 128.14,
+          "log_path": "Main/Saved/AngelScriptSync/20261117-161400/build.log"
+        },
+        "native": {
+          "exit_code": 0,
+          "selected": 4,
+          "executed": 4,
+          "passed": 4,
+          "failed": 0,
+          "host_error_lines": 0,
+          "tests": [
+            "Angelscript.CppTests.AsyncAwait.BackendIdentity",
+            "Angelscript.CppTests.AsyncAwait.BackendRequirement",
+            "ProjectLungfish.ScriptAsync.LoweredStateMachine",
+            "ProjectLungfish.ScriptAsyncSafety.OwnerDestruction"
+          ],
+          "report_path": "Main/Saved/AngelScriptSync/20261117-161400/native-report/index.json",
+          "log_path": "Main/Saved/AngelScriptSync/20261117-161400/native-editor.log",
+          "scope": "Development Editor/source-vm only; no packaged precompiled/JIT execution claim"
+        }
+      },
+      "uncommitted_source_excluded": [],
+      "other_opened_preserved_count": 40,
+      "exceptions": "MainDev generic documentation retained; five historical source-only documents excluded. Git received one later documentation-only reverse merge, separately recorded; no remaining common Engine code difference after EOL normalization.",
+      "evidence": {
+        "workspace": "maindev",
+        "manifest_path": "Main/Saved/AngelScriptSync/20261117-161400/manifest.json",
+        "verification_path": "Main/Saved/AngelScriptSync/20261117-161400/VERIFICATION.txt",
+        "dispatch": "ctx_53a4f8782b71"
+      },
+      "unresolved_in_scope_blockers": []
+    },
+    "historical_unrealengine_angelscript_to_maindev_20261105": {
       "snapshot_id": "reverse-sync-20261105-144400-3800c4d38a91",
       "snapshot_role": "last_validated_snapshot_not_current_worktree",
       "current_worktree_status": "blocked_waiting_user_authorization",
@@ -507,6 +612,8 @@
     "log_retention": "UBT日志可能被后续构建覆盖；下一次同步必须使用本轮真实日志。"
   },
   "evidence": {
+    "latest_main_sync_dispatch": "ctx_53a4f8782b71",
+    "latest_reverse_documentation_dispatch": "ctx_ece8c2573780",
     "content_and_build_dispatch": "ctx_49c5fc761d1a",
     "baseline_readonly_dispatch": "ctx_99acd060edb3"
   },

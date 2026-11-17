@@ -1,5 +1,59 @@
 {
   "schema_version": 1,
+  "latest_scoped_reverse_sync": {
+    "snapshot_id": "backend-sync-20261117-f2410a78",
+    "verified_at": "2026-11-17T08:27:05.318320+00:00",
+    "direction": "unrealengine_angelscript_to_maindev",
+    "status": "validated_pending",
+    "scope": "Only the nine ProjectM-profile entries in backend-sync-manifest.json: PLScriptAsync manual-prototype retirement and necessary callers.",
+    "source_git_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+    "comparison_git_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+    "target_pending_cl": 150194,
+    "target_submitted_cl": null,
+    "manifest": "backend-sync-manifest.json",
+    "counts": {
+      "modify": 5,
+      "delete": 3,
+      "add": 1
+    },
+    "cursor_policy": "Advance correspondence only for the selected files/hunks. The full ProjectM successful cursor and 46 deferred project deltas are not advanced by this scoped dependency sync.",
+    "validation": {
+      "build": {
+        "target": "ProjectLungfishEditor Win64 Development",
+        "result": "Succeeded",
+        "exit_code": 0,
+        "kind": "actual_incremental_compile_and_link",
+        "actions": 73,
+        "compile_actions": 39,
+        "link_actions": 32,
+        "time_seconds": 128.14,
+        "log_path": "Main/Saved/AngelScriptSync/20261117-161400/build.log"
+      },
+      "native": {
+        "exit_code": 0,
+        "selected": 4,
+        "executed": 4,
+        "passed": 4,
+        "failed": 0,
+        "host_error_lines": 0,
+        "tests": [
+          "Angelscript.CppTests.AsyncAwait.BackendIdentity",
+          "Angelscript.CppTests.AsyncAwait.BackendRequirement",
+          "ProjectLungfish.ScriptAsync.LoweredStateMachine",
+          "ProjectLungfish.ScriptAsyncSafety.OwnerDestruction"
+        ],
+        "report_path": "Main/Saved/AngelScriptSync/20261117-161400/native-report/index.json",
+        "log_path": "Main/Saved/AngelScriptSync/20261117-161400/native-editor.log",
+        "scope": "Development Editor/source-vm only; no packaged precompiled/JIT execution claim"
+      }
+    },
+    "evidence": {
+      "workspace": "maindev",
+      "manifest_path": "Main/Saved/AngelScriptSync/20261117-161400/manifest.json",
+      "verification_path": "Main/Saved/AngelScriptSync/20261117-161400/VERIFICATION.txt",
+      "dispatch": "ctx_53a4f8782b71"
+    }
+  },
   "snapshot_id": "project-sync-20261104-070453Z-21deed5fbb30",
   "verified_at": "2026-11-04T07:04:53.741044+00:00",
   "verification_kind": "read_only_version_and_content_audit_no_sync_no_build_no_tests",
