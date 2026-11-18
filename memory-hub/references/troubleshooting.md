@@ -31,6 +31,10 @@ Hook 已禁用显式代理，仍可能被系统 TUN 接管；`NO_PROXY` 不构�
 历史根因（Stage A/B 重写前的构建，7e8b49f 时代）：judge 输出解析器对**单条** `injection_text > 320` 字符硬失败，整请求 fail-closed 503。现行代码（49e3e55 实证）该单条上限已删除（`RETRIEVAL_INJECTION_TEXT_MAX_CHARS` 不复存在），只剩整包 4000 字符预算（`retrieval_judge.py:24`），单条超长不再硬 fail；Stage A 请求级故障 fail-closed 503 本身仍是设计（api-notes.md「空失败原则」）。生产再现此 503 的第一动作是核对 NAS 部署版本（`git log -1` 是否含 Stage A/B 重写），已跑新构建仍 503 才另行取证——不要拿旧构建的 503 日志给现行代码开缺陷。
 </memory>
 
+<memory category="troubleshooting">
+慢性根因（2026-11-16 实证，kimi-k3）：Stage A judge 偶发输出**契约违规**（30 天 `related_contract` 55 次、`invalid_json` 36 次，散布非聚集），格式重试只带裸错误码常再犯 → fail-closed 503；契约错误不走 deepseek fallback（fallback 只覆盖 LLM unavailable），`related` 契约见 `retrieval_judge.py` 的 `related_contract` reject（rating=2 或低分带导航、非 direct、supports_slots/evidence/applicability 非空、无 conflict 缺一不可）。修复（44bf873 起）：格式重试的契约检查 payload 带 `requirement` 字段级提醒（`RETRIEVAL_CONTRACT_ERROR_HINTS` 覆盖全部 reject 码）；e1a4678 起留痕可直接 grep——**验收是否生效**：`memory-hub.log` 里 `format retry recovered`（含 `recovered_from=<code>`）出现频率应上升、`retrieval quality gate failed`（现含 contract 明细）应下降；DB 交叉核对用 `stage_a_calls_json` 里 judge 调用的逐 attempt `outcome`（`invalid_contract`→`parsed` = 被救回），不必手工解析 stage_a_error。
+</memory>
+
 ### 首轮预热 0 命中的时序类根因：目标记忆「尚未归档」；search 无查询缓存是设计
 
 <memory category="troubleshooting">
