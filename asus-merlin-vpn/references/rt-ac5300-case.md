@@ -124,6 +124,14 @@ Deleted the 127 dead nodes, keeping only the 18 working ones. Node bookkeeping k
 - Verified: startup log 出口 188.253.121.14 海外 (Singapore, Akari), socks 127.0.0.1:23456 google 204 + country SG, baidu direct 200, admin UI 200, processes survive SSH session exit.
 - Old 27 `仅海外用户*` (ids 201-227) and ad nodes remain as dead type-1 entries; harmless. The old subscription-update warning stands doubled: import can't parse clash-yaml AND would revert nodes to a dead protocol family.
 
+### Auto-updater installed (router-local, no manual steps)
+
+- `/koolshare/anytls-shim/update_nodes.sh` runs daily via cron `anytls_node_update` (04:23, re-registered at boot by `/koolshare/init.d/S98anytls_updater.sh`). It fetches the clash subscription directly, awk-parses anytls nodes, name-matches against existing router node ids, and rewrites `fss_node_<id>` in place.
+- **Probe-gate**: a node is only rewritten when the feed's port/password/sni changed OR `nc -w 3 <current_ip> <port>` fails — pool-internal IP rotation alone causes no writes/restarts. 仅海外* and ad nodes are skipped. Restarts fancyss (via the s-s-d launcher) only when changed; log at `/tmp/anytls_upd/update.log`.
+- First real run already paid off: 16/17 kept, 日本01's pinned IP:port had died within hours → auto re-resolved and healed, restart OK.
+- Pitfall hit: busybox `nslookup` answer field is **$3** (`Address 1: <ip> ...` — $2 is "1:"), and the first `Address 1:` line is the DNS server itself — filter `$3!="223.5.5.5"` and take the first remaining.
+- The cnXX subdomains map to **different relay pools** (cn01/06/11 → GCP 34.92/34.150 pool; cn15 → 23.161.156.x; 仅海外 osXX → per-node :8888 IPs). Never pin one pool IP across families; resolve per domain. Pool-member port availability flaps within hours — probe before trusting.
+
 ### If it breaks again (AnyTLS era)
 
 1. Check WAN first, then resolve `cn06.somethingstranges.com` (or cn01/cn11/cn15) via `223.5.5.5`; probe the node's port on the returned IPs (pool-wide open). If pinned `34.92.22.227` went stale, rewrite `anytls_server` in all 17 `fss_node_<id>` (router-side sed on decoded JSON, re-verify per node).
