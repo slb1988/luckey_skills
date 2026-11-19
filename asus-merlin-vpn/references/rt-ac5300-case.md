@@ -101,6 +101,36 @@ Deleted the 127 dead nodes, keeping only the 18 working ones. Node bookkeeping k
 3. In-place JSON edits keep `fss_node_current` pointing at the same id; `_identity` fields only matter for subscription reconciliation, not startup.
 4. Before blaming nodes, confirm router WAN health (ping 223.5.5.5, curl baidu) — 100% probe failure across all nodes usually means stale shared IP, not 46 simultaneous node deaths.
 
+## 2026-11-19 Session Findings
+
+### Root cause: airport migrated ALL nodes SS+obfs → AnyTLS (not a simple IP rotation)
+
+- Old SS nodes died: `cn01.somethingstranges.com` CNAME chain moved to GCP (`*.flydocking.xyz`, per-query round-robin pool: 34.92.22.227 / 34.92.63.12 / 35.241.100.220 / 34.150.35.121...). TCP ports 121xx-125xx stayed OPEN pool-wide, but the SS service is gone — the same ports now serve **AnyTLS** (SNI camouflage `download.mihoyo.yuanshen.com`, cert chain verifies OK publicly).
+- The live local Clash Verge profile (`profiles.yaml` → current uid, subscription `https://mysub.cc/subscribe/29080/zTELAD21Wo/clash/`) has 146 nodes, **all `type: anytls`**, servers `cnXX.somethingstranges.com`, ports unchanged per node name (香港01-03=12101-12103, 新加坡01-05=12201-12205, 日本01-03=12401-12403, 美国01-06=12501-12506). The old iplc.app subscription URL now serves only placeholder trojan ads for every UA — dead. fancyss's subscribe script **rejects clash-yaml payloads** outright, so the router cannot import this feed; hand-built nodes are the only path.
+- fancyss 3.5.30 DOES support AnyTLS nodes: node JSON `type="9"` with keys `anytls_server/anytls_port/anytls_pass/anytls_sni/anytls_ai` (see `add_anytls_node()` in ss_node_subscribe.sh; `node-tool add-node --stdin --source user` accepts this JSON and does order/next_id bookkeeping). Launch flow in `/koolshare/ss/ssconfig.sh` `start_anytls()`: `ipt2socks -p 23456 -l 3333 ...` + `anytls-zig -server h:p --password-file /tmp/anytls_pass -l 127.0.0.1:23456 -sni <sni> --insecure`.
+
+### Two router-side blockers found and fixed
+
+1. **Bundled `anytls-zig` 0.1.6 is broken on kernel 2.6.36**: `--version` works, but any real run exits `error: InvalidProtocolOption` (ENOPROTOOPT setsockopt, connect path — same zig-on-old-kernel family as status-tool/webtest-tool). Fix = shim, following the established *.zig.bak precedent:
+   - Real client: `anytls-go` v0.0.13 (`cmd/client`) cross-compiled `CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=6`→**SIGILL**, **`GOARM=5` runs** (6/7 both Illegal instruction; this Broadcom kernel/CPU combo only tolerates ARMv5-ISA Go builds — matches xray working). Stored at `/koolshare/anytls-shim/anytls-zig` (basename MUST stay `anytls-zig`: netstat -nlp grep, pidof, killall all match on it).
+   - `/koolshare/bin/anytls-zig` = shell wrapper translating fancyss args (`-server/--password-file/-l/-sni/--insecure/--version`) to `anytls-go -l <listen> -s <host:port> -p <pass> [-sni <sni>]`, then `exec`. Original zig binary kept as `/koolshare/bin/anytls-zig.zig.bak`. Shim copy at `/koolshare/anytls-shim/shim-anytls-zig`. Wrapper passes the password as a `-p` argv → visible in `ps` on the router (single-user box; anytls-go has no password-file flag).
+   - Bundled xray 26.6.1 was tried first as the client: build lacks the anytls outbound (`unknown config id: anytls`), and 26.6.1 removed tls `allowInsecure` anyway (migrated to `pinnedPeerCertSha256`).
+2. **SSH-started fancyss dies when the SSH session closes** (anytls path only): `run_bg()` is plain `&`, no setsid/nohup; `ipt2socks` + the anytls client stay in the SSH session and are killed on pty teardown (rss-local/rss-redir/smartdns self-daemonize, which is why SS-era SSH starts survived). `nohup sh ss_config.sh start` did NOT save them. Working launcher: `/koolshare/bin/start-stop-daemon -S -b -x /koolshare/anytls-shim/fancyss-start.sh` (a 2-line wrapper doing `exec /bin/sh /koolshare/scripts/ss_config.sh start`; `-x` must point at the uniquely-named script because s-s-d refuses when `/bin/sh` is already running). Verified SURVIVED + functional from a later SSH session. **Always start fancyss this way from SSH; stop works normally in-session.**
+
+### Fix applied (working, verified)
+
+- 17 mainland nodes rewritten **in place at their existing ids** (4,5,6,33-37,57-59,156-161) to `type=9` anytls: server `34.92.22.227` (pool IPs interchangeable; domains unusable because startup runtime resolution still fails), ports per current Clash profile, passwords from the same profile (unchanged across the SS→AnyTLS migration — the old `password` field value is now the anytls password), `anytls_ai=1`. All b64 lengths re-verified against locally computed values.
+- Test node id 228 was deleted after the in-place conversion; `fss_node_current=36` (新加坡04).
+- Verified: startup log 出口 188.253.121.14 海外 (Singapore, Akari), socks 127.0.0.1:23456 google 204 + country SG, baidu direct 200, admin UI 200, processes survive SSH session exit.
+- Old 27 `仅海外用户*` (ids 201-227) and ad nodes remain as dead type-1 entries; harmless. The old subscription-update warning stands doubled: import can't parse clash-yaml AND would revert nodes to a dead protocol family.
+
+### If it breaks again (AnyTLS era)
+
+1. Check WAN first, then resolve `cn06.somethingstranges.com` (or cn01/cn11/cn15) via `223.5.5.5`; probe the node's port on the returned IPs (pool-wide open). If pinned `34.92.22.227` went stale, rewrite `anytls_server` in all 17 `fss_node_<id>` (router-side sed on decoded JSON, re-verify per node).
+2. If the airport changes ports/protocol again, the source of truth is the local Clash Verge current profile (`profiles.yaml` → `current` uid → `profiles/<uid>.yaml`); map by node name.
+3. If the anytls client process is dead but iptables remain, restart via the s-s-d launcher above (not plain SSH start).
+4. `jq` is NOT in the SSH login PATH (it is `/koolshare/bin/jq`) — a failed jq in a `dbus set` pipeline silently wrote an EMPTY node value once; use sed for in-place edits and always re-verify.
+
 ## 2026-11-13 Session Findings
 
 ### Same failure mode: server IP rotated again

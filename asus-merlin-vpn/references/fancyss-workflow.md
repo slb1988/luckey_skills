@@ -78,8 +78,7 @@ Map Clash-style nodes as:
 
 The airport serves different node lists depending on the subscription request's User-Agent:
 
-- Clash/mihomo UA → full YAML: SS nodes on `cn*.somethingstranges.com:121xx` (chacha20-ietf + obfs http) plus AnyTLS nodes the router cannot speak.
-- v2rayN UA (what fancyss sends) → SS-2022 IPLC nodes on `*.dlam.is` (`2022-blake3-aes-128-gcm`); contains none of the chacha20-ietf+obfs nodes.
+As of 2026-11-19 the airport (IPLC.APP) serves **only** a clash/mihomo YAML containing `type: anytls` nodes (`cnXX.somethingstranges.com:12xxx`, SNI `download.mihoyo.yuanshen.com`). All other subscription endpoints/UAs return placeholder trojan ads. fancyss's subscribe script rejects clash-yaml payloads, so subscription import is unusable — hand-maintain `fss_node_*` entries from the local Clash Verge profile (see rt-ac5300-case.md 2026-11-19).
 
 Consequences:
 
@@ -91,7 +90,7 @@ Consequences:
 
 Subscription import resolves each node's domain to an IP at import time and stores the **IP**. Airport server-IP rotations then silently break every imported node (symptom: overseas DNS dead in whitelist mode; IoT devices phoning home to overseas domains loop DHCP release/retry). The local Clash profile YAML is the source of truth for current server/port/password/obfs host.
 
-Compatibility filter before syncing: only Clash `type: ss` with classical ciphers (`chacha20-ietf` etc.) and `plugin: obfs` map to fancyss `type=1` with `rss_obfs=http_simple`. AnyTLS nodes are unsupported; `2022-blake3-*` ciphers are unverified on the armv7 rss-local — exclude both.
+Compatibility filter before syncing: only Clash `type: ss` with classical ciphers (`chacha20-ietf` etc.) and `plugin: obfs` map to fancyss `type=1` with `rss_obfs=http_simple`. `2022-blake3-*` ciphers are unverified on the armv7 rss-local — exclude. `type: anytls` maps to fancyss `type="9"` (`anytls_server/anytls_port/anytls_pass/anytls_sni/anytls_ai`) and works on this router **only via the `/koolshare/bin/anytls-zig` → anytls-go GOARM=5 shim** (stock zig binary dies with `InvalidProtocolOption` on kernel 2.6.36; see rt-ac5300-case.md 2026-11-19). Since 2026-11-19 the airport serves anytls exclusively, so type=9 is now the only working family.
 
 Manual write: build per-node schema-2 JSON (keys in order: `group,method,mode,name,password,port,rss_obfs,rss_obfs_param,rss_protocol,server,type` + `_source,_profile_id,_airport_identity,_source_scope,_source_url_hash` + `_id,_created_at,_schema,_rev,_b64_mode="raw",_updated_at`), base64 it, `dbus set fss_node_<id>=<b64>`. Reuse existing slot ids for name matches and preserve the **current** node's `_identity*` fields so `fss_node_current_identity` keeps resolving.
 
@@ -117,6 +116,13 @@ Plugin upgrades overwrite `/koolshare/bin/*` — re-apply the shims after upgrad
 
 Use `stop` then `start`; `restart` may not regenerate all temporary config files in this build.
 
+**SSH-start lifetime trap (anytls path)**: `run_bg` is plain `&` — `ipt2socks` and the anytls client are killed when the SSH session closes (rss-local/rss-redir/smartdns daemonize themselves, so SS-era starts survived). Always start from SSH via the daemonizing launcher, and check `/tmp/upload/ss_log.txt` afterwards:
+
+```sh
+sh /koolshare/scripts/ss_config.sh stop
+/koolshare/bin/start-stop-daemon -S -b -x /koolshare/anytls-shim/fancyss-start.sh
+```
+
 ```sh
 dbus set fss_node_current="$ASUS_FANCYSS_HK01_ID"
 dbus set fss_node_current_identity="$ASUS_FANCYSS_HK01_IDENTITY"
@@ -135,7 +141,7 @@ tail -160 /tmp/upload/ss_log.txt
 Look for all of these:
 
 - Log reaches `启动完毕`.
-- `rss-redir`, `rss-local`, and `chinadns-ng` stay running after startup.
+- `rss-redir`, `rss-local` (SS path) or `ipt2socks` + `anytls-zig` (anytls path), and `chinadns-ng`/`smartdns` stay running **after the SSH session has been closed and re-opened**.
 - `netstat -nlp` shows `23456` for local socks and `7913` for `chinadns-ng`.
 - Router-side proxy tests return non-mainland output when using the local socks port.
 
