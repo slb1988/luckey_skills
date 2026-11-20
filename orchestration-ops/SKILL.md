@@ -60,9 +60,8 @@ python <skill目录>/orca_coordinator.py usage <run_id> [--objective "..."] [--c
   `~/.orca-coordinator/runs/<run_id>/`。
 - `wait` 输出整批 Delivery 原文；批次里每条消息处理完才 `ack`。
 - `settle` 先查 worker-list 确认非 in_progress；迭代期默认 `--mode retain`。
-- `usage` 按 session 内容中的 task_/ctx_ id 归因（slug+时间窗仅候选过滤，歧义报 unknown）；
-  产出 markdown 账单 + `~/.orca-coordinator/bills/<run_id>.json` + 追加 `bills.jsonl` 趋势；
-  cost 仅 pi 侧实测，codex 无 cost 记录标「未计」；codex 命中率 = cached/input（input 含 cached）。
+- `usage` 只认 worker 会话中 Orca 派发头里的 **task + dispatch**，不拿正文提及、相同 task 或相同金额配对。复用终端按派发切段；实际发起了模型调用的失败尝试照计，未找到派发头或匹配到多份会话则标 `unknown`、不计入合计。协调者须有本 run 标记与 worker 时间上界，否则不计。
+  产出 Markdown 账单、`~/.orca-coordinator/bills/<run_id>.json` 和按 run 更新的 `bills.jsonl`；金额仅为 Pi 记录值，Codex 金额未计。Codex 命中率 = cached/input（input 含 cached）。
 - 日志：每次调用追加 `~/.orca-coordinator/logs/YYYYMMDD.log`（命令、耗时、rc、心跳计数）。
 
 ## 汇报约定

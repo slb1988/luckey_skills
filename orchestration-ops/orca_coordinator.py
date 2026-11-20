@@ -15,7 +15,6 @@ PI_SESSIONS = os.path.join(os.path.expanduser("~"), ".pi", "agent", "sessions")
 CODEX_SESSIONS = os.path.join(os.path.expanduser("~"), ".codex", "sessions")
 ORCA = os.environ.get("ORCA_CLI_COMMAND", "orca")
 WAIT_TYPES = "worker_done,escalation,question"
-ID_RE = re.compile(r"(?:ctx|task)_[0-9a-f]{12}")
 
 
 def log_line(text):
@@ -178,166 +177,194 @@ def iter_session_files():
                 if fn.endswith(".jsonl"):
                     yield "codex", os.path.join(root, fn)
 
-def load_lines(path):
-    lines = []
-    with open(path, encoding="utf-8", errors="replace") as f:
-        offset = 0
-        for line in f:
-            lines.append((offset, line))
-            offset += len(line.encode("utf-8", errors="replace"))
-    return lines
+ORCA_INTRO = "You are working inside Orca, a multi-agent IDE."
+DISPATCH_INTRO = re.compile(
+    r"^\s*(?:Please carry out this task from my Orca coordinator by following the brief I pasted below\.\s*)?"
+    r"(?:<pasted_content\b[^>]*>\s*)?" + re.escape(ORCA_INTRO)
+)
+TASK_LABEL = re.compile(r"(?im)^Your task ID is:\s*(task_[0-9a-f]{12})\b")
+DISPATCH_LABEL = re.compile(r"(?im)^Your dispatch ID is:\s*(ctx_[0-9a-f]{12})\b")
+DISPATCH_PAIR = re.compile(r"--task-id\s+(task_[0-9a-f]{12})\s+--dispatch-id\s+(ctx_[0-9a-f]{12})\b")
 
-def sum_usage(agent, segment_lines):
-    """segment_lines: [(offset, line)]，只统计真实 usage 行。截断行跳过。"""
-    t = {"calls": 0, "input": 0, "cacheRead": 0, "output": 0, "cost": 0.0}
-    for _off, line in segment_lines:
-        if agent == "pi":
-            if '"usage"' not in line:
-                continue
-            try:
-                obj = json.loads(line)
-            except Exception:
-                continue
-            u = (obj.get("message") or {}).get("usage")
-            if not u:
-                continue
-            t["calls"] += 1
-            t["input"] += u.get("input") or 0
-            t["cacheRead"] += u.get("cacheRead") or 0
-            t["output"] += u.get("output") or 0
-            c = u.get("cost")
-            t["cost"] += (c.get("total") or 0) if isinstance(c, dict) else (c or 0)
-        else:
-            if '"token_usage_record"' not in line:
-                continue
-            try:
-                obj = json.loads(line)
-            except Exception:
-                continue
-            u = (obj.get("payload") or {}).get("usage")
-            if not u:
-                continue
-            t["calls"] += 1
-            t["input"] += u.get("input_tokens") or 0          # codex input 含 cached
-            t["cacheRead"] += u.get("cached_input_tokens") or 0
-            t["output"] += u.get("output_tokens") or 0
-    return t
 
-USER_MARK = ('"role": "user"', '"role":"user"')
-
-def _is_user_line(line):
-    return any(m in line for m in USER_MARK)
-
-def attribute_dispatch(dispatch_id, task_id, want_paths):
-    """候选 = session 内容含 dispatch/task id 且首次出现行是 user 消息（preamble 证据，
-    排除 plan 引子/协调者命令串的 id 污染）。分段边界 = 后续行里首个出现在 user 行的
-    其他 dispatch id（复用终端场景），工具输出里的引子不算。"""
-    ids = [x for x in (dispatch_id, task_id) if x]
-    hits, weak = [], []
-    for agent, path in iter_session_files():
-        if agent == "pi" and want_paths:
-            slug = os.path.basename(os.path.dirname(path)).casefold()
-            if not any(slug == norm_slug(p).casefold() for p in want_paths if p):
-                continue
-        try:
-            lines = load_lines(path)
-        except OSError:
-            continue
-        for _off, line in lines:
-            hit = next((i for i in ids if i in line), None)
-            if hit:
-                if _is_user_line(line):
-                    hits.append((agent, path, lines))
-                else:
-                    weak.append((agent, path, lines))
-                break
-    if not hits and weak:
-        hits, note_extra = weak, "no-preamble-evidence；"
+def assignment_ids(event):
+    if event.get("type") == "message":
+        msg = event.get("message") or {}
+    elif event.get("type") == "response_item":
+        msg = event.get("payload") or {}
     else:
-        note_extra = ""
-    if not hits:
-        return None, None, None, None, "no-session-found"
-    if len(hits) > 1:
-        hits.sort(key=lambda h: os.path.getmtime(h[1]))
-        note_extra += "multi-candidate-picked-oldest；"
-    agent, path, lines = hits[0]
-    start_idx = next(i for i, (_o, l) in enumerate(lines) if any(i in l for i in ids))
-    start_off = lines[start_idx][0]
-    boundary_off, last_ts = None, None
-    for off, line in lines[start_idx + 1:]:
-        m = re.search(r'"timestamp":\s*"([^"]+)"', line)
-        if m:
-            last_ts = m.group(1)
-        if not _is_user_line(line):
-            continue
-        for g in set(ID_RE.findall(line)):
-            if g not in ids:
-                boundary_off = off
-                break
-        if boundary_off:
-            break
-    seg = [(o, l) for o, l in lines if o >= start_off and (boundary_off is None or o < boundary_off)]
-    note = note_extra + ("ok" if boundary_off is None else "session含后续dispatch，已按user行边界截断")
-    return agent, path, seg, last_ts, note
+        return None
+    if msg.get("role") != "user":
+        return None
+    content = msg.get("content") or ""
+    if isinstance(content, list):
+        content = "\n".join(b["text"] for b in content if isinstance(b, dict)
+                            and b.get("type") in ("text", "input_text") and isinstance(b.get("text"), str))
+    if not isinstance(content, str) or not DISPATCH_INTRO.match(content):
+        return None
+    # The task brief may quote OTHER assignments. Only Orca's own header is evidence.
+    header = content.partition("=== TASK ===")[0]
+    tasks = set(TASK_LABEL.findall(header))
+    dispatches = set(DISPATCH_LABEL.findall(header))
+    for task, dispatch in DISPATCH_PAIR.findall(header):
+        tasks.add(task)
+        dispatches.add(dispatch)
+    if len(tasks) == len(dispatches) == 1:
+        return tasks.pop(), dispatches.pop()
+    return None, None  # Recognizable new assignment, but no safe owner for subsequent calls.
 
-def cmd_usage(a):
-    wl = run_orca_json(["orchestration", "worker-list", "--run", a.run_id,
-                        "--include-remote", "--json"])
-    workers = wl.get("result", {}).get("workers", [])
-    rows, totals = [], {"calls": 0, "input": 0, "cacheRead": 0, "output": 0, "cost": 0.0}
-    first_ts, last_ts_all = None, None
+
+def empty_usage():
+    return {"calls": 0, "input": 0, "cacheRead": 0, "output": 0, "cost": 0.0}
+
+
+def add_call(totals, agent, event, seen):
+    if agent == "pi" and event.get("type") == "message":
+        msg = event.get("message") or {}
+        if msg.get("role") != "assistant":
+            return
+        usage, call_id = msg.get("usage"), event.get("id")
+        fields = ("input", "cacheRead", "output")
+    elif agent == "codex" and event.get("type") == "token_usage_record":
+        payload = event.get("payload") or {}
+        usage, call_id = payload.get("usage"), payload.get("response_id")
+        fields = ("input_tokens", "cached_input_tokens", "output_tokens")
+    else:
+        return
+    if not isinstance(usage, dict) or not usage or (call_id and call_id in seen):
+        return
+    if call_id:
+        seen.add(call_id)
+    totals["calls"] += 1
+    for name, field in zip(("input", "cacheRead", "output"), fields):
+        totals[name] += usage.get(field) or 0
+    if agent == "pi":
+        cost = usage.get("cost")
+        totals["cost"] += (cost.get("total") or 0) if isinstance(cost, dict) else (cost or 0)
+
+
+def json_event(line):
+    try:
+        event = json.loads(line)
+        return event if isinstance(event, dict) else {}
+    except ValueError:
+        return {}  # Sessions may still be appending their last line.
+
+
+def session_usage(agent, path, expected):
+    segments, seen, active = {}, set(), None
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if active is None and ORCA_INTRO not in line:
+                continue
+            event = json_event(line)
+            stamp = event.get("timestamp")
+            assignment = assignment_ids(event) if ORCA_INTRO in line else None
+            if assignment is not None:
+                task, dispatch = assignment
+                active = None
+                if dispatch in expected and task == expected[dispatch]:
+                    active = segments.setdefault(dispatch, {
+                        "agent": agent, "path": path, "last": stamp, "usage": empty_usage(),
+                    })
+            if active is not None:
+                if stamp:
+                    active["last"] = stamp
+                add_call(active["usage"], agent, event, seen)
+    return segments
+
+
+def usage_by_dispatch(workers):
+    expected, scopes = {}, {}
     for w in workers:
         did, tid = w.get("dispatchId"), w.get("taskId")
         if not did:
             continue
-        wsp = ws_path((w.get("workspace") or {}).get("id"))
-        agent, path, seg, last_ts, note = attribute_dispatch(did, tid, [wsp] if wsp else [])
-        if not seg:
-            rows.append({"dispatch": did, "task": tid, "agent": "?", "note": note,
-                         "calls": 0, "input": 0, "cacheRead": 0, "output": 0, "cost": None})
+        if did in expected and expected[did] != tid:
+            expected[did] = None  # Conflicting observations cannot establish ownership.
+        else:
+            expected[did] = tid
+        workspace = w.get("workspace") or ""
+        if isinstance(workspace, dict):
+            workspace = workspace.get("id") or workspace.get("path") or ""
+        slug = norm_slug(ws_path(workspace)).casefold() if workspace else ""
+        scopes.setdefault(did, set()).add(slug)
+    candidates = {did: [] for did in expected}
+    if expected:
+        for agent, path in iter_session_files():
+            slug = os.path.basename(os.path.dirname(path)).casefold()
+            wanted = {d: t for d, t in expected.items() if t and
+                      (agent != "pi" or "" in scopes[d] or slug in scopes[d])}
+            if not wanted:
+                continue
+            try:
+                segments = session_usage(agent, path, wanted)
+            except OSError:
+                continue
+            for did, segment in segments.items():
+                candidates[did].append(segment)
+    return expected, candidates
+
+
+def coordinator_usage(path, run_id, last, worker_files):
+    if not path or not last or not os.path.isfile(path) or os.path.realpath(path) in worker_files:
+        return None
+    with open(path, encoding="utf-8", errors="replace") as f:
+        start = next((stamp for line in f if run_id in line
+                      if (stamp := json_event(line).get("timestamp"))), None)
+        if not start or start > last:
+            return None
+        f.seek(0)
+        totals, seen = empty_usage(), set()
+        for line in f:
+            if '"usage"' in line:
+                event = json_event(line)
+                if start <= (event.get("timestamp") or "") <= last:
+                    add_call(totals, "pi", event, seen)
+    return {**totals, "since": start, "session": os.path.basename(path)}
+
+
+def cache_hit(totals, agent):
+    inputs = totals["input"] + (totals["cacheRead"] if agent == "pi" else 0)
+    return round(100 * totals["cacheRead"] / inputs, 1) if inputs else 0
+
+
+def cmd_usage(a):
+    wl = run_orca_json(["orchestration", "worker-list", "--run", a.run_id,
+                        "--include-remote", "--json"])
+    expected, candidates = usage_by_dispatch(wl.get("result", {}).get("workers", []))
+    rows, totals, ends = [], empty_usage(), []
+    for did, tid in expected.items():
+        row = {"dispatch": did, "task": tid}
+        matches = candidates[did]
+        if len(matches) != 1:
+            reason = "ambiguous-sessions" if matches else "no-matching-preamble"
+            rows.append({**row, **empty_usage(), "agent": "?", "cost": None,
+                         "attribution": "unknown", "note": "unknown: " + reason})
             continue
-        if last_ts and (not last_ts_all or last_ts > last_ts_all):
-            last_ts_all = last_ts
-        t = sum_usage(agent, seg)
-        hit = (t["cacheRead"] / (t["cacheRead"] + t["input"]) * 100) if (t["cacheRead"] + t["input"]) else 0
-        if agent == "codex":  # codex input 含 cached，命中率口径不同
-            hit = (t["cacheRead"] / t["input"] * 100) if t["input"] else 0
-        rows.append({"dispatch": did, "task": tid, "agent": agent, "calls": t["calls"],
-                     "input": t["input"], "cacheRead": t["cacheRead"], "output": t["output"],
-                     "hit": round(hit, 1), "cost": round(t["cost"], 3) if agent == "pi" else None,
-                     "session": os.path.basename(path), "note": note})
-        for k in ("calls", "input", "cacheRead", "output"):
-            totals[k] += t[k]
-        totals["cost"] += t["cost"]
-        # 协调者窗口起点：worker session 首条记录时间
-        m = re.search(r'"timestamp":\s*"([^"]+)"', seg[0][1]) if seg else None
-        if m and (not first_ts or m.group(1) < first_ts):
-            first_ts = m.group(1)
-    # 协调者：当前 session（env 传入），窗口 = [首个含 run_id 的行, worker 最后活动时间]
-    coord = None
-    cs = a.coordinator_session or os.environ.get("PI_SESSION_FILE")
-    if cs and os.path.exists(cs):
-        lines = load_lines(cs)
-        def _ts(l):
-            m = re.search(r'"timestamp":\s*"([^"]+)"', l)
-            return m.group(1) if m else None
-        start_ts = next((_ts(l) for _o, l in lines if a.run_id in l and _ts(l)), None) or first_ts
-        if start_ts:
-            lines = [(o, l) for o, l in lines if (_ts(l) or "") >= start_ts]
-        if last_ts_all:
-            lines = [(o, l) for o, l in lines if (_ts(l) or "9999") <= last_ts_all]
-        t = sum_usage("pi", lines)
-        hit = (t["cacheRead"] / (t["cacheRead"] + t["input"]) * 100) if (t["cacheRead"] + t["input"]) else 0
-        coord = {"session": os.path.basename(cs), "since": start_ts, "calls": t["calls"],
-                 "input": t["input"], "cacheRead": t["cacheRead"], "output": t["output"],
-                 "hit": round(hit, 1), "cost": round(t["cost"], 3)}
-        for k in ("calls", "input", "cacheRead", "output"):
-            totals[k] += t[k]
-        totals["cost"] += t["cost"]
+        match = matches[0]
+        agent, usage = match["agent"], match["usage"]
+        if match["last"]:
+            ends.append(match["last"])
+        rows.append({**row, **usage, "agent": agent, "session": os.path.basename(match["path"]),
+                     "hit": cache_hit(usage, agent), "cost": round(usage["cost"], 3) if agent == "pi" else None,
+                     "attribution": "matched", "note": "exact-task-dispatch"})
+        for k in totals:
+            totals[k] += usage[k]
+    worker_files = {os.path.realpath(m["path"]) for matches in candidates.values() for m in matches}
+    coord = coordinator_usage(a.coordinator_session or os.environ.get("PI_SESSION_FILE"), a.run_id,
+                              max(ends, default=None), worker_files)
+    if coord:
+        for k in totals:
+            totals[k] += coord[k]
+        coord.update(hit=cache_hit(coord, "pi"), cost=round(coord["cost"], 3))
+    unknown = sum(r["attribution"] == "unknown" for r in rows)
     bill = {"run_id": a.run_id, "generated": datetime.datetime.now().isoformat(timespec="seconds"),
             "objective": a.objective, "workers": rows, "coordinator": coord,
             "totals": {**totals, "cost": round(totals["cost"], 3)},
-            "cost_note": "cost 仅 pi 侧实测合计；codex 无 cost 记录未计入"}
+            "unknown_workers": unknown,
+            "cost_note": f"cost 仅含可归属的 Pi 用量；Codex 无金额记录；{unknown} 个 unknown worker 未计入" +
+                         ("；协调者未计入" if coord is None else "")}
     os.makedirs(os.path.join(HOME, "bills"), exist_ok=True)
     with open(os.path.join(HOME, "bills", a.run_id + ".json"), "w", encoding="utf-8") as f:
         json.dump(bill, f, ensure_ascii=False, indent=2)
@@ -348,7 +375,8 @@ def cmd_usage(a):
         with open(trend, encoding="utf-8") as f:
             old = [l for l in f if l.strip() and json.loads(l).get("run_id") != a.run_id]
     old.append(json.dumps({"run_id": a.run_id, "ts": bill["generated"],
-                           "objective": a.objective, **bill["totals"]}, ensure_ascii=False))
+                           "objective": a.objective, **bill["totals"], "unknown_workers": unknown,
+                           "coordinator_counted": coord is not None}, ensure_ascii=False))
     with open(trend, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(old) + "\n")
     print(render_bill(bill))
@@ -358,6 +386,9 @@ def render_bill(b):
              "| 角色 | agent | 调用 | input | cacheRead | output | 命中% | cost$ | 备注 |",
              "|---|---|---|---|---|---|---|---|---|"]
     for r in b["workers"]:
+        if r.get("attribution") == "unknown":
+            lines.append("| worker %s | ? | — | — | — | — | — | 未计 | %s |" % (r["dispatch"][4:12], r["note"]))
+            continue
         lines.append("| worker %s | %s | %s | %s | %s | %s | %s | %s | %s |" % (
             (r["dispatch"] or "?")[4:12], r.get("agent", "?"), r["calls"],
             format(r["input"], ","), format(r["cacheRead"], ","), format(r["output"], ","),
