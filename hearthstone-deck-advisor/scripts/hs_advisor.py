@@ -12,14 +12,16 @@ Score = archetype win rate expected against the field (popularity x matchup matr
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
 
 from hs_common import (CLASS_ZH, CRAFT_COST, DISENCHANT, FORMAT_ENUM, GOLDEN_DISENCHANT, HERO_DBF,
-                       LATEST_DIR, encode_deckstring, load_cards, load_json)
+                       LATEST_DIR, decode_deckstring, encode_deckstring, load_cards, load_json)
 
 RANK_PREFERENCE = ["DIAMOND_THROUGH_LEGEND", "BRONZE_THROUGH_GOLD"]
+FS_RANK_PREFERENCE = ["legend-diamond", "legend", "diamond", "top-2000-legend", "platinum", "bronze-gold", "all"]
 TIME_PREFERENCE = ["CURRENT_PATCH", "LAST_30_DAYS"]
 SHRINK_GAMES = 600      # prior weight when shrinking a list's win rate toward its archetype
 MIN_MATCHUP_GAMES = 30  # ignore matchup cells thinner than this
@@ -32,21 +34,69 @@ CLASS_ENUM = {1: "DEATHKNIGHT", 2: "DRUID", 3: "HUNTER", 4: "MAGE", 5: "PALADIN"
 class Scope:
     """All data for one format + rank range, resolved from the data directory."""
 
-    def __init__(self, data_dir: Path, fmt: str, rank: str | None, time_range: str | None, min_games: int):
+    def __init__(self, data_dir: Path, fmt: str, rank: str | None, time_range: str | None, min_games: int,
+                 source: str = "auto"):
         self.dir, self.fmt, self.min_games = data_dir, fmt, min_games
         self.cards = load_cards(data_dir)
+        self.matchups: dict = {}        # HSReplay: archetype id -> opponent archetype id -> cell
+        self.class_matchups: dict = {}  # Firestone: archetype id -> opponent class -> cell
+        self.arch_class: dict = {}
+        self.manifest = self._load("manifest.json", {})
+        has_fs = any(data_dir.glob(f"fs__{fmt}__*.json"))
+        # HSReplay rank names are upper case, so an explicit one selects that source.
+        if source == "firestone" or (source == "auto" and has_fs and not (rank and rank.isupper())):
+            self._init_firestone(rank)
+        else:
+            self._init_hsreplay(rank, time_range)
+
+    def _init_hsreplay(self, rank, time_range) -> None:
+        self.source = "hsreplay"
         ranks = [rank] if rank else RANK_PREFERENCE
-        self.rank = next((r for r in ranks if list(data_dir.glob(f"{fmt}__{r}__decks__*.json"))), None)
+        self.rank = next((r for r in ranks if list(self.dir.glob(f"{self.fmt}__{r}__decks__*.json"))), None)
         if self.rank is None:
-            raise SystemExit(f"没有 {fmt} 的卡组数据，请先运行 hs_fetch.py fetch")
+            raise SystemExit(f"没有 {self.fmt} 的 HSReplay 卡组数据，请先运行 hs_fetch.py fetch")
         self.archetypes = {a["id"]: a for a in self._load("archetypes.json", [])}
         self.decks, self.time_range = self._load_decks(time_range)
         self.field, self.arch_wr = self._load_field()
-        series = self._load(f"{fmt}__{self.rank}__matchups.json", {}).get("series", {})
+        series = self._load(f"{self.fmt}__{self.rank}__matchups.json", {}).get("series", {})
         self.matchups = series.get("data", {})
         for aid, meta in series.get("metadata", {}).items():
             if aid.lstrip("-").isdigit():  # the metadata also carries a "totals" row
                 self.arch_wr.setdefault(int(aid), meta.get("win_rate"))
+        self.updated = self.manifest.get("hsreplay_fetched_at") or self.manifest.get("fetched_at")
+        self.label = "HSReplay（全服区）"
+        self.weighting = ("该分段近 7 天各卡组类型的出场率 × 卡组类型间对阵胜率" if self.field and self.matchups
+                          else "该模式没有出场率/对阵数据，综合分只反映列表自身胜率（按样本量收缩）")
+
+    def _init_firestone(self, rank) -> None:
+        self.source = "firestone"
+        ranks = [rank] if rank else FS_RANK_PREFERENCE
+        self.rank = next((r for r in ranks if (self.dir / f"fs__{self.fmt}__{r}.json").exists()), None)
+        if self.rank is None:
+            raise SystemExit(f"没有 {self.fmt} 的 Firestone 数据，请先运行 hs_fetch.py fetch --source firestone")
+        raw = load_json(self.dir / f"fs__{self.fmt}__{self.rank}.json")
+        self.time_range, self.updated = raw["time_period"], raw.get("last_updated")
+        total = sum(a["games"] for a in raw["archetypes"]) or 1
+        self.archetypes = {a["id"]: a for a in raw["archetypes"]}
+        self.field = {a["id"]: 100.0 * a["games"] / total for a in raw["archetypes"]}
+        self.arch_wr = {a["id"]: 100.0 * a["wins"] / a["games"] for a in raw["archetypes"] if a["games"]}
+        self.arch_class = {a["id"]: a["class"] for a in raw["archetypes"]}
+        self.class_matchups = {int(aid): cells for aid, cells in raw["matchups"].items()}
+        decks = [{"code": d["code"], "class": d["class"], "archetype_id": d["archetype_id"], "games": d["games"],
+                  "wr": 100.0 * d["wins"] / d["games"] if d["games"] else 0.0} for d in raw["decks"]]
+        self._fill_arch_wr(decks)
+        self.decks = [d for d in decks if d["games"] >= self.min_games]
+        for d in self.decks:
+            d["cards"], d["sideboard"] = decode_deckstring(d["code"])
+            d["id"] = "fs" + hashlib.md5(d["code"].encode()).hexdigest()[:10]
+        self.label = f"Firestone（海外玩家为主，共 {raw.get('data_points', 0)} 场）"
+        self.weighting = "该分段各卡组类型的出场率 × 对各职业的胜率（Firestone 的对阵只细到职业）"
+
+    def cell(self, aid, opp):
+        """Matchup cell {win_rate, total_games} of archetype `aid` against opposing archetype `opp`."""
+        if self.source == "firestone":
+            return self.class_matchups.get(aid, {}).get(self.arch_class.get(opp))
+        return self.matchups.get(str(aid), {}).get(str(opp))
 
     def _load(self, name: str, default):
         path = self.dir / name
@@ -114,10 +164,9 @@ class Scope:
 
     def expected_wr(self, aid, field: dict) -> tuple[float | None, float]:
         """Field-weighted win rate of an archetype, and the share of the field covered."""
-        row = self.matchups.get(str(aid), {})
         num = den = 0.0
         for opp, pop in field.items():
-            cell = row.get(str(opp))
+            cell = self.cell(aid, opp)
             if cell and cell.get("total_games", 0) >= MIN_MATCHUP_GAMES:
                 num += pop * cell["win_rate"]
                 den += pop
@@ -209,7 +258,7 @@ def best_per_archetype(rows: list[dict]) -> list[dict]:
 
 
 def deck_code(scope: Scope, d: dict) -> str:
-    return encode_deckstring(d["cards"], HERO_DBF[d["class"]], FORMAT_ENUM[scope.fmt], d["sideboard"] or None)
+    return d.get("code") or encode_deckstring(d["cards"], HERO_DBF[d["class"]], FORMAT_ENUM[scope.fmt], d["sideboard"] or None)
 
 
 def fmt_missing(scope: Scope, d: dict) -> str:
@@ -234,7 +283,7 @@ def table(scope: Scope, rows: list[dict], with_cost: bool) -> list[str]:
 
 
 def cmd_recommend(args) -> int:
-    scope = Scope(Path(args.data), args.format, args.rank, args.time_range, args.min_games)
+    scope = Scope(Path(args.data), args.format, args.rank, args.time_range, args.min_games, args.source)
     coll = Collection(scope.dir, args.collection)
     field = load_field_override(args.field, scope) if args.field else scope.field
     rows = evaluate(scope, coll, field)
@@ -265,14 +314,15 @@ def cmd_recommend(args) -> int:
     ready = ready[: args.top]
 
     if args.json:
-        print(json.dumps({"scope": {"format": scope.fmt, "rank": scope.rank, "time_range": scope.time_range},
+        print(json.dumps({"scope": {"source": scope.source, "format": scope.fmt, "rank": scope.rank,
+                                    "time_range": scope.time_range, "updated": scope.updated},
                           "dust": dust, "spare_dust": spare, "ready": ready, "craftable": craft, "out_of_reach": reach},
                          ensure_ascii=False))
         return 0
 
-    manifest = scope._load("manifest.json", {})
     out = [f"# 炉石卡组推荐（{scope.fmt} / {scope.rank} / {scope.time_range}）", ""]
-    out.append(f"- 数据抓取时间：{manifest.get('fetched_at', '未知')}；参与排名的卡组列表 {len(rows)} 个（≥{args.min_games} 场）")
+    out.append(f"- 数据源：{scope.label}，更新于 {scope.updated or '未知'}；"
+               f"参与排名的卡组列表 {len(rows)} 个（≥{args.min_games} 场）")
     if coll.loaded:
         kinds = sum(1 for v in coll.owned.values() if sum(v[:4]))
         out.append(f"- 收藏：{kinds} 种卡（HDT 同步于 {coll.modified}）；粉尘 {dust}")
@@ -280,12 +330,7 @@ def cmd_recommend(args) -> int:
                    "可用 --dust 传入分解后的总尘）")
     else:
         out.append("- **未找到收藏数据**：以下按“一张卡都没有”计算合成成本，请先 `hs_fetch.py login` 再 `fetch`")
-    if args.field:
-        out.append(f"- 环境权重：自定义对手分布 {args.field}")
-    elif scope.field and scope.matchups:
-        out.append("- 环境权重：该分段近 7 天各卡组类型的出场率 × 对阵胜率")
-    else:
-        out.append("- 环境权重：该模式没有出场率/对阵数据，综合分只反映列表自身胜率（按样本量收缩）")
+    out.append(f"- 环境权重：{'自定义对手分布 ' + args.field if args.field else scope.weighting}")
     out.append("")
 
     if coll.loaded:
@@ -319,28 +364,34 @@ def cmd_recommend(args) -> int:
 
 
 def cmd_meta(args) -> int:
-    scope = Scope(Path(args.data), args.format, args.rank, None, args.min_games)
+    scope = Scope(Path(args.data), args.format, args.rank, None, args.min_games, args.source)
     field = load_field_override(args.field, scope) if args.field else scope.field
     rows = []
     for aid, pop in field.items():
         exp, cov = scope.expected_wr(aid, field)
         rows.append((pop, aid, scope.arch_wr.get(aid), exp, cov))
-    print(f"# 环境概览（{scope.fmt} / {scope.rank}，近 7 天）\n")
+    print(f"# 环境概览（{scope.fmt} / {scope.rank}）\n")
+    print(f"- 数据源：{scope.label}，更新于 {scope.updated or '未知'}\n- 环境权重：{scope.weighting}\n")
     print("| 卡组类型 | 出场率 | 总胜率 | 对当前环境期望胜率 | 最好打 | 最难打 |\n|---|---|---|---|---|---|")
     top_ids = [aid for _, aid, *_ in sorted(rows, reverse=True)[:15]]
     for pop, aid, wr, exp, _ in sorted(rows, reverse=True)[: args.top]:
-        cells = [(c["win_rate"], int(o)) for o, c in scope.matchups.get(str(aid), {}).items()
-                 if int(o) in top_ids and int(o) != aid and c.get("total_games", 0) >= MIN_MATCHUP_GAMES]
+        if scope.source == "firestone":  # matchups are per opposing class
+            cells = [(c["win_rate"], CLASS_ZH.get(cls, cls)) for cls, c in scope.class_matchups.get(aid, {}).items()
+                     if c.get("total_games", 0) >= MIN_MATCHUP_GAMES]
+        else:
+            cells = [(c["win_rate"], scope.arch_name(int(o))) for o, c in scope.matchups.get(str(aid), {}).items()
+                     if int(o) in top_ids and int(o) != aid and c.get("total_games", 0) >= MIN_MATCHUP_GAMES]
         best = max(cells, default=None)
         worst = min(cells, default=None)
-        show = lambda c: f"{scope.arch_name(c[1])} {c[0]:.0f}%" if c else "—"
+        show = lambda c: f"{c[1]} {c[0]:.0f}%" if c else "—"
         print(f"| {scope.arch_name(aid)} | {pop:.2f}% | {wr or 0:.1f}% | "
               f"{'%.1f%%' % exp if exp is not None else '—'} | {show(best)} | {show(worst)} |")
     return 0
 
 
 def cmd_show(args) -> int:
-    scope = Scope(Path(args.data), args.format, args.rank, args.time_range, 0)
+    source = "firestone" if args.deck_id.startswith("fs") and len(args.deck_id) == 12 else "hsreplay"
+    scope = Scope(Path(args.data), args.format, args.rank, args.time_range, 0, source)
     coll = Collection(scope.dir, args.collection)
     d = next((x for x in evaluate(scope, coll, scope.field) if x["id"] == args.deck_id), None)
     if d is None:
@@ -366,7 +417,10 @@ def main() -> int:
 
     def common(p):
         p.add_argument("--format", default="standard", choices=list(FORMAT_ENUM))
-        p.add_argument("--rank", help="默认优先 DIAMOND_THROUGH_LEGEND（需 Premium），否则 BRONZE_THROUGH_GOLD")
+        p.add_argument("--source", default="auto", choices=["auto", "firestone", "hsreplay"],
+                       help="auto：有 Firestone 数据就用它（钻石–传说），否则 HSReplay")
+        p.add_argument("--rank", help="Firestone：legend-diamond（默认）/ legend / diamond …；"
+                                      "HSReplay：BRONZE_THROUGH_GOLD / DIAMOND_THROUGH_LEGEND（需 Premium）")
         p.add_argument("--min-games", type=int, default=200)
         p.add_argument("--top", type=int, default=12)
 

@@ -116,3 +116,35 @@ def encode_deckstring(cards: list[tuple[int, int]], hero_dbf: int, fmt: int,
     else:
         buf += b"\x00"
     return base64.b64encode(bytes(buf)).decode("ascii")
+
+
+def decode_deckstring(code: str) -> tuple[list[tuple[int, int]], list[tuple[int, int, int]]]:
+    """Inverse of encode_deckstring: (cards, sideboards) with the same tuple shapes."""
+    buf = base64.b64decode(code)
+    pos = 0
+
+    def varint() -> int:
+        nonlocal pos
+        result = shift = 0
+        while True:
+            b = buf[pos]
+            pos += 1
+            result |= (b & 0x7F) << shift
+            shift += 7
+            if not b & 0x80:
+                return result
+
+    varint(), varint(), varint()  # reserved byte, version, format
+    for _ in range(varint()):
+        varint()  # heroes
+    cards = [(varint(), 1) for _ in range(varint())]
+    cards += [(varint(), 2) for _ in range(varint())]
+    cards += [(varint(), varint()) for _ in range(varint())]
+    side = []
+    if pos < len(buf) and varint() == 1:
+        side += [(varint(), 1, varint()) for _ in range(varint())]
+        side += [(varint(), 2, varint()) for _ in range(varint())]
+        for _ in range(varint()):
+            card, count = varint(), varint()
+            side.append((card, count, varint()))
+    return cards, side

@@ -7,15 +7,24 @@ page, which also carries the login cookie for the collection endpoint.
     python hs_fetch.py login            # one-time: sign in inside the opened window
     python hs_fetch.py fetch            # meta + collection -> ~/.hs-advisor/data/
     python hs_fetch.py fetch --formats standard,wild --no-collection
+    python hs_fetch.py fetch --source firestone   # no browser: refresh Diamond-Legend data only
+
+Two sources are stored side by side:
+  * HSReplay  - archetype-vs-archetype matchups and the collection; free tier is Bronze-Gold only.
+  * Firestone - public static files for every rank bracket; matchups only per opponent class.
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
+import gzip
 import json
 import shutil
 import sys
+import time
+import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 from playwright.sync_api import sync_playwright
 
@@ -27,6 +36,12 @@ CARDS_URL = "https://api.hearthstonejson.com/v1/latest/{loc}/cards.collectible.j
 FREE_RANK = "BRONZE_THROUGH_GOLD"
 PREMIUM_RANKS = ["DIAMOND_THROUGH_LEGEND", "LEGEND"]
 DECK_TIME_RANGES = ["CURRENT_PATCH", "LAST_30_DAYS"]
+
+FS_BASE = "https://static.zerotoheroes.com/api/constructed/stats"
+FS_TIME = "last-patch"
+FS_DETAIL_MIN_SHARE = 0.01  # archetypes below this share of games get no matchup download (~1 MB each)
+FS_DETAIL_MAX = 30
+UA = {"User-Agent": "hs-deck-advisor/1.0"}
 
 FETCH_JS = """
 async (items) => {
@@ -137,20 +152,98 @@ def collection_urls(acct: dict | None, cfg: dict) -> list[tuple[str, str]]:
             for r, lo in accounts]
 
 
+def http_json(url: str, attempts: int = 3):
+    for i in range(attempts):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=120) as r:
+                raw = r.read()
+            return json.loads(gzip.decompress(raw) if raw[:2] == b"\x1f\x8b" else raw)
+        except urllib.error.HTTPError:
+            raise  # 403/404 means the file does not exist; retrying will not help
+        except OSError:
+            if i == attempts - 1:
+                raise
+            time.sleep(2 * (i + 1))
+
+
+def fetch_firestone(snap, fmt: str, rank: str) -> dict:
+    """One slim file per format + rank: archetypes, deck lists and per-class matchups."""
+    scope = f"{fmt}/{rank}/{FS_TIME}"
+    decks = http_json(f"{FS_BASE}/decks/{scope}/overview-from-hourly.gz.json")
+    arch = http_json(f"{FS_BASE}/archetypes/{scope}/overview-from-hourly.gz.json")
+    archetypes = [{"id": a["id"], "name": a["name"], "class": a["heroCardClass"].upper(),
+                   "games": a["totalGames"], "wins": a["totalWins"]} for a in arch["archetypeStats"]]
+    total = sum(a["games"] for a in archetypes) or 1
+    wanted = [a["id"] for a in sorted(archetypes, key=lambda a: -a["games"])
+              if a["games"] / total >= FS_DETAIL_MIN_SHARE][:FS_DETAIL_MAX]
+
+    def detail(aid):
+        info = http_json(f"{FS_BASE}/archetypes/{scope}/archetype/{aid}.gz.json").get("matchupInfo", [])
+        return aid, {m["opponentClass"].upper(): {"total_games": m["totalGames"],
+                                                  "win_rate": 100.0 * m["wins"] / max(m["totalGames"], 1)}
+                     for m in info}
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        matchups = dict(pool.map(detail, wanted))
+    path = snap / f"fs__{fmt}__{rank}.json"
+    save_json(path, {
+        "last_updated": decks.get("lastUpdated"), "time_period": FS_TIME, "data_points": decks.get("dataPoints"),
+        "archetypes": archetypes, "matchups": matchups,
+        "decks": [{"code": d["decklist"], "class": d["playerClass"].upper(), "archetype_id": d["archetypeId"],
+                   "games": d["totalGames"], "wins": d["totalWins"]} for d in decks["deckStats"]],
+    })
+    return {"status": 200, "bytes": path.stat().st_size}
+
+
 def cmd_fetch(args) -> int:
     cfg = load_config()
-    stamp = dt.datetime.now().strftime("%Y%m%d")
-    snap = DATA_DIR / "snapshots" / stamp
+    now = dt.datetime.now()
+    snap = DATA_DIR / "snapshots" / now.strftime("%Y%m%d")
     snap.mkdir(parents=True, exist_ok=True)
-    manifest = {"fetched_at": dt.datetime.now().isoformat(timespec="seconds"), "files": {}}
+    # Carry the previous snapshot forward so fetching one source keeps the other's files.
+    old = load_json(LATEST_DIR / "manifest.json") if (LATEST_DIR / "manifest.json").exists() else {}
+    if LATEST_DIR.exists():
+        for f in LATEST_DIR.iterdir():
+            if f.is_file() and not (snap / f.name).exists():
+                shutil.copy2(f, snap / f.name)
+    manifest = {**old, "fetched_at": now.isoformat(timespec="seconds"), "files": dict(old.get("files", {}))}
+    manifest.setdefault("logged_in", False)
+    if old.get("fetched_at"):  # manifests written before per-source timestamps existed
+        manifest.setdefault("hsreplay_fetched_at", old["fetched_at"])
     formats = [f.strip() for f in args.formats.split(",") if f.strip()]
 
     for loc in ("enUS", "zhCN"):
-        req = urllib.request.Request(CARDS_URL.format(loc=loc), headers={"User-Agent": "hs-deck-advisor/1.0"})
-        with urllib.request.urlopen(req, timeout=60) as r:
+        with urllib.request.urlopen(urllib.request.Request(CARDS_URL.format(loc=loc), headers=UA), timeout=60) as r:
             (snap / f"cards_{loc}.json").write_bytes(r.read())
         manifest["files"][f"cards_{loc}"] = {"status": 200}
 
+    if args.source in ("all", "firestone"):
+        manifest["firestone_fetched_at"] = manifest["fetched_at"]
+        for fmt in formats:
+            for rank in [r.strip() for r in args.fs_ranks.split(",") if r.strip()]:
+                try:
+                    manifest["files"][f"fs__{fmt}__{rank}"] = fetch_firestone(snap, fmt, rank)
+                except Exception as e:
+                    manifest["files"][f"fs__{fmt}__{rank}"] = {"status": 0, "error": str(e)[:200]}
+
+    if args.source in ("all", "hsreplay"):
+        manifest["hsreplay_fetched_at"] = manifest["fetched_at"]
+        fetch_hsreplay(args, cfg, formats, snap, manifest)
+    save_json(snap / "manifest.json", manifest)
+
+    if LATEST_DIR.exists():
+        shutil.rmtree(LATEST_DIR)
+    shutil.copytree(snap, LATEST_DIR)
+
+    print(f"snapshot: {snap}")
+    print(f"logged_in: {manifest['logged_in']}")
+    for name, info in manifest["files"].items():
+        mark = "ok " if info["status"] == 200 else "ERR"
+        print(f"  {mark} {info['status']:>3} {info.get('bytes', ''):>8} {name} {info.get('error', '')}")
+    return 0
+
+
+def fetch_hsreplay(args, cfg: dict, formats: list[str], snap, manifest: dict) -> None:
     with sync_playwright() as p:
         ctx, page = open_site(p)
         acct = get_account(page)
@@ -182,18 +275,6 @@ def cmd_fetch(args) -> int:
             (snap / f"{name}.json").write_text(res["body"], encoding="utf-8")
         else:
             manifest["files"][name]["error"] = res["body"][:200]
-    save_json(snap / "manifest.json", manifest)
-
-    if LATEST_DIR.exists():
-        shutil.rmtree(LATEST_DIR)
-    shutil.copytree(snap, LATEST_DIR)
-
-    print(f"snapshot: {snap}")
-    print(f"logged_in: {manifest['logged_in']}")
-    for name, info in manifest["files"].items():
-        mark = "ok " if info["status"] == 200 else "ERR"
-        print(f"  {mark} {info['status']:>3} {info.get('bytes', ''):>8} {name} {info.get('error', '')}")
-    return 0
 
 
 def main() -> int:
@@ -205,6 +286,9 @@ def main() -> int:
     lg.set_defaults(fn=cmd_login)
     ft = sub.add_parser("fetch", help="download meta data and the collection")
     ft.add_argument("--formats", default="standard,wild")
+    ft.add_argument("--source", default="all", choices=["all", "hsreplay", "firestone"])
+    ft.add_argument("--fs-ranks", default="legend-diamond",
+                    help="Firestone 分段，逗号分隔：legend-diamond / legend / top-2000-legend / diamond / platinum / bronze-gold / all")
     ft.add_argument("--no-collection", action="store_true")
     ft.add_argument("--no-premium", action="store_true")
     ft.set_defaults(fn=cmd_fetch)

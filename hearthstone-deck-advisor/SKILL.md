@@ -12,8 +12,9 @@ description: 炉石传说卡组推荐器。把 HSReplay 的卡组胜率、出场
 ```bash
 cd .claude/skills/hearthstone-deck-advisor/scripts
 python hs_fetch.py login       # 仅首次或会话过期时：弹出 Chrome，用户手动登录，脚本等待
-python hs_fetch.py fetch       # 下载卡牌库 + 环境数据 + 我的收藏 -> data/snapshots/<日期>/ 和 data/latest/
-python hs_advisor.py recommend # 推荐报告（默认标准模式）
+python hs_fetch.py fetch       # 下载卡牌库 + 两个数据源的环境数据 + 我的收藏 -> data/snapshots/<日期>/ 和 data/latest/
+python hs_fetch.py fetch --source firestone   # 只刷新 Firestone 环境数据：纯 HTTP，不弹浏览器，不需要登录
+python hs_advisor.py recommend # 推荐报告（默认标准模式、Firestone 钻石–传说段）
 python hs_advisor.py meta      # 环境概览：出场率、胜率、最好打/最难打
 python hs_advisor.py show <deck_id>   # 完整卡表，标出已有/缺失
 ```
@@ -23,6 +24,23 @@ python hs_advisor.py show <deck_id>   # 完整卡表，标出已有/缺失
 
 常用参数：`--format wild`、`--class MAGE`、`--dust 3200`（覆盖收藏里的粉尘数，比如游戏内一键分解之后的总数）、
 `--field my_field.json`（自定义对手分布）、`--all-variants`、`--json`。
+
+## 两个数据源
+
+| | Firestone（默认） | HSReplay |
+|---|---|---|
+| 分段 | 全部免费：`legend-diamond`（默认）、`legend`、`top-2000-legend`、`diamond`、`platinum`、`bronze-gold`、`all` | 免费只有 `BRONZE_THROUGH_GOLD`；钻石以上要 Premium |
+| 对阵数据 | 卡组类型 **对各职业** 的胜率 | 卡组类型 **对各卡组类型** 的胜率（更细） |
+| 狂野模式 | 有出场率和对阵 | 只有卡组胜率 |
+| 样本来源 | Firestone 用户，海外玩家为主，不分服区 | HDT 用户，全服区合并；国服单独数据要 Premium |
+| 抓取方式 | 公开静态文件，直接 HTTP | 真实 Chrome + 页面内 fetch（Cloudflare） |
+| 我的收藏 | 无 | 有（需登录） |
+
+- 选数据源：`--source firestone|hsreplay`，默认 `auto`（有 Firestone 数据就用它）。`--rank` 传 HSReplay 的大写分段名时自动切到 HSReplay。
+- 要更多 Firestone 分段：`python hs_fetch.py fetch --source firestone --fs-ranks legend-diamond,legend`，
+  再用 `--rank legend` 查看。每个分段要下载约 30 个卡组类型的对阵文件（各约 1 MB）。
+- 用户在钻石以上：用默认的 Firestone。用户在黄金以下，或想看卡组类型间的克制关系：加 `--source hsreplay`。
+- 两个源的卡组类型命名不同（如 `yogg-warrior` 对 `Cannon Warrior`），`--field` 文件里的名字要用当前数据源 `meta` 输出的名字。
 
 ## 报告怎么读
 
@@ -39,10 +57,11 @@ python hs_advisor.py show <deck_id>   # 完整卡表，标出已有/缺失
 
 ## 按我自己的天梯加权
 
-默认环境是 HSReplay 该分段近 7 天的整体出场率。用户说"我最近老遇到 X"时，写一个对手分布文件再跑：
+默认环境是所选数据源该分段的整体出场率。用户说"我最近老遇到 X"时，写一个对手分布文件再跑
+（示例见 `~/.hs-advisor/fields/example_rogue_heavy.json`）：
 
 ```json
-{"Cannon Warrior": 30, "Holy Paladin": 20, "Azalina Priest": 15}
+{"ayaya-rogue": 50, "void-cthun-dh": 30, "harold-blood-dk": 20}
 ```
 
 ```bash
@@ -54,11 +73,14 @@ python hs_advisor.py meta --field my_field.json
 
 ## 数据范围与限制
 
-- 直连 HSReplay 会被 Cloudflare 拦（403），所以抓取走真实 Chrome + 页面内 fetch；窗口会短暂弹出。
-- 免费账号只有 **青铜–黄金段**、全服区数据；钻石–传说段和国服单独数据需要 Premium（`fetch` 会自动探测，有权限就一并下载，
-  `recommend` 默认优先用高分段）。
-- 狂野模式没有出场率和对阵数据，综合分只反映列表自身胜率。
+- 直连 HSReplay 会被 Cloudflare 拦（403），所以它的抓取走真实 Chrome + 页面内 fetch；窗口会短暂弹出。
+- **没有免费的国服单独环境数据**：国服钻石以上只有 HSReplay Premium（服区筛选）能看；两个免费源都以海外玩家为主，
+  国服环境通常相近但不完全一致，用户反馈差异大时用 `--field` 按实际遇到的对手修正。
+- HSReplay Premium 开通后 `fetch` 会自动探测并下载 `DIAMOND_THROUGH_LEGEND`、`LEGEND` 分段。
+- 已查过但没接入的来源（2026-11）：HSGuru 有钻石–传说筛选，但 Cloudflare 交互验证连真实 Chrome 也过不去；
+  Vicious Syndicate 周报按分段分析，但只有文章和图表，没有可下载的数据。
 - 收藏来自 HDT 上传到 HSReplay 的数据，游戏里开包/合成后要等 HDT 同步再 `fetch`。
-- 抓取频率保持每天至多一两次，仅个人使用。
+- 抓取频率保持每天至多一两次，仅个人使用。Firestone 数据文件地址取自其开源客户端
+  （`Zero-to-Heroes/firestone` 的 `constructed-meta-decks-state-builder.service.ts`），失效时去那里核对。
 
 接口细节与账号参数见 `../hearthstone-pack-analyzer/references/hsreplay-api.md`。
