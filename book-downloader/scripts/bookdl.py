@@ -10,8 +10,8 @@ bookdl.py - 统一搜书/下书 CLI（book-downloader skill）
 
 约定:
   - 全部 stdout 输出 JSON；错误 JSON 走 stderr 并以非 0 退出
-  - 凭据: ~/.config/book-downloader/.env (ZLIB_EMAIL / ZLIB_PASSWORD / ANNAS_SECRET_KEY)
-  - 缓存: ~/.config/book-downloader/config.json (remix token、可用镜像缓存等非敏感值)
+  - 账号凭据: 只读 vault 根目录 .env（ZLIB_EMAIL / ZLIB_PASSWORD / ANNAS_SECRET_KEY）
+  - 缓存: ~/.config/book-downloader/config.json（登录会话、域名和镜像设置）
 """
 
 import argparse
@@ -26,7 +26,8 @@ import requests
 
 CONFIG_DIR = Path.home() / ".config" / "book-downloader"
 CONFIG_FILE = CONFIG_DIR / "config.json"
-ENV_FILE = CONFIG_DIR / ".env"
+VAULT_ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
+ENV_KEYS = {"ZLIB_EMAIL", "ZLIB_PASSWORD", "ANNAS_SECRET_KEY", "ZLIB_DOMAIN"}
 DEFAULT_DOWNLOAD_DIR = Path.home() / "Downloads"
 UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"}
 TIMEOUT = 20
@@ -41,12 +42,14 @@ ANNAS_MIRRORS = ["annas-archive.gl", "annas-archive.org", "annas-archive.se", "a
 
 def load_env() -> dict:
     env = {}
-    if ENV_FILE.exists():
-        for line in ENV_FILE.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                env[k.strip()] = v.strip().strip('"').strip("'")
+    if not VAULT_ENV_FILE.is_file():
+        return env
+    with VAULT_ENV_FILE.open(encoding="utf-8-sig") as stream:
+        for line in stream:
+            key, sep, value = line.strip().partition("=")
+            key = key.strip()
+            if sep and key in ENV_KEYS:
+                env[key] = value.strip().strip('"').strip("'")
     return env
 
 
@@ -88,8 +91,8 @@ class Zlib:
     def __init__(self):
         cfg = load_config().get("zlib", {})
         env = load_env()
-        self.email = env.get("ZLIB_EMAIL") or cfg.get("email")
-        self.password = env.get("ZLIB_PASSWORD") or cfg.get("password")
+        self.email = env.get("ZLIB_EMAIL")
+        self.password = env.get("ZLIB_PASSWORD")
         self.remix_userid = cfg.get("remix_userid")
         self.remix_userkey = cfg.get("remix_userkey")
         override = env.get("ZLIB_DOMAIN") or cfg.get("domain")
@@ -141,7 +144,7 @@ class Zlib:
             self.cookies.pop("remix_userkey", None)
         if not (self.email and self.password):
             die("Z-Library 未配置凭据",
-                hint=f"在 {ENV_FILE} 写入 ZLIB_EMAIL 和 ZLIB_PASSWORD（没有账号可在 z-library.sk 注册，免费账号有每日额度）")
+                hint=f"在 {VAULT_ENV_FILE} 写入 ZLIB_EMAIL 和 ZLIB_PASSWORD（没有账号可在 z-library.sk 注册，免费账号有每日额度）")
         try:
             r = self.session.post(self._url("/eapi/user/login"),
                                   data={"email": self.email, "password": self.password}, timeout=TIMEOUT)
@@ -349,10 +352,10 @@ def libgen_download(md5, out_dir: Path, filename: str = None):
 # ---------------------------------------------------------------- annas
 
 def _annas_key():
-    key = load_env().get("ANNAS_SECRET_KEY") or load_config().get("annas", {}).get("secret_key")
+    key = load_env().get("ANNAS_SECRET_KEY")
     if not key:
         die("Anna's Archive 未配置 key",
-            hint=f"捐赠会员后在账号设置里取 key，写入 {ENV_FILE} 的 ANNAS_SECRET_KEY")
+            hint=f"捐赠会员后在账号设置里取 key，写入 {VAULT_ENV_FILE} 的 ANNAS_SECRET_KEY")
     return key
 
 
@@ -447,16 +450,18 @@ def cmd_quota(_args):
 
 def cmd_preflight(_args):
     env = load_env()
-    cfg = load_config()
-    zlib_cred = bool((env.get("ZLIB_EMAIL") and env.get("ZLIB_PASSWORD")) or cfg.get("zlib", {}).get("remix_userid"))
-    annas_key = bool(env.get("ANNAS_SECRET_KEY") or cfg.get("annas", {}).get("secret_key"))
+    zlib_cfg = load_config().get("zlib", {})
+    zlib_cred = bool(env.get("ZLIB_EMAIL") and env.get("ZLIB_PASSWORD"))
+    cached_session = bool(zlib_cfg.get("remix_userid") and zlib_cfg.get("remix_userkey"))
+    annas_key = bool(env.get("ANNAS_SECRET_KEY"))
 
     zlib_ok = False
     try:
         z = Zlib()
         z._pick_domain()
         zlib_ok = True
-        zlib_hint = f"EAPI 可达 (domain={z.domain})" + ("，凭据已配置" if zlib_cred else "，缺凭据")
+        auth_status = "凭据已配置" if zlib_cred else ("仅有缓存会话" if cached_session else "缺凭据")
+        zlib_hint = f"EAPI 可达 (domain={z.domain})，{auth_status}"
     except SystemExit:
         zlib_hint = "EAPI 不可达"
     try:
@@ -473,15 +478,15 @@ def cmd_preflight(_args):
     except SystemExit:
         annas_hint = "镜像均不可达（可能是代理节点问题）"
 
-    ready = libgen_ok or (zlib_ok and zlib_cred)
+    ready = libgen_ok or (zlib_ok and (zlib_cred or cached_session))
     output({
         "ready": ready,
         "backends": {
-            "zlib": {"reachable": zlib_ok, "credentials": zlib_cred, "hint": zlib_hint},
+            "zlib": {"reachable": zlib_ok, "credentials": zlib_cred, "cached_session": cached_session, "hint": zlib_hint},
             "libgen": {"reachable": libgen_ok, "credentials": "无需账号", "hint": libgen_hint},
             "annas": {"reachable": annas_ok, "credentials": annas_key, "hint": annas_hint},
         },
-        "env_file": str(ENV_FILE),
+        "env_file": str(VAULT_ENV_FILE),
     })
     if not ready:
         sys.exit(1)

@@ -29,12 +29,7 @@ python3 $B download --source annas --md5 <md5> [-o 目录]
 python3 $B quota                          # zlib 今日剩余额度
 ```
 
-凭据写入 `~/.config/book-downloader/.env`（脚本不存在时给出一行模板；绝不打印/回显密码）：
-```
-ZLIB_EMAIL=...
-ZLIB_PASSWORD=...
-ANNAS_SECRET_KEY=...   # 可选
-```
+`ZLIB_EMAIL`、`ZLIB_PASSWORD` 和可选的 `ANNAS_SECRET_KEY` 只从 vault 根目录 `.env` 读取。缺失或为空时，不从用户目录或 `config.json` 补值。`preflight` 分开报告账号凭据和缓存会话，不显示凭据值。
 
 ## 工作流程纪律
 
