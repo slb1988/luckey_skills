@@ -59,8 +59,8 @@ $output = python $ossScript "$imgPath"
 $ossUrl = ($output | Select-String "^OSS_URL:").Line -replace "OSS_URL: ", ""
 ```
 
-- 脚本自动读取 `~/.claude/oss_config.env`，自动安装 ossutil
-- 输出 URL 形如 `https://<bucket>.<endpoint>/images/<timestamp>.jpg`
+- 从项目目录运行，脚本只读取项目根目录的 `.env`；缺少 ossutil 时自动安装
+- 输出 URL 形如 `https://<bucket>.<endpoint>/<prefix>/<timestamp>.jpg`
 - 若 `$ossUrl` 为空，报错停止，**不写入记录**
 
 ### Step 3：写入记录文件（插入到最前面）

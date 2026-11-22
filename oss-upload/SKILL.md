@@ -33,12 +33,9 @@ $URL = ($output | Select-String "^OSS_URL:").Line -replace "OSS_URL: ", ""
 
 ## 首次配置
 
-脚本会自动检查 `~/.claude/oss_config.env`：
+从要使用其凭据的项目目录启动脚本。配置只读当前 Git 仓库根目录的 `.env`；不在 Git 仓库内时只读当前目录的 `.env`。配置缺失或必填项为空时直接退出，不创建文件，也不查用户目录。已有 `.env` 不要用模板覆盖。
 
-- **文件不存在**：自动从模版复制并提示填写
-- **含占位符 `your_*`**：提示用户手动编辑后重试
-
-配置模版位于 `config/oss_config.env.template`，字段说明：
+公开示例：`config/.env.example`。只有以下字段用于上传：
 
 | 字段 | 说明 | 示例 |
 |------|------|------|
@@ -46,7 +43,7 @@ $URL = ($output | Select-String "^OSS_URL:").Line -replace "OSS_URL: ", ""
 | `OSS_ACCESS_KEY_SECRET` | 阿里云 AccessKey Secret | `NEXDx...` |
 | `OSS_BUCKET` | Bucket 名称 | `my-bucket` |
 | `OSS_ENDPOINT` | 地域 Endpoint | `oss-cn-shanghai.aliyuncs.com` |
-| `OSS_PREFIX` | 存储路径前缀 | `images` |
+| `OSS_PREFIX` | 存储路径前缀 | `res` |
 
 ## ossutil 自动安装
 
@@ -64,9 +61,8 @@ $URL = ($output | Select-String "^OSS_URL:").Line -replace "OSS_URL: ", ""
 
 ## 脚本路径
 
-- 主脚本：`scripts/oss_upload.py`（Python 3.6+，无第三方依赖，跨平台）
-- 配置模版：`config/oss_config.env.template`
-- 运行时配置：`~/.claude/oss_config.env`（用户手动填写，不纳入版本控制）
+- 主脚本：`scripts/oss_upload.py`（Python 3.10+，无第三方依赖，跨平台）
+- 运行时配置：项目根目录的 `.env`（不纳入版本控制）。密钥通过子进程环境传给 ossutil，不进入命令行参数。
 
 ---
 
@@ -158,15 +154,4 @@ Windows 系统代理存在于注册表 `HKCU:\Software\Microsoft\Windows\Current
 
 含义：配置的 `OSS_ENDPOINT` 与 bucket 实际所在 region 不符。
 
-用 ossutil 查出 bucket 真实 region：
-
-```bash
-ossutil ls \
-  --access-key-id "$AK" \
-  --access-key-secret "$SK" \
-  --endpoint "oss.aliyuncs.com" \
-  --region "cn-shanghai"
-# 输出中 Region 列即为正确 region
-```
-
-然后将 `oss_config.env` 的 `OSS_ENDPOINT` 更新为正确值。
+在阿里云控制台核对 Bucket 所在地域，再在本机设置项目 `.env` 的 `OSS_ENDPOINT`。不要将密钥放入命令行。

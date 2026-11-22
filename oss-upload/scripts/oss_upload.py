@@ -8,6 +8,8 @@ OSS 上传脚本 - 跨平台（macOS / Windows / Linux）
 import os
 import sys
 import platform
+import re
+import shlex
 import shutil
 import subprocess
 import urllib.request
@@ -24,9 +26,8 @@ OSSUTIL_DOWNLOADS = {
 }
 OSSUTIL_BASE_URL = "https://gosspublic.alicdn.com/ossutil/v2/{v}/{filename}"
 
-CONFIG_FILE = Path.home() / ".claude" / "oss_config.env"
-SKILL_DIR = Path(__file__).parent.parent
-TEMPLATE_FILE = SKILL_DIR / "config" / "oss_config.env.template"
+REQUIRED_KEYS = ("OSS_ACCESS_KEY_ID", "OSS_ACCESS_KEY_SECRET", "OSS_BUCKET", "OSS_ENDPOINT")
+CONFIG_KEYS = {*REQUIRED_KEYS, "OSS_PREFIX"}
 
 
 def ossutil_bin() -> Path:
@@ -86,35 +87,39 @@ def install_ossutil() -> Path:
     return dest
 
 
+def project_env() -> Path:
+    cwd = Path.cwd()
+    for directory in (cwd, *cwd.parents):
+        if (directory / ".git").exists():
+            return directory / ".env"
+    return cwd / ".env"
+
+
 def load_config() -> dict:
-    """读取配置文件，首次运行时从模版复制并提示用户。"""
-    if not CONFIG_FILE.exists():
-        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(TEMPLATE_FILE, CONFIG_FILE)
-        print(f"\n首次使用：已创建配置文件 {CONFIG_FILE}")
-        print("请用编辑器填写以下字段后重新运行：")
-        print("  OSS_ACCESS_KEY_ID     — 阿里云 AccessKey ID")
-        print("  OSS_ACCESS_KEY_SECRET — 阿里云 AccessKey Secret")
-        print("  OSS_BUCKET            — Bucket 名称")
-        print("  OSS_ENDPOINT          — 地域 Endpoint，如 oss-cn-shanghai.aliyuncs.com")
-        print("  OSS_PREFIX            — 存储路径前缀，如 images\n")
-        sys.exit(1)
-
+    path = project_env()
     config = {}
-    with open(CONFIG_FILE, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if "=" in line:
-                k, _, v = line.partition("=")
-                config[k.strip()] = v.strip()
-
-    if any("your_" in v for v in config.values()):
-        print(f"\n配置文件尚未填写：{CONFIG_FILE}")
-        print("请将 your_* 占位符替换为真实值后重新运行。\n")
-        sys.exit(1)
-
+    try:
+        with path.open(encoding="utf-8-sig") as f:
+            for line in f:
+                match = re.fullmatch(r"(?:export\s+)?(\w+)\s*=\s*(.*)", line.strip())
+                if not match or match[1] not in CONFIG_KEYS:
+                    continue
+                key, raw = match.groups()
+                if raw.startswith(('"', "'")):
+                    try:
+                        value, = shlex.split(raw, comments=True, posix=True)
+                    except ValueError:
+                        sys.exit(f"项目 .env 中的 {key} 格式无效")
+                else:
+                    value = re.split(r"\s+#|^#", raw, maxsplit=1)[0].rstrip()
+                config[key] = value
+    except (OSError, UnicodeError):
+        sys.exit(f"无法读取项目配置：{path}")
+    for key in REQUIRED_KEYS:
+        if not config.get(key) or config[key].startswith("your_"):
+            sys.exit(f"请在项目 .env 中设置 {key}")
+    if config.get("OSS_PREFIX", "").startswith("your_"):
+        sys.exit("请在项目 .env 中设置 OSS_PREFIX")
     return config
 
 
@@ -142,16 +147,11 @@ def main():
         print(f"错误: 文件不存在: {local_file}")
         sys.exit(1)
 
-    # ossutil 检查与安装
-    oss_bin = find_ossutil()
-    if not oss_bin:
-        oss_bin = install_ossutil()
-
-    # 配置加载
     cfg = load_config()
+    oss_bin = find_ossutil() or install_ossutil()
     bucket   = cfg["OSS_BUCKET"].strip()
     endpoint = cfg["OSS_ENDPOINT"].strip()
-    prefix   = cfg.get("OSS_PREFIX", "images").strip()
+    prefix   = cfg.get("OSS_PREFIX", "images").strip().strip("/")
     key_id   = cfg["OSS_ACCESS_KEY_ID"]
     key_sec  = cfg["OSS_ACCESS_KEY_SECRET"]
     region   = extract_region(endpoint)
@@ -164,12 +164,11 @@ def main():
 
     cmd = [
         str(oss_bin), "cp", local_file, oss_dest,
-        "--access-key-id",     key_id,
-        "--access-key-secret", key_sec,
         "--endpoint",          endpoint,
         "--region",            region,
     ]
-    result = subprocess.run(cmd)
+    env = {**os.environ, "OSS_ACCESS_KEY_ID": key_id, "OSS_ACCESS_KEY_SECRET": key_sec}
+    result = subprocess.run(cmd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if result.returncode != 0:
         sys.exit(f"上传失败，ossutil 退出码: {result.returncode}")
 
