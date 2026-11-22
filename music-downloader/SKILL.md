@@ -1,16 +1,26 @@
 ---
 name: music-downloader
-title: 音乐下载器（默认中文儿歌 → NAS SongLoft 曲库）
-description: 下载歌曲为 MP3 并落盘 NAS SongLoft 曲库，默认场景是主流中文儿童歌曲。当用户提到下载儿歌/儿童歌曲/歌曲 MP3、补歌、扩充歌单、往 NAS/歌库/小爱音箱曲库加歌、SongLoft 曲库、或说「下载 XX 这首歌」「来几首主流儿歌」时触发；即使用户只说歌名让"下下来"也应使用本 Skill。儿歌之外的其他歌曲下载同样走本流程，仅落盘子目录不同。视频下载（B站/YouTube 视频本体）走 video-downloader skill，不要用本 Skill。
+title: 歌曲 MP3 与琴谱下载
+description: 下载歌曲或琴谱。「下载这首歌」「来几首主流儿歌」、补歌、扩充歌单、往 NAS / SongLoft / 小爱音箱曲库加歌走 MP3 流程，默认分类为中文儿歌，其他歌曲用相应分类。「下载电子琴谱」「找简谱／五线谱」「要带和弦的谱」走琴谱流程，交付可读谱面，不下载音频。B站或 YouTube 视频本体走 video-downloader。
 tags: [music, mp3, 儿歌, 儿童歌曲, youtube, yt-dlp, nas, songloft, xiaomusic, 小爱音箱]
 argument-hint: "[歌名或歌单描述]"
 ---
 
 # Music Downloader
 
-把歌曲下载为 MP3 放进 NAS SongLoft 曲库，小爱音箱/StoryIn/Loft 生态直接可播。默认下载主流中文儿歌。
+## 琴谱：按弹法选版本
 
-## 铁律：落盘路径
+| 用户想怎么弹 | 应在谱面上看到什么 |
+|---|---|
+| 电子琴右手弹旋律，左手开自动伴奏 | 选旋律与和弦谱（lead sheet）：音符上方标有 C、F、G7 等和弦符号，标明何时切换伴奏。 |
+| 左右手都照谱弹 | 选写出左手伴奏音符的双手编配；初级钢琴谱也可能只是把同一条旋律分给两只手。 |
+| 看数字练旋律，或边弹边唱 | 选简谱或简谱／五线谱对照版；要跟唱时确认有歌词。数字谱以 `1=G` 等标记定调，不代表一定带和弦。 |
+
+例如《铃儿响叮当》在 ChristmasMusicSongs 的[主曲页](https://www.christmasmusicsongs.com/jingle-bells-sheet-music.html)按调列出带和弦的谱，[钢琴页](https://www.christmasmusicsongs.com/piano-sheet-music/jingle-bells-sheet-music-for-piano.html)按难度列出不同编配；[曲谱猫的版本](https://www.qupumao.com/qupu/lexdd247.html)则是带中文歌词的 G 调线简对照谱。
+
+下载正文中的完整 PDF 或谱图，不把结果页、封面或试听当成琴谱。打开文件核对曲名、调号及所需的和弦或歌词；未指定位置时放本机下载目录，文件名注明曲名、调性和谱式。琴谱不入 SongLoft。
+
+## MP3：落盘路径（仅音频）
 
 **目标目录：NAS 内网映射 `/Volumes/Container/songloft/music/<分类>/`**，儿歌用 `中文儿歌`。
 
@@ -18,7 +28,7 @@ argument-hint: "[歌名或歌单描述]"
 - 同名文件已存在 → 跳过，不覆盖（NAS 上可能已有更高质量版本）
 - 不要写入 `~/Music/XiaoMusic/` 本地目录（2026-11 已废弃，全部迁至 NAS）
 
-## 下载工作流
+## MP3 下载工作流
 
 1. 检查 NAS 目录：`ls /Volumes/Container/songloft/music/中文儿歌/`，失败则报错停止
 2. 确定歌单：用户指定歌名直接用；「主流儿歌」这类泛化需求从 [references/song-catalog.md](references/song-catalog.md) 选 NAS 上还没有的
