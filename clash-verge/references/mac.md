@@ -17,6 +17,8 @@ lsof -iTCP:7897 -sTCP:LISTEN     # 端口监听
 ps aux | grep -i verge-mihomo    # 核心进程
 ```
 
+> ⚠️ 与 Windows 不同：macOS 上**退出 Verge UI 会连带停掉 verge-mihomo 核心，代理即断**（2026-11-24 实测，核心虽由 clash-verge-service 拉起，仍随 UI 退出而终止）。在 Mac 上做「退出 UI → 改配置 → 重开」流程时，中间窗口期代理是断的，重开 UI 后核心自动恢复。
+
 ## 控制 API
 
 macOS 没有命名管道，以运行时配置里的字段为准，常见两种：

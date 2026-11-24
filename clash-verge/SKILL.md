@@ -99,6 +99,14 @@ intercom.io  intercomcdn.com
 Antigravity（Google IDE）走代理四要点：① 内置 agent 组件不一定遵循系统代理，须开 TUN 模式兜底接管全部流量；② 出口节点须在支持地区——**香港不支持**，韩国/日本/美国可用，登录全程保持同一地区别中途换节点；③ 登录报 "Your current account is not eligible" **不是网络问题**，是 Google 账号地区被判不合格（绑 +86 手机号 / payments.google.com 付款资料在中国 / 注册地中国），解法：换外区注册的干净账号，或改付款资料地区（一年只能改一次）；④ OAuth 授权回调走 localhost，TUN 下不受影响，但浏览器若装了独立代理插件须让 localhost 直连。
 </memory>
 
+<memory category="core-rules">
+强制 Antigravity 固定走某 VPS 节点（与 profile 切换无关）的已实现方案（2026-11-24 macOS 验证）：**写全局 `Script.js`**（不是 Merge.yaml——Verge 2.x 全局 Merge 的 prepend-* key 不生效，这是坑），在 `main(config)` 里：① `config.proxies.unshift` 注入 VPS 节点（用独立命名如 `KR2-AWS首尔`，避免和订阅节点撞名）；② unshift 独立 select 分组 `Antigravity`（proxies=[VPS节点, DIRECT]，DIRECT 留调试后路）；③ 规则置顶：`PROCESS-PATH-REGEX,(?i)antigravity`（App 全家桶进程含 agent 组件）+ `DOMAIN,accounts.google.com` + `DOMAIN-SUFFIX,googleapis.com/googleapis.cn/gstatic.com/recaptcha.net/googleusercontent.com`（浏览器侧 OAuth 登录与 IDE 保持同一出口地区）。注意直接改 Script.js 后要重启 Verge UI 才重新生成运行时配置；验证用 `GET /rules` 看置顶 + `GET /connections` 看 chains。局限：Global 模式下 rules 全失效，此方案只在 Rule 模式管用。
+
+同法已加 AdsPower 指纹浏览器（2026-11-24 实测 17 条活动连接全部命中）：**一条 `PROCESS-PATH-REGEX,(?i)adspower` 全覆盖**——主程序在 `/Applications/AdsPower Global.app`，浏览器内核 SunBrowser 和 chromedriver 都在 `~/Library/Application Support/adspower_global/cwd_global/chrome_*/` 下，路径都含 adspower；独立分组 `AdsPower`（select: KR2+DIRECT）。提醒：AdsPower 每个浏览器环境自身可配代理，要测出 KR2 出口需把环境代理设为「不使用代理」，否则是在 KR2 之上再叠环境自己的代理（双重出口）。macOS 上做进程规则探针注意：**拷贝 /usr/bin 下的 Apple 签名二进制（curl 等）到其他路径运行会被 Gatekeeper 直接 Killed: 9**，探针要用自包含二进制，或直接启动真实 App 抓 /connections。
+
+同法已加 Grok Bot（2026-11-25 实测 5 条活动连接全部命中）：一条 `PROCESS-PATH-REGEX,(?i)grok bot` + 独立分组 `Grok`（select: KR2+DIRECT）。Grok Bot 是 Electron 应用（`/Applications/Grok Bot.app`，bundle id `com.anysphere.sand`），主进程与全部 Helper 二进制都在该 .app 路径下。注意：直接改 Script.js 后 **kill UI 进程再 `open -a "Clash Verge"`** 才会重新生成运行时配置——`osascript tell application quit` 对 Verge 无效（静默不退出，进程仍在），UI 重开后核心热重载新配置，不断现有连接。
+</memory>
+
 ## Global 模式的两个铁律
 
 用户常年 Global 模式时必须记住：

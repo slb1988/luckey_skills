@@ -15,7 +15,7 @@ description: 搜索并下载电子书（技术/效率类为主）。后端：Z-L
 | `libgen` | 无需账号 | 英文技术书；免配置兜底 | 搜索走 libgen.com.de（服务端渲染可 curl）；**后端集群经常临时 503/500，脚本已内置 3 轮重试**，失败稍后再试；中文书覆盖弱（中文关键词常 0 结果） |
 | `annas` | 捐赠会员 key | 下载加速 | **仅下载**。搜索页有 JS 反爬不可用，但 `fast_download.json` 是纯 JSON API 无挑战；**md5 与 libgen 互通**——libgen 搜到的 md5 可直接交给 annas 下载 |
 
-域名腐化是常态（libgen.la 已死、annas-archive.li 变 parked），脚本对三端都做了域名 failover + 可用域名缓存（`~/.config/book-downloader/config.json`）。Anna's 镜像用 fast_download API 探活以防 parked 域名假冒。
+域名腐化是常态（libgen.la 已死、annas-archive.li 变 parked），脚本对三端都做了域名 failover + 可用域名缓存（`~/.config/book-downloader/config.json`）。**libgen 全镜像 503 时的实战退路**：Playwright 驱动本机 Chrome（headed）过 Anna's DDoS-Guard 挑战 → md5 页取 slow_download 链接 → 等倒计时拿签名直链 → curl 直下（服务器不支持 Range 断点续传，一次下完；~40KB/s 限速，大文件用 nohup 后台）。
 
 ## 快速用法
 
