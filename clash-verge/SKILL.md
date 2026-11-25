@@ -104,7 +104,9 @@ Antigravity（Google IDE）走代理四要点：① 内置 agent 组件不一定
 
 同法已加 AdsPower 指纹浏览器（2026-11-24 实测 17 条活动连接全部命中）：**一条 `PROCESS-PATH-REGEX,(?i)adspower` 全覆盖**——主程序在 `/Applications/AdsPower Global.app`，浏览器内核 SunBrowser 和 chromedriver 都在 `~/Library/Application Support/adspower_global/cwd_global/chrome_*/` 下，路径都含 adspower；独立分组 `AdsPower`（select: KR2+DIRECT）。提醒：AdsPower 每个浏览器环境自身可配代理，要测出 KR2 出口需把环境代理设为「不使用代理」，否则是在 KR2 之上再叠环境自己的代理（双重出口）。macOS 上做进程规则探针注意：**拷贝 /usr/bin 下的 Apple 签名二进制（curl 等）到其他路径运行会被 Gatekeeper 直接 Killed: 9**，探针要用自包含二进制，或直接启动真实 App 抓 /connections。
 
-同法已加 Grok Bot（2026-11-25 实测 5 条活动连接全部命中）：一条 `PROCESS-PATH-REGEX,(?i)grok bot` + 独立分组 `Grok`（select: KR2+DIRECT）。Grok Bot 是 Electron 应用（`/Applications/Grok Bot.app`，bundle id `com.anysphere.sand`），主进程与全部 Helper 二进制都在该 .app 路径下。注意：直接改 Script.js 后 **kill UI 进程再 `open -a "Clash Verge"`** 才会重新生成运行时配置——`osascript tell application quit` 对 Verge 无效（静默不退出，进程仍在），UI 重开后核心热重载新配置，不断现有连接。
+同法已加 Grok Bot（2026-11-25 实测 5 条活动连接全部命中）：一条 `PROCESS-PATH-REGEX,(?i)grok bot` + 独立分组 `Grok`（select: KR2+DIRECT）。Grok Bot 是 Electron 应用（`/Applications/Grok Bot.app`，bundle id `com.anysphere.sand`），主进程与全部 Helper 二进制都在该 .app 路径下。同法已加 Microsoft Remote Desktop 强制直连（2026-11-25）：`PROCESS-PATH-REGEX,(?i)microsoft remote desktop,DIRECT` + `PROCESS-NAME,Microsoft Remote Desktop,DIRECT`，**置顶于所有强制规则之前**（RDP 长连接高带宽，即使后续加了「全局走代理」的进程规则也不能被抢）。规则生效前已建立的 RDP 会话不会重匹配，重连后才走 DIRECT。
+
+注意：直接改 Script.js 后 **kill UI 进程再 `open -a "Clash Verge"`** 才会重新生成运行时配置——`osascript tell application quit` 对 Verge 无效（静默不退出，进程仍在），UI 重开后核心热重载新配置，不断现有连接。
 </memory>
 
 ## Global 模式的两个铁律
