@@ -22,7 +22,10 @@ Get-CimInstance Win32_Process -Filter "Name LIKE '%hearthstone%'" | Select-Objec
 | JetBrains PyCharm | `pycharm64.exe` |
 | Visual Studio Code | `Code.exe` |
 | 炉石传说 | `Hearthstone.exe` |
+| HDT 记牌器 | `HearthstoneDeckTracker.exe` |
 | 暴雪战网 | `Battle.net.exe` |
+
+**HDT 记牌器是独立进程，不随游戏命中。** `PROCESS-NAME,Hearthstone.exe` 只管游戏本体；hsreplay.net、art.hearthstonejson.com、S3 图床等流量全是 `HearthstoneDeckTracker.exe` 发的，缺这条规则会落进兜底 `MATCH,PROXY`（实测全部经 AWS 节点出口）。要「炉石全家直连」需 Hearthstone.exe + HearthstoneDeckTracker.exe + Battle.net.exe 三条都在。
 
 规则跟着**发起连接的进程**，不按父子关系继承。比如 UE Launcher 的 `msedgewebview2.exe`、VS Code 启动的 `codex.exe`、飞书的 `ttdaemon.exe` 或会议进程 `video_conference_sdk.exe`，都不是主进程。不要为了单个应用把共享的 WebView2、Node、Java 等运行时全局直连。
 
@@ -53,5 +56,7 @@ Get-CimInstance Win32_Process -Filter "Name LIKE '%hearthstone%'" | Select-Objec
 旧连接不会重新匹配，等自然重连即可，不必强断对局或工作会话。没看到新连接，只能确认规则已加载；如果新连接因 `IP-CIDR` 或 `DomainSuffix` 走了 `DIRECT`，它确实直连了，但不能据此说是进程规则命中。
 
 **手工改磁盘时：** 若核心规则表仍是旧的，核对生成的 `clash-verge.yaml` 的 `prepend-rules:` 和实际 `rules:` 两处。Windows 服务模式还要用管理员权限备份当前 `C:\ProgramData\clash-verge-service\users\<当前实例>\runtime\config.yaml`，只同步这次的规则项，保留服务自己的管道和认证设置。然后调 `PUT /configs?force=true`，body 为 `{"path":""}`；它重读运行时文件，不会代替 Verge 执行全局脚本。纯规则改动不需要 `POST /restart`。管道连接方法见 [Windows 参考](windows.md)。
+
+**提权不可用时走 UI 重新应用**：ProgramData 仅 SYSTEM/管理员可写，而 agent/远程会话里 `Start-Process -Verb RunAs` 的 UAC 弹窗可能出不来（实测连续两次静默失败，退出码 -196608）。此时只改全局 Merge.yaml + Script.js 两个源文件（已持久），让用户在 Verge 订阅页对当前配置「右键 → 使用」重新应用——Verge 会自动跑 Script.js 并经 service 写入 ProgramData、热推给核心，效果等同手工同步。
 
 **撤销：** 从两份源文件移除对应项，用同样方法重新应用，核对核心规则表即可。
