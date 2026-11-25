@@ -38,7 +38,11 @@ description: Pi agent（pi，@earendil-works 的 coding agent）使用与排障�
 </memory>
 
 <memory category="common-patterns">
-gpt-6-astra（openai-codex provider，ChatGPT Codex 后端）的「极速/Fast mode」= 请求 payload 里的 `service_tier: "fast"`；Fast 档按 **2x 配额**消耗，pi 计费已内置该倍率，会话成本显示即真实档位。pi 无配置开关：`modelOverrides` 只支持 contextWindow/cost/samplingParams 等键，**不支持 `serviceTier`**；`gpt-6-astra-fast` 变体只存在于 Vercel AI Gateway 目录，openai-codex 渠道选不到。可行注入点：pi 核心把 Codex 请求 payload 经过 `before_provider_request` 扩展事件，handler 返回修改后的 payload 即可注入字段（按 `payload.model` 过滤目标模型）。现成实现：全局扩展 `~/.pi/agent/extensions/astra-fast.ts`（默认开，`/fast` 命令切换；Windows 对应 `C:\Users\admin\.pi\agent\extensions\`），扩展改动需重启 pi 生效。
+**Codex Fast 模式：`/fast` 是 Pi 扩展的命令名，发给 `openai-codex` 的值是 `service_tier: "priority"`。** 不要发 `service_tier: "fast"`：即使通用 OpenAI SDK 列出这个别名，ChatGPT Codex 后端也已实际报过 `Unsupported service_tier: fast`。
+
+- Pi 1.6.0 没有原生 `/fast`，`modelOverrides` 也不支持 `serviceTier`。先确认本机装有 `~/.pi/agent/extensions/astra-fast.ts`；它在 `before_provider_request` 中按 provider 和请求中的模型 ID 过滤，只作用于 `openai-codex` 的 `gpt-6-astra`、`gpt-6.2-astra`。默认开启，关闭时不注入该字段。
+- 遇到上述报错，先用 `/fast off` 恢复普通请求，再把扩展中的档位值改为 `priority`，执行 `/reload` 或重启 Pi 后重试；重载后默认开启。
+- `/fast status` 只显示本地开关，回环测试只证明 Pi 发出了预期字段。不要据此宣称线上已接受、已提速或按固定倍率扣费；实际档位与用量以上游为准。
 </memory>
 
 <memory category="troubleshooting">
