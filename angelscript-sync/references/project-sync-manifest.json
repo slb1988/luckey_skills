@@ -1,5 +1,12 @@
 {
   "schema_version": 1,
+  "latest_scoped_forward_sync": {
+    "snapshot_id": "as-forward-87a01b4eb0ea",
+    "verified_at": "2026-11-26T06:51:38.691174+00:00",
+    "status": "validated_pending",
+    "manifest": "forward-sync-153471-manifest.json",
+    "scope": "ProjectM groups only; see the separate forward manifest for their scoped P4 revisions, hashes and pending target signatures. The base snapshot and original per-file observations below remain historical."
+  },
   "reverse_sync": {
     "snapshot_id": "reverse-sync-20261105-144400-3800c4d38a91",
     "snapshot_role": "last_validated_snapshot_not_current_worktree",

@@ -1,6 +1,37 @@
 {
   "schema_version": 1,
-  "verified_at": "2026-11-17T08:35:32Z",
+  "verified_at": "2026-11-26T06:51:38.691174+00:00",
+  "latest_scoped_forward_sync": {
+    "snapshot_id": "as-forward-87a01b4eb0ea",
+    "verified_at": "2026-11-26T06:51:38.691174+00:00",
+    "direction": "maindev_to_unrealengine_angelscript",
+    "status": "validated_pending",
+    "source_global_submitted_cutoff": 153734,
+    "target_git_head_before_and_after": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+    "target_git_commit_containing_sync": null,
+    "manifest": "forward-sync-153471-manifest.json",
+    "manifest_sha256_lf": "fc2ab3cb2a8c9cad0a459638e5d0a5cd73c49624bc5ba9ae7af0c35d5e073054",
+    "scope": "Engine/Plugins/Angelscript; four historical GAS companions checked, none changed. AS tests excluded.",
+    "source_primary_latest_submitted_cl": 153471,
+    "source_primary_latest_sunlaibing_cl": 153471,
+    "manifest_groups": [
+      "engine",
+      "historical_companion"
+    ],
+    "pending_files": {
+      "modify": 5,
+      "add": 0,
+      "delete": 0
+    },
+    "summary": "Merged async lowering / native await gate, StaticJIT suffix allocation, bytecode label lookup and corresponding documentation without erasing target-specific code.",
+    "validation": {
+      "build": "last_successful_build",
+      "git_diff_check": 0,
+      "as_tests_changed": false,
+      "as_tests_run": false
+    },
+    "cursor_policy": "This checks the Git working tree, not a commit containing the merge. comparison_baseline remains the historical committed pair; re-check these file signatures when a new Git commit is supplied."
+  },
   "direction_policy": "每轮由用户明确指定源与目标；本文件的上次方向不是默认方向。",
   "workspaces": {
     "p4": "maindev",
@@ -113,7 +144,7 @@
           "dispatch": "ctx_ece8c2573780"
         }
       },
-      "status_scope": "Historical code migration below; latest documentation delivery is separately pending and does not advance the code baseline.",
+      "status_scope": "The completed CL/commit pair below is historical. See top-level latest_scoped_forward_sync for the new validated but uncommitted code merge; the earlier documentation-only delivery is not its code cursor.",
       "status": "completed",
       "source_primary_submitted_cl": 144419,
       "target_git_commit": "16878397b67eadbdf99690e4dd077c28f7862dca"
@@ -600,6 +631,20 @@
     }
   },
   "last_successful_build": {
+    "snapshot_id": "as-forward-87a01b4eb0ea",
+    "target_workspace": "unrealengine-angelscript",
+    "target": "UnrealEditor",
+    "platform": "Win64",
+    "configuration": "Development",
+    "kind": "actual_build",
+    "action_total": 4654,
+    "exit_code": 0,
+    "result": "Succeeded",
+    "total_seconds": 410.66,
+    "log_relative_path": "Saved/AngelScriptSync/forward-87a01b4eb0ea/UnrealEditor.log",
+    "relation_to_checkpoint": "Validated uncommitted files on top of ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5; not a build of an unmodified commit."
+  },
+  "historical_build_for_committed_checkpoint": {
     "target_workspace": "unrealengine-angelscript",
     "command": "Engine\\Build\\BatchFiles\\Build.bat UnrealEditor Win64 Development -WaitMutex -NoHotReload",
     "exit_code": 0,

@@ -1,5 +1,47 @@
 {
   "schema_version": 1,
+  "latest_scoped_forward_sync": {
+    "snapshot_id": "as-forward-87a01b4eb0ea",
+    "verified_at": "2026-11-26T06:51:38.691174+00:00",
+    "direction": "maindev_to_unrealengine_angelscript",
+    "status": "validated_pending",
+    "source_global_submitted_cutoff": 153734,
+    "target_git_head_before_and_after": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+    "target_git_commit_containing_sync": null,
+    "manifest": "forward-sync-153471-manifest.json",
+    "manifest_sha256_lf": "fc2ab3cb2a8c9cad0a459638e5d0a5cd73c49624bc5ba9ae7af0c35d5e073054",
+    "scope": "Mapped generic ProjectM plugins, PLGameCore extracts and selected Core/Tasks support; no AS unit cases, test-only fixtures, examples or archives synchronized.",
+    "source_latest_selected_submitted_cl": 153471,
+    "observed_cl_upper_bounds_by_manifest_group": {
+      "PLAutomationFramework": 147939,
+      "PLASTestFeature": 136147,
+      "PLScriptAsync": 153471,
+      "PLGameCore": 151593,
+      "selected_core_support": 153464
+    },
+    "pending_files": {
+      "modify": 16,
+      "add": 0,
+      "delete": 0,
+      "by_group": {
+        "PLAutomationFramework": 13,
+        "PLGameCore": 1,
+        "PLScriptAsync": 2
+      }
+    },
+    "validation": {
+      "target": "ProjectMEditor Win64 Development",
+      "action_total": 24,
+      "exit_code": 0,
+      "result": "Succeeded",
+      "log_relative_path": "Saved/AngelScriptSync/forward-87a01b4eb0ea/ProjectMEditor.log",
+      "git_diff_check": 0,
+      "as_tests_changed": false,
+      "as_tests_run": false
+    },
+    "open_exception": "CL 145884: preserve the ProjectM PLGameCore cursor and widget-query API. The upstream live cursor-state query depends on out-of-scope Slate; that behavior was not ported.",
+    "cursor_policy": "Per-file working-tree evidence only; no global ProjectM P4 cursor, no Git commit containing this delivery, no AS test or reverse-sync advancement."
+  },
   "latest_scoped_reverse_sync": {
     "snapshot_id": "backend-sync-20261117-f2410a78",
     "verified_at": "2026-11-17T08:27:05.318320+00:00",
@@ -393,14 +435,15 @@
   "directions": {
     "maindev_to_unrealengine_angelscript": {
       "historical_migration_status": "committed_in_target",
-      "current_source_alignment_status": "partial_correspondence_with_pending_upstream_changes",
+      "current_source_alignment_status": "validated_pending_for_scoped_forward_files_only; see latest_scoped_forward_sync",
       "successful_p4_cursor": null,
       "successful_p4_cursor_status": "unknown_original_import_snapshot",
       "successful_git_cursor": null,
-      "observed_target_head": "21deed5fbb30a49454e978c9d45156be0ce01e22",
+      "historical_observed_target_head": "21deed5fbb30a49454e978c9d45156be0ce01e22",
+      "observed_target_head": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
       "committed_migration_anchor": "1653b27ad91ad9aea64066775c928f3b87a6284d",
-      "per_file_cursor": "Only manifest baseline_use=verified_current_content_correspondence_not_historical_success_cursor establishes a present content correspondence; adapted/unversioned/pending paths require prior-source reconstruction or an explicit three-way review.",
-      "advancement": "No successful sync cursor advanced: this round changed no project code and reran no validation. Current source CL 144854/144848 must not be backfilled as the source versions used by earlier successful tests."
+      "per_file_cursor": "Use the latest scoped manifest for this selection and distinguish observed, excluded, deferred and pending paths. For older correspondences, use verified_current_content_correspondence_not_historical_success_cursor from the historical manifest.",
+      "advancement": "No global or committed cursor advanced. The latest scoped code merge was built in the Git working tree, with AS tests excluded; older observed source CLs are not historical migration cursors."
     },
     "unrealengine_angelscript_to_maindev": {
       "snapshot_id": "reverse-sync-20261105-144400-3800c4d38a91",
