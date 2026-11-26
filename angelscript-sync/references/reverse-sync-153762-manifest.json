@@ -1,0 +1,3443 @@
+{
+  "snapshot_id": "as-reverse-420ffb020173",
+  "direction": "unrealengine_angelscript_to_maindev",
+  "verified_at": "2026-11-26T07:13:28Z",
+  "worker_receipt_sha256_lf": "0eab334ef7b89f5e8a516fcf4ea1fc333e2d58676112bfd095da864cee4d4845",
+  "status": "validated_pending",
+  "source_git_commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+  "comparison": {
+    "engine": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+    "project_prior": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+    "scoped_closure": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+    "previous_pending": 150194,
+    "actual_verified_submission": 153464,
+    "verified_prior_paths": 17,
+    "policy": "Nine ProjectM entries in the previous closure were partially or fully matched at f2410a78. Compare 3800c4d3 to current for any residual hunks, then subtract actual submitted contents, not just filenames. Forward workspace evidence is not a reverse cursor."
+  },
+  "pending_changelist": 153762,
+  "submitted_changelist": null,
+  "shared_skills_updated": false,
+  "hashes": "Git blob OIDs are immutable Git hashes. SHA-256 lf normalizes CRLF only; raw hashes preserve BOM and EOL. P4 revisions refer to submitted content; pending results are separate.",
+  "scope_trees": {
+    "Engine/Plugins/Angelscript": {
+      "base": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+      "base_tree": "55360adcb47d9167e0903e66e35f9efc35e60511",
+      "head_tree": "e8cb5d0559c2f9f86810e599ec749f54f7715eb3"
+    },
+    "Engine/Plugins/Angelscript/ThirdParty": {
+      "base": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+      "base_tree": "05289399c523530c9f4edc30551e0787149fde7b",
+      "head_tree": "05289399c523530c9f4edc30551e0787149fde7b"
+    },
+    "ProjectM/Plugins/PLAutomationFramework": {
+      "base": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+      "base_tree": "38667ec576eb45d24d738c565c492f65f2dd7bf4",
+      "head_tree": "a979f76be4b53be183c575c7b3caf8222be69cc2"
+    },
+    "ProjectM/Plugins/PLScriptAsync": {
+      "base": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+      "base_tree": "47a2074f4f910e05601328c9bd15330ef512eaa1",
+      "head_tree": "80f75777eaf31f80a47e67c0a05e6507b33f40c6"
+    },
+    "ProjectM/Plugins/PLASTestFeature": {
+      "base": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+      "base_tree": "afd9f3ef5cb7184fbe694fc17296a9a5e4ca89ea",
+      "head_tree": "afd9f3ef5cb7184fbe694fc17296a9a5e4ca89ea"
+    },
+    "ProjectM/Plugins/PLGameCore": {
+      "base": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+      "base_tree": "f739499c08c9becaa14eb2def05b8a15e3905c78",
+      "head_tree": "f739499c08c9becaa14eb2def05b8a15e3905c78"
+    }
+  },
+  "scope_observations": {
+    "Angelscript": 398,
+    "companions": 4,
+    "PLAutomationFramework": 86,
+    "PLScriptAsync": 51,
+    "PLASTestFeature": 397,
+    "PLGameCore": 15,
+    "core": 13
+  },
+  "source_delta_file_count": 72,
+  "files": [
+    {
+      "source": "Engine/Plugins/Angelscript/SKILL.md",
+      "target": "Engine/Plugins/Angelscript/SKILL.md",
+      "group": "engine",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "21a67aa69ebbb20c32eeea18531141dec199ea96",
+        "lf_sha256": "a62c02f2614881ce4ab74e726741e23201494d16af6afaeced135380f1c9f0dc",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "21a67aa69ebbb20c32eeea18531141dec199ea96",
+        "comparison_lf_sha256": "a62c02f2614881ce4ab74e726741e23201494d16af6afaeced135380f1c9f0dc"
+      },
+      "target_p4": {
+        "base_revision": 24,
+        "have_revision": 24,
+        "base_submitted_cl": 153464,
+        "base_action": "edit",
+        "submitted_lf_sha256": "f65847f23cc16bc3ee5fdd6935b5cae141df876be253d16c4fe2f4c1e8902895",
+        "before_raw_sha256": "2ed3a70af3d3b939afe5542a93b7d9c45ab68f682093e37d2097a8e16e7d3655"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false,
+      "previous_scoped_sync": {
+        "revision": 24,
+        "action": "edit",
+        "submitted_cl": 153464,
+        "expected_lf": "f65847f23cc16bc3ee5fdd6935b5cae141df876be253d16c4fe2f4c1e8902895",
+        "submitted_lf": "f65847f23cc16bc3ee5fdd6935b5cae141df876be253d16c4fe2f4c1e8902895",
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": "21a67aa69ebbb20c32eeea18531141dec199ea96",
+        "scope": "minimal_scoped_merge"
+      },
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "21a67aa69ebbb20c32eeea18531141dec199ea96",
+        "forward_uncommitted_lf": "37c59efbaabbdb79113425498047ac941cb6af2f113ce24e7bca0c39821c140d",
+        "forward_p4_revision": 24,
+        "forward_p4_cl": 153464,
+        "forward_p4_lf": "f65847f23cc16bc3ee5fdd6935b5cae141df876be253d16c4fe2f4c1e8902895"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input."
+    },
+    {
+      "source": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Private/AngelscriptManager.cpp",
+      "target": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Private/AngelscriptManager.cpp",
+      "group": "engine",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "c2d1d122973e4c1f08add74f6b9631d2296d8ae9",
+        "lf_sha256": "c5f4ec85e95c6447cfb5afdcd0aee3b82de26452c19d18c4fbd58fd46b6eb229",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "c2d1d122973e4c1f08add74f6b9631d2296d8ae9",
+        "comparison_lf_sha256": "c5f4ec85e95c6447cfb5afdcd0aee3b82de26452c19d18c4fbd58fd46b6eb229"
+      },
+      "target_p4": {
+        "base_revision": 20,
+        "have_revision": 20,
+        "base_submitted_cl": 153464,
+        "base_action": "edit",
+        "submitted_lf_sha256": "c5f4ec85e95c6447cfb5afdcd0aee3b82de26452c19d18c4fbd58fd46b6eb229",
+        "before_raw_sha256": "640520656c6ebf10edd0bd8b74a3d580b44e9ab3e71ac20a8f07c348ee5d05e8"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false,
+      "previous_scoped_sync": {
+        "revision": 20,
+        "action": "edit",
+        "submitted_cl": 153464,
+        "expected_lf": "c5f4ec85e95c6447cfb5afdcd0aee3b82de26452c19d18c4fbd58fd46b6eb229",
+        "submitted_lf": "c5f4ec85e95c6447cfb5afdcd0aee3b82de26452c19d18c4fbd58fd46b6eb229",
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": "c2d1d122973e4c1f08add74f6b9631d2296d8ae9",
+        "scope": "equal_after_eol"
+      }
+    },
+    {
+      "source": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Private/AngelscriptScriptBackend.cpp",
+      "target": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Private/AngelscriptScriptBackend.cpp",
+      "group": "engine",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "b1fce9c9e4221bdcf9610e7223ddb065598604f6",
+        "lf_sha256": "89fc53c86ddcaef34a36fc65e20023fc30f508bfad730c371424c971ce3a02c1",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "b1fce9c9e4221bdcf9610e7223ddb065598604f6",
+        "comparison_lf_sha256": "89fc53c86ddcaef34a36fc65e20023fc30f508bfad730c371424c971ce3a02c1"
+      },
+      "target_p4": {
+        "base_revision": 1,
+        "have_revision": 1,
+        "base_submitted_cl": 153464,
+        "base_action": "add",
+        "submitted_lf_sha256": "89fc53c86ddcaef34a36fc65e20023fc30f508bfad730c371424c971ce3a02c1",
+        "before_raw_sha256": "b7cf46cef0321fa5df8dcab47a5819548f546cc4c5f71473b9a12693e20f4f9b"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false,
+      "previous_scoped_sync": {
+        "revision": 1,
+        "action": "add",
+        "submitted_cl": 153464,
+        "expected_lf": "89fc53c86ddcaef34a36fc65e20023fc30f508bfad730c371424c971ce3a02c1",
+        "submitted_lf": "89fc53c86ddcaef34a36fc65e20023fc30f508bfad730c371424c971ce3a02c1",
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": "b1fce9c9e4221bdcf9610e7223ddb065598604f6",
+        "scope": "equal_after_eol"
+      }
+    },
+    {
+      "source": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Private/Compiler/AngelscriptAsyncLowering.cpp",
+      "target": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Private/Compiler/AngelscriptAsyncLowering.cpp",
+      "group": "engine",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "13c71998acec0204c0c80e4b4f314f959cc60f7d",
+        "lf_sha256": "d7ef5c754d58f178c6e19ed9e5d338ffcef08a44608728e7e1af71a6878cdfdf",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "13c71998acec0204c0c80e4b4f314f959cc60f7d",
+        "comparison_lf_sha256": "d7ef5c754d58f178c6e19ed9e5d338ffcef08a44608728e7e1af71a6878cdfdf"
+      },
+      "target_p4": {
+        "base_revision": 15,
+        "have_revision": 15,
+        "base_submitted_cl": 153471,
+        "base_action": "edit",
+        "submitted_lf_sha256": "2ec2f141cd59ecb9955fb0562a8339a33aac325c34c88b38197c914bbf77925a",
+        "before_raw_sha256": "5a2faa1222157479fad30e540cc7170125f6bd269091082cdd603dfbf5df5bf0"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "13c71998acec0204c0c80e4b4f314f959cc60f7d",
+        "forward_uncommitted_lf": "892bfe334c2549c084abc16b565bd336c06b1882405965f7ebb4309ae4e6b856",
+        "forward_p4_revision": 15,
+        "forward_p4_cl": 153471,
+        "forward_p4_lf": "2ec2f141cd59ecb9955fb0562a8339a33aac325c34c88b38197c914bbf77925a"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input."
+    },
+    {
+      "source": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Private/StaticJIT/AngelscriptStaticJIT.cpp",
+      "target": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Private/StaticJIT/AngelscriptStaticJIT.cpp",
+      "group": "engine",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "f61aa34ff1486d0ae131541b7eae2f643cc244ff",
+        "lf_sha256": "2546126260156bfba51a31e85a26874eb7c16809d58cfb47e6e73f363e3843bb",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "f61aa34ff1486d0ae131541b7eae2f643cc244ff",
+        "comparison_lf_sha256": "2546126260156bfba51a31e85a26874eb7c16809d58cfb47e6e73f363e3843bb"
+      },
+      "target_p4": {
+        "base_revision": 9,
+        "have_revision": 9,
+        "base_submitted_cl": 153471,
+        "base_action": "edit",
+        "submitted_lf_sha256": "710f82bc239b31ef9efbadd4b7cd2ba26eb60e2e4f99bea47916d4ea2f07b767",
+        "before_raw_sha256": "1a22473eef3203f8d0adebd913ee95a3950f317b09e98b798b8d229a930dfc76"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "f61aa34ff1486d0ae131541b7eae2f643cc244ff",
+        "forward_uncommitted_lf": "a1baa14f9408f7ee7289dd4328199f5a39d7d9a83189c4fd3c51d21969ed5ea6",
+        "forward_p4_revision": 9,
+        "forward_p4_cl": 153471,
+        "forward_p4_lf": "710f82bc239b31ef9efbadd4b7cd2ba26eb60e2e4f99bea47916d4ea2f07b767"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input."
+    },
+    {
+      "source": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Private/StaticJIT/AngelscriptStaticJIT.h",
+      "target": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Private/StaticJIT/AngelscriptStaticJIT.h",
+      "group": "engine",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "51bd94914cd2d617bf98b9dde736397a0b78ad0d",
+        "lf_sha256": "e7928c5fd24868936573ee5dcfdced88ca03b39f72059d840810972b018f7864",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "51bd94914cd2d617bf98b9dde736397a0b78ad0d",
+        "comparison_lf_sha256": "e7928c5fd24868936573ee5dcfdced88ca03b39f72059d840810972b018f7864"
+      },
+      "target_p4": {
+        "base_revision": 7,
+        "have_revision": 7,
+        "base_submitted_cl": 153471,
+        "base_action": "edit",
+        "submitted_lf_sha256": "73bf9e876cbeb7d76be65f2141ab0c3fcd4c5b9a3d707ac35fa9e6383c2c50b8",
+        "before_raw_sha256": "0e782ca0f9a318d095157bfd9067924759455461a078947e08a69acc9f772230"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "51bd94914cd2d617bf98b9dde736397a0b78ad0d",
+        "forward_uncommitted_lf": "73bf9e876cbeb7d76be65f2141ab0c3fcd4c5b9a3d707ac35fa9e6383c2c50b8",
+        "forward_p4_revision": 7,
+        "forward_p4_cl": 153471,
+        "forward_p4_lf": "73bf9e876cbeb7d76be65f2141ab0c3fcd4c5b9a3d707ac35fa9e6383c2c50b8"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input."
+    },
+    {
+      "source": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Private/Tests/ScriptBackendIdentityTests.cpp",
+      "target": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Private/Tests/ScriptBackendIdentityTests.cpp",
+      "group": "engine",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "98b42e2a9c675785b3a3f560811c29cb0e0332f3",
+        "lf_sha256": "65b2d26f8a57039d6fd730a97f752c76316579bff64e3fa26b99944e3eaa0eaf",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "98b42e2a9c675785b3a3f560811c29cb0e0332f3",
+        "comparison_lf_sha256": "65b2d26f8a57039d6fd730a97f752c76316579bff64e3fa26b99944e3eaa0eaf"
+      },
+      "target_p4": {
+        "base_revision": 1,
+        "have_revision": 1,
+        "base_submitted_cl": 153464,
+        "base_action": "add",
+        "submitted_lf_sha256": "65b2d26f8a57039d6fd730a97f752c76316579bff64e3fa26b99944e3eaa0eaf",
+        "before_raw_sha256": "a3a30b48ae4f6cb14fce2b6990c17593b85a5a84ff48ae6fcbbe3c9d997e73f0"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false,
+      "previous_scoped_sync": {
+        "revision": 1,
+        "action": "add",
+        "submitted_cl": 153464,
+        "expected_lf": "65b2d26f8a57039d6fd730a97f752c76316579bff64e3fa26b99944e3eaa0eaf",
+        "submitted_lf": "65b2d26f8a57039d6fd730a97f752c76316579bff64e3fa26b99944e3eaa0eaf",
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": "98b42e2a9c675785b3a3f560811c29cb0e0332f3",
+        "scope": "equal_after_eol"
+      }
+    },
+    {
+      "source": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Public/AngelscriptManager.h",
+      "target": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Public/AngelscriptManager.h",
+      "group": "engine",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "8739920064f54ec8f79f547b412acf5d6ce04004",
+        "lf_sha256": "56fbfecf8513a9e2a7bfca2a7d3a85df13f1093680647c7df2df9884a9058341",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "8739920064f54ec8f79f547b412acf5d6ce04004",
+        "comparison_lf_sha256": "56fbfecf8513a9e2a7bfca2a7d3a85df13f1093680647c7df2df9884a9058341"
+      },
+      "target_p4": {
+        "base_revision": 16,
+        "have_revision": 16,
+        "base_submitted_cl": 153464,
+        "base_action": "edit",
+        "submitted_lf_sha256": "56fbfecf8513a9e2a7bfca2a7d3a85df13f1093680647c7df2df9884a9058341",
+        "before_raw_sha256": "b32c2cd6cc145dffaca2141d52ac214822a10785223a0434b98e57a20999606a"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false,
+      "previous_scoped_sync": {
+        "revision": 16,
+        "action": "edit",
+        "submitted_cl": 153464,
+        "expected_lf": "56fbfecf8513a9e2a7bfca2a7d3a85df13f1093680647c7df2df9884a9058341",
+        "submitted_lf": "56fbfecf8513a9e2a7bfca2a7d3a85df13f1093680647c7df2df9884a9058341",
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": "8739920064f54ec8f79f547b412acf5d6ce04004",
+        "scope": "equal_after_eol"
+      }
+    },
+    {
+      "source": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Public/AngelscriptScriptBackend.h",
+      "target": "Engine/Plugins/Angelscript/Source/AngelscriptCode/Public/AngelscriptScriptBackend.h",
+      "group": "engine",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "ad1fdcaa0345b963f3658217190271e40bbde94c",
+        "lf_sha256": "ee379fb907b4c557918254ff2610a8d20bc9e1be5785c013a3bd025f5c789610",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "ad1fdcaa0345b963f3658217190271e40bbde94c",
+        "comparison_lf_sha256": "ee379fb907b4c557918254ff2610a8d20bc9e1be5785c013a3bd025f5c789610"
+      },
+      "target_p4": {
+        "base_revision": 1,
+        "have_revision": 1,
+        "base_submitted_cl": 153464,
+        "base_action": "add",
+        "submitted_lf_sha256": "ee379fb907b4c557918254ff2610a8d20bc9e1be5785c013a3bd025f5c789610",
+        "before_raw_sha256": "6238925bdda60cd43b4e44658832140fb1ed94f3e25349092570c0d882a044b4"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false,
+      "previous_scoped_sync": {
+        "revision": 1,
+        "action": "add",
+        "submitted_cl": 153464,
+        "expected_lf": "ee379fb907b4c557918254ff2610a8d20bc9e1be5785c013a3bd025f5c789610",
+        "submitted_lf": "ee379fb907b4c557918254ff2610a8d20bc9e1be5785c013a3bd025f5c789610",
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": "ad1fdcaa0345b963f3658217190271e40bbde94c",
+        "scope": "equal_after_eol"
+      }
+    },
+    {
+      "source": "Engine/Plugins/Angelscript/ThirdParty/source/as_bytecode.cpp",
+      "target": "Engine/Plugins/Angelscript/ThirdParty/source/as_bytecode.cpp",
+      "group": "engine",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "31e534ae64660234788490413a2889859cee42b4",
+        "lf_sha256": "50bed5c28d723bcf598847226dfaa1220cbfc754a8c23f78ab0c851a926bf170",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "31e534ae64660234788490413a2889859cee42b4",
+        "comparison_lf_sha256": "50bed5c28d723bcf598847226dfaa1220cbfc754a8c23f78ab0c851a926bf170"
+      },
+      "target_p4": {
+        "base_revision": 4,
+        "have_revision": 4,
+        "base_submitted_cl": 153471,
+        "base_action": "edit",
+        "submitted_lf_sha256": "ee0ed85c0911369900f2e77a5858a7ebdc90cadbb8ad60a52353d9e2ce8a71ed",
+        "before_raw_sha256": "3fc36ce7d135106796eeadfed2db25c2a682a887e92a1b0009c803ff8071a43b"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "31e534ae64660234788490413a2889859cee42b4",
+        "forward_uncommitted_lf": "0070f4a4e79a92a12e232ecc4870382e7395a1735381ec5d9ff3121b67a80f21",
+        "forward_p4_revision": 4,
+        "forward_p4_cl": 153471,
+        "forward_p4_lf": "ee0ed85c0911369900f2e77a5858a7ebdc90cadbb8ad60a52353d9e2ce8a71ed"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input."
+    },
+    {
+      "source": "Engine/Plugins/Angelscript/references/async-lowering-impl.md",
+      "target": "Engine/Plugins/Angelscript/references/async-lowering-impl.md",
+      "group": "engine",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "aecfb347993eeed973deef11de26051a8fa9461f",
+        "lf_sha256": "e24b00aaaf1802560074a0e5a4538bf6822e6c3f8658c86d17978d4cbb971815",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "aecfb347993eeed973deef11de26051a8fa9461f",
+        "comparison_lf_sha256": "e24b00aaaf1802560074a0e5a4538bf6822e6c3f8658c86d17978d4cbb971815"
+      },
+      "target_p4": {
+        "base_revision": 8,
+        "have_revision": 8,
+        "base_submitted_cl": 153464,
+        "base_action": "edit",
+        "submitted_lf_sha256": "e24b00aaaf1802560074a0e5a4538bf6822e6c3f8658c86d17978d4cbb971815",
+        "before_raw_sha256": "3adeebdb7191d403b2ccf6e7df0255ec9c22645561f3a18050586eaee20b0fc8"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false,
+      "previous_scoped_sync": {
+        "revision": 8,
+        "action": "edit",
+        "submitted_cl": 153464,
+        "expected_lf": "e24b00aaaf1802560074a0e5a4538bf6822e6c3f8658c86d17978d4cbb971815",
+        "submitted_lf": "e24b00aaaf1802560074a0e5a4538bf6822e6c3f8658c86d17978d4cbb971815",
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": "aecfb347993eeed973deef11de26051a8fa9461f",
+        "scope": "equal_after_eol"
+      }
+    },
+    {
+      "source": "Engine/Plugins/Angelscript/references/cyancook-troubleshooting.md",
+      "target": "Engine/Plugins/Angelscript/references/cyancook-troubleshooting.md",
+      "group": "engine",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "4b19cb86347c45736ddb8d2febc77cea941b3688",
+        "lf_sha256": "9aa6852cd5cdca5d31365ef5c971faf7194788b52b14ef3e8ad6b716ffbc36b6",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "1e42e1ee685316a4e946c6870e89a37fd6675994",
+        "comparison_lf_sha256": "cc47b06c49493c82ca81abe5abcf2ac5150e7fef3c400eac77c114e19fbe1853"
+      },
+      "target_p4": {
+        "base_revision": 21,
+        "have_revision": 21,
+        "base_submitted_cl": 153464,
+        "base_action": "edit",
+        "submitted_lf_sha256": "cc47b06c49493c82ca81abe5abcf2ac5150e7fef3c400eac77c114e19fbe1853",
+        "before_raw_sha256": "07e2a65fe67c90977f7cbd3eee96867ff95c4e2929571b818a806d3bae10f17b"
+      },
+      "classification": "p4_origin_already_present",
+      "reason": "ca7a41ed documentation came from MainDev Angelscript/SKILL.md#23@149647. Current MainDev still has the guidance; avoid a duplicate.",
+      "effective_git_delta": true,
+      "previous_scoped_sync": {
+        "revision": 21,
+        "action": "edit",
+        "submitted_cl": 153464,
+        "expected_lf": "cc47b06c49493c82ca81abe5abcf2ac5150e7fef3c400eac77c114e19fbe1853",
+        "submitted_lf": "cc47b06c49493c82ca81abe5abcf2ac5150e7fef3c400eac77c114e19fbe1853",
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": "1e42e1ee685316a4e946c6870e89a37fd6675994",
+        "scope": "equal_after_eol"
+      }
+    },
+    {
+      "source": "Engine/Plugins/AngelscriptGAS/Source/Private/AngelscriptGASModule.cpp",
+      "target": "Engine/Plugins/AngelscriptGAS/Source/Private/AngelscriptGASModule.cpp",
+      "group": "historical_companion",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "d18a2aaaf93251874313ddab933a495aea931039",
+        "lf_sha256": "60004c454d295123d08a4f71e7aedaa859999a775645e5f954f8d5174496e565",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "d18a2aaaf93251874313ddab933a495aea931039",
+        "comparison_lf_sha256": "60004c454d295123d08a4f71e7aedaa859999a775645e5f954f8d5174496e565"
+      },
+      "target_p4": {
+        "base_revision": 4,
+        "have_revision": 4,
+        "base_submitted_cl": 29091,
+        "base_action": "edit",
+        "submitted_lf_sha256": "60004c454d295123d08a4f71e7aedaa859999a775645e5f954f8d5174496e565",
+        "before_raw_sha256": "7f5c49828d2ca070b7c1b70e23eb7cfc4242bdf9becba15e279337338cce931d"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false
+    },
+    {
+      "source": "Engine/Plugins/AngelscriptGAS/Source/Private/Binds/Bind_FGameplayAttribute.cpp",
+      "target": "Engine/Plugins/AngelscriptGAS/Source/Private/Binds/Bind_FGameplayAttribute.cpp",
+      "group": "historical_companion",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "99708ad400099326e85b469fd56da169cd50aa01",
+        "lf_sha256": "b9fe45b1471c5a2bd127f6f38a13f5f51ca4dcc3d23438208afef9885e27ff29",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "99708ad400099326e85b469fd56da169cd50aa01",
+        "comparison_lf_sha256": "b9fe45b1471c5a2bd127f6f38a13f5f51ca4dcc3d23438208afef9885e27ff29"
+      },
+      "target_p4": {
+        "base_revision": 2,
+        "have_revision": 2,
+        "base_submitted_cl": 50904,
+        "base_action": "edit",
+        "submitted_lf_sha256": "b9fe45b1471c5a2bd127f6f38a13f5f51ca4dcc3d23438208afef9885e27ff29",
+        "before_raw_sha256": "8e9e12975a64705d4ce5b89fe2994e4b98b9a96d4c04e516b6456f5016c2f88a"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false
+    },
+    {
+      "source": "Engine/Plugins/AngelscriptGAS/Source/Public/AngelscriptAbilitySystemComponent.h",
+      "target": "Engine/Plugins/AngelscriptGAS/Source/Public/AngelscriptAbilitySystemComponent.h",
+      "group": "historical_companion",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "d3cc787709af353cd642d6e19613874c630e8d27",
+        "lf_sha256": "4b3084b0f9026f0c274b1d84f0e604779a58fb4cf5c0c1e74589a41549ffc23c",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "d3cc787709af353cd642d6e19613874c630e8d27",
+        "comparison_lf_sha256": "4b3084b0f9026f0c274b1d84f0e604779a58fb4cf5c0c1e74589a41549ffc23c"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 50377,
+        "base_action": "edit",
+        "submitted_lf_sha256": "4b3084b0f9026f0c274b1d84f0e604779a58fb4cf5c0c1e74589a41549ffc23c",
+        "before_raw_sha256": "31793fefab370a8b9d7f0917f5b685f2be55fd61c3ec7a4204c104ecc988e650"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false
+    },
+    {
+      "source": "Engine/Plugins/AngelscriptGAS/Source/Public/Mixin/AbilitySystemComponentMixinLibrary.h",
+      "target": "Engine/Plugins/AngelscriptGAS/Source/Public/Mixin/AbilitySystemComponentMixinLibrary.h",
+      "group": "historical_companion",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "4899f47bd7311636e41a10f3d5d8177994a9ada1",
+        "lf_sha256": "5e7fe52ec79e96564eeb50d8bfeb165210c59dbaae58221c86ca76e47b06f94f",
+        "comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "comparison_blob": "4899f47bd7311636e41a10f3d5d8177994a9ada1",
+        "comparison_lf_sha256": "5e7fe52ec79e96564eeb50d8bfeb165210c59dbaae58221c86ca76e47b06f94f"
+      },
+      "target_p4": {
+        "base_revision": 5,
+        "have_revision": 5,
+        "base_submitted_cl": 116628,
+        "base_action": "edit",
+        "submitted_lf_sha256": "5e7fe52ec79e96564eeb50d8bfeb165210c59dbaae58221c86ca76e47b06f94f",
+        "before_raw_sha256": "49a46e67e273c4115a4276b88eed8dc113e93e18710f003a885780bee1d99fef"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/SKILL.md",
+      "target": "Main/Plugins/PLAutomationFramework/SKILL.md",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "08a8d3684ec6f0dfd065779d5a2f1351fead30c2",
+        "lf_sha256": "ae2308331653f371b414071d0bdd0d15f1376b6d62f807e081e010d33a034d5b",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "22944fdfe3b4e862d1d1368a8e385a339ff88e7f",
+        "comparison_lf_sha256": "51b0330abecad6b3c296afe7a649d25d7ee14f118b046e7ec24fa24a643da49c"
+      },
+      "target_p4": {
+        "base_revision": 51,
+        "have_revision": 51,
+        "base_submitted_cl": 145884,
+        "base_action": "edit",
+        "submitted_lf_sha256": "06bc8aa44ddab0d5f0c8bddb164559a12d0d0c56c1859de1af394377cd2998b1",
+        "before_raw_sha256": "4f959d17115d9ce291ac7034505b1ddfac63bacfee3859085317584378e1a207"
+      },
+      "classification": "preserve_shared_skill",
+      "reason": "Preserve shared skill per request; portable runtime documentation handled separately.",
+      "effective_git_delta": true,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "08a8d3684ec6f0dfd065779d5a2f1351fead30c2",
+        "forward_uncommitted_lf": "a8c2a68fdfc8ff389c4d30e44bc0139bdd3c7a7e8ad061cb899aaf854cbac6ec",
+        "forward_p4_revision": 51,
+        "forward_p4_cl": 145884,
+        "forward_p4_lf": "06bc8aa44ddab0d5f0c8bddb164559a12d0d0c56c1859de1af394377cd2998b1"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input."
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Libraries/PLAutomationPerfLibrary.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Libraries/PLAutomationPerfLibrary.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "ba7399ba74f67a48317b3f0f2ad354e4fadf86d9",
+        "lf_sha256": "9e4edadb1c15415c0707d002099f69f76035bd79f4840a08664399a765c5cc2b",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "ba7399ba74f67a48317b3f0f2ad354e4fadf86d9",
+        "comparison_lf_sha256": "9e4edadb1c15415c0707d002099f69f76035bd79f4840a08664399a765c5cc2b"
+      },
+      "target_p4": {
+        "base_revision": 8,
+        "have_revision": 8,
+        "base_submitted_cl": 147939,
+        "base_action": "edit",
+        "submitted_lf_sha256": "14d3c710ede011c788f067abc883a5ba1bed5d0c547dff7bc90ab595250903ea",
+        "before_raw_sha256": "05afb1a587c737b12e77caa6a2f95faa751ca5d5c4bcfb30b17790a35a21b77a"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "ba7399ba74f67a48317b3f0f2ad354e4fadf86d9",
+        "forward_uncommitted_lf": "42ff4a6f4ff3b472f2d2106015c00962aad02dcb49c026a4ba5908a6b0bdbb90",
+        "forward_p4_revision": 8,
+        "forward_p4_cl": 147939,
+        "forward_p4_lf": "14d3c710ede011c788f067abc883a5ba1bed5d0c547dff7bc90ab595250903ea"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input."
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutoAutomatedInput.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutoAutomatedInput.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "6980f1da35de3ad550a55a11ed94ce5506c5f43a",
+        "lf_sha256": "b0d347668a02c83bd4b4fedbf8d3515423d43c81193763cd1fdb04e51c149b19",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "b01a018dfdee6a2c78ade8cfc22ad46d12f212ef",
+        "comparison_lf_sha256": "22dee9295c0b78270bdfaa6e57e6be22c212cc710ff3fbedb58f4f58dea87548"
+      },
+      "target_p4": {
+        "base_revision": 6,
+        "have_revision": 6,
+        "base_submitted_cl": 145884,
+        "base_action": "edit",
+        "submitted_lf_sha256": "c725fb1baba4c073890e00c2ee041fbfc679830f1c62d69a3d2dc78e8429fa39",
+        "before_raw_sha256": "dab081f354a8a622fbaad0044d86ca89bc272653d2138522f763ac621eb5a85a"
+      },
+      "classification": "edit",
+      "reason": "Only add holder accounting; keep live MainDev Slate overlay, cursor, background input and real-message handling. Existing no-argument native callers share a stable anonymous hold.",
+      "effective_git_delta": true,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "6980f1da35de3ad550a55a11ed94ce5506c5f43a",
+        "forward_uncommitted_lf": "a17d563486132ca5711e394ff8a10485848ba4a3b9010bbc57138b885d32b362",
+        "forward_p4_revision": 6,
+        "forward_p4_cl": 145884,
+        "forward_p4_lf": "c725fb1baba4c073890e00c2ee041fbfc679830f1c62d69a3d2dc78e8429fa39"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input.",
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "e9fb51cdd03feb46ba0ce80f4f9122f11f6f00e07df1da6a6717f3922b7ec908",
+      "final_lf_sha256": "60c1a1defb7352c4393cb601828182a561552611d0634490ebacb6ec8822cab4",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutoAutomatedInput.h",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutoAutomatedInput.h",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "fbf7457bf1a1dbe51a3aaf1bafb157258dface26",
+        "lf_sha256": "16305901d0666858296e6cd5c06d022402b8721f120b87121a74933a20571ca3",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "3ddf4ee6cc1ed27bea8ed814f71f29cf9e1efe8c",
+        "comparison_lf_sha256": "f8829c115c7bd1fa58e80078701754222b70d88712665fe42688e5c9615850d3"
+      },
+      "target_p4": {
+        "base_revision": 5,
+        "have_revision": 5,
+        "base_submitted_cl": 145884,
+        "base_action": "edit",
+        "submitted_lf_sha256": "ca5e8f9be658cdb41822e4d73b30df77d3197d03a1078208f02e166af641b06c",
+        "before_raw_sha256": "5736999c83e03b451383e0280784d65fe8a987ec74e341654d47cbaef5b01ea2"
+      },
+      "classification": "edit",
+      "reason": "Holder-aware input with the existing native no-argument call form; keep the P4 Slate/background-input surface.",
+      "effective_git_delta": true,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "fbf7457bf1a1dbe51a3aaf1bafb157258dface26",
+        "forward_uncommitted_lf": "c09f106cd5ecd6867e44bfa15fd773a494e447bfd1f1034c3b6a95e5a99dfa34",
+        "forward_p4_revision": 5,
+        "forward_p4_cl": 145884,
+        "forward_p4_lf": "ca5e8f9be658cdb41822e4d73b30df77d3197d03a1078208f02e166af641b06c"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input.",
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "1badb08f2f467c418182536668ebf6312bde62c45f97ce22cf30e1eec6a7ead8",
+      "final_lf_sha256": "42f4d04da5c73dd3de3b2aa19e5a540c1d944d10240300b3353453b3b904255e",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutoRunSync.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutoRunSync.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "eab0e0b7b434a3cdeef96fdc1ab2611604bcd667",
+        "lf_sha256": "a003a7ac2327f6e60a9038ae7745ee4e74e5b7420bf22201a01270dcc71a7604",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "8715544dc64cad3c44342c906d0a30daa2b95914",
+        "comparison_lf_sha256": "af21c06cdcac58d7b95568a59c53acba10b91768149efc9ddd829cb0ba6d097d"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 145865,
+        "base_action": "edit",
+        "submitted_lf_sha256": "e2f765b265789ee1a4553ebd75250f9a6f2eda18c23d25682aaf4dff0ab726e6",
+        "before_raw_sha256": "4b560ee93c5fd82bca970fa7be7b5facfa3bbf47fb2658d0cb6cafbc7b4950f8"
+      },
+      "classification": "edit",
+      "reason": "Predicate assertion fails the run regardless of returned value; reset via existing one-argument MainDev Initialize.",
+      "effective_git_delta": true,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "eab0e0b7b434a3cdeef96fdc1ab2611604bcd667",
+        "forward_uncommitted_lf": "204ce932036649e2942e2152f8accb4e8341f9a3c60af2e39a3f2983752fc090",
+        "forward_p4_revision": 3,
+        "forward_p4_cl": 145865,
+        "forward_p4_lf": "e2f765b265789ee1a4553ebd75250f9a6f2eda18c23d25682aaf4dff0ab726e6"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input.",
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "8a5119f7779a2f81d60a353bb050c0cd392db9364308faab7157754048dbf73b",
+      "final_lf_sha256": "204ce932036649e2942e2152f8accb4e8341f9a3c60af2e39a3f2983752fc090",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationAssert.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationAssert.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "30581652fcc8761a9752d09aa59b2d1379c03a24",
+        "lf_sha256": "433daf43a995c027096843a9a3d6ca4e82a6c914e737de85b74334731d3ac1b3",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "a55662c955871ba054e210f95f9e0a5f4e964c48",
+        "comparison_lf_sha256": "d67a705b5eea9b46100aff1d7d62bde3432e3f5732c34b141c72a356f7be7b8c"
+      },
+      "target_p4": {
+        "base_revision": 2,
+        "have_revision": 2,
+        "base_submitted_cl": 145865,
+        "base_action": "edit",
+        "submitted_lf_sha256": "dfc083f5991bf56e0380a3be454b636a48488af8991b3c1193d7efc6ec1f9f66",
+        "before_raw_sha256": "118dc102f0997306c5abc2383cd56a90cf885e2f1090102ac71345e6a32a187e"
+      },
+      "classification": "edit",
+      "reason": "Apply committed source delta; preserve target changes outside its hunks.",
+      "effective_git_delta": true,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "30581652fcc8761a9752d09aa59b2d1379c03a24",
+        "forward_uncommitted_lf": "81bcfd707284438cbf74f2ba60c53a7f753a02608f0680fe8e56e3777219872f",
+        "forward_p4_revision": 2,
+        "forward_p4_cl": 145865,
+        "forward_p4_lf": "dfc083f5991bf56e0380a3be454b636a48488af8991b3c1193d7efc6ec1f9f66"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input.",
+      "change": 153762,
+      "alignment": "three_way",
+      "final_raw_sha256": "c554de4e0a320b62bc4e675de0afb596819ad91b7674da3aeb3431fdcd349ad7",
+      "final_lf_sha256": "81bcfd707284438cbf74f2ba60c53a7f753a02608f0680fe8e56e3777219872f",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationAsyncCase.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationAsyncCase.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "a5ec1bb5843868ca73657d7366d6a213d501379e",
+        "lf_sha256": "fd318b0b48f5d8d868571b700cb187f457b92b09ed5ce7c8cec60bf93acd1fd3",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "91d839bdcf429dbfa6b597618bdda37314a96cb9",
+        "comparison_lf_sha256": "e35c588477b7df3a4ef093f4db74aa8b63e377b494a785208b691b0a42c1d674"
+      },
+      "target_p4": {
+        "base_revision": 8,
+        "have_revision": 8,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "e35c588477b7df3a4ef093f4db74aa8b63e377b494a785208b691b0a42c1d674",
+        "before_raw_sha256": "c7ab211ccbd8609f91b16a8f927435e8c4fe21ead790b4d2249c14db47836169"
+      },
+      "classification": "edit",
+      "reason": "Apply committed source delta; preserve target changes outside its hunks.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "8786cac17b20ac3924edb8fff6790d10da1285f1e9ca7f23e768843e46543fd1",
+      "final_lf_sha256": "fd318b0b48f5d8d868571b700cb187f457b92b09ed5ce7c8cec60bf93acd1fd3",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationAsyncCaseContract.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationAsyncCaseContract.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "339bc7df54b2f8c1f8f09fe39331f435bef87c51",
+        "lf_sha256": "d34e5addd6d6b49ce7e2462accf26d43f976f91ca0a00d0d7baaea92ed6cc7f7",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "2aa67ba378d030aa9447f1750ff5b28deb2b6e8c",
+        "comparison_lf_sha256": "ff81b55ffcb22d3363785450cf31e24bb37e1c9c22a1ad004caa65c5697f14db"
+      },
+      "target_p4": {
+        "base_revision": 5,
+        "have_revision": 5,
+        "base_submitted_cl": 144355,
+        "base_action": "edit",
+        "submitted_lf_sha256": "ff81b55ffcb22d3363785450cf31e24bb37e1c9c22a1ad004caa65c5697f14db",
+        "before_raw_sha256": "4353bf7a0fb122b9f0a8d2c3d3582af1e0fefe75766138b40b63e0fa957c0b02"
+      },
+      "classification": "edit",
+      "reason": "Implement committed marked-step contract, including strict retirement of implicit RunAsync; no legacy whole-case projection or anonymous path.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "741c312da41f8d6244f9f674784cdb01c277ee6cf16b9ba6505ca7c4ee63a4b9",
+      "final_lf_sha256": "d34e5addd6d6b49ce7e2462accf26d43f976f91ca0a00d0d7baaea92ed6cc7f7",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationCaseMetadata.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationCaseMetadata.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "746f785a0fcadb04369061211dcd8348702ad638",
+        "lf_sha256": "435b982f8d83b1db424cf16b1c7a8a833c3e6b135ac9d4489c5df634ec8c85d5",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "3385fd83cb34ffa04696482299ab9f50e4a52d43",
+        "comparison_lf_sha256": "ce6b29da4f00092ccbd56961fb1aa3c4fde60dcf9209511393a03b7a72c9e345"
+      },
+      "target_p4": {
+        "base_revision": 2,
+        "have_revision": 2,
+        "base_submitted_cl": 144302,
+        "base_action": "edit",
+        "submitted_lf_sha256": "ce6b29da4f00092ccbd56961fb1aa3c4fde60dcf9209511393a03b7a72c9e345",
+        "before_raw_sha256": "005dd8a4b080edc8ef6bff1069864c362c5aad6239272752f082cbcbc384d012"
+      },
+      "classification": "edit",
+      "reason": "Apply committed source delta; preserve target changes outside its hunks.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "387c4aefe5a5032d6cf246dbe4e593f723a4722976efab0b4957c5a7bc46b498",
+      "final_lf_sha256": "435b982f8d83b1db424cf16b1c7a8a833c3e6b135ac9d4489c5df634ec8c85d5",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationDynamicAutomationTest.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationDynamicAutomationTest.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "f99c91e3f3b31b954f04530d889df99a4355688f",
+        "lf_sha256": "04b6f2233fb907fba977fc4aef3c7acfbb68358e1a830e89765f29a115daf712",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "679e0d161846f02e20d31e5195a0391cfd8b2d80",
+        "comparison_lf_sha256": "61ae5b7ddb7d7d753deb6c9c10150c939f2c61df3603cfed4e0295f6c0e94cd4"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "61ae5b7ddb7d7d753deb6c9c10150c939f2c61df3603cfed4e0295f6c0e94cd4",
+        "before_raw_sha256": "d47a2e17038b99684a16592bc349cd43fe7806c20583ad929c3b1ba175b7af6c"
+      },
+      "classification": "edit",
+      "reason": "Apply committed source delta; preserve target changes outside its hunks.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "01737a0b6004f3fdeed39a7655b3559e9d9d689d2d32f19b084ae69b7f38b703",
+      "final_lf_sha256": "04b6f2233fb907fba977fc4aef3c7acfbb68358e1a830e89765f29a115daf712",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationDynamicTestRegistry.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationDynamicTestRegistry.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "8b43f5347f5ff02655c7d7f52bb0691497d28633",
+        "lf_sha256": "d421850d9f7bf4f02993852a2b9d91f80d043b49d5adf73cb875a79709f16f67",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "583fca1aa1a26e05c7b019f11bed83b74ef78db3",
+        "comparison_lf_sha256": "41cb830f0c5a1a842bb43160bbcc24694bac364af0fb92faf9cc240117d129e1"
+      },
+      "target_p4": {
+        "base_revision": 34,
+        "have_revision": 34,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "41cb830f0c5a1a842bb43160bbcc24694bac364af0fb92faf9cc240117d129e1",
+        "before_raw_sha256": "4f32123c42a47123e8d212a00e2218b20c5029bca699a7578055df2dcee94d05"
+      },
+      "classification": "edit",
+      "reason": "Implement committed marked-step contract, including strict retirement of implicit RunAsync; no legacy whole-case projection or anonymous path.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "88ea4aa51c1014e6e7564510bd834f2ea8f15fcc33caf0537bd60d33c12a429a",
+      "final_lf_sha256": "d421850d9f7bf4f02993852a2b9d91f80d043b49d5adf73cb875a79709f16f67",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationRunBaseline.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationRunBaseline.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "974a59e9412d359cefa78b1708f2a60605f6bac5",
+        "lf_sha256": "b0db194c272ab3a4f3d3ac0da5fdac19ce69862637d40008e5e937676ac583d9",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": null,
+        "comparison_lf_sha256": null
+      },
+      "target_p4": {
+        "base_revision": null,
+        "have_revision": null,
+        "base_submitted_cl": null,
+        "base_action": null,
+        "submitted_lf_sha256": null,
+        "before_raw_sha256": null
+      },
+      "classification": "add",
+      "reason": "Committed generic addition.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "97ea55fcd47838c4dd118123a760858cbf545632607252a0cb94a3c5a44c20ef",
+      "final_lf_sha256": "b0db194c272ab3a4f3d3ac0da5fdac19ce69862637d40008e5e937676ac583d9",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationRunBaseline.h",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationRunBaseline.h",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "1ad7143c87b69104c442602ff355b20e91bd0393",
+        "lf_sha256": "cf34f6a625573a70e5052e5a639cc576ad727b12832f53fc5906f281a35e506c",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": null,
+        "comparison_lf_sha256": null
+      },
+      "target_p4": {
+        "base_revision": null,
+        "have_revision": null,
+        "base_submitted_cl": null,
+        "base_action": null,
+        "submitted_lf_sha256": null,
+        "before_raw_sha256": null
+      },
+      "classification": "add",
+      "reason": "Committed generic addition.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "b0d9636ea3c7f401ac23f3302308a5ecc17de65b2a34125bb8ae23eba8e070a2",
+      "final_lf_sha256": "cf34f6a625573a70e5052e5a639cc576ad727b12832f53fc5906f281a35e506c",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationRunSelection.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationRunSelection.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "1476b64ba58b32189a7466bf3b424459ad7b8e01",
+        "lf_sha256": "137caf8653deca2f5147d57d0c855ac2c252368b4cb409a38f4c6eb3249e3ebd",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "0cdeb4b10bdc0b3284dcf65fe56478cf3ed4e1dd",
+        "comparison_lf_sha256": "edc00e46519292111aebb00b698d05cb37855646a7df8ae4fa68eaf21d019fb8"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "edc00e46519292111aebb00b698d05cb37855646a7df8ae4fa68eaf21d019fb8",
+        "before_raw_sha256": "a111d710ec0f05b3d3436351a68f58b0c5024b0f270da09e5cf37154cef9ed6e"
+      },
+      "classification": "edit",
+      "reason": "Apply committed source delta; preserve target changes outside its hunks.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "446521090bce253601b5b44e8533f70070b7fe14ce4a5975f2933279aea8215c",
+      "final_lf_sha256": "137caf8653deca2f5147d57d0c855ac2c252368b4cb409a38f4c6eb3249e3ebd",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationRunSelection.h",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationRunSelection.h",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "2892707bbb3d4b51eef1b2a1d4920703a3a689b2",
+        "lf_sha256": "cbf4a0bde4503c54459dc41a17fc72dd595538dbc4390321a87d02a24b8ae370",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "885ee4310cc1dcf63782e760ded6cc1bdb11f984",
+        "comparison_lf_sha256": "18906538edbe2e780f3048d90ca0a3b809aed8200817afe0a605d1d7667d7d42"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "18906538edbe2e780f3048d90ca0a3b809aed8200817afe0a605d1d7667d7d42",
+        "before_raw_sha256": "ac674e0a094512f9423b3364248e706253f73b1f89a11e2a47d50e57271e499c"
+      },
+      "classification": "edit",
+      "reason": "Apply committed source delta; preserve target changes outside its hunks.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "933091f1ff16e96475a7d63f3e968f30c3d74d9447ff9cea6836273eedd6afa9",
+      "final_lf_sha256": "cbf4a0bde4503c54459dc41a17fc72dd595538dbc4390321a87d02a24b8ae370",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationRuntimeAsync.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationRuntimeAsync.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "44246a19b574739d920ee189494412e317b545a6",
+        "lf_sha256": "c9bb8c4be49d023991496f47bcd1018262577e8b19c070e7ea7581858ba5fc8b",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "a0c8340dccd355cc4cc737746d482e040e759949",
+        "comparison_lf_sha256": "84948d5aef35acce15f81aa89036389193d61f86f21d19a675b87cd14f8cecf5"
+      },
+      "target_p4": {
+        "base_revision": 10,
+        "have_revision": 10,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "84948d5aef35acce15f81aa89036389193d61f86f21d19a675b87cd14f8cecf5",
+        "before_raw_sha256": "6c1f004d09e3c6046d28b2129e17a62d110051a9d77860ed704a3c7f54fe7db2"
+      },
+      "classification": "edit",
+      "reason": "Implement committed marked-step contract, including strict retirement of implicit RunAsync; no legacy whole-case projection or anonymous path.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "1d39e9c1e86c59c0d453c5a0c4706af26149179a65d7c49a56ebcfb307783a6b",
+      "final_lf_sha256": "c9bb8c4be49d023991496f47bcd1018262577e8b19c070e7ea7581858ba5fc8b",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationRuntimeSubsystem.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/PLAutomationRuntimeSubsystem.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "271ad3f0f9af02047f1762cf345740f1559e8d3c",
+        "lf_sha256": "b9583e4cc664dcf11cce309fdcbd7d4f8dd70f618646e8e9cdec5a365ae3d6b8",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "68459f89d2020b882c166728093c0c368e393ebb",
+        "comparison_lf_sha256": "764ba385a4e230c22170ed1d8704b8e8e5719266ff7abf51ed090991db485b39"
+      },
+      "target_p4": {
+        "base_revision": 24,
+        "have_revision": 24,
+        "base_submitted_cl": 145865,
+        "base_action": "edit",
+        "submitted_lf_sha256": "797a67e54042e7c292a620028f505d6deae87ec724281a08073dca28e5dcc958",
+        "before_raw_sha256": "52da81a93bcb83a8778fa268bc22de052947e82ba6fed9deeb0083dcbeb54499"
+      },
+      "classification": "edit",
+      "reason": "Apply committed source delta; preserve target changes outside its hunks.",
+      "effective_git_delta": true,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "271ad3f0f9af02047f1762cf345740f1559e8d3c",
+        "forward_uncommitted_lf": "49c0468b2a5a1b21df5a5e4193858bae7403851250b7f58f4d4469d84d52b3b4",
+        "forward_p4_revision": 24,
+        "forward_p4_cl": 145865,
+        "forward_p4_lf": "797a67e54042e7c292a620028f505d6deae87ec724281a08073dca28e5dcc958"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input.",
+      "change": 153762,
+      "alignment": "three_way",
+      "final_raw_sha256": "86cc0c0d9eae9c201024514216748803167c1fd0e90159582fcd8f4ffb1a1ea6",
+      "final_lf_sha256": "49c0468b2a5a1b21df5a5e4193858bae7403851250b7f58f4d4469d84d52b3b4",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationAsyncCaseContractTests.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationAsyncCaseContractTests.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "922337d32a8b625f9f466bf6e007c79f92b07da7",
+        "lf_sha256": "92ec2c4cdde69128d2316f4b088e78df375fe670208ccc4f082ec61b4a852722",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "a9a55f7db296fd712b0194381d4eaeb518ae1a5e",
+        "comparison_lf_sha256": "9e53003f5d89ddf1b026af9ffb04a2d947738b075382ecb62815d6e2db684060"
+      },
+      "target_p4": {
+        "base_revision": 4,
+        "have_revision": 4,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "9e53003f5d89ddf1b026af9ffb04a2d947738b075382ecb62815d6e2db684060",
+        "before_raw_sha256": "45b2cca09ff497f1dc6b73b03f795b48d0216767d2ef289208fb2b0a0d70f918"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationAsyncSafetyTests.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationAsyncSafetyTests.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "d955dcb043d8f01a8db9eb152069af8dd5408dc3",
+        "lf_sha256": "7a76c99789b40d77846e7fb233b934bf8faa46d1681b9ea09a56a0d428a3380c",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "7ed2ce268b4cecf6a7cb62344418d2fa8293f401",
+        "comparison_lf_sha256": "0005ce7c62b69de58f747cb51593d51cc4d1c44bb76ac1039054339ff231a040"
+      },
+      "target_p4": {
+        "base_revision": 4,
+        "have_revision": 4,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "0005ce7c62b69de58f747cb51593d51cc4d1c44bb76ac1039054339ff231a040",
+        "before_raw_sha256": "fe35147c79d0f67d84d37046ee48007230b8a9a87a95671ace20bdf7748817a6"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationCasePhaseTests.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationCasePhaseTests.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "bfc23862a1ccaa7ae4a6a1b04ad2cef90dd95104",
+        "lf_sha256": "e3728a79c33fb281ebe6db306f67425114a1b882f6f50a472b2cea0d6f8e6187",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "836d951e98be8c984af2aa34665e4bc8d2437212",
+        "comparison_lf_sha256": "1cdc4f30c2b6d34ebb7b4fbddc89b215e0d4819121a32744950613b4d2a6576e"
+      },
+      "target_p4": {
+        "base_revision": 4,
+        "have_revision": 4,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "1cdc4f30c2b6d34ebb7b4fbddc89b215e0d4819121a32744950613b4d2a6576e",
+        "before_raw_sha256": "281b62fe0e90a3933496b55bcb55b6c87359de6facc6022e48492162a309bb61"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationOuterTimeoutProbeTests.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationOuterTimeoutProbeTests.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "54c15ca8aba5406e3cfb969f679b4fefd85b7c9b",
+        "lf_sha256": "20421087d662fc9b9cdd5ae2e4b9bf72c2aff5d46caa5bf2f7cbca8b23df2960",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": null,
+        "comparison_lf_sha256": null
+      },
+      "target_p4": {
+        "base_revision": null,
+        "have_revision": null,
+        "base_submitted_cl": null,
+        "base_action": null,
+        "submitted_lf_sha256": null,
+        "before_raw_sha256": null
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationRegistryErrorTests.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationRegistryErrorTests.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "24ed4279e860ceb130e34f7d139ab21d49771e13",
+        "lf_sha256": "373bef45dae4c41e8f0d6fbc9d539ff70da6e4a6513d600c29ab6bfcce8a2112",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": null,
+        "comparison_lf_sha256": null
+      },
+      "target_p4": {
+        "base_revision": null,
+        "have_revision": null,
+        "base_submitted_cl": null,
+        "base_action": null,
+        "submitted_lf_sha256": null,
+        "before_raw_sha256": null
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationRegistryPIEReloadTests.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationRegistryPIEReloadTests.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "aa065c731a3c45dc6329de8822cf1f493951d6a1",
+        "lf_sha256": "2ed77de254aa1854c54a4ae4821686f7abec98e27a34b669daaa74634d67e0dc",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "e828aca5c1633c06dbc9569e75ccb00fb1cb452b",
+        "comparison_lf_sha256": "4e626a72517ddc6f906390a48699ebdccd1b2685dcbfb9b60c138cc21b345723"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "4e626a72517ddc6f906390a48699ebdccd1b2685dcbfb9b60c138cc21b345723",
+        "before_raw_sha256": "97b8492aab8a0043d8c5d2f878320de99b2d30719fdd7a4e57051d162ef6b5ad"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationRegistryRetireTests.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationRegistryRetireTests.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "71634fe5ff2059a925a1b0d0242202841a6e39ed",
+        "lf_sha256": "717fd4fc3ec25f8a020608bb0aa8fa456ab4c6334441e2e0041d920bb9bf85df",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": null,
+        "comparison_lf_sha256": null
+      },
+      "target_p4": {
+        "base_revision": null,
+        "have_revision": null,
+        "base_submitted_cl": null,
+        "base_action": null,
+        "submitted_lf_sha256": null,
+        "before_raw_sha256": null
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationRegistryStepEntryTests.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationRegistryStepEntryTests.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "b553892e654980813aa8d051b5849732121f5a99",
+        "lf_sha256": "543ea32bc472dc210c609a72cca484ca834fe3db732927f31c449e85256c3a2d",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "d7568e26fa0303ca6993facf60b80f8a0e68acae",
+        "comparison_lf_sha256": "d1f4345e2973fe4686528464b62718da8cd510432ed4726ad1fffcbc08985f51"
+      },
+      "target_p4": {
+        "base_revision": 1,
+        "have_revision": 1,
+        "base_submitted_cl": 144355,
+        "base_action": "add",
+        "submitted_lf_sha256": "d1f4345e2973fe4686528464b62718da8cd510432ed4726ad1fffcbc08985f51",
+        "before_raw_sha256": "d47a976eb33298e1c4d4e85fc6957d5fe3d34330a77015c0bde2d3b2eb2c7de4"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationRunBaselineTests.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationRunBaselineTests.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "961752013cc8d939cb347a83ab5043e4e2fbce9d",
+        "lf_sha256": "de54231a50e1329b29fe4e68dc0354d0e16c15db1f5c4313a8e55f086137d34f",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": null,
+        "comparison_lf_sha256": null
+      },
+      "target_p4": {
+        "base_revision": null,
+        "have_revision": null,
+        "base_submitted_cl": null,
+        "base_action": null,
+        "submitted_lf_sha256": null,
+        "before_raw_sha256": null
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationRunSelectionTests.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationRunSelectionTests.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "ebaa3da5117a8552031c27290f76a98c6b0a2a89",
+        "lf_sha256": "5cb2ad31eacebe84e8df749baa69fe25bbfd721d14b775feff1c1c852533bae5",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "b4262e51ba38b61c20eb3172d74c7e267d00c400",
+        "comparison_lf_sha256": "2770a15c1acf0d410fd8d80db37c733c6a3c9a5c1c8401f7522bca475471cc67"
+      },
+      "target_p4": {
+        "base_revision": 2,
+        "have_revision": 2,
+        "base_submitted_cl": 144423,
+        "base_action": "edit",
+        "submitted_lf_sha256": "2770a15c1acf0d410fd8d80db37c733c6a3c9a5c1c8401f7522bca475471cc67",
+        "before_raw_sha256": "52f167136942d7343b0878615f99e91790ddf3f8b218b4d62926930667959115"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationSelectionProbeTests.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationSelectionProbeTests.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "3efabe5f0764aac27580b1e7fe0e03326eae2741",
+        "lf_sha256": "30ce3fa11b2da28876a48f96aaeb615d81dc61e3e95a301bc1cf7afeeead724a",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "87f1cc3b2cec7af7bc0fc821089d667dcae6bac2",
+        "comparison_lf_sha256": "f122c58e8bd26d0e72e9a4805b2fc904c480ef2fb04d9ed9c05af0390e51d52c"
+      },
+      "target_p4": {
+        "base_revision": 4,
+        "have_revision": 4,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "f122c58e8bd26d0e72e9a4805b2fc904c480ef2fb04d9ed9c05af0390e51d52c",
+        "before_raw_sha256": "d6547872fbdf596d81cb1f513a64b4a43e8c10685b8975fb59fb1d32fd29a528"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationSingleStepTests.cpp",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationSingleStepTests.cpp",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "562ceb2f758556bb6a3003e9859f16ba5f04e6b9",
+        "lf_sha256": "b9bb53afe1c7cde32dde986b188d95d365ef16320d768cbc666d693d05bf5867",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "7d85fc1d7af27206ae4d2d047fe0ba12f7ad2f5d",
+        "comparison_lf_sha256": "a18e2ffb01876001b02d51b86065501785244a6cb4fda5e7a6c2870965f74a52"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 145468,
+        "base_action": "edit",
+        "submitted_lf_sha256": "f9aceee70178706240c4b64bb874f5e771c3709b1b9d61fc1190ff44b3f88c72",
+        "before_raw_sha256": "55f1622697f504cbd3110ca885499566fdd57f64f4c078f02f4dfc72573900f4"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationTestScriptFixtures.h",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Private/Tests/PLAutomationTestScriptFixtures.h",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "82b0610d4b887efc6cd313b2265a7819e884e480",
+        "lf_sha256": "b13716e54cdd2d73259729d72ae6ec7cd0e98437d92d589b34b9cfe6f6794b9f",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": null,
+        "comparison_lf_sha256": null
+      },
+      "target_p4": {
+        "base_revision": null,
+        "have_revision": null,
+        "base_submitted_cl": null,
+        "base_action": null,
+        "submitted_lf_sha256": null,
+        "before_raw_sha256": null
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Public/PLAutomationAssert.h",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Public/PLAutomationAssert.h",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "34386f359fadfb14fd713848cb1ff6200fb32308",
+        "lf_sha256": "ed23082930f245fc11ba4da7fbf07017298cd728fbc03020c65e4a53b4256b72",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "34386f359fadfb14fd713848cb1ff6200fb32308",
+        "comparison_lf_sha256": "ed23082930f245fc11ba4da7fbf07017298cd728fbc03020c65e4a53b4256b72"
+      },
+      "target_p4": {
+        "base_revision": 2,
+        "have_revision": 2,
+        "base_submitted_cl": 145865,
+        "base_action": "edit",
+        "submitted_lf_sha256": "b53109db1c2ace72ae69b93bed804d57fba50a14a027a2500ac2c86f5144864f",
+        "before_raw_sha256": "4732b850d2666dd08d4e2debbea946dd55c216cad2f5237dca1f59068b2e8e66"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "34386f359fadfb14fd713848cb1ff6200fb32308",
+        "forward_uncommitted_lf": "b53109db1c2ace72ae69b93bed804d57fba50a14a027a2500ac2c86f5144864f",
+        "forward_p4_revision": 2,
+        "forward_p4_cl": 145865,
+        "forward_p4_lf": "b53109db1c2ace72ae69b93bed804d57fba50a14a027a2500ac2c86f5144864f"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input."
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Public/PLAutomationAsyncCase.h",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Public/PLAutomationAsyncCase.h",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "802d841ed9e137bba5afbf6c6021819356919c07",
+        "lf_sha256": "da29f10eb70d7538144c889236bf1f29264b6472c442581b964e9160aa83ff05",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "54e8345e8d6609e86b73aa8bf9d08e1ae72ae9e2",
+        "comparison_lf_sha256": "36d51bcd08bd124771146a17e3f6e6d78619e909bf1e88712b69b74670f79b2f"
+      },
+      "target_p4": {
+        "base_revision": 4,
+        "have_revision": 4,
+        "base_submitted_cl": 144355,
+        "base_action": "edit",
+        "submitted_lf_sha256": "36d51bcd08bd124771146a17e3f6e6d78619e909bf1e88712b69b74670f79b2f",
+        "before_raw_sha256": "b432197540c6976caee5589e32d37504c41338c40e3284a46e1989814a7c4da2"
+      },
+      "classification": "edit",
+      "reason": "Implement committed marked-step contract, including strict retirement of implicit RunAsync; no legacy whole-case projection or anonymous path.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "a59c6a46afd88c62f10b20ec35e0a5aafb97d1504654ff6bbd6f0ec44447fb1f",
+      "final_lf_sha256": "da29f10eb70d7538144c889236bf1f29264b6472c442581b964e9160aa83ff05",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Public/PLAutomationDynamicTestRegistry.h",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Public/PLAutomationDynamicTestRegistry.h",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "554d16546e5fe01103c49dbc48018fbeb3eb8377",
+        "lf_sha256": "b6e4d058e0e8b75f1e7f27fbcf9cd2c1df8c9c698abbc5638c3259298a275e72",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "9915b5e91634a4867f2ef3f6f4b709a8d4eb38b1",
+        "comparison_lf_sha256": "fe07340b54e91adc04fa6587d2bc0c068fcc598c00e81658454e6bd55e373770"
+      },
+      "target_p4": {
+        "base_revision": 14,
+        "have_revision": 14,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "fe07340b54e91adc04fa6587d2bc0c068fcc598c00e81658454e6bd55e373770",
+        "before_raw_sha256": "5f5b9dde5e40ad2ca27de696abffffd7dea74eeebb841e21d93ff2e0f2c62baf"
+      },
+      "classification": "edit",
+      "reason": "Implement committed marked-step contract, including strict retirement of implicit RunAsync; no legacy whole-case projection or anonymous path.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "b65f50510421df7b693245fa2cb893de3eefdde41734c820b71850254174914f",
+      "final_lf_sha256": "b6e4d058e0e8b75f1e7f27fbcf9cd2c1df8c9c698abbc5638c3259298a275e72",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Public/PLAutomationRunState.h",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Public/PLAutomationRunState.h",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "8ab9f41ba9446f5c3b54cb05225709c08d3e172a",
+        "lf_sha256": "ca65039114b2b2bb0eb64f87fccdbb51b73418ffbd76fca43cab90fa2e62eb77",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "2a3ac2db4601ec4ef0997dae1c7ab1b965127ecc",
+        "comparison_lf_sha256": "77dca4841725806738db35d5cdd2969824904121ada0b8e102301ac4c0ad4356"
+      },
+      "target_p4": {
+        "base_revision": 5,
+        "have_revision": 5,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "77dca4841725806738db35d5cdd2969824904121ada0b8e102301ac4c0ad4356",
+        "before_raw_sha256": "ab7ddf19def015d7f1a03371fdd04d84d2c24f79eaf1dcc4b95b93a454d62437"
+      },
+      "classification": "edit",
+      "reason": "Implement committed marked-step contract, including strict retirement of implicit RunAsync; no legacy whole-case projection or anonymous path.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "c5fda017c1df821251a6e3a255947e302575043b95080313a511cfdf3570e508",
+      "final_lf_sha256": "ca65039114b2b2bb0eb64f87fccdbb51b73418ffbd76fca43cab90fa2e62eb77",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Public/PLAutomationTypes.h",
+      "target": "Main/Plugins/PLAutomationFramework/Source/PLAutomationFramework/Public/PLAutomationTypes.h",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "e7734e16a9e2428f906337a936493201fc188ca2",
+        "lf_sha256": "7917e97df119ed6b9b84f3eac39d0882c7e967ea7f22252927109135b805f38a",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "7bd8589303f6b6c2216485361ef42c86b6fa7b8c",
+        "comparison_lf_sha256": "86f008a7f7055c148e5b0c944c954a6d27cc28ba58a3cd932d0b138d65180693"
+      },
+      "target_p4": {
+        "base_revision": 11,
+        "have_revision": 11,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "86f008a7f7055c148e5b0c944c954a6d27cc28ba58a3cd932d0b138d65180693",
+        "before_raw_sha256": "d04c315bc0ad08ea5060f25ed8cd4ac4a23cbf33de2e8de000b66e9ff7c67bc0"
+      },
+      "classification": "edit",
+      "reason": "Apply committed source delta; preserve target changes outside its hunks.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "d1a47aba6ee8d4595aa879509502132be3ea8b2660b20d23b3393448d65f6fc6",
+      "final_lf_sha256": "7917e97df119ed6b9b84f3eac39d0882c7e967ea7f22252927109135b805f38a",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/references/PLAutoTrace_Pipeline_Plan.md",
+      "target": "Main/Plugins/PLAutomationFramework/references/PLAutoTrace_Pipeline_Plan.md",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "d72f6ec8d9d2efcb8f62a9b1038f9d574a1d573d",
+        "lf_sha256": "7e535267bf6fd9697a0ade8918e412eaf89b510372b5e12b0ac4b7713c0ff894",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "3012007e45e34e8efe2bc4895d2206b8cb91e632",
+        "comparison_lf_sha256": "213a33e2ad1517a5e8cbc8ac623789b0d0bf07396d156e52fc33af87d86acf27"
+      },
+      "target_p4": {
+        "base_revision": 4,
+        "have_revision": 4,
+        "base_submitted_cl": 113798,
+        "base_action": "edit",
+        "submitted_lf_sha256": "213a33e2ad1517a5e8cbc8ac623789b0d0bf07396d156e52fc33af87d86acf27",
+        "before_raw_sha256": "0cafa67e15cecae7a3c2241a15ae696652f0475c2c76110a44983509966c12fe"
+      },
+      "classification": "preserve_archive_link",
+      "reason": "The only Git change points at a Git-only archive. Keep the valid MainDev link and historical document.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/references/PLAutomation_Review_2026-07.md",
+      "target": "Main/Plugins/PLAutomationFramework/references/PLAutomation_Review_2026-07.md",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": null,
+        "lf_sha256": null,
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "2b88fa217c85854d3024e540887e9395880997ac",
+        "comparison_lf_sha256": "df08ac1c18d296eb5dbf3b13367e9e9a1848781059fec18a4bfe7adcd864390c"
+      },
+      "target_p4": {
+        "base_revision": 2,
+        "have_revision": 2,
+        "base_submitted_cl": 113277,
+        "base_action": "edit",
+        "submitted_lf_sha256": "df08ac1c18d296eb5dbf3b13367e9e9a1848781059fec18a4bfe7adcd864390c",
+        "before_raw_sha256": "4535ff565d40b0bc7a7bf436d157117f39c3ee9cfc23be941516ac90cc1133cc"
+      },
+      "classification": "preserve_archive",
+      "reason": "Historical MainDev framework review, not required at runtime. Do not delete the target archive.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/references/async-case-steps.md",
+      "target": "Main/Plugins/PLAutomationFramework/references/async-case-steps.md",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "3752721f3542bbc9817989c2a48a7e4b8b5c07a7",
+        "lf_sha256": "60f48e23c960a6966a1a67553c07b0e69a80cfddfcdbafefe3c38b70dd42bcae",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "4b772b358cd76a16896084ded97f1e5c2e4dc431",
+        "comparison_lf_sha256": "b628e2fbee89d14cd35d76f6c26d0c1782e79bb45efd307b36acfa9e9c2be6d2"
+      },
+      "target_p4": {
+        "base_revision": 5,
+        "have_revision": 5,
+        "base_submitted_cl": 144577,
+        "base_action": "edit",
+        "submitted_lf_sha256": "4baeb9788cb9b8f06b112b9aac7c0d44b494fd13f9ce1cdb00de8ba9fa84b2fc",
+        "before_raw_sha256": "ae109d829a8f0ab20099aa1f572642ff7045115bf81125bfbba62fc5246ac319"
+      },
+      "classification": "edit",
+      "reason": "Port explicit selection/reporting and strict retirement; leave OptionUI and historical MainDev results in their own context.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "2abe6669bb3a220800924553c017278db3eccfa51429658671d423094dc286f2",
+      "final_lf_sha256": "97ab6973d793a5ed93beb1406b9d58079cb3a8e1ac524a5587f5715414e3c247",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/references/async-debug-fixture.md",
+      "target": "Main/Plugins/PLAutomationFramework/references/async-debug-fixture.md",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "0824f4a4c8f20a6546eaafd0422929a7655449b7",
+        "lf_sha256": "235cddda2f3a83e40f8afbab6a627d92c1840cd1e4d73f4b14006348d88e74dc",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "a2a9e5d344580262296831ebefedb7aa52263bfe",
+        "comparison_lf_sha256": "288792a2ac1946bc3c6e54ec7f99be06588ba0a126a20ec0045f8d9eae41eef9"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 142055,
+        "base_action": "edit",
+        "submitted_lf_sha256": "288792a2ac1946bc3c6e54ec7f99be06588ba0a126a20ec0045f8d9eae41eef9",
+        "before_raw_sha256": "3519118ef18be0d0e13e5472acec1cecda6c49a78406fcc27a6f51e5076b173e"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/references/authoring-examples.md",
+      "target": "Main/Plugins/PLAutomationFramework/references/authoring-examples.md",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "56ac07b89e90231e6c4e26cc4bdd64e8f6f8981f",
+        "lf_sha256": "89cb2fb81367eb88a6b21bf8c57699021096211bd4560013c3e4be1e82330ff3",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "d68bef80547d0bede7507dabd9bc0433c46d4b50",
+        "comparison_lf_sha256": "99f03aa78631d4019f5eeb99bb3adcb4aac3ca5e44c6d22a26eb7bbb4910856a"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "7b4d75381eb4b679967469b97f8f784a792971a3fd09a28bc3e11d47ea0dd993",
+        "before_raw_sha256": "7bdac1ea8a7e6dc2e04319bf40142567048d76380dce468db156caaf4986882b"
+      },
+      "classification": "edit",
+      "reason": "Apply committed marked-only authoring and result documentation on top of MainDev docs; retain host examples and runner details.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "934488c1b21f90a61adea84f9686e3c2a2fa44993fee56bd90369bfb13942394",
+      "final_lf_sha256": "613476560bf512f0dd5108f46ac0823262e4d8e4ccfda1c6dc855cf1be168aa3",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/references/cli-and-registry.md",
+      "target": "Main/Plugins/PLAutomationFramework/references/cli-and-registry.md",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "6e298c9230740d9274a753ad1d5f24464e48df83",
+        "lf_sha256": "c3ed7f4713fecad6260d4ba46161fd145bf094769f872e8de1e3907c5a593e13",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "8bd6f1be8a15d63640aecc6f6434184fb5cb73fc",
+        "comparison_lf_sha256": "41545c6e89268d8fd24fb41480758406578a20e69e54a7ab86caf8ed72aec00b"
+      },
+      "target_p4": {
+        "base_revision": 5,
+        "have_revision": 5,
+        "base_submitted_cl": 145884,
+        "base_action": "edit",
+        "submitted_lf_sha256": "37695bb85bed8e248259b5b4ea66fdde27495823a510594f466bafa0ab7acf9b",
+        "before_raw_sha256": "da98f79b64edf9a4873491996361a9793fbd0309159f1a63bb079385848f8c46"
+      },
+      "classification": "edit",
+      "reason": "Port marked-only registry and native diagnostics. Keep MainDev launcher, extensions and business fixture documentation.",
+      "effective_git_delta": true,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "6e298c9230740d9274a753ad1d5f24464e48df83",
+        "forward_uncommitted_lf": "7c59e4ec479d7e532c69f55ed972d2ef44514363f7b25801dff4073549e820ae",
+        "forward_p4_revision": 5,
+        "forward_p4_cl": 145884,
+        "forward_p4_lf": "37695bb85bed8e248259b5b4ea66fdde27495823a510594f466bafa0ab7acf9b"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input.",
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "c7642a128082532ba6748e0e6bd37c81b67d3e32f884860acbb95878131940bf",
+      "final_lf_sha256": "9ace243727d0f1ee4386d67311b6e780e00410f545b4f04114650b05251cb69c",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/references/hot-reload-registry.md",
+      "target": "Main/Plugins/PLAutomationFramework/references/hot-reload-registry.md",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "4cca0529ceda0d2b2906a1d37ce4b2b21e5cf56d",
+        "lf_sha256": "cb345619281f5081d2ecc312b75c5488407cc4360b064f80ffa04996cced50de",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "ffa0ef93d1f81fc33e7ed3645c20d2197e859e1e",
+        "comparison_lf_sha256": "e5f9cf886306b84833f61ca9e1121835a59b7128224f545a401784d59e02a935"
+      },
+      "target_p4": {
+        "base_revision": 1,
+        "have_revision": 1,
+        "base_submitted_cl": 134409,
+        "base_action": "add",
+        "submitted_lf_sha256": "e5f9cf886306b84833f61ca9e1121835a59b7128224f545a401784d59e02a935",
+        "before_raw_sha256": "9327858cd79b6a51cac802f2d8936cb3129685fd4fd3fcdab18940c8d5833614"
+      },
+      "classification": "edit",
+      "reason": "Update runtime lifetime guidance only. Do not import source-specific probe counts.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "5cb5ff5764e95e953e940f7f8d95d2e490f53ced382129b65b9340596ba2db9a",
+      "final_lf_sha256": "2e3e8e7fdf7f368657ed2f13594446a9950d57df4471f3069cbc04748800f8e5",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/references/mouse-isolation.md",
+      "target": "Main/Plugins/PLAutomationFramework/references/mouse-isolation.md",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "3ff2b906d426c1d9346995fd10c0c1124dacfed4",
+        "lf_sha256": "b5b1ec130dc03b20604462964bb378d0bd175d164b698e5ee7fe2958093d16f2",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "77ca295dde7ece3d7a7785cb1697e0212011ac19",
+        "comparison_lf_sha256": "d47341285cb7879e84f57fcb9c300e3c97a9f08335871c2c9ced450f46a58201"
+      },
+      "target_p4": {
+        "base_revision": 8,
+        "have_revision": 8,
+        "base_submitted_cl": 145884,
+        "base_action": "edit",
+        "submitted_lf_sha256": "304cc9b4e76e44a5dadfab41bc7c737dd14d13b159539ca24f97cea531ac4aa3",
+        "before_raw_sha256": "e6f45055668b4b9634f61a3b935293676195b2c74b3f9fcb4a1d769a3b0892a0"
+      },
+      "classification": "edit",
+      "reason": "Document per-owner lifecycle only; keep MainDev Slate virtual cursor, overlay and background input details.",
+      "effective_git_delta": true,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "3ff2b906d426c1d9346995fd10c0c1124dacfed4",
+        "forward_uncommitted_lf": "edb5ee0cc962f19ec20bdc233c246749815888e2cb750acadc25e4c517c619f4",
+        "forward_p4_revision": 8,
+        "forward_p4_cl": 145884,
+        "forward_p4_lf": "304cc9b4e76e44a5dadfab41bc7c737dd14d13b159539ca24f97cea531ac4aa3"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input.",
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "762c0a54580f9259ef55801074127c79d7f212cbaf9ecfc215967acaea0c1cf3",
+      "final_lf_sha256": "3f767ac97644101c28d3fa1f50a0d4e7630e9180f9a8339e859a399560d8c146",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/references/multi-client-pie.md",
+      "target": "Main/Plugins/PLAutomationFramework/references/multi-client-pie.md",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "1e1ec9e080572819c9f77702581f077e4f2dff91",
+        "lf_sha256": "ea26de20c47788d07302061216e376371ba385f24c9ad24bff0dc4e0573d57b4",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "dc0e5c7eb4ea3025088f85ec529170de9547bf59",
+        "comparison_lf_sha256": "d492b54fcf75554310d9503f1d198b674a4a42dd119883664b6bea25f799f7a2"
+      },
+      "target_p4": {
+        "base_revision": 1,
+        "have_revision": 1,
+        "base_submitted_cl": 138240,
+        "base_action": "add",
+        "submitted_lf_sha256": "d492b54fcf75554310d9503f1d198b674a4a42dd119883664b6bea25f799f7a2",
+        "before_raw_sha256": "9c14b607d9c4a45a20e078e66af34273283b3889225936375dd68ee15fbc2f8a"
+      },
+      "classification": "edit",
+      "reason": "Retain generic per-holder PIE explanation; omit upstream-only native fixture claim.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "902fb07dd1ccfed634616e8091059212509728e2dbe8fa1d9ccbacc4ba9ba1e4",
+      "final_lf_sha256": "3d06e059c5d29e2dd9b6247e1907bc8b86e668b3a0fe7db181d67b946c8a1efb",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/references/pitfalls.md",
+      "target": "Main/Plugins/PLAutomationFramework/references/pitfalls.md",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "eb71ca7299792e49a3052397577ab30af49a012a",
+        "lf_sha256": "7a9eb2a129af542eb6af0927c5d738eaeb410413904bc91a64a0fec1565a5d34",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "3610b7d6bc57f33b6c55becb54144643e3735c3b",
+        "comparison_lf_sha256": "42b9c0bd320358614d4cdab23ea5c510c35e163455a87af51c3b00a73d4ae9f5"
+      },
+      "target_p4": {
+        "base_revision": 7,
+        "have_revision": 7,
+        "base_submitted_cl": 144847,
+        "base_action": "edit",
+        "submitted_lf_sha256": "2f750cd0f4def46b526a8a8ef305faed25f069fa8b780a831d6211d72a405abf",
+        "before_raw_sha256": "9ede2928abb7beb301aef66c724945e838d657d8b0d05b5a81f8aa56bf06e7e8"
+      },
+      "classification": "edit",
+      "reason": "Preserve target incident history, with up-to-date strict-entry, leaked-work, prerequisite and registration diagnostics.",
+      "effective_git_delta": true,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "eb71ca7299792e49a3052397577ab30af49a012a",
+        "forward_uncommitted_lf": "abbde38697b7738964c552dcaa695606b68c8baf9f5db5a054e488a622da6403",
+        "forward_p4_revision": 7,
+        "forward_p4_cl": 144847,
+        "forward_p4_lf": "2f750cd0f4def46b526a8a8ef305faed25f069fa8b780a831d6211d72a405abf"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input.",
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "0c514fd866b8eeefe5c3eaf54b189ec55e12d523c235766637fa6e246ed8cd66",
+      "final_lf_sha256": "f0a077fdc7a3a1838174dcb45fc6daadc7c9ce885be209534b37c95ccc2ed24e",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/references/registry-hot-reload.md",
+      "target": "Main/Plugins/PLAutomationFramework/references/registry-hot-reload.md",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "1d6db92a84fa640399f8da8f98970e3a2ee6bd19",
+        "lf_sha256": "92f0064a8e66673df1a138165aea0046269d4557a29c75b73f6f8476a4428e47",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "d50bdacb8f4d91c247250c220c3169eea51fc504",
+        "comparison_lf_sha256": "8de13ba7bfc49b1f679e0dc7c736a64ec0cc5fe94c70fab9e87bec411a74075a"
+      },
+      "target_p4": {
+        "base_revision": 2,
+        "have_revision": 2,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "8ae29cd34a42548d3bfd6fa2573c0888efc58c79c4ec04359e511b73250aae41",
+        "before_raw_sha256": "e462a50dc6fc70caee2d22d60a50765ce160232c4177a422a16ea944302df777"
+      },
+      "classification": "edit",
+      "reason": "Replace the obsolete live-entry risk with the ported ownership contract; keep MainDev evidence and do not claim ProjectM probes ran.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "aebd6f7e5d33d0e6123e66d98694bfcdfb24074749a3436567221b97497ccc01",
+      "final_lf_sha256": "9966b9b729173e654b8f75a277e737f2699568741fda4fbbe00b2c8007f83732",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/references/run-execution-kernel.md",
+      "target": "Main/Plugins/PLAutomationFramework/references/run-execution-kernel.md",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "8e9ad0d4d3f71f5c2b5b8f6e0c31ec73f1836569",
+        "lf_sha256": "0096bde5df9c519a729ff5753f2aed78e67d3f6e50dac1233111ed7791e58822",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "d4a7490e25cd45fda02768e958664403ba46d1bd",
+        "comparison_lf_sha256": "48854177ade55fcf6de8a22862564e6db3c9c1fea204664e2808ca76b070b0a2"
+      },
+      "target_p4": {
+        "base_revision": 10,
+        "have_revision": 10,
+        "base_submitted_cl": 145468,
+        "base_action": "edit",
+        "submitted_lf_sha256": "ba41cd7e5f7262d7ed2e5a6f53a46f01816be2aeb39523f4c0720823309b698f",
+        "before_raw_sha256": "4fe5408af7763f90070d98579afafe48f0eaa75eee242206b6c6a6e7c38c7a85"
+      },
+      "classification": "edit",
+      "reason": "Document actual marked-only dispatch, baseline/result semantics, and retain the target historical business/evidence sections.",
+      "effective_git_delta": true,
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "92f9cc5c1e03fa28356c6826aa588ea78ae891b3e4a4459b3a76cfa51282cde4",
+      "final_lf_sha256": "8b9e41855a584abccc644f1fc7e906c8629eea311889cb83b8e7e3dd372472e7",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/references/runtime-types.md",
+      "target": "Main/Plugins/PLAutomationFramework/references/runtime-types.md",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "a83dc33e1152b2b52bddefbcacb3348e1be0fac4",
+        "lf_sha256": "77ae49f50a7f47bdbfc6a2ae90cb6cb82d66dea2ed87c34d0c54310608831cae",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "711ee73b008ed0695915c8dcfc05e916922ce6c4",
+        "comparison_lf_sha256": "03c729caef31d2457d51c204462ff6eaf01548db5b40802e9d48ed8992f0281f"
+      },
+      "target_p4": {
+        "base_revision": 6,
+        "have_revision": 6,
+        "base_submitted_cl": 145865,
+        "base_action": "edit",
+        "submitted_lf_sha256": "3e32297ae68fd23c75f8bf185f92a219820bfcf4da68bd3172a533015bcb6140",
+        "before_raw_sha256": "230e38938075bc3efd5cc901b050b7562710645fc888d7c903bc647f9e36a83f"
+      },
+      "classification": "edit",
+      "reason": "Apply committed marked-only authoring and result documentation on top of MainDev docs; retain host examples and runner details.",
+      "effective_git_delta": true,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "a83dc33e1152b2b52bddefbcacb3348e1be0fac4",
+        "forward_uncommitted_lf": "ebc1ec9fc5a0f324525e6b2e80b84fbc4ec042c631db1dc14312b0f3225d6851",
+        "forward_p4_revision": 6,
+        "forward_p4_cl": 145865,
+        "forward_p4_lf": "3e32297ae68fd23c75f8bf185f92a219820bfcf4da68bd3172a533015bcb6140"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input.",
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "34247fcf575b7e9a411bd23fcff87740d6a4d201ced13d97dec36ca8fe30d247",
+      "final_lf_sha256": "fb235ceb7ea733e52285c9aa298116a361682f1c4cb1c62b1c0b6a305e80f1bb",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLAutomationFramework/references/ui-interaction.md",
+      "target": "Main/Plugins/PLAutomationFramework/references/ui-interaction.md",
+      "group": "PLAutomationFramework",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "87e9fc4128a08172f18bd04fabb9cfc81768e0da",
+        "lf_sha256": "8d34988885c9a4564a67aa5ab5674c862ee4be41113c3ebcdcaa496632c7d6e6",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "87e9fc4128a08172f18bd04fabb9cfc81768e0da",
+        "comparison_lf_sha256": "8d34988885c9a4564a67aa5ab5674c862ee4be41113c3ebcdcaa496632c7d6e6"
+      },
+      "target_p4": {
+        "base_revision": 6,
+        "have_revision": 6,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "22dc09c7b77f2b79780eb4590db3c5eba8cab645dc5075f461f5c07b21ee1edc",
+        "before_raw_sha256": "0303105d5425e3fc12852addaba908db61c6f3a4a71eaddec09703c94b6d9603"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "87e9fc4128a08172f18bd04fabb9cfc81768e0da",
+        "forward_uncommitted_lf": "22dc09c7b77f2b79780eb4590db3c5eba8cab645dc5075f461f5c07b21ee1edc",
+        "forward_p4_revision": 6,
+        "forward_p4_cl": 145609,
+        "forward_p4_lf": "22dc09c7b77f2b79780eb4590db3c5eba8cab645dc5075f461f5c07b21ee1edc"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input."
+    },
+    {
+      "source": "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Private/UI/PLCursorLibrary.cpp",
+      "target": "Main/Plugins/ProjectLungfishCore/Source/PLCoreGame/Private/UI/PLCursorLibrary.cpp",
+      "group": "PLGameCore",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "5a1025100ec1c50ad3b2e505795e0af864840996",
+        "lf_sha256": "6e35695196f257371807d9dce5bfe979c7fcc4399aeb92c3c96375c32c4547b8",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "5a1025100ec1c50ad3b2e505795e0af864840996",
+        "comparison_lf_sha256": "6e35695196f257371807d9dce5bfe979c7fcc4399aeb92c3c96375c32c4547b8"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 145884,
+        "base_action": "edit",
+        "submitted_lf_sha256": "934cd7dd59116958b3a68c47c01f8702fac97fd43b1143ff1de68adffedbb93d",
+        "before_raw_sha256": "0587b8ac7913f8487a81951db1ad42c61bc66f76ca5c7380fcd92e5179e65bfe"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed PLGameCore delta; preserve actual LogCore/PLCoreGame implementation, physical cursor/Slate ownership and widget queries.",
+      "effective_git_delta": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Public/LogUtils.h",
+      "target": "Main/Plugins/LogCore/Source/LogCore/Public/LogUtils.h",
+      "group": "PLGameCore",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "d239c10f792514cf59712e1228f4835090af6fbe",
+        "lf_sha256": "953fe5e66bf6099bacc383d244badfb71e66628feb6fda4249a6c3ad0be36d9f",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "d239c10f792514cf59712e1228f4835090af6fbe",
+        "comparison_lf_sha256": "953fe5e66bf6099bacc383d244badfb71e66628feb6fda4249a6c3ad0be36d9f"
+      },
+      "target_p4": {
+        "base_revision": 17,
+        "have_revision": 17,
+        "base_submitted_cl": 151593,
+        "base_action": "edit",
+        "submitted_lf_sha256": "7853ca812aabfbfdda025e2162112bf740c0fc6e92afe10ad2dbf40217c8870b",
+        "before_raw_sha256": "c3c277bfbcc479b32fe640351f956b2984c0d5b999609957063f42fbe6f1b839"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed PLGameCore delta; preserve actual LogCore/PLCoreGame implementation, physical cursor/Slate ownership and widget queries.",
+      "effective_git_delta": false,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "d239c10f792514cf59712e1228f4835090af6fbe",
+        "forward_uncommitted_lf": "9a05036f1c4dc8d4c2a4bdf01014cc592e3f2940b179f92367cd7b1117dd7a15",
+        "forward_p4_revision": 17,
+        "forward_p4_cl": 151593,
+        "forward_p4_lf": "7853ca812aabfbfdda025e2162112bf740c0fc6e92afe10ad2dbf40217c8870b"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input."
+    },
+    {
+      "source": "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Public/UI/PLCursorLibrary.h",
+      "target": "Main/Plugins/ProjectLungfishCore/Source/PLCoreGame/Public/UI/PLCursorLibrary.h",
+      "group": "PLGameCore",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "ebedc74051169e4305aad8cca892795ef44c918c",
+        "lf_sha256": "ddde186a966bfb9bd5d501a80612a05995ee357bfec114ea3f882f4f132e65cc",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "ebedc74051169e4305aad8cca892795ef44c918c",
+        "comparison_lf_sha256": "ddde186a966bfb9bd5d501a80612a05995ee357bfec114ea3f882f4f132e65cc"
+      },
+      "target_p4": {
+        "base_revision": 2,
+        "have_revision": 2,
+        "base_submitted_cl": 145884,
+        "base_action": "edit",
+        "submitted_lf_sha256": "b8c16b2c5188f32314d744fd110b9c923e88aaee88c2069d24589d02c657581f",
+        "before_raw_sha256": "57579da2f705d295c529312c26f42015baea249c8ce8f88ac1f25e6702fe9645"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed PLGameCore delta; preserve actual LogCore/PLCoreGame implementation, physical cursor/Slate ownership and widget queries.",
+      "effective_git_delta": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/SKILL.md",
+      "target": "Main/Plugins/PLScriptAsync/SKILL.md",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "f066c6ceae620c72e0ac4ba157fdf4d81efe692c",
+        "lf_sha256": "4c0d442bfddb886850fbb8ae23671ba8e1fa1cfd0888378e888c0432cf293d09",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "e54def83e535a401133a759d58cac7e2d792ce6f",
+        "comparison_lf_sha256": "390e8f497f6275eef4436c1872a321fbe3899d45ac4f14267052ba0f77caaa2e"
+      },
+      "target_p4": {
+        "base_revision": 6,
+        "have_revision": 6,
+        "base_submitted_cl": 153464,
+        "base_action": "edit",
+        "submitted_lf_sha256": "e81097b95e2259aec475b7aea0384ea348f970478e247665386eafda5e0019b5",
+        "before_raw_sha256": "1997aa8b54566fc9662d8c6726666ce1d1a5badab9b9d293fcc354828f4ca6c1"
+      },
+      "classification": "preserve_shared_skill",
+      "reason": "Preserve shared skill per request; portable runtime documentation handled separately.",
+      "effective_git_delta": true,
+      "previous_scoped_sync": {
+        "revision": 6,
+        "action": "edit",
+        "submitted_cl": 153464,
+        "expected_lf": "e81097b95e2259aec475b7aea0384ea348f970478e247665386eafda5e0019b5",
+        "submitted_lf": "e81097b95e2259aec475b7aea0384ea348f970478e247665386eafda5e0019b5",
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": "f066c6ceae620c72e0ac4ba157fdf4d81efe692c",
+        "scope": "minimal_scoped_merge"
+      },
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "f066c6ceae620c72e0ac4ba157fdf4d81efe692c",
+        "forward_uncommitted_lf": "8e81f359388b425b3bdc0e40ea33c96c73ff164f4846b381e08b8081a70c5c02",
+        "forward_p4_revision": 6,
+        "forward_p4_cl": 153464,
+        "forward_p4_lf": "e81097b95e2259aec475b7aea0384ea348f970478e247665386eafda5e0019b5"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input."
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/Bind_PLAsyncStateMachine.cpp",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/Bind_PLAsyncStateMachine.cpp",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "d9111cf62507073da3754879f1f4086dab064ee3",
+        "lf_sha256": "71a33878c3371ab8cf3c1362eee87b6ff0df6d0b39df13ab4a935fce7685b1ab",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "122a9494c603f2a57ba516ce2136baef99a999a1",
+        "comparison_lf_sha256": "c004a91dd645ebe2c4bd438a2ba049dc6f95d169b1acf48e926d6fce0cd8fb3e"
+      },
+      "target_p4": {
+        "base_revision": 5,
+        "have_revision": 5,
+        "base_submitted_cl": 153471,
+        "base_action": "edit",
+        "submitted_lf_sha256": "ee479a7ae782fc3e3b3a09f123ed659ff387d65a20090e416b0302ef3735b444",
+        "before_raw_sha256": "febdd7eb18ee297f2d192e4416bd24016ee20f57e446b8a6ec31f6afedfc5c8b"
+      },
+      "classification": "edit",
+      "reason": "Add the committed receiverless ownership guard to P4 binding layout; preserve native await gate and suspension path from P4 #current.",
+      "effective_git_delta": true,
+      "previously_deferred": true,
+      "excluded_uncommitted_forward": {
+        "original_committed_blob": "d9111cf62507073da3754879f1f4086dab064ee3",
+        "forward_uncommitted_lf": "a589197bc6056b24aeb0a796df374954aeae82f6f30a48e94d11603864a5acfa",
+        "forward_p4_revision": 5,
+        "forward_p4_cl": 153471,
+        "forward_p4_lf": "ee479a7ae782fc3e3b3a09f123ed659ff387d65a20090e416b0302ef3735b444"
+      },
+      "forward_hash_detail": "Forward workspace bytes were checked only as evidence; never used as merge input.",
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "7157ff1b53996b67e2d8732a5d66b098d796755741b63f79f0b7e6f63c2b5e29",
+      "final_lf_sha256": "cf957a2c742923c79c4f6230be01b462cae8ce35eb5dacad036d9647e1002ef4",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/PLAsyncExecution.cpp",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/PLAsyncExecution.cpp",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "5294601ea7c47972bb82c13fa61d450eede54fc7",
+        "lf_sha256": "d2c0b05db221da5f311a8ab99955b9c420f2c3ae4f50b41364303fdb9ed24397",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "f3444d8cdb66ba8673b4a57fe8f20ca070748d1b",
+        "comparison_lf_sha256": "208c6f02a3174987815b66c71a69de805894509cf161c3adf997c3866aa2b59e"
+      },
+      "target_p4": {
+        "base_revision": 5,
+        "have_revision": 5,
+        "base_submitted_cl": 153464,
+        "base_action": "edit",
+        "submitted_lf_sha256": "ba16ca3ffdbdf118faf020571498266c46e2e987c009a505bcb040f4510082fc",
+        "before_raw_sha256": "9c1993dfd402843efe0ab481456f3b4882580c369b147a6a8810290022b1e40b"
+      },
+      "classification": "edit",
+      "reason": "Apply committed source delta; preserve target changes outside its hunks.",
+      "effective_git_delta": true,
+      "previous_scoped_sync": {
+        "revision": 5,
+        "action": "edit",
+        "submitted_cl": 153464,
+        "expected_lf": "ba16ca3ffdbdf118faf020571498266c46e2e987c009a505bcb040f4510082fc",
+        "submitted_lf": "ba16ca3ffdbdf118faf020571498266c46e2e987c009a505bcb040f4510082fc",
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": "5294601ea7c47972bb82c13fa61d450eede54fc7",
+        "scope": "minimal_scoped_merge"
+      },
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "de852abd785cad9cced13a3f82b0809078eb753a6236242fce846d47f5c7fa95",
+      "final_lf_sha256": "d2c0b05db221da5f311a8ab99955b9c420f2c3ae4f50b41364303fdb9ed24397",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/PLAsyncExecution.h",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/PLAsyncExecution.h",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "0e4f8b7dfe09107d92e800d4e91822f99871d83b",
+        "lf_sha256": "1d5e8897d2d9249d4d3b2ac602078d3a7807e4dcad53cebc45e5b928154cd27a",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "c269a5d08b3e56604059627d31fa161a48b15925",
+        "comparison_lf_sha256": "5935666f6c296a7944e01edb02540c925ddd77f469b406dc1cc5e504ffc77ed7"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 153464,
+        "base_action": "edit",
+        "submitted_lf_sha256": "1d5e8897d2d9249d4d3b2ac602078d3a7807e4dcad53cebc45e5b928154cd27a",
+        "before_raw_sha256": "808a1783b829cea7f4a64b905d6d3019c171164c62b4166545cb8685d16219e8"
+      },
+      "classification": "already_present",
+      "reason": "Submitted/clean target already matches the current source after LF normalization.",
+      "effective_git_delta": true,
+      "previous_scoped_sync": {
+        "revision": 3,
+        "action": "edit",
+        "submitted_cl": 153464,
+        "expected_lf": "1d5e8897d2d9249d4d3b2ac602078d3a7807e4dcad53cebc45e5b928154cd27a",
+        "submitted_lf": "1d5e8897d2d9249d4d3b2ac602078d3a7807e4dcad53cebc45e5b928154cd27a",
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": "0e4f8b7dfe09107d92e800d4e91822f99871d83b",
+        "scope": "equal_after_eol"
+      }
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/PLAsyncKillGateCommandlet.cpp",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/PLAsyncKillGateCommandlet.cpp",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": null,
+        "lf_sha256": null,
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "32f50e2a7023845021e3f4ac36e9540b9930d80d",
+        "comparison_lf_sha256": "f977a25863d50a667b3392ebe64f4e3a35d5b49ffc025a4e32de5af4afd62299"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": null,
+        "base_submitted_cl": 153464,
+        "base_action": "delete",
+        "submitted_lf_sha256": null,
+        "before_raw_sha256": null
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true,
+      "previous_scoped_sync": {
+        "revision": 3,
+        "action": "delete",
+        "submitted_cl": 153464,
+        "expected_lf": null,
+        "submitted_lf": null,
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": null,
+        "scope": "historical_deletion_verified"
+      }
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/PLAsyncStateMachine.cpp",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/PLAsyncStateMachine.cpp",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "1a82134e5087ddf12fff91c8a39f8da4f49109fc",
+        "lf_sha256": "d306f622a939cf3951d97660d905f0e2b988ffe41b8d6f31bfd54d1e23fef480",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "53ec727f32a725de2233257f3f7a855d9d33abd8",
+        "comparison_lf_sha256": "22d662c88721287ea2827252c59e31a3cc2b81bd7a9428f179c3f78cd41f771f"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 143452,
+        "base_action": "edit",
+        "submitted_lf_sha256": "22d662c88721287ea2827252c59e31a3cc2b81bd7a9428f179c3f78cd41f771f",
+        "before_raw_sha256": "9a278e74127e442cab942b8a2b6d6681d29ab8e8db46c2070df77289d13344fe"
+      },
+      "classification": "edit",
+      "reason": "Port runtime initialization, shutdown/abandonment, counts and guard behavior. Omit the FPLAsyncLifetimeProbe static counters/include belonging exclusively to the excluded AS lifetime fixture (C2653 in initial build).",
+      "effective_git_delta": true,
+      "previously_deferred": true,
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "3373f60b14a6cc6c6e57a2a04ba28a91bee00d983710594028c23841fbd9d885",
+      "final_lf_sha256": "33423e4cb4b9d9511290feceac1cc1f0ee84fd47484c7e2ee0f1a9d6c5f2e9a3",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/PLScriptTask.cpp",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/PLScriptTask.cpp",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "e32e826e8620cf7431283669a54493d43131b096",
+        "lf_sha256": "d8057c75124e109fef265ccdc1cbe9ad2c6adf8076f313f0b0818016db061308",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "24fc42dd88ab7d115f11e79cab22c43bdb327c55",
+        "comparison_lf_sha256": "454edb9a2ad753e461f2ad33f25de959355e28eff1ff1f9dd3ae09bbf135b4c9"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 145468,
+        "base_action": "edit",
+        "submitted_lf_sha256": "7e2b19f8eba036b6ce77a66d1ea4001ce9cd2577c3d87ea79c55f3658bbcf607",
+        "before_raw_sha256": "7a300ed95725b88ec4c020ce4dd6901e061506383b2bda3092641ae16e1dad7f"
+      },
+      "classification": "edit",
+      "reason": "Apply committed source delta; preserve target changes outside its hunks.",
+      "effective_git_delta": true,
+      "previously_deferred": true,
+      "change": 153762,
+      "alignment": "three_way",
+      "final_raw_sha256": "0faa70262f705af5552339d66dba60c0f17244c415ed73ee01cf1aa9f633603a",
+      "final_lf_sha256": "657979ae9b75d685937d27855af320b8607017a0f1536f7d6c63d369021cbd5b",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/PLScriptTaskCompletionCore.cpp",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/PLScriptTaskCompletionCore.cpp",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "afd9d6bebb0d9489ed23137dfce8491407d570b9",
+        "lf_sha256": "eb2e6d487ab295afe4bba09663cb3fe6ab07a3a1aeda599e5f4d6d451d90fd05",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "187f18a9ea11306e2d678ded3572c3990e95e79f",
+        "comparison_lf_sha256": "33fc80126d2326924af61f415032a5aa999c52c126d58cf54258ac1f1c959e33"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 143452,
+        "base_action": "edit",
+        "submitted_lf_sha256": "33fc80126d2326924af61f415032a5aa999c52c126d58cf54258ac1f1c959e33",
+        "before_raw_sha256": "ed675994d4edb935950d9ec3205ecef05a0080735904c624a2f19a87662bb494"
+      },
+      "classification": "edit",
+      "reason": "Apply committed source delta; preserve target changes outside its hunks.",
+      "effective_git_delta": true,
+      "previously_deferred": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "b999dbec3d31c397368a0646f6c194ee14c4f3a39a169e1ae0259591c43a7cdd",
+      "final_lf_sha256": "eb2e6d487ab295afe4bba09663cb3fe6ab07a3a1aeda599e5f4d6d451d90fd05",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/PLScriptTaskCompletionSource.cpp",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/PLScriptTaskCompletionSource.cpp",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "92ced548f4950fb409eda5a6621e388b51763d44",
+        "lf_sha256": "60aa2cfebe71f56d96171d32cdc79617b442d1c199ad0079ed8045a5c92b9c8d",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "b4839d9b268f2ccab3379652b5e6eb4f795a5313",
+        "comparison_lf_sha256": "ab9a3e9472bb6211653c0637b15ee0cf40b0dcdda896d5d62187a514a2c6e589"
+      },
+      "target_p4": {
+        "base_revision": 1,
+        "have_revision": 1,
+        "base_submitted_cl": 138084,
+        "base_action": "add",
+        "submitted_lf_sha256": "ab9a3e9472bb6211653c0637b15ee0cf40b0dcdda896d5d62187a514a2c6e589",
+        "before_raw_sha256": "94e9add2135b9fd6a32dfab177ce70274e9606563a203084a523117e54ac3fc8"
+      },
+      "classification": "edit",
+      "reason": "Apply committed source delta; preserve target changes outside its hunks.",
+      "effective_git_delta": true,
+      "previously_deferred": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "2a662ccae3c0d57447f3ef6cb2bfb40d7e2d7c9a9f84b1f7b2c69b6f63328d11",
+      "final_lf_sha256": "60aa2cfebe71f56d96171d32cdc79617b442d1c199ad0079ed8045a5c92b9c8d",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/Tests/Golden/UntypedLowering.golden.txt",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/Tests/Golden/UntypedLowering.golden.txt",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "34e4fc8efa90335000bff20d35723f77bf97e498",
+        "lf_sha256": "c32908a746c0825a4f6e74809e9e804ccfdd73429d5269aa92588e1c3368b691",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "743e7b05ab68433078bcc34319ae6033c04cc7be",
+        "comparison_lf_sha256": "e306ddccd271cd6faf51e6f4370b44a684c32cffb4dcdef309918f2cfe82492f"
+      },
+      "target_p4": {
+        "base_revision": 2,
+        "have_revision": 2,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "e306ddccd271cd6faf51e6f4370b44a684c32cffb4dcdef309918f2cfe82492f",
+        "before_raw_sha256": "ee716d51e6a83cb1bbb271267ef6e56d81461ded4ba2ffe1632f92877b428132"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true,
+      "previously_deferred": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/Tests/PLScriptAsyncExitProbeTests.cpp",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/Tests/PLScriptAsyncExitProbeTests.cpp",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "e305b5c2e5b9dc8fbf486258ef031f6da16bf915",
+        "lf_sha256": "9230fe284f1cefa1567a6e6a27f83dc343b3352d36f7d8301c5d1bd7f9f19a7a",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "6e3d4cafc16b3973de52fda14062037f5a177185",
+        "comparison_lf_sha256": "648e9a92c194fea9922caa4510bc5603dd5f19c179d8e2ca771b3e214da0d189"
+      },
+      "target_p4": {
+        "base_revision": 2,
+        "have_revision": 2,
+        "base_submitted_cl": 139233,
+        "base_action": "edit",
+        "submitted_lf_sha256": "648e9a92c194fea9922caa4510bc5603dd5f19c179d8e2ca771b3e214da0d189",
+        "before_raw_sha256": "133336e2b3a8046df6d553717faa90b168245748fa7621bb1fbf5fe4c7517c7f"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true,
+      "previously_deferred": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/Tests/PLScriptAsyncSafetyTests.cpp",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/Tests/PLScriptAsyncSafetyTests.cpp",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "17ed771732ecc028942a524ad30231583dcaaa6e",
+        "lf_sha256": "2c46deed119bc371ed5b463a0688cc5645d0599282200524443392b3c860da8d",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "be2d3579b464ee54d81a77380a2e3337f08c5702",
+        "comparison_lf_sha256": "4005cd02e68df6120aac16f5290f3d647b175ab52a1cf67c542c2e823cc5734f"
+      },
+      "target_p4": {
+        "base_revision": 2,
+        "have_revision": 2,
+        "base_submitted_cl": 153464,
+        "base_action": "edit",
+        "submitted_lf_sha256": "ca0bbc2741b9641b66a800069e89fcfb41d9ed919b7acccc7a36b046d1ba0e2f",
+        "before_raw_sha256": "7b444ebcc288609c18591d4ab6a892ef8fedc539a5e458fd800978011a4870e4"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true,
+      "previous_scoped_sync": {
+        "revision": 2,
+        "action": "edit",
+        "submitted_cl": 153464,
+        "expected_lf": "ca0bbc2741b9641b66a800069e89fcfb41d9ed919b7acccc7a36b046d1ba0e2f",
+        "submitted_lf": "ca0bbc2741b9641b66a800069e89fcfb41d9ed919b7acccc7a36b046d1ba0e2f",
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": "17ed771732ecc028942a524ad30231583dcaaa6e",
+        "scope": "minimal_scoped_merge"
+      }
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/Tests/PLScriptTaskTests.cpp",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Private/Tests/PLScriptTaskTests.cpp",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "99bebb01f2d6bc5e9ab571fa6c61025f6e069439",
+        "lf_sha256": "07306a2a16ae1d6b9da855d05bf69ce969a347f00e5f2f168707cc02b1ded70c",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "3daed7641531f2ed477e5077ad74b0afd599e842",
+        "comparison_lf_sha256": "f783e144841439467d90788c7c00c6730b0e35e0d8b61eb8d22e8bea47f260f8"
+      },
+      "target_p4": {
+        "base_revision": 4,
+        "have_revision": 4,
+        "base_submitted_cl": 153464,
+        "base_action": "edit",
+        "submitted_lf_sha256": "52f5e289b575416645221eac4154ae6eda9897cfa5dbd5a6d1fd5ad57d346a8e",
+        "before_raw_sha256": "8c471492756d28887f8030dbfe7e77ada8d82654265525028a3de9f32d9a1f0a"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true,
+      "previous_scoped_sync": {
+        "revision": 4,
+        "action": "edit",
+        "submitted_cl": 153464,
+        "expected_lf": "52f5e289b575416645221eac4154ae6eda9897cfa5dbd5a6d1fd5ad57d346a8e",
+        "submitted_lf": "52f5e289b575416645221eac4154ae6eda9897cfa5dbd5a6d1fd5ad57d346a8e",
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": "99bebb01f2d6bc5e9ab571fa6c61025f6e069439",
+        "scope": "minimal_scoped_merge"
+      }
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Public/PLAsyncKillGateCommandlet.h",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Public/PLAsyncKillGateCommandlet.h",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": null,
+        "lf_sha256": null,
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "e171614a53f14cb336ac78e3d5e7dd84959f4156",
+        "comparison_lf_sha256": "26d33ae523a49f68a558d6c30cc1f1fa5b9952b60a2f2e9d2ac969733ee20637"
+      },
+      "target_p4": {
+        "base_revision": 2,
+        "have_revision": null,
+        "base_submitted_cl": 153464,
+        "base_action": "delete",
+        "submitted_lf_sha256": null,
+        "before_raw_sha256": null
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true,
+      "previous_scoped_sync": {
+        "revision": 2,
+        "action": "delete",
+        "submitted_cl": 153464,
+        "expected_lf": null,
+        "submitted_lf": null,
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": null,
+        "scope": "historical_deletion_verified"
+      }
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Public/PLAsyncPrototypeReceiver.h",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Public/PLAsyncPrototypeReceiver.h",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "9ad1c4688d034e0e46c0c043da8536e7e3c844b8",
+        "lf_sha256": "aa6f4a0fc83aa3e0097b243f62e7ef44bf6774f04ab4b6a191ade6369b25bc31",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "c17f36d79f4f4266ad2221db2161c22aae698728",
+        "comparison_lf_sha256": "8e47b3489329224d069f6bc2a022c2eb3cc87ef9ff117c48a169c1a626a0e42a"
+      },
+      "target_p4": {
+        "base_revision": 2,
+        "have_revision": 2,
+        "base_submitted_cl": 153464,
+        "base_action": "edit",
+        "submitted_lf_sha256": "ebd39cd8a8dbe5d6c2bba1de12d5be2fd4b7747a8e4e5375e63fc0503f2cc8d3",
+        "before_raw_sha256": "c934518e78f80823ed87804d65a569be2917b71dae60b3006115d06ce40df03f"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true,
+      "previously_deferred": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Public/PLAsyncStateMachine.h",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Public/PLAsyncStateMachine.h",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "8fc99b7796953f27f03c525396ad41ef97fc3232",
+        "lf_sha256": "c9851d5b9cf43b9f22c509760e7b2dfd370ac280b1e0cc1f6551f944ca0b3b04",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "1f2143e699ce3a2780580ecf1cbdbec9ef6665c1",
+        "comparison_lf_sha256": "d94a906fb741ddb9ac1fe3f099bb2ee249ec089ef1342576e6e6353600e8c7e1"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 143452,
+        "base_action": "edit",
+        "submitted_lf_sha256": "d94a906fb741ddb9ac1fe3f099bb2ee249ec089ef1342576e6e6353600e8c7e1",
+        "before_raw_sha256": "d441a9ea10abf6dac66a5386005adc1e8a74cd9b2c6e2114d07588c5233023ad"
+      },
+      "classification": "edit",
+      "reason": "Apply committed source delta; preserve target changes outside its hunks.",
+      "effective_git_delta": true,
+      "previously_deferred": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "05b90d82d209634725ddf8b77d2e15c411a5558f4651e0d56fa194881c410b1a",
+      "final_lf_sha256": "c9851d5b9cf43b9f22c509760e7b2dfd370ac280b1e0cc1f6551f944ca0b3b04",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Public/PLScriptAsyncEvents.h",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Public/PLScriptAsyncEvents.h",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "506b2f6c239bfee8131cae90fbde864c501c7a42",
+        "lf_sha256": "44f56992ea0a9bc0489de2623c09fa0877e382c7c509b01aace565341d20e9b8",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "e783cb921a259e3f74208190c3fe666f46e3012a",
+        "comparison_lf_sha256": "2582b37852ca64d825d475ab7001ab7e7a5800425511d61823e4d38e0921a49d"
+      },
+      "target_p4": {
+        "base_revision": 1,
+        "have_revision": 1,
+        "base_submitted_cl": 143452,
+        "base_action": "add",
+        "submitted_lf_sha256": "2582b37852ca64d825d475ab7001ab7e7a5800425511d61823e4d38e0921a49d",
+        "before_raw_sha256": "2ec2a4d8a34f9d3955cbec9f95c284c42c3bf4649b3cd303e2cc5fc46804025c"
+      },
+      "classification": "edit",
+      "reason": "Apply committed source delta; preserve target changes outside its hunks.",
+      "effective_git_delta": true,
+      "previously_deferred": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "dabc6e112a597c1de1d73f2331b0b82023d0acb563747e9dec7214bfb1e9c019",
+      "final_lf_sha256": "44f56992ea0a9bc0489de2623c09fa0877e382c7c509b01aace565341d20e9b8",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/Source/PLScriptAsync/Public/PLScriptTaskCompletionSource.h",
+      "target": "Main/Plugins/PLScriptAsync/Source/PLScriptAsync/Public/PLScriptTaskCompletionSource.h",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "d033266e89b98c7d00785d68dc841779d06c2846",
+        "lf_sha256": "3b8b5ca6027571092241a772666b8c0d79855e69eb297586cafc38a863c3fe0a",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "1a6139562eeed391afeacf20a28538e1fc218698",
+        "comparison_lf_sha256": "b2abfee88281675244eae58133bef99dcb1e4aa1da8a4b1c90d6aa92ef332ab9"
+      },
+      "target_p4": {
+        "base_revision": 1,
+        "have_revision": 1,
+        "base_submitted_cl": 138084,
+        "base_action": "add",
+        "submitted_lf_sha256": "b2abfee88281675244eae58133bef99dcb1e4aa1da8a4b1c90d6aa92ef332ab9",
+        "before_raw_sha256": "5f4923ee568a8dbb707d745b9bd5b022886581eaa37a44fe7b8a6a4ab72319e8"
+      },
+      "classification": "edit",
+      "reason": "Apply committed source delta; preserve target changes outside its hunks.",
+      "effective_git_delta": true,
+      "previously_deferred": true,
+      "change": 153762,
+      "alignment": "exact_source",
+      "final_raw_sha256": "3d8af0f567f1ce1bf85c2f89aabd9aff8f99e4840f68be74d6ba93efa289645a",
+      "final_lf_sha256": "3b8b5ca6027571092241a772666b8c0d79855e69eb297586cafc38a863c3fe0a",
+      "source_equals_result_lf": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/references/architecture-overview.md",
+      "target": "Main/Plugins/PLScriptAsync/references/architecture-overview.md",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "3ad6c9b37c74239e492c6ead27fdf40e9a4b5596",
+        "lf_sha256": "df6bd2bc877d69267605ad5ce46850438fa254a4ef3a07bef6568d0f00102cb5",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "ddc515e8c5c14d0e513fdba25ee7c82890b5df71",
+        "comparison_lf_sha256": "7407ed2f0a139f4b4808229ccd357dadc98bfe9e5886fb72a456595c5f3bb21f"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": 3,
+        "base_submitted_cl": 153464,
+        "base_action": "edit",
+        "submitted_lf_sha256": "dad682f5b6d9901400e89402f4527c99329faaf13167c46bec4870374edbb2c2",
+        "before_raw_sha256": "5314ca58a0bcdd8e8b9e92d79b0d657856979f6233bc5d71fca0f7d2c9fc86f0"
+      },
+      "classification": "edit",
+      "reason": "Merge runtime guard, shutdown/ownership and counts; preserve actual MainDev module/fixture layout and evidence.",
+      "effective_git_delta": true,
+      "previously_deferred": true,
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "93e9d31c85481e8db4a7c904c03ff02c22856853e18808a8638765324217bfe1",
+      "final_lf_sha256": "1fbf44aaa2ea2ba07e86c8d1eafe269628a259f6ded63867e0b79af8eac5660e",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/references/runtime-invariants.md",
+      "target": "Main/Plugins/PLScriptAsync/references/runtime-invariants.md",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "299346ea356264f7abd3bb59e793c0bc2320207c",
+        "lf_sha256": "8720713e36a75afdec05bb5c01fe4977c8cb6b7b50ced724eaaa873c8be5bfbc",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "3949ec126c4e453ef44f53e696b023198393df8b",
+        "comparison_lf_sha256": "0ac17848c54e3edbc265e5057eb4492cdc9bde5a113b339b261e1c4712f404f4"
+      },
+      "target_p4": {
+        "base_revision": 6,
+        "have_revision": 6,
+        "base_submitted_cl": 143452,
+        "base_action": "edit",
+        "submitted_lf_sha256": "0ac17848c54e3edbc265e5057eb4492cdc9bde5a113b339b261e1c4712f404f4",
+        "before_raw_sha256": "58ea3492157f5077c6a2c0f985b5238a15a618bd947fdc82934ed5313ef54138"
+      },
+      "classification": "edit",
+      "reason": "Use host-local entry points and evidence; import generic ownership/cancellation/shutdown/guard/count invariants without foreign package/test claims.",
+      "effective_git_delta": true,
+      "previously_deferred": true,
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "6c2c33336885422f612207de3de438191b1bdf9c7ac148cca25ac75b37f76231",
+      "final_lf_sha256": "99dcaf9ab56dc1525c7f67bf8f87cb59f38cf00d74b9a3d51a474d90d34f306d",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/references/shutdown-retirement.md",
+      "target": "Main/Plugins/PLScriptAsync/references/shutdown-retirement.md",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "ba1816d10959b0977d3a8e837f73a40014ce19b5",
+        "lf_sha256": "0055478caec56238552dfb321f067b1040bf2637a6ab7e868ea1ddfd1be40021",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "f16caf74f83087b86f7e2dca1a1f1827e9485c31",
+        "comparison_lf_sha256": "99fb62dc723eeed33ec4f3896e3cad4a30421f2c6447f7b6e1a7801d32294660"
+      },
+      "target_p4": {
+        "base_revision": 2,
+        "have_revision": 2,
+        "base_submitted_cl": 139233,
+        "base_action": "edit",
+        "submitted_lf_sha256": "99fb62dc723eeed33ec4f3896e3cad4a30421f2c6447f7b6e1a7801d32294660",
+        "before_raw_sha256": "ecaeddb1d8cc2e507379734c0097cd36fd07681fa5ffcb52f512687ebe5f0d44"
+      },
+      "classification": "edit",
+      "reason": "Add the generic state-machine abandonment contract; preserve local probe and acceptance materials.",
+      "effective_git_delta": true,
+      "previously_deferred": true,
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "5b2b0cfae7a6b1661a9ac6694c715643748d28fd381bf40df531fe8fcee5d84f",
+      "final_lf_sha256": "0f3de0dcec619a6877481560545b6ec92b981649b06e94d5afb7283f16145a5c",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/references/test-coverage.md",
+      "target": "Main/Plugins/PLScriptAsync/references/test-coverage.md",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "a772f863759f0eaa2a571c274ac555f1a0ee40f8",
+        "lf_sha256": "2e409e568c9afacce1166021cb191ddbdabd3ad7c2187d13b2bf968bb9eb32bb",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "135150261bfd4992ea6b0dfbc8dc49188c68c576",
+        "comparison_lf_sha256": "5cc89f1e682c6d8d45603c8b19501c7563a94d83649c93f454b07f0b29ec282f"
+      },
+      "target_p4": {
+        "base_revision": 1,
+        "have_revision": 1,
+        "base_submitted_cl": 138472,
+        "base_action": "add",
+        "submitted_lf_sha256": "5cc89f1e682c6d8d45603c8b19501c7563a94d83649c93f454b07f0b29ec282f",
+        "before_raw_sha256": "8526411d587c2f4476f9aeb2d0c26985a0d83d19bfe08bf924dda9b0f672ef8d"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true,
+      "previously_deferred": true
+    },
+    {
+      "source": "ProjectM/Plugins/PLScriptAsync/references/typed-async-validation.md",
+      "target": "Main/Plugins/PLScriptAsync/references/typed-async-validation.md",
+      "group": "PLScriptAsync",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "651d64bb0cbafa23cb36a207f5f928931f5f0a41",
+        "lf_sha256": "99d4f3650137fab5f2850ec75051ddc28008c597b542c9ee895d1bde6a9d22da",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "b716aa9c16351fb1f8f374b945247c84ea134425",
+        "comparison_lf_sha256": "94405b2e3ccc89a6e0e26721e1dabfa8f1f6ec14a5922ebcb7c59dbe0d68e9fa"
+      },
+      "target_p4": {
+        "base_revision": 2,
+        "have_revision": 2,
+        "base_submitted_cl": 145609,
+        "base_action": "edit",
+        "submitted_lf_sha256": "61ffd840bdf3d1238730a283796fbb981ee89413a68a223beab7adcc72bcd4bc",
+        "before_raw_sha256": "33212473e18c14bb5d95813de86d47effa43d9c47369efd013085c08f2c3716b"
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true,
+      "previously_deferred": true
+    },
+    {
+      "source": "ProjectM/Script/Tests/Core/Async/ScriptAsyncStateMachinePrototype.as",
+      "target": "Main/Script/Tests/Core/Async/ScriptAsyncStateMachinePrototype.as",
+      "group": "selected_core_support",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": null,
+        "lf_sha256": null,
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "23ad2e209a5879080e2da2ef47cdd5c5f3151e92",
+        "comparison_lf_sha256": "78d378a983102f86d23452790039c388b381fafc74f29c17d172f85f26c81996"
+      },
+      "target_p4": {
+        "base_revision": 3,
+        "have_revision": null,
+        "base_submitted_cl": 153464,
+        "base_action": "delete",
+        "submitted_lf_sha256": null,
+        "before_raw_sha256": null
+      },
+      "classification": "excluded_test",
+      "reason": "Test case, test-only fixture, archive or test-suite/validation documentation; no transfer.",
+      "effective_git_delta": true,
+      "previous_scoped_sync": {
+        "revision": 3,
+        "action": "delete",
+        "submitted_cl": 153464,
+        "expected_lf": null,
+        "submitted_lf": null,
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": null,
+        "scope": "historical_deletion_verified"
+      }
+    },
+    {
+      "source": "ProjectM/Script/Tests/Core/PLAutomationAsyncCaseBase_AS.as",
+      "target": "Main/Script/Tests/Core/PLAutomationAsyncCaseBase_AS.as",
+      "group": "selected_core_support",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "d85451021cdeff14ff729c5a6e88b2294162b898",
+        "lf_sha256": "6882935fc5262e2dcd3de8602e375493c2ad2e5a9bb707cd7b507c744ad275d1",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": "ac59b1d02576f13acf6e279f63d7bf7a86152777",
+        "comparison_lf_sha256": "ba06a3172cb8185d407a08500a872f2d0251d31f40aaca448b3600e576d8d0e5"
+      },
+      "target_p4": {
+        "base_revision": 1,
+        "have_revision": 1,
+        "base_submitted_cl": 138482,
+        "base_action": "add",
+        "submitted_lf_sha256": "d3fb0ce032a1c8f1998fb9d4e985ddc6f8bbd026177ba2315ffd45415129cc05",
+        "before_raw_sha256": "ef83c505293d7ed58dab82593329c717f3fbdd1d963f238686b8b9464bd18df3"
+      },
+      "classification": "edit",
+      "reason": "Update only the generic support base authoring comment to explicit marked methods; preserve host fields and functions.",
+      "effective_git_delta": true,
+      "previously_deferred": true,
+      "change": 153762,
+      "alignment": "host_adapted",
+      "final_raw_sha256": "a68dc01f1af7065dfd296224385e265969d174200e7f4a18f5a3c21c5a19d280",
+      "final_lf_sha256": "378497bd58bfe890c6b90b1e9e0e73aadf9dd850386678ce66975fb8e9de9abb",
+      "source_equals_result_lf": false
+    },
+    {
+      "source": "ProjectM/Script/Tests/UnitTests/ScriptAsync/ScriptAsyncOwnership_Test.as",
+      "target": "Main/Script/Tests/UnitTests/ScriptAsync/ScriptAsyncOwnership_Test.as",
+      "group": "ProjectM",
+      "source_git": {
+        "commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+        "blob": "b32bb3c9525afc4e02e9bfe99d4db4f27dac64a8",
+        "lf_sha256": "2f8aad0226860c33f4e80db3d0744260a9d7062d255a53a3dee386d3e007a2b5",
+        "comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+        "comparison_blob": null,
+        "comparison_lf_sha256": null
+      },
+      "target_p4": {
+        "base_revision": 1,
+        "have_revision": 1,
+        "base_submitted_cl": 153464,
+        "base_action": "add",
+        "submitted_lf_sha256": "b894c99cf10288c9a244399b40ce9d5de628a28db891ab7666a1879cdade6d3c",
+        "before_raw_sha256": "9f3a909d6048253b7f925e0f3a3db834e1b08c6dac2780ce331b16a9628719bb"
+      },
+      "classification": "no_committed_delta",
+      "reason": "No new committed source change since the applicable correspondence.",
+      "effective_git_delta": false,
+      "previous_scoped_sync": {
+        "revision": 1,
+        "action": "add",
+        "submitted_cl": 153464,
+        "expected_lf": "b894c99cf10288c9a244399b40ce9d5de628a28db891ab7666a1879cdade6d3c",
+        "submitted_lf": "b894c99cf10288c9a244399b40ce9d5de628a28db891ab7666a1879cdade6d3c",
+        "exact_expected": true,
+        "source_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+        "source_blob": "b32bb3c9525afc4e02e9bfe99d4db4f27dac64a8",
+        "scope": "minimal_scoped_merge"
+      }
+    }
+  ],
+  "classified_inventory_counts": {
+    "no_committed_delta": 22,
+    "p4_origin_already_present": 1,
+    "preserve_shared_skill": 2,
+    "edit": 40,
+    "add": 2,
+    "excluded_test": 24,
+    "preserve_archive_link": 1,
+    "preserve_archive": 1,
+    "already_present": 1
+  },
+  "mapped_unchanged_metadata": [
+    {
+      "source": "ProjectM/Plugins/PLASTestFeature/PLASTestFeature.uplugin",
+      "target": "Main/Plugins/PLASTestFeature/PLASTestFeature.uplugin",
+      "source_blob": "c09faf726f20e33413a4df04c2f4cbbc06d35da8",
+      "base_blob": "c09faf726f20e33413a4df04c2f4cbbc06d35da8",
+      "p4_revision": 1,
+      "p4_submitted_cl": 135569,
+      "p4_depot_md5": "5178160A2A716B3F9487A4DFBF766F38",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Plugins/PLASTestFeature/Source/PLASTestFeature/PLASTestFeature.Build.cs",
+      "target": "Main/Plugins/PLASTestFeature/Source/PLASTestFeature/PLASTestFeature.Build.cs",
+      "source_blob": "e19af70f40bcf70b48e49b33f0ab3b2d8206f7bf",
+      "base_blob": "e19af70f40bcf70b48e49b33f0ab3b2d8206f7bf",
+      "p4_revision": 1,
+      "p4_submitted_cl": 135569,
+      "p4_depot_md5": "60534AF6E63945689F31F71994FAF448",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Plugins/PLASTestFeature/Source/PLASTestFeature/Private/PLASTestFeatureModule.cpp",
+      "target": "Main/Plugins/PLASTestFeature/Source/PLASTestFeature/Private/PLASTestFeatureModule.cpp",
+      "source_blob": "70874c28402e2c52a701fc046f50b8e44029fa8c",
+      "base_blob": "70874c28402e2c52a701fc046f50b8e44029fa8c",
+      "p4_revision": 1,
+      "p4_submitted_cl": 135569,
+      "p4_depot_md5": "1377DD81052A2164D88174783DAC3921",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Private/LogUtils.cpp",
+      "target": "Main/Plugins/LogCore/Source/LogCore/Private/LogUtils.cpp",
+      "source_blob": "7f1b9356ce5d4b65dce05c6019547b504b01ae13",
+      "base_blob": "7f1b9356ce5d4b65dce05c6019547b504b01ae13",
+      "p4_revision": 13,
+      "p4_submitted_cl": 141824,
+      "p4_depot_md5": "C45DB3A08294E427BF19E2A7DB1B534F",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Private/UI/PLWidgetQuery.cpp",
+      "target": "Main/Plugins/ProjectLungfishCore/Source/PLCoreGame/Private/UI/PLWidgetQuery.cpp",
+      "source_blob": "42874fe1696efd60c30aab73023e4fd0a877f48d",
+      "base_blob": "42874fe1696efd60c30aab73023e4fd0a877f48d",
+      "p4_revision": 4,
+      "p4_submitted_cl": 143937,
+      "p4_depot_md5": "FDB0BD7AE5195AEA71199111AFEC4BD6",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Private/UI/PLWidgetTree.cpp",
+      "target": "Main/Plugins/ProjectLungfishCore/Source/PLCoreGame/Private/UI/PLWidgetTree.cpp",
+      "source_blob": "b1c2aba057b0f591185224f875db5867e697f709",
+      "base_blob": "b1c2aba057b0f591185224f875db5867e697f709",
+      "p4_revision": 3,
+      "p4_submitted_cl": 139736,
+      "p4_depot_md5": "32A3B4C9B53B33B869B32F3E2CFB44F6",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Public/LogScopeStepInterface.h",
+      "target": "Main/Plugins/LogCore/Source/LogCore/Public/LogScopeStepInterface.h",
+      "source_blob": "9027272588a067680d5aec0d2a832abec5833c1f",
+      "base_blob": "9027272588a067680d5aec0d2a832abec5833c1f",
+      "p4_revision": 2,
+      "p4_submitted_cl": 115955,
+      "p4_depot_md5": "3A5D65A60305B48F1FA989C9160477B5",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Public/UI/PLWidgetNode.h",
+      "target": "Main/Plugins/ProjectLungfishCore/Source/PLCoreGame/Public/UI/PLWidgetNode.h",
+      "source_blob": "070f7bb846ea4057267e1d22b00240b7c454a40a",
+      "base_blob": "070f7bb846ea4057267e1d22b00240b7c454a40a",
+      "p4_revision": 2,
+      "p4_submitted_cl": 139736,
+      "p4_depot_md5": "144EA149330CFD89649356CCB125EED8",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Public/UI/PLWidgetQuery.h",
+      "target": "Main/Plugins/ProjectLungfishCore/Source/PLCoreGame/Public/UI/PLWidgetQuery.h",
+      "source_blob": "6f111e2ee988310352585e5e8a8ea659be3488b0",
+      "base_blob": "6f111e2ee988310352585e5e8a8ea659be3488b0",
+      "p4_revision": 4,
+      "p4_submitted_cl": 143937,
+      "p4_depot_md5": "A3E4AC0658C24354D57D31D19C45DE04",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Plugins/PLGameCore/Source/PLGameCore/Public/UI/PLWidgetTree.h",
+      "target": "Main/Plugins/ProjectLungfishCore/Source/PLCoreGame/Public/UI/PLWidgetTree.h",
+      "source_blob": "03ebc90186832331256578e3d5d97645313bbf8d",
+      "base_blob": "03ebc90186832331256578e3d5d97645313bbf8d",
+      "p4_revision": 3,
+      "p4_submitted_cl": 139736,
+      "p4_depot_md5": "98249C5F4C263A21CF84E0208279E4A1",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Script/Tests/Core/PLAutoCategoryTypes.as",
+      "target": "Main/Script/Tests/Core/PLAutoCategoryTypes.as",
+      "source_blob": "951ed9e1f4f3d7c6fc66a206ef274ae510239e62",
+      "base_blob": "951ed9e1f4f3d7c6fc66a206ef274ae510239e62",
+      "p4_revision": 5,
+      "p4_submitted_cl": 123092,
+      "p4_depot_md5": "021F411B9A2041CFC24FC2CF46785C59",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Script/Tests/Core/Tasks/DebugTask.as",
+      "target": "Main/Script/Tests/Core/Tasks/DebugTask.as",
+      "source_blob": "3b4e4b3098a47e8392bec3adaab9d1cf3c63e40b",
+      "base_blob": "3b4e4b3098a47e8392bec3adaab9d1cf3c63e40b",
+      "p4_revision": 1,
+      "p4_submitted_cl": 141621,
+      "p4_depot_md5": "2B5B1BAF7517B2B591F77E3A83DDA135",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Script/Tests/Core/Tasks/FlowTask.as",
+      "target": "Main/Script/Tests/Core/Tasks/FlowTask.as",
+      "source_blob": "410e7afae1155ff366b9d430b97464e06b0daa35",
+      "base_blob": "410e7afae1155ff366b9d430b97464e06b0daa35",
+      "p4_revision": 5,
+      "p4_submitted_cl": 143670,
+      "p4_depot_md5": "85557EE30867C106550E01DB60B30BB6",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Script/Tests/Core/Tasks/InputTask.as",
+      "target": "Main/Script/Tests/Core/Tasks/InputTask.as",
+      "source_blob": "162a259996b16df84ec4b16203bb430550e771f5",
+      "base_blob": "162a259996b16df84ec4b16203bb430550e771f5",
+      "p4_revision": 5,
+      "p4_submitted_cl": 143670,
+      "p4_depot_md5": "3398998217BB7719000E6190A3F3B3B2",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Script/Tests/Core/Tasks/Internal/InputKeyDispatch.as",
+      "target": "Main/Script/Tests/Core/Tasks/Internal/InputKeyDispatch.as",
+      "source_blob": "ccb7f64390f93d1b44f82b94c307fe73ecfd6e6b",
+      "base_blob": "ccb7f64390f93d1b44f82b94c307fe73ecfd6e6b",
+      "p4_revision": 1,
+      "p4_submitted_cl": 145609,
+      "p4_depot_md5": "181517CCB6FB8DBD1C32F7FD7CB4C544",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Script/Tests/Core/Tasks/Internal/PLAutoUIHelpers.as",
+      "target": "Main/Script/Tests/Core/Tasks/Internal/PLAutoUIHelpers.as",
+      "source_blob": "eb159402dc8670fd8ea6523116ddff53b8109d92",
+      "base_blob": "eb159402dc8670fd8ea6523116ddff53b8109d92",
+      "p4_revision": 1,
+      "p4_submitted_cl": 145609,
+      "p4_depot_md5": "DF387EFFACAFF7BA84A7DC73EE065F77",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Script/Tests/Core/Tasks/Internal/UITaskInternal.as",
+      "target": "Main/Script/Tests/Core/Tasks/Internal/UITaskInternal.as",
+      "source_blob": "2d1d3878699d2ab3a06b23f8c367c9bf9f17c131",
+      "base_blob": "2d1d3878699d2ab3a06b23f8c367c9bf9f17c131",
+      "p4_revision": 1,
+      "p4_submitted_cl": 143937,
+      "p4_depot_md5": "C9D9E0C34CE94798409E10165DBEA58A",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Script/Tests/Core/Tasks/Internal/UIWidgetPredicate.as",
+      "target": "Main/Script/Tests/Core/Tasks/Internal/UIWidgetPredicate.as",
+      "source_blob": "004eaed335a7dc78f404759c920de96a8cbdc12d",
+      "base_blob": "004eaed335a7dc78f404759c920de96a8cbdc12d",
+      "p4_revision": 1,
+      "p4_submitted_cl": 143937,
+      "p4_depot_md5": "E0B1270B5CE729E6DF8D505545883304",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Script/Tests/Core/Tasks/LevelTask.as",
+      "target": "Main/Script/Tests/Core/Tasks/LevelTask.as",
+      "source_blob": "4b59ed1d19be00065b7445f01f4a0cff978c2efc",
+      "base_blob": "4b59ed1d19be00065b7445f01f4a0cff978c2efc",
+      "p4_revision": 4,
+      "p4_submitted_cl": 145609,
+      "p4_depot_md5": "208CCD509AF59BAE354F5BB6F4FD2FE6",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Script/Tests/Core/Tasks/PerfTask.as",
+      "target": "Main/Script/Tests/Core/Tasks/PerfTask.as",
+      "source_blob": "4bc759ed516429b02ba407593b8448e32a67d52f",
+      "base_blob": "4bc759ed516429b02ba407593b8448e32a67d52f",
+      "p4_revision": 2,
+      "p4_submitted_cl": 143670,
+      "p4_depot_md5": "D141612BBE1C62CFCB2CEC0D034BF984",
+      "classification": "mapped_no_committed_delta"
+    },
+    {
+      "source": "ProjectM/Script/Tests/Core/Tasks/UITask.as",
+      "target": "Main/Script/Tests/Core/Tasks/UITask.as",
+      "source_blob": "061fc16c64b82c6910a36b0c4cd517af1fad9130",
+      "base_blob": "061fc16c64b82c6910a36b0c4cd517af1fad9130",
+      "p4_revision": 6,
+      "p4_submitted_cl": 143937,
+      "p4_depot_md5": "902BB19D7C65AE9932B162C3B2F34661",
+      "classification": "mapped_no_committed_delta"
+    }
+  ],
+  "previously_deferred": {
+    "count": 46,
+    "classifications": {
+      "edit": 12,
+      "excluded_test": 5,
+      "excluded_as_suite": 29
+    },
+    "additional_out_of_scope_paths": [
+      {
+        "source": "ProjectM/Script/Tests/0100_FunctionTest/TestCase_60_Int_AS_ExceptionUnwindInWorld.as",
+        "target": "Main/Script/Tests/0100_FunctionTest/TestCase_60_Int_AS_ExceptionUnwindInWorld.as",
+        "git_blob": "bb3ecdb328fb255f328c7e2ad064377341c8175f",
+        "deferred_blob": "bb3ecdb328fb255f328c7e2ad064377341c8175f",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/0100_FunctionTest/TestCase_61_Int_AS_HandleLifetimeGC.as",
+        "target": "Main/Script/Tests/0100_FunctionTest/TestCase_61_Int_AS_HandleLifetimeGC.as",
+        "git_blob": "946478fcf169fd72b35c2fc0a7b166ff101008e4",
+        "deferred_blob": "946478fcf169fd72b35c2fc0a7b166ff101008e4",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/0100_FunctionTest/TestCase_62_Int_AS_DelegateEventDispatch.as",
+        "target": "Main/Script/Tests/0100_FunctionTest/TestCase_62_Int_AS_DelegateEventDispatch.as",
+        "git_blob": "c299f93cf299c4ea77bfa4c2b2aaeef355672c99",
+        "deferred_blob": "c299f93cf299c4ea77bfa4c2b2aaeef355672c99",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/0100_FunctionTest/TestCase_63_Int_AS_ContainerStress.as",
+        "target": "Main/Script/Tests/0100_FunctionTest/TestCase_63_Int_AS_ContainerStress.as",
+        "git_blob": "e25f32405791d0e4ab0b6d4a3c6ea5cc2c039d07",
+        "deferred_blob": "e25f32405791d0e4ab0b6d4a3c6ea5cc2c039d07",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/0100_FunctionTest/TestCase_64_Int_AS_TimerLifecycle.as",
+        "target": "Main/Script/Tests/0100_FunctionTest/TestCase_64_Int_AS_TimerLifecycle.as",
+        "git_blob": "e44de71f574da3d90b964b0c0b84a4324e9cf35d",
+        "deferred_blob": "e44de71f574da3d90b964b0c0b84a4324e9cf35d",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/0100_FunctionTest/TestCase_9800_DirectAsyncControlFlow.as",
+        "target": "Main/Script/Tests/0100_FunctionTest/TestCase_9800_DirectAsyncControlFlow.as",
+        "git_blob": "ff31d52a9b4e357b532b1b87ef0816dda7423b7c",
+        "deferred_blob": "ff31d52a9b4e357b532b1b87ef0816dda7423b7c",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/0100_FunctionTest/TestCase_9810_AsyncLoopControlFlow.as",
+        "target": "Main/Script/Tests/0100_FunctionTest/TestCase_9810_AsyncLoopControlFlow.as",
+        "git_blob": "050c1c163727725ce95f8a946136d0b750d54b56",
+        "deferred_blob": "050c1c163727725ce95f8a946136d0b750d54b56",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/0100_FunctionTest/TestCase_9820_TypedAsyncResult.as",
+        "target": "Main/Script/Tests/0100_FunctionTest/TestCase_9820_TypedAsyncResult.as",
+        "git_blob": "22ceae5949ed830ced770a74bffd1c69b3a5fe32",
+        "deferred_blob": "22ceae5949ed830ced770a74bffd1c69b3a5fe32",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_ClassSemantics_Inheritance_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_ClassSemantics_Inheritance_Test.as",
+        "git_blob": "abaccbec2af292c02b65831b97729bae490807fb",
+        "deferred_blob": "abaccbec2af292c02b65831b97729bae490807fb",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_ClassSemantics_MemberInit_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_ClassSemantics_MemberInit_Test.as",
+        "git_blob": "c3ed3e8e480869d15c2516af460ec601e60a5359",
+        "deferred_blob": "c3ed3e8e480869d15c2516af460ec601e60a5359",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_ClassSemantics_Methods_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_ClassSemantics_Methods_Test.as",
+        "git_blob": "1a974a210543ee9883309a76f79e34e875a43231",
+        "deferred_blob": "1a974a210543ee9883309a76f79e34e875a43231",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_ClassSemantics_Properties_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_ClassSemantics_Properties_Test.as",
+        "git_blob": "46d8b98def960bbe6d901801be010866e2fef40a",
+        "deferred_blob": "46d8b98def960bbe6d901801be010866e2fef40a",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_ClassSemantics_Struct_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_ClassSemantics_Struct_Test.as",
+        "git_blob": "c7775461d5aec446c43ba1e73a893c407cf430e1",
+        "deferred_blob": "c7775461d5aec446c43ba1e73a893c407cf430e1",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_Class_CastOps_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_Class_CastOps_Test.as",
+        "git_blob": "f1ed88eee0564c0b9a2517c722f52d9b6f2a79eb",
+        "deferred_blob": "f1ed88eee0564c0b9a2517c722f52d9b6f2a79eb",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_Class_Construction_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_Class_Construction_Test.as",
+        "git_blob": "8921287f20318ff12caa36a5f2f9067a0157f0c7",
+        "deferred_blob": "8921287f20318ff12caa36a5f2f9067a0157f0c7",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_Class_Lifetime_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_Class_Lifetime_Test.as",
+        "git_blob": "62d1cb360107c9421d8769f5dd7cce282c46f7fb",
+        "deferred_blob": "62d1cb360107c9421d8769f5dd7cce282c46f7fb",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_Container_TSet_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_Container_TSet_Test.as",
+        "git_blob": "0506fdd6d38f6cd1e1fa320f68c49a37c75e5c41",
+        "deferred_blob": "0506fdd6d38f6cd1e1fa320f68c49a37c75e5c41",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_Language_ForEach_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_Language_ForEach_Test.as",
+        "git_blob": "1f5070394851a58c6d439500a38438df1e32ce79",
+        "deferred_blob": "1f5070394851a58c6d439500a38438df1e32ce79",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_Language_Operators_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_Language_Operators_Test.as",
+        "git_blob": "b8cb630196d51e1fe56ca3d8563c7754cc85beeb",
+        "deferred_blob": "b8cb630196d51e1fe56ca3d8563c7754cc85beeb",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_Language_Optional_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_Language_Optional_Test.as",
+        "git_blob": "e6a3e5b14be291556be8385ff197f63fa3bf7bf1",
+        "deferred_blob": "e6a3e5b14be291556be8385ff197f63fa3bf7bf1",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_Mixin_Shared_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_Mixin_Shared_Test.as",
+        "git_blob": "6d32c0245f378d1cdab460650b0b915a10b0e534",
+        "deferred_blob": "6d32c0245f378d1cdab460650b0b915a10b0e534",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_Operators_Full_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_Operators_Full_Test.as",
+        "git_blob": "e5d432b3dc74b84ad8937e4913950dd8b58fd8a3",
+        "deferred_blob": "e5d432b3dc74b84ad8937e4913950dd8b58fd8a3",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_VM_ExceptionCleanup_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_VM_ExceptionCleanup_Test.as",
+        "git_blob": "438140a8d26a136309ecfa53d564d8223309bc06",
+        "deferred_blob": "438140a8d26a136309ecfa53d564d8223309bc06",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/AS238/AS238_VM_ReturnSemantics_Test.as",
+        "target": "Main/Script/Tests/UnitTests/AS238/AS238_VM_ReturnSemantics_Test.as",
+        "git_blob": "bc97d485b3dbb8c66bedf788e4c132f131fe0166",
+        "deferred_blob": "bc97d485b3dbb8c66bedf788e4c132f131fe0166",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/ScriptAsync/AsyncDebugProtocolFixture.as",
+        "target": "Main/Script/Tests/UnitTests/ScriptAsync/AsyncDebugProtocolFixture.as",
+        "git_blob": "0aa7bad12d9f7163d0d7cc3a418ed69b79dcdc8f",
+        "deferred_blob": "0aa7bad12d9f7163d0d7cc3a418ed69b79dcdc8f",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/ScriptAsync/AsyncSyntaxLoweringProbe_Test.as",
+        "target": "Main/Script/Tests/UnitTests/ScriptAsync/AsyncSyntaxLoweringProbe_Test.as",
+        "git_blob": "bcaf585f818ff69f4cd8e45d09276c7030704af7",
+        "deferred_blob": "bcaf585f818ff69f4cd8e45d09276c7030704af7",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/ScriptAsync/ScriptAsyncReview_Test.as",
+        "target": "Main/Script/Tests/UnitTests/ScriptAsync/ScriptAsyncReview_Test.as",
+        "git_blob": "94b925d1143aaf7489be6d32aa41ea7be6ae3ebe",
+        "deferred_blob": "94b925d1143aaf7489be6d32aa41ea7be6ae3ebe",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/ScriptAsync/ScriptAsyncSafetyFixture.as",
+        "target": "Main/Script/Tests/UnitTests/ScriptAsync/ScriptAsyncSafetyFixture.as",
+        "git_blob": "b933133a00b3826a1fce433e6c64fe1372e37bac",
+        "deferred_blob": "b933133a00b3826a1fce433e6c64fe1372e37bac",
+        "classification": "excluded_as_suite"
+      },
+      {
+        "source": "ProjectM/Script/Tests/UnitTests/UI/UITaskCallback_Test.as",
+        "target": "Main/Script/Tests/UnitTests/UI/UITaskCallback_Test.as",
+        "git_blob": "79f48e730fa403bc08684e4ddbb4e48c85826dc2",
+        "deferred_blob": "79f48e730fa403bc08684e4ddbb4e48c85826dc2",
+        "classification": "excluded_as_suite"
+      }
+    ]
+  },
+  "changes_by_group": {
+    "PLAutomationFramework": 29,
+    "PLScriptAsync": 12,
+    "selected_core_support": 1
+  },
+  "exceptions": {
+    "engine_doc_origin": {
+      "git_path": "Engine/Plugins/Angelscript/references/cyancook-troubleshooting.md",
+      "p4_source": "Engine/Plugins/Angelscript/SKILL.md",
+      "source_p4_revision": 23,
+      "source_p4_cl": 149647,
+      "still_present_at_revision": 24,
+      "decision": "Do not replay P4-origin documentation under a second file."
+    },
+    "slate": "Process-wide input isolation has per-owner holds and retains MainDev background input, Slate-owned cursor and overlay; original native no-argument callers share a stable hold. No PLGameCore/Slate query rebinding.",
+    "retirement": "Fixed Git marked-only semantics: unmarked RunAsync is an error (006); a class without its own marked Step is invalid (007). Invalid-registration entries are diagnostic only. Explicitly marked methods named RunAsync and general async APIs are unaffected.",
+    "known_consumers": [
+      "Main/Script/Tests/1000_RuntimeTests/TestCase_11_UIInteraction.as",
+      "Main/Script/Tests/0100_FunctionTest/TestCase_9820_TypedAsyncResult.as"
+    ],
+    "known_impact": "Unmarked users are rejected during typed script declaration validation; test bodies were neither updated nor run. This is an intentional migration boundary, not an AS runtime acceptance claim.",
+    "uncommitted_forward": "21/21 forward worktree signatures retained on the same Git HEAD; no working-tree bytes used as merge inputs.",
+    "unrelated_default": "One unrelated file already in default remains untouched; no task file in default."
+  },
+  "validation": {
+    "pending_cl": 153762,
+    "changed": 42,
+    "p4_action_counts": {
+      "edit": 40,
+      "add": 2
+    },
+    "other_opened_initial": 38,
+    "initial_other_opened_exact": 38,
+    "other_opened_now": 38,
+    "other_metadata_or_content_changes": [],
+    "initial_default": 1,
+    "final_default": 1,
+    "signature_errors": [],
+    "scope_reconcile_preview": "42 exact paths; no remaining action",
+    "prior_submission": "14 submitted payloads match normalized expected SHA-256, 3 deletions verified by revision/action",
+    "prior_paths_verified": 17,
+    "native_build_attempts": [
+      {
+        "target": "ProjectLungfishEditor",
+        "platform": "Win64",
+        "configuration": "Development",
+        "project": "Main/ProjectLungfish.uproject",
+        "exit_code": 6,
+        "result": "Failed (OtherCompilationError)",
+        "total_actions": 38,
+        "observed_actions": {
+          "Compile": 29,
+          "Link": 5
+        },
+        "seconds": 47.11,
+        "log": "Main/Saved/AngelScriptSync/reverse-420ffb020173/ProjectLungfishEditor-01.log",
+        "log_sha256": "2f4fc5064f1a03b5708c9f1cb8450fc76e16c2dfed63962178f44cca8d9579fb",
+        "scope": "Superseded build: rejected Git-only lifetime fixture statics before final strict-entry revision."
+      },
+      {
+        "target": "ProjectLungfishEditor",
+        "platform": "Win64",
+        "configuration": "Development",
+        "project": "Main/ProjectLungfish.uproject",
+        "exit_code": 0,
+        "result": "Succeeded",
+        "total_actions": 23,
+        "observed_actions": {
+          "Compile": 18,
+          "Link": 4,
+          "WriteMetadata": 1
+        },
+        "seconds": 23.1,
+        "log": "Main/Saved/AngelScriptSync/reverse-420ffb020173/ProjectLungfishEditor-02.log",
+        "log_sha256": "185041ca32a51f7ada9e7014771d308ad1f04d12d0e48ddc03615df01513f32f"
+      }
+    ],
+    "final_build": {
+      "target": "ProjectLungfishEditor",
+      "platform": "Win64",
+      "configuration": "Development",
+      "project": "Main/ProjectLungfish.uproject",
+      "exit_code": 0,
+      "result": "Succeeded",
+      "total_actions": 23,
+      "observed_actions": {
+        "Compile": 18,
+        "Link": 4,
+        "WriteMetadata": 1
+      },
+      "seconds": 23.1,
+      "log": "Main/Saved/AngelScriptSync/reverse-420ffb020173/ProjectLungfishEditor-02.log",
+      "log_sha256": "185041ca32a51f7ada9e7014771d308ad1f04d12d0e48ddc03615df01513f32f"
+    },
+    "source_unchanged": true,
+    "forward_workspace_signatures_verified": 21,
+    "strict_registration_matches_fixed_source": true,
+    "as_suites_run": false,
+    "as_case_or_test_fixture_changed": false,
+    "shared_skills_changed": false,
+    "shelved": false,
+    "submitted": false
+  },
+  "unresolved_implementation_blockers": []
+}

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "verified_at": "2026-11-26T06:51:38.691174+00:00",
+  "verified_at": "2026-11-26T07:13:28Z",
   "latest_scoped_forward_sync": {
     "snapshot_id": "as-forward-87a01b4eb0ea",
     "verified_at": "2026-11-26T06:51:38.691174+00:00",
@@ -150,17 +150,46 @@
       "target_git_commit": "16878397b67eadbdf99690e4dd077c28f7862dca"
     },
     "unrealengine_angelscript_to_maindev": {
+      "snapshot_id": "as-reverse-420ffb020173",
+      "verified_at": "2026-11-26T07:13:28Z",
+      "direction": "unrealengine_angelscript_to_maindev",
+      "source_git_commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+      "manifest": "reverse-sync-153762-manifest.json",
+      "manifest_sha256_lf": "1c5d01658028f7c8e49e0a9e80f623fb079d7759c1b806db098a2b2b2e52750d",
+      "status": "verified_no_new_engine_payload",
+      "source_comparison_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+      "successful_git_cursor": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+      "cursor_scope": "Committed Engine increment checked only: no engine code change; the one Git documentation delta originated in P4 CL 149647 and is still present. This is not a byte-mirror or a submission of new Engine files.",
+      "counts": {
+        "edit": 0,
+        "add": 0,
+        "delete": 0
+      },
+      "target_pending_cl": null,
+      "target_submitted_cl": null,
+      "related_project_pending_cl": 153762,
+      "uncommitted_forward_files_excluded_combined": 21,
+      "validation": {
+        "target": "ProjectLungfishEditor Win64 Development",
+        "result": "Succeeded",
+        "exit_code": 0,
+        "log_path": "Main/Saved/AngelScriptSync/reverse-420ffb020173/ProjectLungfishEditor-02.log",
+        "scope": "Combined project build; no new Engine payload or AS runtime coverage claimed."
+      }
+    },
+    "historical_unrealengine_angelscript_to_maindev_20261117": {
       "snapshot_id": "backend-sync-20261117-f2410a78",
       "verified_at": "2026-11-17T08:27:05.318320+00:00",
       "direction": "unrealengine_angelscript_to_maindev",
-      "status": "validated_pending",
-      "current_worktree_status": "validated_pending",
+      "status": "submitted_content_verified",
+      "current_worktree_status": "historical_submitted_snapshot",
       "source_git_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
       "successful_git_cursor": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
       "source_comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
       "cursor_scope": "Engine common code verified against this commit; preserved documentation and source-only exceptions remain explicit. ProjectM correspondence advances only for selected closure files, not its whole profile.",
       "target_pending_cl": 150194,
-      "target_submitted_cl": null,
+      "target_submitted_cl": 153464,
+      "submission_evidence": "Prior closure payloads verified in submitted CL 153464: 14 normalized content hashes and 3 deletions. 150194 was the originally recorded pending number, not the submitted CL.",
       "workspaces": {
         "source": "unrealengine-angelscript",
         "target": "maindev",

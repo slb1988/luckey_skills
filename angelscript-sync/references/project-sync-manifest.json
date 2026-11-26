@@ -1,5 +1,11 @@
 {
   "schema_version": 1,
+  "latest_scoped_reverse_sync": {
+    "snapshot_id": "as-reverse-420ffb020173",
+    "verified_at": "2026-11-26T07:13:28Z",
+    "manifest": "reverse-sync-153762-manifest.json",
+    "scope": "Non-AS-test increment only; pending CL 153762, not submitted. See the separate manifest for source Git blobs, P4 base revisions, final hashes and strict RunAsync retirement."
+  },
   "latest_scoped_forward_sync": {
     "snapshot_id": "as-forward-87a01b4eb0ea",
     "verified_at": "2026-11-26T06:51:38.691174+00:00",

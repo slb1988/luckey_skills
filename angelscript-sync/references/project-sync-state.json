@@ -43,15 +43,63 @@
     "cursor_policy": "Per-file working-tree evidence only; no global ProjectM P4 cursor, no Git commit containing this delivery, no AS test or reverse-sync advancement."
   },
   "latest_scoped_reverse_sync": {
+    "snapshot_id": "as-reverse-420ffb020173",
+    "verified_at": "2026-11-26T07:13:28Z",
+    "direction": "unrealengine_angelscript_to_maindev",
+    "source_git_commit": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+    "manifest": "reverse-sync-153762-manifest.json",
+    "manifest_sha256_lf": "1c5d01658028f7c8e49e0a9e80f623fb079d7759c1b806db098a2b2b2e52750d",
+    "status": "validated_pending",
+    "scope": "Committed generic ProjectM plugin and selected Core/Tasks increment, excluding AS cases/test-only fixtures/archives; existing MainDev integrations retained.",
+    "source_comparison_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
+    "previous_closure_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
+    "successful_scoped_git_cursor": "ca7a41ed0919b5ae4cfcc26c16f51c7baa9412b5",
+    "target_pending_cl": 153762,
+    "target_submitted_cl": null,
+    "counts": {
+      "edit": 40,
+      "add": 2,
+      "delete": 0,
+      "by_group": {
+        "PLAutomationFramework": 29,
+        "PLScriptAsync": 12,
+        "selected_core_support": 1
+      }
+    },
+    "cursor_policy": "Pending content signatures only for the selected non-test increment. Neither the AS suite nor the full-project cursor advances; confirm an actual submission before recording a submitted CL.",
+    "retirement": "Implicit RunAsync planning, class registration and invocation/fallback removed. Explicitly marked PLStep methods remain valid regardless of name. Unmarked RunAsync and missing declared steps receive PLAUTOASYNC006/007 respectively.",
+    "known_impact": "Unmarked legacy cases, including TestCase_11_UIInteraction.as and TestCase_9820_TypedAsyncResult.as, will fail declaration validation. No AS tests were updated or run.",
+    "preservation": {
+      "main_dev_slate_cursor_and_background_input": true,
+      "forward_uncommitted_files_verified_and_excluded": 21,
+      "other_opened_unchanged": 38
+    },
+    "validation": {
+      "target": "ProjectLungfishEditor Win64 Development",
+      "result": "Succeeded",
+      "exit_code": 0,
+      "actions": 23,
+      "compile": 18,
+      "link": 4,
+      "metadata": 1,
+      "log_path": "Main/Saved/AngelScriptSync/reverse-420ffb020173/ProjectLungfishEditor-02.log",
+      "strict_registration_matches_source": true,
+      "as_suites_run": false,
+      "shelved": false,
+      "submitted": false
+    }
+  },
+  "historical_scoped_reverse_sync_20261117": {
     "snapshot_id": "backend-sync-20261117-f2410a78",
     "verified_at": "2026-11-17T08:27:05.318320+00:00",
     "direction": "unrealengine_angelscript_to_maindev",
-    "status": "validated_pending",
+    "status": "submitted_content_verified",
     "scope": "Only the nine ProjectM-profile entries in backend-sync-manifest.json: PLScriptAsync manual-prototype retirement and necessary callers.",
     "source_git_commit": "f2410a78ae11d3d8bf80e6876d8e1b3bc6a09460",
     "comparison_git_commit": "3800c4d38a91ea1e89a54012422dd83ce809f7ed",
     "target_pending_cl": 150194,
-    "target_submitted_cl": null,
+    "target_submitted_cl": 153464,
+    "submission_evidence": "Prior closure payloads verified in submitted CL 153464: 14 normalized content hashes and 3 deletions. 150194 was the originally recorded pending number, not the submitted CL.",
     "manifest": "backend-sync-manifest.json",
     "counts": {
       "modify": 5,
@@ -447,6 +495,8 @@
     },
     "unrealengine_angelscript_to_maindev": {
       "snapshot_id": "reverse-sync-20261105-144400-3800c4d38a91",
+      "latest_scoped_update": "#/latest_scoped_reverse_sync",
+      "scope_note": "This older full-profile record is historical. Use the separate latest scoped snapshot for the non-AS-test reverse merge.",
       "snapshot_role": "last_validated_snapshot_not_current_worktree",
       "current_worktree_status": "blocked_waiting_user_authorization",
       "last_attempt": {
