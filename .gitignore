@@ -7,6 +7,7 @@ memory-hub-workspace
 /pyauto-aireview-workspace/
 /pyauto-shared-workspace/
 /iflytek-learning-tablet-eval-workspace/
+/book-archive-workspace/
 
 # video-downloader - actual cookies (not templates)
 video-downloader/config/*_cookies.txt
